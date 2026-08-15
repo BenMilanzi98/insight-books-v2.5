@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -86,7 +87,7 @@ const FinancialChart = ({
     if (!data || (Array.isArray(data) && data.length === 0)) {
       return (
         <div className="h-full w-full flex items-center justify-center">
-          <p className="text-gray-500">No data available</p>
+          <p className="text-gray-500">{tt('No data available')}</p>
         </div>
       );
     }
@@ -183,7 +184,7 @@ const FinancialChart = ({
       default:
         return (
           <div className="h-full w-full flex items-center justify-center">
-            <p className="text-gray-500">Unsupported chart type</p>
+            <p className="text-gray-500">{tt('Unsupported chart type')}</p>
           </div>
         );
     }
@@ -201,12 +202,12 @@ const FinancialChart = ({
               value={activeTimeframe}
               onChange={handleTimeframeChange}
             >
-              <option value="thisMonth">This Month</option>
-              <option value="lastMonth">Last Month</option>
-              <option value="thisQuarter">This Quarter</option>
-              <option value="lastQuarter">Last Quarter</option>
-              <option value="thisYear">This Year</option>
-              <option value="lastYear">Last Year</option>
+              <option value="thisMonth">{tt('This Month')}</option>
+              <option value="lastMonth">{tt('Last Month')}</option>
+              <option value="thisQuarter">{tt('This Quarter')}</option>
+              <option value="lastQuarter">{tt('Last Quarter')}</option>
+              <option value="thisYear">{tt('This Year')}</option>
+              <option value="lastYear">{tt('Last Year')}</option>
             </select>
             <div className="absolute right-2 top-2 pointer-events-none">
               <ChevronDown size={14} className="text-gray-500" />

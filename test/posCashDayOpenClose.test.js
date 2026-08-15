@@ -156,7 +156,7 @@ describe('openPosCashDay', () => {
         tenantId: 'tenant-1',
         userId: 'user-1',
         sourceType: 'PosCashDayOpen',
-        sourceId: 'day-2:open:1',
+        sourceId: 'day-2_open_1',
         amount: 500,
         fromAccountId: 'cash-coa',
         toAccountId: 'till-coa',
@@ -500,7 +500,7 @@ describe('openPosCashDay', () => {
         dayId: 'day-orphan-risk',
         mode: 'create',
         journalId: 'journal-orphan-1',
-        sourceId: 'day-orphan-risk:open:1',
+        sourceId: 'day-orphan-risk_open_1',
       })
     );
     consoleError.mockRestore();
@@ -567,7 +567,7 @@ describe('closePosCashDay', () => {
         tenantId: 'tenant-1',
         userId: 'closer-1',
         sourceType: 'PosCashDayClose',
-        sourceId: 'day-close-1:close:2',
+        sourceId: 'day-close-1_close_2',
         amount: 125,
         fromAccountId: 'till-coa',
         toAccountId: 'cash-coa',

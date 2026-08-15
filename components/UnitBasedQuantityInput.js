@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
@@ -96,7 +97,7 @@ const UnitBasedQuantityInput = ({
       {/* Unit Quantity Table */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
-          <h4 className="text-sm font-medium text-gray-700">Quantity by Unit</h4>
+          <h4 className="text-sm font-medium text-gray-700">{tt('Quantity by Unit')}</h4>
         </div>
         
         <div className="divide-y divide-gray-200">
@@ -167,7 +168,7 @@ const UnitBasedQuantityInput = ({
       <div className="mt-3 p-3 bg-gray-50 rounded-md border">
         <div className="flex justify-between items-center">
           <span className="text-sm font-medium text-gray-700">
-            Total Quantity:
+            {tt('Total Quantity:')}
           </span>
           <span className="text-sm font-bold text-gray-900">
             {totalBaseQuantity.toFixed(6)} {getUnitSymbol(baseUnit)}
@@ -175,7 +176,7 @@ const UnitBasedQuantityInput = ({
         </div>
         <div className="flex justify-between items-center mt-1">
           <span className="text-sm font-medium text-gray-700">
-            Total Price:
+            {tt('Total Price:')}
           </span>
           <span className="text-sm font-bold text-green-600">
             {formatCurrency(totalPrice)}

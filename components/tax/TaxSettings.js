@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { Save, Plus, Trash, CheckCircle, AlertCircle } from "lucide-react";
@@ -192,9 +193,9 @@ export default function TaxSettings() {
   return (
     <div className="bg-white rounded-lg shadow-sm p-6">
       <div className="mb-6">
-        <h2 className="text-lg font-medium mb-2">Tax Configuration</h2>
+        <h2 className="text-lg font-medium mb-2">{tt('Tax Configuration')}</h2>
         <p className="text-gray-500 text-sm">
-          Manage your tax settings, rates, and filing information.
+          {tt('Manage your tax settings, rates, and filing information.')}
         </p>
       </div>
 
@@ -227,16 +228,16 @@ export default function TaxSettings() {
                 }
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
-              <span className="ml-2 text-gray-700">Enable Tax Calculations</span>
+              <span className="ml-2 text-gray-700">{tt('Enable Tax Calculations')}</span>
             </label>
             <p className="mt-1 text-sm text-gray-500">
-              Turn on to automatically calculate taxes on invoices and sales.
+              {tt('Turn on to automatically calculate taxes on invoices and sales.')}
             </p>
           </div>
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tax Registration Number
+              {tt('Tax Registration Number')}
             </label>
             <input
               type="text"
@@ -248,13 +249,13 @@ export default function TaxSettings() {
                 })
               }
               className="border border-gray-300 p-2 w-full rounded"
-              placeholder="Your tax registration number"
+              placeholder={tt('Your tax registration number')}
             />
           </div>
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tax Filing Period
+              {tt('Tax Filing Period')}
             </label>
             <select
               value={settings.taxPeriod}
@@ -266,16 +267,16 @@ export default function TaxSettings() {
               }
               className="border border-gray-300 p-2 w-full rounded"
             >
-              <option value="monthly">Monthly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="biannually">Bi-annually</option>
-              <option value="annually">Annually</option>
+              <option value="monthly">{tt('Monthly')}</option>
+              <option value="quarterly">{tt('Quarterly')}</option>
+              <option value="biannually">{tt('Bi-annually')}</option>
+              <option value="annually">{tt('Annually')}</option>
             </select>
           </div>
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tax Office
+              {tt('Tax Office')}
             </label>
             <input
               type="text"
@@ -287,13 +288,13 @@ export default function TaxSettings() {
                 })
               }
               className="border border-gray-300 p-2 w-full rounded"
-              placeholder="Your tax office"
+              placeholder={tt('Your tax office')}
             />
           </div>
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Next Filing Due Date
+              {tt('Next Filing Due Date')}
             </label>
             <input
               type="date"
@@ -310,7 +311,7 @@ export default function TaxSettings() {
         </div>
 
         <div>
-          <h3 className="text-md font-medium mb-3">Tax Rates</h3>
+          <h3 className="text-md font-medium mb-3">{tt('Tax Rates')}</h3>
           <div className="mb-4 border border-gray-200 rounded">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -319,7 +320,7 @@ export default function TaxSettings() {
                     scope="col"
                     className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
-                    Name
+                    {tt('Name')}
                   </th>
                   <th
                     scope="col"
@@ -331,13 +332,13 @@ export default function TaxSettings() {
                     scope="col"
                     className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
-                    Default
+                    {tt('Default')}
                   </th>
                   <th
                     scope="col"
                     className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
-                    Actions
+                    {tt('Actions')}
                   </th>
                 </tr>
               </thead>
@@ -376,12 +377,12 @@ export default function TaxSettings() {
           </div>
 
           <div className="mb-6 p-4 bg-gray-50 rounded border border-gray-200">
-            <h4 className="text-sm font-medium mb-3">Add New Tax Rate</h4>
+            <h4 className="text-sm font-medium mb-3">{tt('Add New Tax Rate')}</h4>
             <div className="grid grid-cols-3 gap-2 mb-2">
               <div>
                 <input
                   type="text"
-                  placeholder="Name"
+                  placeholder={tt('Name')}
                   value={newRate.name}
                   onChange={(e) =>
                     setNewRate({
@@ -395,7 +396,7 @@ export default function TaxSettings() {
               <div>
                 <input
                   type="number"
-                  placeholder="Rate %"
+                  placeholder={tt('Rate %')}
                   value={newRate.rate}
                   min="0"
                   step="0.01"
@@ -421,7 +422,7 @@ export default function TaxSettings() {
                     }
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-1"
                   />
-                  <span>Default</span>
+                  <span>{tt('Default')}</span>
                 </label>
               </div>
             </div>
@@ -430,7 +431,7 @@ export default function TaxSettings() {
               className="bg-blue-50 text-blue-600 px-3 py-1 rounded text-sm hover:bg-blue-100 flex items-center"
             >
               <Plus size={14} className="mr-1" />
-              Add Rate
+              {tt('Add Rate')}
             </button>
           </div>
         </div>
@@ -445,12 +446,12 @@ export default function TaxSettings() {
           {isSaving ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-blue-200 mr-2"></div>
-              Saving...
+              {tt('Saving...')}
             </>
           ) : (
             <>
               <Save size={16} className="mr-2" />
-              Save Tax Settings
+              {tt('Save Tax Settings')}
             </>
           )}
         </button>

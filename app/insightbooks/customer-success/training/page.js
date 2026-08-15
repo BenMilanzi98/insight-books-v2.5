@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import TrainingContextBar from '@/components/admin/customerSuccess/TrainingContextBar';
@@ -17,7 +18,7 @@ export default function CustomerSuccessTrainingPage() {
         permissionScope="customerSuccess.read"
       />
       <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
-        Customer Training
+        {tt('Customer Training')}
       </h1>
       <p style={{ color: '#555', marginBottom: '1.25rem' }}>
         Phase 22 / PRD 22 (tree phase-18 alias) — Overview, My Work, calendar,
@@ -27,56 +28,56 @@ export default function CustomerSuccessTrainingPage() {
       </p>
 
       <section style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Queues</h2>
+        <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>{tt('Queues')}</h2>
         <ul style={{ lineHeight: 1.8, columns: 2, maxWidth: 640 }}>
-          <li>New requests</li>
-          <li>Scheduling</li>
-          <li>In progress</li>
-          <li>At risk / blocked</li>
-          <li>Assessment / completion</li>
-          <li>Certificates</li>
+          <li>{tt('New requests')}</li>
+          <li>{tt('Scheduling')}</li>
+          <li>{tt('In progress')}</li>
+          <li>{tt('At risk / blocked')}</li>
+          <li>{tt('Assessment / completion')}</li>
+          <li>{tt('Certificates')}</li>
         </ul>
         <p style={{ fontSize: '0.875rem', color: '#777' }}>
           Thin placeholder — card counts not loaded on this hub (
           <code>UNAVAILABLE</code> / null). Server metrics via{' '}
-          <code>getTrainingOverviewCards</code> gate fail → UNAVAILABLE / null
+          <code>{tt('getTrainingOverviewCards')}</code> gate fail → UNAVAILABLE / null
           (never invents zeroes).
         </p>
       </section>
 
       <ul style={{ lineHeight: 1.8 }}>
         <li>
-          <Link href="/insightbooks/customer-success/training/my-work">My Work</Link>
+          <Link href="/insightbooks/customer-success/training/my-work">{tt('My Work')}</Link>
         </li>
         <li>
-          <Link href="/insightbooks/customer-success/training/queues">Queues</Link>
+          <Link href="/insightbooks/customer-success/training/queues">{tt('Queues')}</Link>
         </li>
         <li>
-          <Link href="/insightbooks/customer-success/training/calendar">Calendar</Link>
+          <Link href="/insightbooks/customer-success/training/calendar">{tt('Calendar')}</Link>
         </li>
         <li>
-          <Link href="/insightbooks/customer-success/training/at-risk">At-Risk</Link>
+          <Link href="/insightbooks/customer-success/training/at-risk">{tt('At-Risk')}</Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/training/completion">
-            Completion workspace
+            {tt('Completion workspace')}
           </Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/training/requests">
-            Training Requests
+            {tt('Training Requests')}
           </Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/training/programs">
-            Training Programs
+            {tt('Training Programs')}
           </Link>
         </li>
         <li>
-          <Link href="/insightbooks/customer-success/training/reports">Reports</Link>
+          <Link href="/insightbooks/customer-success/training/reports">{tt('Reports')}</Link>
         </li>
         <li>
-          <Link href="/insightbooks/customer-success/training/team">Team</Link>
+          <Link href="/insightbooks/customer-success/training/team">{tt('Team')}</Link>
         </li>
       </ul>
     </div>

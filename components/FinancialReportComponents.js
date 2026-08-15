@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/FinancialReportComponents.jsx
 import React, { useState, useEffect } from 'react';
 import { 
@@ -66,15 +67,15 @@ export const FinancialReport = ({
                   onChange={(e) => onTimeframeChange(e.target.value)}
                   disabled={loading}
                 >
-                  <option value="today">Today</option>
-                  <option value="singleDay">Pick a day…</option>
-                  <option value="thisMonth">This Month</option>
-                  <option value="lastMonth">Last Month</option>
-                  <option value="thisQuarter">This Quarter</option>
-                  <option value="lastQuarter">Last Quarter</option>
-                  <option value="thisYear">This Year</option>
-                  <option value="lastYear">Last Year</option>
-                  <option value="custom">Custom Range...</option>
+                  <option value="today">{tt('Today')}</option>
+                  <option value="singleDay">{tt('Pick a day…')}</option>
+                  <option value="thisMonth">{tt('This Month')}</option>
+                  <option value="lastMonth">{tt('Last Month')}</option>
+                  <option value="thisQuarter">{tt('This Quarter')}</option>
+                  <option value="lastQuarter">{tt('Last Quarter')}</option>
+                  <option value="thisYear">{tt('This Year')}</option>
+                  <option value="lastYear">{tt('Last Year')}</option>
+                  <option value="custom">{tt('Custom Range...')}</option>
                 </select>
                 <div className="absolute right-2 top-2.5 pointer-events-none">
                   <ChevronDown size={15} className="text-slate-400" />
@@ -102,13 +103,13 @@ export const FinancialReport = ({
                   disabled={loading}
                 >
                   <Download size={15} className="mr-1" />
-                  Export
+                  {tt('Export')}
                   <ChevronDown size={15} className="ml-1" />
                 </button>
                 <div className="absolute right-0 mt-1 w-40 bg-white border border-slate-200 rounded-xl shadow-lg hidden group-hover:block z-10 py-1">
-                  <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => onExport('pdf')}>Export as PDF</button>
-                  <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => onExport('csv')}>Export as CSV</button>
-                  <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => onExport('xlsx')}>Export as Excel</button>
+                  <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => onExport('pdf')}>{tt('Export as PDF')}</button>
+                  <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => onExport('csv')}>{tt('Export as CSV')}</button>
+                  <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => onExport('xlsx')}>{tt('Export as Excel')}</button>
                 </div>
               </div>
             )}
@@ -126,13 +127,13 @@ export const FinancialReport = ({
             <p>{error}</p>
           </div>
           <button className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors" onClick={onRefresh}>
-            Try Again
+            {tt('Try Again')}
           </button>
         </div>
       ) : loading ? (
         <div className="p-8 sm:p-12 text-center">
           <Loader2 size={36} className="mx-auto animate-spin text-emerald-600 mb-4" />
-          <p className="text-slate-500 text-sm">Loading report data...</p>
+          <p className="text-slate-500 text-sm">{tt('Loading report data...')}</p>
         </div>
       ) : (
         <div className="p-4 sm:p-6">
@@ -226,8 +227,8 @@ export const ProfitLossReport = ({
     return (
       <div className="text-center p-8 sm:p-10 bg-gradient-to-br from-slate-50 to-emerald-50/40 rounded-2xl border border-slate-200">
         <FileText size={48} className="mx-auto text-emerald-400 mb-4" />
-        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
-        <p className="text-slate-500 mt-2 text-sm">Please select a time period and generate the report.</p>
+        <h3 className="text-lg font-medium text-slate-800">{tt('No data available')}</h3>
+        <p className="text-slate-500 mt-2 text-sm">{tt('Please select a time period and generate the report.')}</p>
       </div>
     );
   }
@@ -287,14 +288,14 @@ export const ProfitLossReport = ({
                       ? data.logoUrl
                       : ''
                   }
-                  alt="Company Logo"
+                  alt={tt('Company Logo')}
                   className="h-16 sm:h-20 object-contain max-w-xs"
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />
               </div>
             )}
             <h1 className="text-xl sm:text-2xl font-bold text-slate-800">{companyName || 'Company'}</h1>
-            <h2 className="text-lg sm:text-xl font-semibold text-slate-600 mt-2">Income Statement</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-slate-600 mt-2">{tt('Income Statement')}</h2>
             <p className="text-sm text-slate-500 mt-1">For the period: {periodLabel}</p>
             <p className="text-xs text-slate-400 mt-0.5">
               Revenue and COGS are system-generated. Operating expenses list each expense account (or category) with activity in this period.
@@ -327,11 +328,11 @@ export const ProfitLossReport = ({
                   <th className="text-left py-3.5 px-4 sm:px-5 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-sm uppercase tracking-wide"></th>
                   {hasComparison && expandedSections.comparison && (
                     <>
-                      <th className="text-right py-3.5 px-4 sm:px-5 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-sm uppercase tracking-wide whitespace-nowrap">Previous</th>
-                      <th className="text-right py-3.5 px-4 sm:px-5 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-sm uppercase tracking-wide whitespace-nowrap">Change</th>
+                      <th className="text-right py-3.5 px-4 sm:px-5 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-sm uppercase tracking-wide whitespace-nowrap">{tt('Previous')}</th>
+                      <th className="text-right py-3.5 px-4 sm:px-5 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-sm uppercase tracking-wide whitespace-nowrap">{tt('Change')}</th>
                     </>
                   )}
-                  <th className="text-right py-3.5 px-4 sm:px-5 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-sm uppercase tracking-wide whitespace-nowrap">Current period</th>
+                  <th className="text-right py-3.5 px-4 sm:px-5 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-sm uppercase tracking-wide whitespace-nowrap">{tt('Current period')}</th>
                   <th className="text-right py-3.5 px-4 sm:px-5 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-sm uppercase tracking-wide whitespace-nowrap">% of revenue</th>
                 </tr>
               </thead>
@@ -339,7 +340,7 @@ export const ProfitLossReport = ({
                 {/* REVENUE SECTION */}
                 <tr className="bg-slate-50/80">
                   <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-3 px-4 sm:px-5 font-bold text-slate-700 uppercase text-xs sm:text-sm tracking-wide">
-                    Revenue
+                    {tt('Revenue')}
                   </td>
                 </tr>
                 
@@ -394,7 +395,7 @@ export const ProfitLossReport = ({
                 )}
                 
                 <tr className="border-t-2 border-slate-200 bg-slate-50/50">
-                  <td className="py-3 px-4 sm:px-5 font-semibold text-slate-800">Total Revenue</td>
+                  <td className="py-3 px-4 sm:px-5 font-semibold text-slate-800">{tt('Total Revenue')}</td>
                   {hasComparison && expandedSections.comparison && (
                     <>
                       <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{formatCurrency(data.previous?.revenue?.total || 0)}</td>
@@ -410,7 +411,7 @@ export const ProfitLossReport = ({
                 {/* COGS SECTION */}
                 <tr className="bg-slate-50/80">
                   <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-3 px-4 sm:px-5 font-bold text-slate-700 uppercase text-xs sm:text-sm tracking-wide">
-                    Cost of goods sold
+                    {tt('Cost of goods sold')}
                   </td>
                 </tr>
                 
@@ -465,7 +466,7 @@ export const ProfitLossReport = ({
                 )}
                 
                 <tr className="border-t border-slate-200">
-                  <td className="py-2 px-4 sm:px-5 font-semibold text-slate-800">Total Cost of Goods Sold</td>
+                  <td className="py-2 px-4 sm:px-5 font-semibold text-slate-800">{tt('Total Cost of Goods Sold')}</td>
                   {hasComparison && expandedSections.comparison && (
                     <>
                       <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{formatCurrency(getValue(data.previous?.cogs?.total) || 0)}</td>
@@ -479,8 +480,8 @@ export const ProfitLossReport = ({
                 </tr>
                 <tr className="border-t-2 border-slate-200 bg-slate-50/50">
                   <td className="py-3 px-4 sm:px-5 font-semibold text-slate-800">
-                    <span className="block">Gross profit</span>
-                    <span className="block text-xs font-normal text-slate-500 mt-0.5">Sales revenue − Cost of goods sold</span>
+                    <span className="block">{tt('Gross profit')}</span>
+                    <span className="block text-xs font-normal text-slate-500 mt-0.5">{tt('Sales revenue − Cost of goods sold')}</span>
                   </td>
                   {hasComparison && expandedSections.comparison && (
                     <>
@@ -497,7 +498,7 @@ export const ProfitLossReport = ({
                 {/* OPERATING EXPENSES */}
                 <tr className="bg-slate-50/80">
                   <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-3 px-4 sm:px-5 font-bold text-slate-700 uppercase text-xs sm:text-sm tracking-wide">
-                    <span className="block">Operating expenses</span>
+                    <span className="block">{tt('Operating expenses')}</span>
                     <span className="block text-xs font-normal text-slate-500 mt-0.5 normal-case">
                       All expense accounts with a balance this period (tracked expenses, payroll, depreciation)
                     </span>
@@ -545,12 +546,12 @@ export const ProfitLossReport = ({
                 ) : (
                   <tr>
                     <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-4 px-4 sm:px-5 text-center text-sm text-slate-500 italic">
-                      No operating expenses in this period. Expense accounts with activity will appear here.
+                      {tt('No operating expenses in this period. Expense accounts with activity will appear here.')}
                     </td>
                   </tr>
                 )}
                 <tr className="border-t border-slate-200">
-                  <td className="py-2 px-4 sm:px-5 font-semibold text-slate-800">Total Operating Expenses</td>
+                  <td className="py-2 px-4 sm:px-5 font-semibold text-slate-800">{tt('Total Operating Expenses')}</td>
                   {hasComparison && expandedSections.comparison && (
                     <>
                       <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{formatCurrency(getValue(data.previous?.operatingExpenses?.total) || 0)}</td>
@@ -564,8 +565,8 @@ export const ProfitLossReport = ({
                 </tr>
                 <tr className="border-t-2 border-slate-300 bg-slate-50/80">
                   <td className="py-3 px-4 sm:px-5 font-bold text-slate-800">
-                    <span className="block text-base sm:text-lg">Net profit / loss</span>
-                    <span className="block text-xs font-normal text-slate-500 mt-0.5 normal-case">Gross profit − Total operating expenses</span>
+                    <span className="block text-base sm:text-lg">{tt('Net profit / loss')}</span>
+                    <span className="block text-xs font-normal text-slate-500 mt-0.5 normal-case">{tt('Gross profit − Total operating expenses')}</span>
                   </td>
                   {hasComparison && expandedSections.comparison && (
                     <>
@@ -675,10 +676,10 @@ const DrillDownModal = ({ data, onClose }) => {
           <table className="min-w-full border-collapse">
             <thead>
               <tr className="bg-slate-50">
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Date</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Reference</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Description</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Amount</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Date')}</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Reference')}</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Description')}</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Amount')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -707,7 +708,7 @@ const DrillDownModal = ({ data, onClose }) => {
             </tbody>
             <tfoot>
               <tr className="bg-slate-50 font-semibold border-t border-slate-200">
-                <td colSpan={3} className="px-4 py-2.5 text-sm text-slate-800">Total</td>
+                <td colSpan={3} className="px-4 py-2.5 text-sm text-slate-800">{tt('Total')}</td>
                 <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(data.details.reduce((sum, d) => sum + (d.amount || d.cogsAmount || 0), 0))}</td>
               </tr>
             </tfoot>
@@ -746,8 +747,8 @@ export const BalanceSheetReport = ({
     return (
       <div className="text-center p-8 sm:p-10 bg-gradient-to-br from-slate-50 to-blue-50/40 rounded-2xl border border-slate-200">
         <FileText size={48} className="mx-auto text-blue-400 mb-4" />
-        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
-        <p className="text-slate-500 mt-2 text-sm">Select a time period and generate the report.</p>
+        <h3 className="text-lg font-medium text-slate-800">{tt('No data available')}</h3>
+        <p className="text-slate-500 mt-2 text-sm">{tt('Select a time period and generate the report.')}</p>
       </div>
     );
   }
@@ -788,7 +789,7 @@ export const BalanceSheetReport = ({
                       ? data.logoUrl
                       : ''
                   }
-                  alt="Company Logo" 
+                  alt={tt('Company Logo')} 
                   className="h-16 sm:h-20 object-contain max-w-xs"
                   onError={(e) => {
                     e.target.style.display = 'none';
@@ -797,14 +798,14 @@ export const BalanceSheetReport = ({
               </div>
             )}
             <h1 className="text-2xl font-bold text-slate-800">{companyName}</h1>
-            <h2 className="text-xl font-semibold text-slate-700 mt-2">Balance Sheet</h2>
+            <h2 className="text-xl font-semibold text-slate-700 mt-2">{tt('Balance Sheet')}</h2>
             <p className="text-sm text-slate-600 mt-1">As of {asOfDate}</p>
             </div>
 
           {hasComparison && (
             <div className="mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-slate-700">Comparing with previous year</span>
+                <span className="text-sm font-medium text-slate-700">{tt('Comparing with previous year')}</span>
                 <button
                   onClick={() => setExpandedSections(prev => ({ ...prev, comparison: !prev.comparison }))}
                   className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
@@ -821,9 +822,9 @@ export const BalanceSheetReport = ({
                 <tr className="bg-slate-50">
                   <th className="text-left py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200"></th>
                   {hasComparison && expandedSections.comparison && (
-                    <th className="text-right py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200">Previous year</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200">{tt('Previous year')}</th>
                   )}
-                  <th className="text-right py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200">Current</th>
+                  <th className="text-right py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200">{tt('Current')}</th>
                   <th className="text-right py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200">% of total assets</th>
                 </tr>
               </thead>
@@ -837,7 +838,7 @@ export const BalanceSheetReport = ({
                 </tr>
                 <tr className="bg-slate-100/80">
                   <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-semibold text-slate-700">
-                    Current assets
+                    {tt('Current assets')}
                   </td>
                 </tr>
 
@@ -894,7 +895,7 @@ export const BalanceSheetReport = ({
                 )}
 
                 <tr className="border-t border-slate-200">
-                  <td className="py-2 px-4 font-semibold text-slate-800">Total Current Assets</td>
+                  <td className="py-2 px-4 font-semibold text-slate-800">{tt('Total Current Assets')}</td>
                   {hasComparison && expandedSections.comparison && (
                     <td className="py-2 px-4 text-right font-semibold text-slate-800">
                       {formatCurrency(data.previousYear?.assets?.currentAssets?.total || 0)}
@@ -911,7 +912,7 @@ export const BalanceSheetReport = ({
                 {/* Non-Current Assets */}
                 <tr className="bg-slate-100">
                   <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-semibold text-slate-700">
-                    Non-Current Assets
+                    {tt('Non-Current Assets')}
                   </td>
                 </tr>
 
@@ -962,7 +963,7 @@ export const BalanceSheetReport = ({
                             </tr>
 
                     <tr>
-                      <td className="py-2 px-4 pl-12 text-slate-600 text-sm">Less: Accumulated Depreciation</td>
+                      <td className="py-2 px-4 pl-12 text-slate-600 text-sm">{tt('Less: Accumulated Depreciation')}</td>
                       {hasComparison && expandedSections.comparison && (
                         <td className="py-2 px-4 text-right text-slate-600 text-sm">
                           ({formatCurrency(data.previousYear?.assets?.nonCurrentAssets?.propertyPlantEquipment?.accumulatedDepreciation || 0)})
@@ -985,7 +986,7 @@ export const BalanceSheetReport = ({
                 )}
 
                 <tr className="border-t border-slate-200">
-                  <td className="py-2 px-4 font-semibold text-slate-800">Total Non-Current Assets</td>
+                  <td className="py-2 px-4 font-semibold text-slate-800">{tt('Total Non-Current Assets')}</td>
                   {hasComparison && expandedSections.comparison && (
                     <td className="py-2 px-4 text-right font-semibold text-slate-800">
                       {formatCurrency(data.previousYear?.assets?.nonCurrentAssets?.total || 0)}
@@ -1000,7 +1001,7 @@ export const BalanceSheetReport = ({
                       </tr>
 
                 <tr className="border-t-2 border-slate-300">
-                  <td className="py-3 px-4 font-bold text-lg text-slate-800">TOTAL ASSETS</td>
+                  <td className="py-3 px-4 font-bold text-lg text-slate-800">{tt('TOTAL ASSETS')}</td>
                   {hasComparison && expandedSections.comparison && (
                     <td className="py-3 px-4 text-right font-bold text-lg text-slate-800">
                       {formatCurrency(data.previousYear?.assets?.total || 0)}
@@ -1022,7 +1023,7 @@ export const BalanceSheetReport = ({
                 {/* Current Liabilities */}
                 <tr className="bg-slate-100">
                   <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-semibold text-slate-700">
-                    Current Liabilities
+                    {tt('Current Liabilities')}
                   </td>
                       </tr>
 
@@ -1076,7 +1077,7 @@ export const BalanceSheetReport = ({
                 )}
 
                 <tr className="border-t border-slate-200">
-                  <td className="py-2 px-4 font-semibold text-slate-800">Total Current Liabilities</td>
+                  <td className="py-2 px-4 font-semibold text-slate-800">{tt('Total Current Liabilities')}</td>
                   {hasComparison && expandedSections.comparison && (
                     <td className="py-2 px-4 text-right font-semibold text-slate-800">
                       {formatCurrency(data.previousYear?.liabilities?.currentLiabilities?.total || 0)}
@@ -1093,7 +1094,7 @@ export const BalanceSheetReport = ({
                 {/* Non-Current Liabilities */}
                 <tr className="bg-slate-100">
                   <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-semibold text-slate-700">
-                    Non-Current Liabilities
+                    {tt('Non-Current Liabilities')}
                   </td>
                         </tr>
 
@@ -1124,7 +1125,7 @@ export const BalanceSheetReport = ({
                 )}
 
                 <tr className="border-t border-slate-200">
-                  <td className="py-2 px-4 font-semibold text-slate-800">Total Non-Current Liabilities</td>
+                  <td className="py-2 px-4 font-semibold text-slate-800">{tt('Total Non-Current Liabilities')}</td>
                   {hasComparison && expandedSections.comparison && (
                     <td className="py-2 px-4 text-right font-semibold text-slate-800">
                       {formatCurrency(data.previousYear?.liabilities?.nonCurrentLiabilities?.total || data.previousYear?.liabilities?.longTermLiabilities?.total || 0)}
@@ -1139,7 +1140,7 @@ export const BalanceSheetReport = ({
                       </tr>
 
                 <tr className="border-t-2 border-slate-200">
-                  <td className="py-2 px-4 font-semibold text-slate-800">TOTAL LIABILITIES</td>
+                  <td className="py-2 px-4 font-semibold text-slate-800">{tt('TOTAL LIABILITIES')}</td>
                   {hasComparison && expandedSections.comparison && (
                     <td className="py-2 px-4 text-right font-semibold text-slate-800">
                       {formatCurrency(data.previousYear?.liabilities?.total || 0)}
@@ -1222,7 +1223,7 @@ export const BalanceSheetReport = ({
                 )}
 
                 <tr className="border-t border-slate-200">
-                  <td className="py-2 px-4 font-semibold text-slate-800">TOTAL EQUITY</td>
+                  <td className="py-2 px-4 font-semibold text-slate-800">{tt('TOTAL EQUITY')}</td>
                   {hasComparison && expandedSections.comparison && (
                     <td className="py-2 px-4 text-right font-semibold text-slate-800">
                       {formatCurrency(data.previousYear?.equity?.total || 0)}
@@ -1237,7 +1238,7 @@ export const BalanceSheetReport = ({
                         </tr>
 
                 <tr className="border-t-2 border-slate-300">
-                  <td className="py-3 px-4 font-bold text-lg text-slate-800">TOTAL LIABILITIES & EQUITY</td>
+                  <td className="py-3 px-4 font-bold text-lg text-slate-800">{tt('TOTAL LIABILITIES & EQUITY')}</td>
                   {hasComparison && expandedSections.comparison && (
                     <td className="py-3 px-4 text-right font-bold text-lg text-slate-800">
                       {formatCurrency(data.previousYear?.totalLiabilitiesAndEquity || 0)}
@@ -1265,7 +1266,7 @@ export const BalanceSheetReport = ({
                 )}
                 <div>
                   <h3 className={`font-semibold ${isBalanced ? 'text-green-800' : 'text-red-800'}`}>
-                    Balance Verification
+                    {tt('Balance Verification')}
                   </h3>
                   <p className={`text-sm ${isBalanced ? 'text-green-700' : 'text-red-700'}`}>
                     {isBalanced 
@@ -1286,28 +1287,28 @@ export const BalanceSheetReport = ({
           {/* Financial Ratios */}
           {data.ratios && (
             <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-50/60 via-slate-50 to-blue-50/60 rounded-2xl border border-slate-200">
-              <h3 className="text-lg font-semibold text-slate-800 mb-4 border-l-4 border-emerald-500 pl-3">Financial ratios</h3>
+              <h3 className="text-lg font-semibold text-slate-800 mb-4 border-l-4 border-emerald-500 pl-3">{tt('Financial ratios')}</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-3 rounded-xl bg-white/80 border border-emerald-100">
-                  <p className="text-sm text-emerald-700 mb-1">Current ratio</p>
+                  <p className="text-sm text-emerald-700 mb-1">{tt('Current ratio')}</p>
                   <p className="text-xl font-semibold text-slate-800">
                     {data.ratios.currentRatio ? data.ratios.currentRatio.toFixed(2) : 'N/A'}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">Current Assets ÷ Current Liabilities</p>
+                  <p className="text-xs text-slate-500 mt-1">{tt('Current Assets ÷ Current Liabilities')}</p>
                 </div>
                 <div className="p-3 rounded-xl bg-white/80 border border-blue-100">
-                  <p className="text-sm text-blue-700 mb-1">Quick ratio</p>
+                  <p className="text-sm text-blue-700 mb-1">{tt('Quick ratio')}</p>
                   <p className="text-xl font-semibold text-slate-800">
                     {data.ratios.quickRatio ? data.ratios.quickRatio.toFixed(2) : 'N/A'}
                   </p>
                   <p className="text-xs text-slate-500 mt-1">(Cash + AR) ÷ Current Liabilities</p>
                 </div>
                 <div className="p-3 rounded-xl bg-white/80 border border-sky-100">
-                  <p className="text-sm text-sky-700 mb-1">Debt-to-equity</p>
+                  <p className="text-sm text-sky-700 mb-1">{tt('Debt-to-equity')}</p>
                   <p className="text-xl font-semibold text-slate-800">
                     {data.ratios.debtToEquity ? (data.ratios.debtToEquity < 0.01 ? data.ratios.debtToEquity.toFixed(4) : data.ratios.debtToEquity.toFixed(2)) : 'N/A'}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">Total Liabilities ÷ Total Equity</p>
+                  <p className="text-xs text-slate-500 mt-1">{tt('Total Liabilities ÷ Total Equity')}</p>
                 </div>
               </div>
             </div>
@@ -1396,65 +1397,65 @@ const BalanceSheetDrillDownModal = ({ data, onClose }) => {
               <tr className="bg-slate-50">
                 {data.type === 'Accounts Receivable' && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Invoice #</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Client</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Due Date</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Total</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Paid</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Balance Due</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Invoice #')}</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Client')}</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Due Date')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Total')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Paid')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Balance Due')}</th>
                   </>
                 )}
                 {data.type === 'Accounts Payable' && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Description</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Merchant</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Total</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Paid</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Balance Due</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Date')}</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Description')}</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Merchant')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Total')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Paid')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Balance Due')}</th>
                   </>
                 )}
                 {data.type === 'Property, Plant & Equipment' && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Asset Name</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Category</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Purchase Date</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Original Cost</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Accum. Depreciation</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Net Book Value</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Asset Name')}</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Category')}</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Purchase Date')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Original Cost')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Accum. Depreciation')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Net Book Value')}</th>
                   </>
                 )}
                 {data.type === 'Inventory' && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Product Name</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Quantity</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Cost per Unit</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Total Value</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Product Name')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Quantity')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Cost per Unit')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Total Value')}</th>
                   </>
                 )}
                 {data.type === 'Property, Plant & Equipment' && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Asset Name</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Category</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Purchase Date</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Original Cost</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Accum. Depreciation</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Net Book Value</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Asset Name')}</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Category')}</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Purchase Date')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Original Cost')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Accum. Depreciation')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Net Book Value')}</th>
                   </>
                 )}
                 {data.type === 'Inventory' && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Product</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Quantity</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Cost</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Value</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Product')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Quantity')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Cost')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Value')}</th>
                   </>
                 )}
                 {!['Accounts Receivable', 'Accounts Payable', 'Property, Plant & Equipment', 'Inventory'].includes(data.type) && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Account Code</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Account Name</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Balance</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Account Code')}</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Account Name')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Balance')}</th>
                   </>
                 )}
               </tr>
@@ -1540,7 +1541,7 @@ const BalanceSheetDrillDownModal = ({ data, onClose }) => {
                   data.type === 'Inventory' ? 3 : 
                   data.type === 'Property, Plant & Equipment' ? 5 :
                   data.type === 'Accounts Receivable' || data.type === 'Accounts Payable' ? 5 : 2
-                } className="px-4 py-2 text-sm text-slate-800">Total</td>
+                } className="px-4 py-2 text-sm text-slate-800">{tt('Total')}</td>
                 <td className="px-4 py-2 text-sm text-slate-800 text-right">
                   {formatCurrency(data.items.reduce((sum, item) => {
                     if (data.type === 'Accounts Receivable' || data.type === 'Accounts Payable') {
@@ -1579,8 +1580,8 @@ export const TaxSummaryReport = ({
     return (
       <div className="text-center p-8 sm:p-10 bg-slate-50 rounded-2xl border border-slate-200">
         <FileText size={48} className="mx-auto text-slate-400 mb-4" />
-        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
-        <p className="text-slate-500 mt-2 text-sm">Select a time period and generate the report.</p>
+        <h3 className="text-lg font-medium text-slate-800">{tt('No data available')}</h3>
+        <p className="text-slate-500 mt-2 text-sm">{tt('Select a time period and generate the report.')}</p>
       </div>
     );
   }
@@ -1601,17 +1602,17 @@ export const TaxSummaryReport = ({
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
             <div className="bg-gradient-to-br from-emerald-50 to-white p-4 sm:p-5 rounded-2xl border border-emerald-200/80 shadow-sm border-l-4 border-l-emerald-500">
-              <h3 className="text-sm font-medium text-emerald-700 mb-1">Total collected tax</h3>
+              <h3 className="text-sm font-medium text-emerald-700 mb-1">{tt('Total collected tax')}</h3>
               <p className="min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(data.collectedTaxes.totalCollectedTax)}</p>
               <p className="text-xs text-slate-500 mt-1">From taxable amount of {formatCurrency(data.collectedTaxes.totalTaxableAmount)}</p>
             </div>
             <div className="bg-gradient-to-br from-blue-50 to-white p-4 sm:p-5 rounded-2xl border border-blue-200/80 shadow-sm border-l-4 border-l-blue-500">
-              <h3 className="text-sm font-medium text-blue-700 mb-1">Total tax paid</h3>
+              <h3 className="text-sm font-medium text-blue-700 mb-1">{tt('Total tax paid')}</h3>
               <p className="min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(data.paidTaxes.totalTaxPaid)}</p>
               <p className="text-xs text-slate-500 mt-1">From {data.paidTaxes.expenses.length} tax-related expenses</p>
             </div>
             <div className="bg-gradient-to-br from-sky-50 to-white p-4 sm:p-5 rounded-2xl border border-sky-200/80 shadow-sm border-l-4 border-l-sky-500">
-              <h3 className="text-sm font-medium text-sky-700 mb-1">Net tax liability</h3>
+              <h3 className="text-sm font-medium text-sky-700 mb-1">{tt('Net tax liability')}</h3>
               <p className={`min-w-0 break-words text-xl font-semibold leading-tight tabular-nums sm:text-2xl ${data.netTaxLiability >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(data.netTaxLiability)}</p>
               <p className="text-xs text-slate-500 mt-1">{data.netTaxLiability >= 0 ? 'Tax to be paid' : 'Tax credit'}</p>
             </div>
@@ -1619,14 +1620,14 @@ export const TaxSummaryReport = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">Collected taxes by rate</h3>
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">{tt('Collected taxes by rate')}</h3>
               <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50">
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Tax rate</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Taxable amount</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Tax amount</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Tax rate')}</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Taxable amount')}</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Tax amount')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white">
@@ -1638,7 +1639,7 @@ export const TaxSummaryReport = ({
                       </tr>
                     ))}
                     <tr className="font-semibold bg-slate-50 border-t border-slate-200">
-                      <td className="px-4 py-2.5 text-sm text-slate-800">Total</td>
+                      <td className="px-4 py-2.5 text-sm text-slate-800">{tt('Total')}</td>
                       <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(data.collectedTaxes.totalTaxableAmount)}</td>
                       <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(data.collectedTaxes.totalCollectedTax)}</td>
                     </tr>
@@ -1648,14 +1649,14 @@ export const TaxSummaryReport = ({
             </div>
             
             <div>
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">Tax expenses</h3>
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">{tt('Tax expenses')}</h3>
               <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
                 <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50">
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Category</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Amount</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Description')}</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Category')}</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Amount')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white">
@@ -1668,11 +1669,11 @@ export const TaxSummaryReport = ({
                     ))}
                     {data.paidTaxes.expenses.length === 0 && (
                       <tr>
-                        <td colSpan="3" className="px-4 py-6 text-sm text-slate-500 text-center">No tax expenses recorded</td>
+                        <td colSpan="3" className="px-4 py-6 text-sm text-slate-500 text-center">{tt('No tax expenses recorded')}</td>
                       </tr>
                     )}
                     <tr className="font-semibold bg-slate-50 border-t border-slate-200">
-                      <td colSpan="2" className="px-4 py-2.5 text-sm text-slate-800">Total tax paid</td>
+                      <td colSpan="2" className="px-4 py-2.5 text-sm text-slate-800">{tt('Total tax paid')}</td>
                       <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(data.paidTaxes.totalTaxPaid)}</td>
                     </tr>
                   </tbody>
@@ -1682,18 +1683,18 @@ export const TaxSummaryReport = ({
           </div>
 
           <div className="mt-8 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-50 via-emerald-50/40 to-blue-50/40 border border-slate-200">
-            <h3 className="text-base font-semibold text-slate-800 mb-3 border-l-4 border-emerald-500 pl-3">Tax summary</h3>
+            <h3 className="text-base font-semibold text-slate-800 mb-3 border-l-4 border-emerald-500 pl-3">{tt('Tax summary')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-3 rounded-xl bg-white/70">
-                <p className="text-sm text-slate-600 mb-1">Total sales tax collected</p>
+                <p className="text-sm text-slate-600 mb-1">{tt('Total sales tax collected')}</p>
                 <p className="text-lg font-semibold text-slate-800">{formatCurrency(data.collectedTaxes.totalCollectedTax)}</p>
               </div>
               <div className="p-3 rounded-xl bg-white/70">
-                <p className="text-sm text-slate-600 mb-1">Total tax paid out</p>
+                <p className="text-sm text-slate-600 mb-1">{tt('Total tax paid out')}</p>
                 <p className="text-lg font-semibold text-slate-800">{formatCurrency(data.paidTaxes.totalTaxPaid)}</p>
               </div>
               <div className="p-3 rounded-xl bg-white/70">
-                <p className="text-sm text-slate-600 mb-1">Net tax position</p>
+                <p className="text-sm text-slate-600 mb-1">{tt('Net tax position')}</p>
                 <p className={`text-lg font-semibold ${data.netTaxLiability >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(data.netTaxLiability)}</p>
                 <p className="text-xs text-slate-500 mt-1">
                   {data.netTaxLiability >= 0 ? 'You need to remit this amount to the tax authority' : 'You may be due a tax refund of this amount'}
@@ -1733,8 +1734,8 @@ export const AgingReportTable = ({
     return (
       <div className="text-center p-8 sm:p-10 bg-slate-50 rounded-2xl border border-slate-200">
         <FileText size={48} className="mx-auto text-slate-400 mb-4" />
-        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
-        <p className="text-slate-500 mt-2 text-sm">Generate the report to view aging summary.</p>
+        <h3 className="text-lg font-medium text-slate-800">{tt('No data available')}</h3>
+        <p className="text-slate-500 mt-2 text-sm">{tt('Generate the report to view aging summary.')}</p>
       </div>
     );
   }
@@ -1920,7 +1921,7 @@ export const AgingReportTable = ({
                   {agingBuckets.map(bucket => (
                     <th key={bucket.label} className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{bucket.label}</th>
                   ))}
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Total</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Total')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
@@ -1939,7 +1940,7 @@ export const AgingReportTable = ({
                   </tr>
                 )}
                 <tr className="font-semibold bg-slate-50 border-t-2 border-slate-200">
-                  <td className="px-4 py-2.5 text-sm text-slate-800">Total</td>
+                  <td className="px-4 py-2.5 text-sm text-slate-800">{tt('Total')}</td>
                   {agingBuckets.map(bucket => (
                     <td key={bucket.label} className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(bucketTotals[bucket.label])}</td>
                   ))}
@@ -1959,10 +1960,10 @@ export const AgingReportTable = ({
                   <tr className="bg-slate-50">
                     <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{type === 'receivable' ? 'Invoice #' : 'Bill #'}</th>
                     <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{type === 'receivable' ? 'Customer' : 'Vendor'}</th>
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Due date</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Days past due</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Amount</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Date')}</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Due date')}</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Days past due')}</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Amount')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white">
@@ -2036,8 +2037,8 @@ export const CashFlowReport = ({
     return (
       <div className="text-center p-8 sm:p-10 bg-slate-50 rounded-2xl border border-slate-200">
         <FileText size={48} className="mx-auto text-slate-400 mb-4" />
-        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
-        <p className="text-slate-500 mt-2 text-sm">Select a time period and generate the report.</p>
+        <h3 className="text-lg font-medium text-slate-800">{tt('No data available')}</h3>
+        <p className="text-slate-500 mt-2 text-sm">{tt('Select a time period and generate the report.')}</p>
       </div>
     );
   }
@@ -2190,14 +2191,14 @@ export const CashFlowReport = ({
               <thead>
                 <tr>
                   <th className="text-left py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200"></th>
-                  <th className="text-right py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200">Amount</th>
+                  <th className="text-right py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200">{tt('Amount')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {/* CASH INFLOWS SECTION */}
                 <tr className="bg-slate-50">
                   <td colSpan="2" className="py-2 px-4 font-bold text-slate-800 uppercase">
-                    CASH INFLOWS
+                    {tt('CASH INFLOWS')}
                   </td>
                 </tr>
 
@@ -2217,12 +2218,12 @@ export const CashFlowReport = ({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="2" className="py-2 px-4 text-slate-500 text-center italic">No cash inflows recorded</td>
+                    <td colSpan="2" className="py-2 px-4 text-slate-500 text-center italic">{tt('No cash inflows recorded')}</td>
                   </tr>
                 )}
 
                 <tr className="border-t border-slate-200">
-                  <td className="py-2 px-4 font-semibold text-slate-800">Total Cash Inflows</td>
+                  <td className="py-2 px-4 font-semibold text-slate-800">{tt('Total Cash Inflows')}</td>
                   <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {formatCurrency(totalInflows)}
                   </td>
@@ -2231,7 +2232,7 @@ export const CashFlowReport = ({
                 {/* CASH OUTFLOWS SECTION */}
                 <tr className="bg-slate-50">
                   <td colSpan="2" className="py-2 px-4 font-bold text-slate-800 uppercase">
-                    CASH OUTFLOWS
+                    {tt('CASH OUTFLOWS')}
                   </td>
                 </tr>
 
@@ -2251,40 +2252,40 @@ export const CashFlowReport = ({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="2" className="py-2 px-4 text-slate-500 text-center italic">No cash outflows recorded</td>
+                    <td colSpan="2" className="py-2 px-4 text-slate-500 text-center italic">{tt('No cash outflows recorded')}</td>
                   </tr>
                 )}
 
                 <tr className="border-t border-slate-200">
-                  <td className="py-2 px-4 font-semibold text-slate-800">Total Cash Outflows</td>
+                  <td className="py-2 px-4 font-semibold text-slate-800">{tt('Total Cash Outflows')}</td>
                   <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {formatCurrency(totalOutflows)}
                   </td>
                 </tr>
 
                 <tr className="border-t-2 border-slate-200">
-                  <td className="py-2 px-4 font-semibold text-slate-800">NET CASH FLOW</td>
+                  <td className="py-2 px-4 font-semibold text-slate-800">{tt('NET CASH FLOW')}</td>
                   <td className={`py-2 px-4 text-right font-semibold text-slate-800 ${netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {formatCurrency(netCashFlow)}
                   </td>
                 </tr>
 
                 <tr className="border-t-2 border-slate-300">
-                  <td className="py-3 px-4 font-semibold text-slate-800">Opening Cash Balance</td>
+                  <td className="py-3 px-4 font-semibold text-slate-800">{tt('Opening Cash Balance')}</td>
                   <td className="py-3 px-4 text-right font-semibold text-slate-800">
                     {formatCurrency(openingBalance)}
                   </td>
                 </tr>
 
                 <tr>
-                  <td className="py-2 px-4 text-slate-600">Add: Net Cash Flow</td>
+                  <td className="py-2 px-4 text-slate-600">{tt('Add: Net Cash Flow')}</td>
                   <td className={`py-2 px-4 text-right text-slate-600 ${netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {formatCurrency(netCashFlow)}
                   </td>
                 </tr>
 
                 <tr className="border-t-2 border-slate-300">
-                  <td className="py-3 px-4 font-bold text-lg text-slate-800">Closing Cash Balance</td>
+                  <td className="py-3 px-4 font-bold text-lg text-slate-800">{tt('Closing Cash Balance')}</td>
                   <td className="py-3 px-4 text-right font-bold text-lg text-slate-800">
                     {formatCurrency(closingBalance)}
                   </td>
@@ -2357,10 +2358,10 @@ const CashFlowDrillDownModal = ({ data, onClose }) => {
               <table className="min-w-full">
             <thead>
               <tr className="bg-slate-50">
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Reference</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Description</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Amount</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Date')}</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Reference')}</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Description')}</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Amount')}</th>
                   </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -2389,7 +2390,7 @@ const CashFlowDrillDownModal = ({ data, onClose }) => {
             </tbody>
             <tfoot>
               <tr className="bg-slate-50 font-semibold">
-                <td colSpan="3" className="px-4 py-2 text-sm text-slate-800">Total</td>
+                <td colSpan="3" className="px-4 py-2 text-sm text-slate-800">{tt('Total')}</td>
                     <td className="px-4 py-2 text-sm text-slate-800 text-right">
                   {formatCurrency(data.items.reduce((sum, item) => sum + (item.amount || 0), 0))}
                     </td>

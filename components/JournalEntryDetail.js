@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -119,7 +120,7 @@ useEffect(() => {
         <div className="bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded flex items-center">
           <AlertCircle className="mr-3" size={24} />
           <div>
-            <h3 className="font-bold">Error</h3>
+            <h3 className="font-bold">{tt('Error')}</h3>
             <p>{error}</p>
           </div>
         </div>
@@ -129,7 +130,7 @@ useEffect(() => {
             className="flex items-center text-blue-600 hover:text-blue-800"
           >
             <ArrowLeft size={16} className="mr-2" />
-            Back to General Ledger
+            {tt('Back to General Ledger')}
           </button>
         </div>
       </div>
@@ -141,14 +142,14 @@ useEffect(() => {
       <div className="container mx-auto px-4 py-6">
         <div className="flex flex-col items-center justify-center h-64">
           <FileText size={48} className="text-gray-400 mb-4" />
-          <h2 className="text-xl font-medium mb-2">Journal Entry Not Found</h2>
-          <p className="text-gray-500 mb-6">The journal entry you're looking for doesn't exist or you don't have permission to view it.</p>
+          <h2 className="text-xl font-medium mb-2">{tt('Journal Entry Not Found')}</h2>
+          <p className="text-gray-500 mb-6">{tt("The journal entry you're looking for doesn't exist or you don't have permission to view it.")}</p>
           <button
             onClick={handleBack}
             className="flex items-center text-blue-600 hover:text-blue-800"
           >
             <ArrowLeft size={16} className="mr-2" />
-            Back to General Ledger
+            {tt('Back to General Ledger')}
           </button>
         </div>
       </div>
@@ -176,7 +177,7 @@ useEffect(() => {
           >
             <ArrowLeft size={20} />
           </button>
-          <h1 className="text-2xl font-bold">Journal Entry Details</h1>
+          <h1 className="text-2xl font-bold">{tt('Journal Entry Details')}</h1>
         </div>
         <div className="flex gap-2">
           <button
@@ -184,13 +185,13 @@ useEffect(() => {
             className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded flex items-center gap-2"
           >
             <Printer size={16} />
-            Print
+            {tt('Print')}
           </button>
           {!isPosted && (
             <Link href={`/accounting/journal-entries/edit/${id}`}>
               <button className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded flex items-center gap-2">
                 <Edit size={16} />
-                Edit
+                {tt('Edit')}
               </button>
             </Link>
           )}
@@ -200,7 +201,7 @@ useEffect(() => {
               className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded flex items-center gap-2"
             >
               <Trash2 size={16} />
-              Delete
+              {tt('Delete')}
             </button>
           )}
         </div>
@@ -208,14 +209,14 @@ useEffect(() => {
       
       {/* Title for print */}
       <div className="hidden print:block mb-6">
-        <h1 className="text-2xl font-bold text-center">Journal Entry</h1>
+        <h1 className="text-2xl font-bold text-center">{tt('Journal Entry')}</h1>
       </div>
       
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 print:hidden">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-bold mb-4">Confirm Delete</h3>
+            <h3 className="text-lg font-bold mb-4">{tt('Confirm Delete')}</h3>
             <p className="mb-6">Are you sure you want to delete this journal entry? This action cannot be undone.</p>
             <div className="flex justify-end gap-3">
               <button
@@ -223,7 +224,7 @@ useEffect(() => {
                 className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
                 disabled={isDeleting}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 onClick={handleDelete}
@@ -241,13 +242,13 @@ useEffect(() => {
       <div className="bg-white rounded-lg shadow-sm p-6 print:shadow-none print:p-0">
         {isPosted && (
           <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-            Posted entries are read-only. Corrections must be made via reversal or a new adjusting entry.
+            {tt('Posted entries are read-only. Corrections must be made via reversal or a new adjusting entry.')}
           </div>
         )}
         {/* Summary and metadata */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="flex flex-col">
-            <div className="text-gray-500 text-sm">Date</div>
+            <div className="text-gray-500 text-sm">{tt('Date')}</div>
             <div className="flex items-center mt-1">
               <Calendar size={16} className="text-gray-400 mr-2" />
               <div className="font-medium">{formatDate(journalEntry.date)}</div>
@@ -255,7 +256,7 @@ useEffect(() => {
           </div>
           
           <div className="flex flex-col">
-            <div className="text-gray-500 text-sm">Reference</div>
+            <div className="text-gray-500 text-sm">{tt('Reference')}</div>
             <div className="flex items-center mt-1">
               <FileText size={16} className="text-gray-400 mr-2" />
               <div className="font-medium">{journalEntry.referenceNumber || journalEntry.reference || "N/A"}</div>
@@ -263,24 +264,24 @@ useEffect(() => {
           </div>
           
           <div className="flex flex-col">
-            <div className="text-gray-500 text-sm">Entry Type</div>
+            <div className="text-gray-500 text-sm">{tt('Entry Type')}</div>
             <div className="flex items-center mt-1">
               <div className="font-medium">{journalEntry.entryType || "Correction"}</div>
             </div>
           </div>
           
           <div className="flex flex-col">
-            <div className="text-gray-500 text-sm">Status</div>
+            <div className="text-gray-500 text-sm">{tt('Status')}</div>
             <div className="flex items-center mt-1">
               {isBalanced ? (
                 <>
                   <CheckCircle size={16} className="text-green-500 mr-2" />
-                  <div className="text-green-600 font-medium">Balanced</div>
+                  <div className="text-green-600 font-medium">{tt('Balanced')}</div>
                 </>
               ) : (
                 <>
                   <AlertCircle size={16} className="text-red-500 mr-2" />
-                  <div className="text-red-600 font-medium">Unbalanced</div>
+                  <div className="text-red-600 font-medium">{tt('Unbalanced')}</div>
                 </>
               )}
             </div>
@@ -289,26 +290,26 @@ useEffect(() => {
         
         {/* Description */}
         <div className="mb-8">
-          <div className="text-gray-500 text-sm mb-1">Description</div>
+          <div className="text-gray-500 text-sm mb-1">{tt('Description')}</div>
           <div className="p-4 bg-gray-50 rounded">{journalEntry.description}</div>
         </div>
         
         <div className="mb-8">
-          <div className="text-gray-500 text-sm mb-1">Internal Reference / Tag</div>
+          <div className="text-gray-500 text-sm mb-1">{tt('Internal Reference / Tag')}</div>
           <div className="p-4 bg-gray-50 rounded">{journalEntry.notes || "—"}</div>
         </div>
         
         {/* Journal Entry Lines */}
         <div className="mb-6">
-          <h2 className="text-lg font-medium mb-4">Entry Lines</h2>
+          <h2 className="text-lg font-medium mb-4">{tt('Entry Lines')}</h2>
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
                 <tr className="bg-gray-50 text-left">
-                  <th className="p-3 font-medium text-gray-500 text-sm">Account</th>
-                  <th className="p-3 font-medium text-gray-500 text-sm">Description</th>
-                  <th className="p-3 font-medium text-gray-500 text-sm text-right">Debit</th>
-                  <th className="p-3 font-medium text-gray-500 text-sm text-right">Credit</th>
+                  <th className="p-3 font-medium text-gray-500 text-sm">{tt('Account')}</th>
+                  <th className="p-3 font-medium text-gray-500 text-sm">{tt('Description')}</th>
+                  <th className="p-3 font-medium text-gray-500 text-sm text-right">{tt('Debit')}</th>
+                  <th className="p-3 font-medium text-gray-500 text-sm text-right">{tt('Credit')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -331,7 +332,7 @@ useEffect(() => {
                 {/* Totals row */}
                 <tr className="border-t-2 border-gray-300 font-medium">
                   <td colSpan={2} className="p-3 text-right">
-                    Totals:
+                    {tt('Totals:')}
                   </td>
                   <td className="p-3 text-right">
                     {formatCurrency(journalEntry.totalDebit)}

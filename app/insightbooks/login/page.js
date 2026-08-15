@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { adminFetch } from '@/lib/admin/adminApi';
 
@@ -80,15 +81,15 @@ export default function AdminLogin() {
           <div className="relative">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-[var(--admin-radius,0.5rem)] bg-white text-lg font-bold text-slate-900">
-                IB
+                {tt('IB')}
               </div>
               <div>
-                <p className="text-xl font-semibold tracking-tight">InsightBooks</p>
-                <p className="text-sm text-slate-300">Admin portal</p>
+                <p className="text-xl font-semibold tracking-tight">{tt('InsightBooks')}</p>
+                <p className="text-sm text-slate-300">{tt('Admin portal')}</p>
               </div>
             </div>
             <p className="mt-10 max-w-sm text-sm leading-relaxed text-slate-300">
-              Calm operations console for tenants, billing, affiliates, and platform health.
+              {tt('Calm operations console for tenants, billing, affiliates, and platform health.')}
             </p>
           </div>
           <p className="relative text-xs text-slate-400">
@@ -101,19 +102,19 @@ export default function AdminLogin() {
             <div className="mb-8 lg:hidden">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-[var(--admin-radius,0.5rem)] bg-slate-900 text-sm font-bold text-white">
-                  IB
+                  {tt('IB')}
                 </div>
                 <div>
-                  <p className="text-lg font-semibold">InsightBooks</p>
-                  <p className="text-sm text-[var(--admin-text-muted,#64748b)]">Admin portal</p>
+                  <p className="text-lg font-semibold">{tt('InsightBooks')}</p>
+                  <p className="text-sm text-[var(--admin-text-muted,#64748b)]">{tt('Admin portal')}</p>
                 </div>
               </div>
             </div>
 
             <div className="rounded-[var(--admin-radius,0.5rem)] border border-[var(--admin-border,#e2e8f0)] bg-[var(--admin-surface,#fff)] p-6 shadow-sm sm:p-8">
-              <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
+              <h1 className="text-xl font-semibold tracking-tight">{tt('Sign in')}</h1>
               <p className="mt-1 text-sm text-[var(--admin-text-muted,#64748b)]">
-                Access the system administration panel
+                {tt('Access the system administration panel')}
               </p>
 
               {error ? (
@@ -133,7 +134,7 @@ export default function AdminLogin() {
               <form onSubmit={handleSubmit} className="mt-6 space-y-4">
                 <div>
                   <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
-                    Admin email
+                    {tt('Admin email')}
                   </label>
                   <div className="relative">
                     <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--admin-text-muted,#64748b)]" aria-hidden />
@@ -143,7 +144,7 @@ export default function AdminLogin() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="h-11 w-full rounded-[var(--admin-radius,0.5rem)] border border-[var(--admin-border,#e2e8f0)] bg-white py-2 pl-9 pr-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--admin-focus-ring,#334155)]"
-                      placeholder="admin@example.com"
+                      placeholder={tt('admin@example.com')}
                       autoComplete="username"
                       required
                     />
@@ -152,7 +153,7 @@ export default function AdminLogin() {
 
                 <div>
                   <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
-                    Password
+                    {tt('Password')}
                   </label>
                   <div className="relative">
                     <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--admin-text-muted,#64748b)]" aria-hidden />
@@ -162,7 +163,7 @@ export default function AdminLogin() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="h-11 w-full rounded-[var(--admin-radius,0.5rem)] border border-[var(--admin-border,#e2e8f0)] bg-white py-2 pl-9 pr-10 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--admin-focus-ring,#334155)]"
-                      placeholder="Enter your password"
+                      placeholder={tt('Enter your password')}
                       autoComplete="current-password"
                       required
                     />

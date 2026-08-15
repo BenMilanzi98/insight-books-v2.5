@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -109,7 +110,7 @@ export default function AffiliateCommissionsPage() {
         description="One eligible conversion → one commission. Replays use idempotency keys — no double-pay."
         actions={
           <button type="button" onClick={load} className={btnGhost}>
-            <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+            <RefreshCw className="h-4 w-4" aria-hidden /> {tt('Refresh')}
           </button>
         }
       />

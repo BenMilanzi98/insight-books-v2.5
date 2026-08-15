@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -12,10 +13,10 @@ export default function TrainingProgramSessionsTab() {
           ← Program
         </Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem' }}>Sessions</h1>
+      <h1 style={{ fontSize: '1.25rem' }}>{tt('Sessions')}</h1>
       <p style={{ color: '#555' }}>
         TRS-YYYY-###### linked to Phase 13 Meetings. RSVP ≠ attendance. Virtual provider:{' '}
-        <code>VIRTUAL_PROVIDER_NOT_CONFIGURED</code>.
+        <code>{tt('VIRTUAL_PROVIDER_NOT_CONFIGURED')}</code>.
       </p>
     </div>
   );

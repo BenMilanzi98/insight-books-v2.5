@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -152,7 +153,7 @@ export default function MarketingTaxonomyView() {
               {seeding ? 'Seeding…' : 'Seed defaults'}
             </button>
             <button type="button" className={btnGhost} onClick={load} disabled={loading}>
-              Refresh
+              {tt('Refresh')}
             </button>
           </div>
         }

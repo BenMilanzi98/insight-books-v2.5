@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { adminFetch } from '@/lib/admin/adminApi';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -75,7 +76,7 @@ export default function AdminMraEisCataloguePage() {
         breadcrumb={
           <>
             <Link href="/insightbooks/mra-eis" className="underline">
-              MRA EIS
+              {tt('MRA EIS')}
             </Link>
             {' / '}
             Catalogue
@@ -96,10 +97,10 @@ export default function AdminMraEisCataloguePage() {
           className={inputCls}
           value={environment}
           onChange={(e) => setEnvironment(e.target.value)}
-          aria-label="Environment display filter"
+          aria-label={tt('Environment display filter')}
         />
         <button type="button" className={btnPrimary} onClick={load}>
-          Refresh product mappings
+          {tt('Refresh product mappings')}
         </button>
       </div>
 

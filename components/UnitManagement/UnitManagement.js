@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from 'react';
 import { Switch } from '@headlessui/react';
@@ -36,7 +37,7 @@ const UnitManagement = ({
       <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
         <div>
           <h3 className="text-sm font-medium text-gray-900">
-            Flexible Unit Management
+            {tt('Flexible Unit Management')}
           </h3>
           <p className="text-xs text-gray-500 mt-1">
             Enable to sell this product in multiple units (e.g., kg, g, lb) with auto-calculated pricing
@@ -106,7 +107,7 @@ const UnitManagement = ({
       {!isEnabled && (
         <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
           <div className="text-sm text-gray-600">
-            <p className="font-medium mb-1">Single Unit Mode</p>
+            <p className="font-medium mb-1">{tt('Single Unit Mode')}</p>
             <p>
               This product will use a single unit for all operations. 
               Enable flexible unit management above to sell in multiple units with auto-calculated pricing based on conversion rates.

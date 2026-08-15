@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/charts/ExpenseChart.jsx
 import React from 'react';
 import {
@@ -25,7 +26,7 @@ export const ExpenseTrendChart = ({ data }) => {
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
-        <p className="text-gray-500">No expense data available for visualization</p>
+        <p className="text-gray-500">{tt('No expense data available for visualization')}</p>
       </div>
     );
   }
@@ -38,7 +39,7 @@ export const ExpenseTrendChart = ({ data }) => {
 
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-      <h3 className="text-lg font-medium text-gray-800 mb-4">Monthly Expense Trend</h3>
+      <h3 className="text-lg font-medium text-gray-800 mb-4">{tt('Monthly Expense Trend')}</h3>
       <ResponsiveContainer width="100%" height={300}>
         <LineChart
           data={data}
@@ -87,7 +88,7 @@ export const ExpenseByCategoryChart = ({ data }) => {
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
-        <p className="text-gray-500">No category data available for visualization</p>
+        <p className="text-gray-500">{tt('No category data available for visualization')}</p>
       </div>
     );
   }
@@ -126,7 +127,7 @@ export const ExpenseByCategoryChart = ({ data }) => {
 
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-      <h3 className="text-lg font-medium text-gray-800 mb-4">Expenses by Category</h3>
+      <h3 className="text-lg font-medium text-gray-800 mb-4">{tt('Expenses by Category')}</h3>
       <div className="flex flex-col items-center">
         <ResponsiveContainer width="100%" height={300}>
           <PieChart>

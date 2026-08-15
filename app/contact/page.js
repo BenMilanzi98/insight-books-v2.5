@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
@@ -123,10 +124,10 @@ function DemoRequestForm() {
       {/* Header Section */}
       <div className="text-center mb-12">
         <h2 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-4">
-          Request a Demo
+          {tt('Request a Demo')}
         </h2>
         <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-          Experience InsightBooks in action. Fill out the form below and we'll schedule a personalized demo tailored to your business needs.
+          {tt("Experience InsightBooks in action. Fill out the form below and we'll schedule a personalized demo tailored to your business needs.")}
         </p>
       </div>
 
@@ -142,14 +143,14 @@ function DemoRequestForm() {
             {/* Business Information Section */}
             <div className="space-y-6">
               <div className="flex items-center space-x-3 mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Business Information</h3>
+                <h3 className="text-xl font-semibold text-gray-800">{tt('Business Information')}</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label htmlFor="businessName" className="block text-sm font-semibold text-gray-700 flex items-center">
                     <span className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></span>
-                    Business Name *
+                    {tt('Business Name *')}
                   </label>
                   <div className="relative">
                     <input
@@ -160,7 +161,7 @@ function DemoRequestForm() {
                       onChange={handleInputChange}
                       required
                       className="w-full px-4 py-4 pl-12 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all duration-200 text-gray-800 placeholder-gray-400"
-                      placeholder="Enter your business name"
+                      placeholder={tt('Enter your business name')}
                     />
                     <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
                       🏢
@@ -171,7 +172,7 @@ function DemoRequestForm() {
                 <div className="space-y-2">
                   <label htmlFor="clientName" className="block text-sm font-semibold text-gray-700 flex items-center">
                     <span className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></span>
-                    Your Name *
+                    {tt('Your Name *')}
                   </label>
                   <div className="relative">
                     <input
@@ -182,7 +183,7 @@ function DemoRequestForm() {
                       onChange={handleInputChange}
                       required
                       className="w-full px-4 py-4 pl-12 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all duration-200 text-gray-800 placeholder-gray-400"
-                      placeholder="Enter your full name"
+                      placeholder={tt('Enter your full name')}
                     />
                     <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
                       👤
@@ -198,14 +199,14 @@ function DemoRequestForm() {
                 <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-green-600 rounded-lg flex items-center justify-center">
                   <span className="text-white text-sm font-bold">📞</span>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-800">Contact Information</h3>
+                <h3 className="text-xl font-semibold text-gray-800">{tt('Contact Information')}</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label htmlFor="email" className="block text-sm font-semibold text-gray-700 flex items-center">
                     <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                    Email Address *
+                    {tt('Email Address *')}
                   </label>
                   <div className="relative">
                     <input
@@ -216,7 +217,7 @@ function DemoRequestForm() {
                       onChange={handleInputChange}
                       required
                       className="w-full px-4 py-4 pl-12 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all duration-200 text-gray-800 placeholder-gray-400"
-                      placeholder="your@email.com"
+                      placeholder={tt('your@email.com')}
                     />
                     <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
                       ✉️
@@ -227,7 +228,7 @@ function DemoRequestForm() {
                 <div className="space-y-2">
                   <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 flex items-center">
                     <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                    Phone Number *
+                    {tt('Phone Number *')}
                   </label>
                   <div className="relative">
                     <input
@@ -254,13 +255,13 @@ function DemoRequestForm() {
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-sky-600 rounded-lg flex items-center justify-center">
                   <span className="text-white text-sm font-bold">📅</span>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-800">Demo Scheduling</h3>
+                <h3 className="text-xl font-semibold text-gray-800">{tt('Demo Scheduling')}</h3>
               </div>
 
               <div className="space-y-4">
                 <label htmlFor="dateTime" className="block text-sm font-semibold text-gray-700 flex items-center">
                   <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
-                  Preferred Demo Date & Time
+                  {tt('Preferred Demo Date & Time')}
                 </label>
 
                 <div className="relative">
@@ -289,7 +290,7 @@ function DemoRequestForm() {
                       <span className="text-white text-xs">ℹ️</span>
                     </div>
                     <div className="flex-1">
-                      <h4 className="text-sm font-semibold text-purple-800 mb-2">Demo Scheduling Info</h4>
+                      <h4 className="text-sm font-semibold text-purple-800 mb-2">{tt('Demo Scheduling Info')}</h4>
                       <ul className="text-sm text-purple-700 space-y-1">
                         <li>• Business hours: Monday-Friday 8AM-6PM, Saturday 9AM-2PM</li>
                         <li>• Demos typically last 30-60 minutes</li>
@@ -302,7 +303,7 @@ function DemoRequestForm() {
 
                 {/* Quick Time Suggestions */}
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Quick suggestions:</p>
+                  <p className="text-sm font-medium text-gray-700">{tt('Quick suggestions:')}</p>
                   <div className="flex flex-wrap gap-2">
                     {getQuickTimeSuggestions().map((suggestion, index) => (
                       <button
@@ -325,13 +326,13 @@ function DemoRequestForm() {
                 <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
                   <span className="text-white text-sm font-bold">💡</span>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-800">Business Needs</h3>
+                <h3 className="text-xl font-semibold text-gray-800">{tt('Business Needs')}</h3>
               </div>
 
               <div className="space-y-2">
                 <label htmlFor="body" className="block text-sm font-semibold text-gray-700 flex items-center">
                   <span className="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
-                  Tell us about your business needs *
+                  {tt('Tell us about your business needs *')}
                 </label>
                 <div className="relative">
                   <textarea
@@ -378,12 +379,12 @@ function DemoRequestForm() {
                   {isSubmitting ? (
                     <>
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Submitting...</span>
+                      <span>{tt('Submitting...')}</span>
                     </>
                   ) : (
                     <>
                       <span>🚀</span>
-                      <span>Request Demo</span>
+                      <span>{tt('Request Demo')}</span>
                     </>
                   )}
                 </span>
@@ -407,34 +408,34 @@ function ContactContent() {
         <div>
           {/* <div className="flex items-center mb-8">
             <div className="h-10 w-10 rounded-md bg-white text-blue-800 flex items-center justify-center font-bold text-xl mr-3">
-              IB
+              {tt('IB')}
             </div>
-            <h1 className="text-2xl font-bold">InsightBooks</h1>
+            <h1 className="text-2xl font-bold">{tt('InsightBooks')}</h1>
           </div> */}
           <div className="flex items-center">
             <img
             src="/logo.png"
-            alt="InsightBooks Logo"
+            alt={tt('InsightBooks Logo')}
             className="h-10 w-auto object-contain rounded-md"
             />
           </div>
           <div className="max-w-md mt-6">
             <h2 className="text-3xl font-bold mb-6">Need help with InsightBooks?</h2>
             <p className="mb-4">
-              Our team is ready to assist you with anything — billing, onboarding, or product questions.
+              {tt('Our team is ready to assist you with anything — billing, onboarding, or product questions.')}
             </p>
             <div className="mt-8">
               <div className="flex items-center mb-4">
                 <div className="h-8 w-8 rounded-full bg-indigo-700 flex items-center justify-center mr-3">✓</div>
-                <span>Quick response via WhatsApp</span>
+                <span>{tt('Quick response via WhatsApp')}</span>
               </div>
               <div className="flex items-center mb-4">
                 <div className="h-8 w-8 rounded-full bg-indigo-700 flex items-center justify-center mr-3">✓</div>
-                <span>Support in English</span>
+                <span>{tt('Support in English')}</span>
               </div>
               <div className="flex items-center">
                 <div className="h-8 w-8 rounded-full bg-indigo-700 flex items-center justify-center mr-3">✓</div>
-                <span>Human assistance, not bots</span>
+                <span>{tt('Human assistance, not bots')}</span>
               </div>
             </div>
           </div>
@@ -469,8 +470,8 @@ function ContactContent() {
                     <span className="text-2xl">💬</span>
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-800">WhatsApp Chat</h3>
-                    <p className="text-gray-600">Instant response • Available 24/7</p>
+                    <h3 className="text-xl font-bold text-gray-800">{tt('WhatsApp Chat')}</h3>
+                    <p className="text-gray-600">{tt('Instant response • Available 24/7')}</p>
                   </div>
                 </div>
 
@@ -481,7 +482,7 @@ function ContactContent() {
                   className="group/btn w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 px-6 rounded-xl font-bold text-lg hover:from-green-600 hover:to-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 focus:ring-offset-2 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center justify-center space-x-3"
                 >
                   <span className="text-xl">📱</span>
-                  <span>Start WhatsApp Chat</span>
+                  <span>{tt('Start WhatsApp Chat')}</span>
                   <span className="text-xl group-hover/btn:translate-x-1 transition-transform duration-200">→</span>
                 </a>
               </div>
@@ -497,15 +498,15 @@ function ContactContent() {
                       <span className="text-white text-lg">✉️</span>
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-800">Email Support</p>
-                      <p className="text-sm text-gray-600">Response within 24 hours</p>
+                      <p className="font-semibold text-gray-800">{tt('Email Support')}</p>
+                      <p className="text-sm text-gray-600">{tt('Response within 24 hours')}</p>
                     </div>
                   </div>
                   <a
                     href="mailto:insightinnovationsltd@gmail.com"
                     className="text-blue-600 hover:text-blue-700 font-medium hover:underline transition-colors duration-200"
                   >
-                    Send Email →
+                    {tt('Send Email →')}
                   </a>
                 </div>
               </div>
@@ -519,7 +520,7 @@ function ContactContent() {
               className="inline-flex items-center space-x-2 text-indigo-600 hover:text-indigo-700 font-medium hover:underline transition-colors duration-200"
             >
               <span>←</span>
-              <span>Back to Home</span>
+              <span>{tt('Back to Home')}</span>
             </Link>
           </div>
         </div>
@@ -533,7 +534,7 @@ const ContactPage = () => {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-pulse">Loading...</div>
+          <div className="animate-pulse">{tt('Loading...')}</div>
         </div>
       }
     >

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -60,12 +61,12 @@ export default function MraEisOfflinePage() {
       <header className="space-y-2">
         <p className="text-sm text-slate-600">
           <Link href="/settings/integrations/mra-eis" className="underline">
-            MRA EIS
+            {tt('MRA EIS')}
           </Link>
           {' / '}
           Certified Offline
         </p>
-        <h1 className="text-2xl font-semibold text-slate-900">Certified Offline EIS</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">{tt('Certified Offline EIS')}</h1>
         <p className="text-sm text-slate-700" role="status">
           Offline mode is disabled by default. Network loss alone does not enable offline
           fiscalization. Browser-only signing and localStorage queues are not authoritative.
@@ -78,11 +79,11 @@ export default function MraEisOfflinePage() {
         </div>
       ) : null}
 
-      {loading ? <p>Loading…</p> : null}
+      {loading ? <p>{tt('Loading…')}</p> : null}
 
       <section className="space-y-2" aria-labelledby="contracts-heading">
         <h2 id="contracts-heading" className="text-lg font-medium">
-          Contract decisions
+          {tt('Contract decisions')}
         </h2>
         {contracts ? (
           <dl className="grid gap-2 text-sm sm:grid-cols-2">
@@ -98,7 +99,7 @@ export default function MraEisOfflinePage() {
 
       <section className="space-y-3" aria-labelledby="capability-heading">
         <h2 id="capability-heading" className="text-lg font-medium">
-          Capability evaluation
+          {tt('Capability evaluation')}
         </h2>
         <label className="block text-sm">
           Terminal ID (optional)
@@ -113,16 +114,16 @@ export default function MraEisOfflinePage() {
           onClick={evaluateCapability}
           className="rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white"
         >
-          Evaluate offline capability
+          {tt('Evaluate offline capability')}
         </button>
         {capability ? (
           <div className="rounded border border-slate-200 p-3 text-sm">
             <p>
-              <strong>Entry allowed:</strong>{' '}
+              <strong>{tt('Entry allowed:')}</strong>{' '}
               <span>{capability.offlineEntryAllowed ? 'Yes (mock path)' : 'No'}</span>
             </p>
             <p>
-              <strong>Certification:</strong> {capability.certificationStatus}
+              <strong>{tt('Certification:')}</strong> {capability.certificationStatus}
             </p>
             {capability.blockers?.length ? (
               <ul className="mt-2 list-disc pl-5">
@@ -131,10 +132,10 @@ export default function MraEisOfflinePage() {
                 ))}
               </ul>
             ) : (
-              <p className="mt-2 text-slate-600">No blockers for current mock evaluation.</p>
+              <p className="mt-2 text-slate-600">{tt('No blockers for current mock evaluation.')}</p>
             )}
             <p className="mt-2 text-slate-600">
-              Production offline remains blocked until CERTIFIED_PRODUCTION and verified contracts.
+              {tt('Production offline remains blocked until CERTIFIED_PRODUCTION and verified contracts.')}
             </p>
           </div>
         ) : null}
@@ -142,20 +143,20 @@ export default function MraEisOfflinePage() {
 
       <section className="space-y-2" aria-labelledby="agents-heading">
         <h2 id="agents-heading" className="text-lg font-medium">
-          Trusted agents
+          {tt('Trusted agents')}
         </h2>
         {agents.length === 0 ? (
-          <p className="text-sm text-slate-600">No agents registered.</p>
+          <p className="text-sm text-slate-600">{tt('No agents registered.')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead>
                 <tr>
-                  <th scope="col">Agent</th>
-                  <th scope="col">Terminal</th>
-                  <th scope="col">Lifecycle</th>
-                  <th scope="col">Trust</th>
-                  <th scope="col">Environment</th>
+                  <th scope="col">{tt('Agent')}</th>
+                  <th scope="col">{tt('Terminal')}</th>
+                  <th scope="col">{tt('Lifecycle')}</th>
+                  <th scope="col">{tt('Trust')}</th>
+                  <th scope="col">{tt('Environment')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -176,14 +177,14 @@ export default function MraEisOfflinePage() {
 
       <section className="space-y-2 text-sm text-slate-700" aria-labelledby="truth-heading">
         <h2 id="truth-heading" className="text-lg font-medium text-slate-900">
-          Truthful statuses
+          {tt('Truthful statuses')}
         </h2>
         <ul className="list-disc space-y-1 pl-5">
-          <li>Online — Connected to MRA EIS when online transmission is available.</li>
+          <li>{tt('Online — Connected to MRA EIS when online transmission is available.')}</li>
           <li>Offline candidate — Connectivity unstable; verifying offline eligibility.</li>
           <li>Offline active — Certified offline mode is active (agent-gated).</li>
           <li>Upload pending — Created offline; awaiting MRA upload (not yet accepted).</li>
-          <li>Unknown upload — Will not be resent until Phase 15 reconciliation completes.</li>
+          <li>{tt('Unknown upload — Will not be resent until Phase 15 reconciliation completes.')}</li>
         </ul>
       </section>
     </main>

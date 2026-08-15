@@ -1,5 +1,6 @@
 'use client';
 
+import { tx } from '@/lib/i18n/runtime';
 import { cn } from '@/lib/utils';
 import EmptyState from './EmptyState';
 import MobileDataCard from './MobileDataCard';
@@ -38,7 +39,7 @@ export default function DataTable({
                     col.className
                   )}
                 >
-                  {col.header}
+                  {tx(col.header)}
                 </th>
               ))}
             </tr>
@@ -82,7 +83,7 @@ export default function DataTable({
           const fields = columns
             .filter((c) => !c.hideOnMobile && c !== titleCol)
             .map((c) => ({
-              label: c.header,
+              label: tx(c.header),
               value: c.cell ? c.cell(row) : row[c.key],
             }));
           return (

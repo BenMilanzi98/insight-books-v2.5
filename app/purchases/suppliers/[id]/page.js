@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -56,7 +57,7 @@ export default function SupplierLedgerPage() {
     return (
       <div className="w-full">
         <div className="mx-auto max-w-4xl rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
-          Loading supplier ledger…
+          {tt('Loading supplier ledger…')}
         </div>
       </div>
     );
@@ -71,7 +72,7 @@ export default function SupplierLedgerPage() {
             href="/purchases/suppliers"
             className="mt-4 inline-flex items-center gap-2 text-indigo-600 hover:underline"
           >
-            <ArrowLeft size={16} /> Back to Suppliers
+            <ArrowLeft size={16} /> {tt('Back to Suppliers')}
           </Link>
         </div>
       </div>
@@ -88,7 +89,7 @@ export default function SupplierLedgerPage() {
               href="/purchases/suppliers"
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              <ArrowLeft size={18} /> Back to Suppliers
+              <ArrowLeft size={18} /> {tt('Back to Suppliers')}
             </Link>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">
@@ -104,7 +105,7 @@ export default function SupplierLedgerPage() {
         <div className="space-y-6 rounded-xl border border-gray-200 bg-white shadow-sm">
           {loading ? (
             <div className="flex justify-center py-12 text-gray-500">
-              Loading transactions…
+              {tt('Loading transactions…')}
             </div>
           ) : (
             <div className="p-6 space-y-6">
@@ -113,19 +114,19 @@ export default function SupplierLedgerPage() {
                 <div className="rounded-lg border border-gray-200 bg-white p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
                     <DollarSign size={16} className="text-indigo-600" />
-                    Total Owed
+                    {tt('Total Owed')}
                   </div>
                   <div className="mt-2 text-2xl font-bold text-red-600">
                     {formatMoney(summary.totalOwed || 0)}
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
-                    Bills + Expenses outstanding
+                    {tt('Bills + Expenses outstanding')}
                   </div>
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-white p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
                     <FileText size={16} className="text-blue-600" />
-                    Total Billed
+                    {tt('Total Billed')}
                   </div>
                   <div className="mt-2 text-2xl font-bold text-gray-900">
                     {formatMoney(summary.totalBilled || 0)}
@@ -137,25 +138,25 @@ export default function SupplierLedgerPage() {
                 <div className="rounded-lg border border-gray-200 bg-white p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
                     <TrendingDown size={16} className="text-green-600" />
-                    Total Paid
+                    {tt('Total Paid')}
                   </div>
                   <div className="mt-2 text-2xl font-bold text-green-600">
                     {formatMoney(summary.totalPaid || 0)}
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
-                    Bills + Expenses paid
+                    {tt('Bills + Expenses paid')}
                   </div>
                 </div>
                 <div className="rounded-lg border border-gray-200 bg-white p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
                     <TrendingUp size={16} className="text-orange-600" />
-                    Current Balance
+                    {tt('Current Balance')}
                   </div>
                   <div className="mt-2 text-2xl font-bold text-orange-600">
                     {formatMoney(summary.currentBalance ?? supplier?.currentBalance ?? 0)}
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
-                    From supplier record
+                    {tt('From supplier record')}
                   </div>
                 </div>
               </div>
@@ -171,19 +172,19 @@ export default function SupplierLedgerPage() {
                 <div className="p-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div>
-                      <div className="text-xs text-gray-500">Total</div>
+                      <div className="text-xs text-gray-500">{tt('Total')}</div>
                       <div className="text-lg font-semibold text-gray-900">{bills.totalBills ?? 0}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Amount</div>
+                      <div className="text-xs text-gray-500">{tt('Amount')}</div>
                       <div className="text-lg font-semibold text-gray-900">{formatMoney(bills.totalBillsAmount)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Paid</div>
+                      <div className="text-xs text-gray-500">{tt('Paid')}</div>
                       <div className="text-lg font-semibold text-green-600">{formatMoney(bills.totalBillsPaid)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Outstanding</div>
+                      <div className="text-xs text-gray-500">{tt('Outstanding')}</div>
                       <div className="text-lg font-semibold text-red-600">{formatMoney(bills.billsOutstanding)}</div>
                     </div>
                   </div>
@@ -192,12 +193,12 @@ export default function SupplierLedgerPage() {
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Bill #</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Amount</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Paid</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Balance</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Status</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Bill #')}</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Date')}</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Amount')}</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Paid')}</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Balance')}</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Status')}</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -225,7 +226,7 @@ export default function SupplierLedgerPage() {
                       </table>
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">No bills</p>
+                    <p className="text-sm text-gray-500">{tt('No bills')}</p>
                   )}
                 </div>
               </div>
@@ -241,19 +242,19 @@ export default function SupplierLedgerPage() {
                 <div className="p-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div>
-                      <div className="text-xs text-gray-500">Total</div>
+                      <div className="text-xs text-gray-500">{tt('Total')}</div>
                       <div className="text-lg font-semibold text-gray-900">{expenses.totalExpenses ?? 0}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Amount</div>
+                      <div className="text-xs text-gray-500">{tt('Amount')}</div>
                       <div className="text-lg font-semibold text-gray-900">{formatMoney(expenses.totalExpensesAmount)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Paid</div>
+                      <div className="text-xs text-gray-500">{tt('Paid')}</div>
                       <div className="text-lg font-semibold text-green-600">{formatMoney(expenses.totalExpensesPaid)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Outstanding</div>
+                      <div className="text-xs text-gray-500">{tt('Outstanding')}</div>
                       <div className="text-lg font-semibold text-red-600">{formatMoney(expenses.expensesOutstanding)}</div>
                     </div>
                   </div>
@@ -262,11 +263,11 @@ export default function SupplierLedgerPage() {
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Description</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Amount</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Paid</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Status</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Description')}</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Date')}</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Amount')}</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Paid')}</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Status')}</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -293,7 +294,7 @@ export default function SupplierLedgerPage() {
                       </table>
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">No expenses</p>
+                    <p className="text-sm text-gray-500">{tt('No expenses')}</p>
                   )}
                 </div>
               </div>
@@ -310,15 +311,15 @@ export default function SupplierLedgerPage() {
                   <div className="p-4">
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
                       <div>
-                        <div className="text-xs text-gray-500">Total Payments</div>
+                        <div className="text-xs text-gray-500">{tt('Total Payments')}</div>
                         <div className="text-lg font-semibold text-gray-900">{payments.totalPayments ?? 0}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-gray-500">Total Amount</div>
+                        <div className="text-xs text-gray-500">{tt('Total Amount')}</div>
                         <div className="text-lg font-semibold text-green-600">{formatMoney(payments.totalPaymentsAmount)}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-gray-500">To Bills</div>
+                        <div className="text-xs text-gray-500">{tt('To Bills')}</div>
                         <div className="text-lg font-semibold text-blue-600">{formatMoney(payments.paymentsToBills)}</div>
                       </div>
                     </div>
@@ -326,9 +327,9 @@ export default function SupplierLedgerPage() {
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Payment #</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Amount</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Payment #')}</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Date')}</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Amount')}</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">

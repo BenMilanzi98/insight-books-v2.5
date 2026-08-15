@@ -58,6 +58,7 @@ model Tenant {
   planningBudgets              Budget[]                      @relation("PlanningBudgetTenant")
   planningForecasts            Forecast[]                    @relation("PlanningForecastTenant")
   forecastAssumptionSets       ForecastAssumptionSet[]
+  forecastAiSuggestions        ForecastAiSuggestion[]
   bfExpenseBudgetHeaders       BfExpenseBudgetHeader[]
   bfRevenueForecastHeaders     BfRevenueForecastHeader[]
   clients                      Client[]
@@ -396,6 +397,7 @@ model User {
   budgetVersionsCreated           BudgetVersion[]              @relation("BudgetVersionCreatedBy")
   budgetVersionsApproved          BudgetVersion[]              @relation("BudgetVersionApprovedBy")
   forecastAssumptionSetsCreated   ForecastAssumptionSet[]      @relation("ForecastAssumptionSetCreatedBy")
+  forecastAiSuggestionsReviewed   ForecastAiSuggestion[]      @relation("ForecastAiSuggestionReviewedBy")
   sentEmails                      EmailLog[]                   @relation("EmailLogSender")
   deletedExpenses                 Expense[]                    @relation("ExpenseDeletedBy")
   expenseSubmissions              Expense[]
@@ -5022,11 +5024,39 @@ model Forecast {
   sourceBudget  Budget?                @relation("ForecastSourceBudget", fields: [sourceBudgetId], references: [id], onDelete: SetNull)
   assumptionSet ForecastAssumptionSet? @relation(fields: [assumptionSetId], references: [id], onDelete: SetNull)
   lines         ForecastLine[]
+  aiSuggestions ForecastAiSuggestion[]
 
   @@index([tenantId, businessId])
   @@index([tenantId, status])
   @@index([sourceBudgetId])
   @@map("PlanningForecast")
+}
+
+/// Review-only AI / heuristic suggestions for Budget & Forecast (never auto-posts).
+model ForecastAiSuggestion {
+  id              String    @id @default(cuid())
+  tenantId        String
+  businessId      String
+  forecastId      String?
+  category        String
+  suggestionKey   String
+  proposedValue   Json
+  reason          String?
+  confidence      String    @default("LOW")
+  status          String    @default("PENDING_REVIEW")
+  sourceDataRange Json?
+  modelProvider   String?   @default("DETERMINISTIC_HEURISTIC_V1")
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  forecast   Forecast? @relation(fields: [forecastId], references: [id], onDelete: Cascade)
+  reviewedBy User?     @relation("ForecastAiSuggestionReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([forecastId])
+  @@map("PlanningForecastAiSuggestion")
 }
 
 model ForecastLine {

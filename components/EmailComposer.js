@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import React, { useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Upload, X, Paperclip, Image, FileText, Download } from 'lucide-react';
@@ -74,14 +75,14 @@ const EmailComposer = ({
       {/* Subject Field */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Subject *
+          {tt('Subject *')}
         </label>
         <input
           type="text"
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Enter email subject..."
+          placeholder={tt('Enter email subject...')}
           required
         />
       </div>
@@ -89,7 +90,7 @@ const EmailComposer = ({
       {/* Rich Text Editor */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Message *
+          {tt('Message *')}
         </label>
         <div className="border border-gray-300 rounded-md overflow-hidden">
           <ReactQuill
@@ -118,7 +119,7 @@ const EmailComposer = ({
               'link', 'image', 'color', 'background',
               'align', 'code-block'
             ]}
-            placeholder="Compose your message here..."
+            placeholder={tt('Compose your message here...')}
           />
         </div>
       </div>
@@ -126,7 +127,7 @@ const EmailComposer = ({
       {/* File Attachments */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Attachments
+          {tt('Attachments')}
         </label>
         
         {/* Upload Area */}
@@ -142,14 +143,14 @@ const EmailComposer = ({
         >
           <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
           <p className="text-sm text-gray-600 mb-2">
-            Drag and drop files here, or click to select
+            {tt('Drag and drop files here, or click to select')}
           </p>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="text-blue-600 hover:text-blue-700 text-sm font-medium"
           >
-            Choose Files
+            {tt('Choose Files')}
           </button>
           <input
             ref={fileInputRef}
@@ -164,7 +165,7 @@ const EmailComposer = ({
         {/* Attachments List */}
         {attachments.length > 0 && (
           <div className="mt-4 space-y-2">
-            <h4 className="text-sm font-medium text-gray-700">Attached Files:</h4>
+            <h4 className="text-sm font-medium text-gray-700">{tt('Attached Files:')}</h4>
             {attachments.map((attachment) => (
               <div
                 key={attachment.id}
@@ -213,12 +214,12 @@ const EmailComposer = ({
           {isSending ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              <span>Sending...</span>
+              <span>{tt('Sending...')}</span>
             </>
           ) : (
             <>
               <Paperclip className="h-4 w-4" />
-              <span>Send Email</span>
+              <span>{tt('Send Email')}</span>
             </>
           )}
         </button>

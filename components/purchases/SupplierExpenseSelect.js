@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useCallback } from "react";
 import { Plus, X } from "lucide-react";
@@ -110,7 +111,7 @@ export default function SupplierExpenseSelect({
   return (
     <div className={`relative ${className}`}>
       <label className="block text-sm font-medium text-gray-700">
-        Supplier <span className="text-gray-400 font-normal">(optional)</span>
+        {tt('Supplier')} <span className="text-gray-400 font-normal">(optional)</span>
       </label>
 
       <div className="relative">
@@ -204,7 +205,7 @@ export default function SupplierExpenseSelect({
 
       {isOpen && !loading && search && suppliers.length === 0 && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-sm text-gray-500">
-          No suppliers found.
+          {tt('No suppliers found.')}
         </div>
       )}
 
@@ -215,7 +216,7 @@ export default function SupplierExpenseSelect({
           className="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
         >
           <Plus className="w-4 h-4" />
-          Add supplier
+          {tt('Add supplier')}
         </button>
       </div>
 
@@ -226,7 +227,7 @@ export default function SupplierExpenseSelect({
         >
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Add supplier</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{tt('Add supplier')}</h3>
               <button type="button" onClick={() => { setShowAddModal(false); setAddError(""); }} className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
@@ -236,55 +237,55 @@ export default function SupplierExpenseSelect({
                 <p className="text-sm text-red-600 bg-red-50 p-2 rounded">{addError}</p>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Supplier name *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Supplier name *')}</label>
                 <input
                   type="text"
                   value={addForm.supplierName}
                   onChange={(e) => setAddForm((f) => ({ ...f, supplierName: e.target.value }))}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddSupplier(e))}
                   className={inputClass}
-                  placeholder="Company or supplier name"
+                  placeholder={tt('Company or supplier name')}
                   aria-required="true"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contact person</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Contact person')}</label>
                 <input
                   type="text"
                   value={addForm.contactPerson}
                   onChange={(e) => setAddForm((f) => ({ ...f, contactPerson: e.target.value }))}
                   className={inputClass}
-                  placeholder="Optional"
+                  placeholder={tt('Optional')}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Email')}</label>
                 <input
                   type="email"
                   value={addForm.email}
                   onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
                   className={inputClass}
-                  placeholder="Optional"
+                  placeholder={tt('Optional')}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Phone')}</label>
                 <input
                   type="text"
                   value={addForm.phone}
                   onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))}
                   className={inputClass}
-                  placeholder="Optional"
+                  placeholder={tt('Optional')}
                 />
               </div>
-              <p className="text-xs text-gray-500">Supplier will be saved to Purchases → Suppliers.</p>
+              <p className="text-xs text-gray-500">{tt('Supplier will be saved to Purchases → Suppliers.')}</p>
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => { setShowAddModal(false); setAddError(""); }}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   type="button"

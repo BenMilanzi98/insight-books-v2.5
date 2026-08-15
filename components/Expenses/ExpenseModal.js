@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { X, Save, Edit, Receipt, Clipboard, Trash2, Check, Download, Package } from "lucide-react";
@@ -231,14 +232,14 @@ const ExpenseModal = ({
               </div>
 
               <div className="rounded-lg border border-gray-200 p-4">
-                <h5 className="text-sm font-medium text-gray-500 mb-2">Amount breakdown</h5>
+                <h5 className="text-sm font-medium text-gray-500 mb-2">{tt('Amount breakdown')}</h5>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                   <div>
-                    <span className="text-gray-500">Amount</span>
+                    <span className="text-gray-500">{tt('Amount')}</span>
                     <p className="font-medium text-gray-900">MK {formatMoney(expense.amount)}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Tax</span>
+                    <span className="text-gray-500">{tt('Tax')}</span>
                     <p className="font-medium text-gray-900">
                       MK {formatMoney(expense.taxAmount)}
                       {expense.taxRate != null && Number(expense.taxRate) > 0 && (
@@ -259,11 +260,11 @@ const ExpenseModal = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <h5 className="text-sm font-medium text-gray-500">Category</h5>
+                  <h5 className="text-sm font-medium text-gray-500">{tt('Category')}</h5>
                   <p>{expense.category}</p>
                 </div>
                 <div>
-                  <h5 className="text-sm font-medium text-gray-500">Merchant</h5>
+                  <h5 className="text-sm font-medium text-gray-500">{tt('Merchant')}</h5>
                   <p>
                     {expense.merchant ||
                       cogsSource?.counterparty ||
@@ -271,20 +272,20 @@ const ExpenseModal = ({
                   </p>
                 </div>
                 <div>
-                  <h5 className="text-sm font-medium text-gray-500">Source Account</h5>
+                  <h5 className="text-sm font-medium text-gray-500">{tt('Source Account')}</h5>
                   <p>{expense.sourceAccount?.name || expense.glAccountLabel || "-"}</p>
                 </div>
                 <div>
-                  <h5 className="text-sm font-medium text-gray-500">Submitted By</h5>
+                  <h5 className="text-sm font-medium text-gray-500">{tt('Submitted By')}</h5>
                   <p>{expense.submittedBy?.name || "-"}</p>
                 </div>
                 <div>
-                  <h5 className="text-sm font-medium text-gray-500">Created On</h5>
+                  <h5 className="text-sm font-medium text-gray-500">{tt('Created On')}</h5>
                   <p>{formatDate(expense.createdAt)}</p>
                 </div>
                 {expense.transactionReference ? (
                   <div>
-                    <h5 className="text-sm font-medium text-gray-500">Journal</h5>
+                    <h5 className="text-sm font-medium text-gray-500">{tt('Journal')}</h5>
                     <p className="font-mono text-sm">{expense.transactionReference}</p>
                   </div>
                 ) : null}
@@ -295,15 +296,15 @@ const ExpenseModal = ({
                 <div className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Package className="h-4 w-4 text-gray-500" />
-                    <h5 className="text-sm font-medium text-gray-700">Items sold</h5>
+                    <h5 className="text-sm font-medium text-gray-700">{tt('Items sold')}</h5>
                   </div>
                   {cogsSourceLoading ? (
-                    <p className="text-sm text-gray-500 italic">Loading items…</p>
+                    <p className="text-sm text-gray-500 italic">{tt('Loading items…')}</p>
                   ) : cogsSourceError ? (
                     <p className="text-sm text-red-600">{cogsSourceError}</p>
                   ) : !cogsSource?.found ? (
                     <p className="text-sm text-gray-500 italic">
-                      No linked invoice or POS sale found for this COGS entry.
+                      {tt('No linked invoice or POS sale found for this COGS entry.')}
                     </p>
                   ) : soldItems.length === 0 ? (
                     <p className="text-sm text-gray-500 italic">
@@ -326,11 +327,11 @@ const ExpenseModal = ({
                         <table className="min-w-full text-sm">
                           <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                             <tr>
-                              <th className="px-3 py-2 text-left font-semibold">Item</th>
-                              <th className="px-3 py-2 text-right font-semibold">Qty</th>
-                              <th className="px-3 py-2 text-right font-semibold">Unit price</th>
-                              <th className="px-3 py-2 text-right font-semibold">Line total</th>
-                              <th className="px-3 py-2 text-right font-semibold">Est. COGS</th>
+                              <th className="px-3 py-2 text-left font-semibold">{tt('Item')}</th>
+                              <th className="px-3 py-2 text-right font-semibold">{tt('Qty')}</th>
+                              <th className="px-3 py-2 text-right font-semibold">{tt('Unit price')}</th>
+                              <th className="px-3 py-2 text-right font-semibold">{tt('Line total')}</th>
+                              <th className="px-3 py-2 text-right font-semibold">{tt('Est. COGS')}</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
@@ -354,7 +355,7 @@ const ExpenseModal = ({
                                   ) : null}
                                   {item.isService ? (
                                     <span className="inline-block mt-0.5 text-[10px] font-semibold uppercase text-slate-500">
-                                      Service
+                                      {tt('Service')}
                                     </span>
                                   ) : null}
                                 </td>
@@ -385,7 +386,7 @@ const ExpenseModal = ({
               {isSystemCogs && expense.attachments?.length > 0 && (
                 <div className="border border-gray-200 rounded-lg p-4">
                   <div className="flex justify-between items-center mb-2">
-                    <h5 className="text-sm font-medium text-gray-700">Linked receipt</h5>
+                    <h5 className="text-sm font-medium text-gray-700">{tt('Linked receipt')}</h5>
                   </div>
                   <div className="space-y-2">
                     {expense.attachments.map((attachment) => (
@@ -412,7 +413,7 @@ const ExpenseModal = ({
                             className="flex-shrink-0 inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md"
                           >
                             <Download className="h-4 w-4 mr-1" />
-                            View
+                            {tt('View')}
                           </a>
                         ) : null}
                       </div>
@@ -423,7 +424,7 @@ const ExpenseModal = ({
 
               {expense.notes && (
                 <div>
-                  <h5 className="text-sm font-medium text-gray-500">Notes</h5>
+                  <h5 className="text-sm font-medium text-gray-500">{tt('Notes')}</h5>
                   <p className="mt-1 whitespace-pre-wrap text-gray-700">{expense.notes}</p>
                 </div>
               )}
@@ -431,7 +432,7 @@ const ExpenseModal = ({
               {!isSystemCogs && (
                 <div className="border-t border-gray-200 pt-4 mt-4">
                   <div className="flex justify-between items-center mb-2">
-                    <h5 className="text-sm font-medium text-gray-500">Receipts</h5>
+                    <h5 className="text-sm font-medium text-gray-500">{tt('Receipts')}</h5>
                   </div>
 
                   {expense.attachments?.length ? (
@@ -479,7 +480,7 @@ const ExpenseModal = ({
                       )}
                     </div>
                   ) : (
-                    <p className="text-gray-500 text-sm italic">No receipts attached</p>
+                    <p className="text-gray-500 text-sm italic">{tt('No receipts attached')}</p>
                   )}
                 </div>
               )}
@@ -507,7 +508,7 @@ const ExpenseModal = ({
                   onClick={() => onDelete(expense.id)}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
-                  Delete
+                  {tt('Delete')}
                 </button>
               )}
             </div>
@@ -518,7 +519,7 @@ const ExpenseModal = ({
                 className="px-4 py-2 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 onClick={onClose}
               >
-                Close
+                {tt('Close')}
               </button>
 
               {!isSystemCogs && (
@@ -528,7 +529,7 @@ const ExpenseModal = ({
                   onClick={() => setCurrentMode("edit")}
                 >
                   <Edit className="h-4 w-4 mr-1" />
-                  Edit
+                  {tt('Edit')}
                 </button>
               )}
             </div>

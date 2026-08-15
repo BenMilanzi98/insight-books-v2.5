@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -116,7 +117,7 @@ export default function QuotationsV2Page() {
         <p className="mt-1 text-sm text-gray-600">
           No journals on quote/hold. Convert reservation → draft contract on{' '}
           <Link href="/rentals/contracts-v2" className="text-blue-600 underline">
-            Contracts V2
+            {tt('Contracts V2')}
           </Link>
           .
         </p>
@@ -128,16 +129,16 @@ export default function QuotationsV2Page() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase text-gray-500">New quotation</h2>
+            <h2 className="text-sm font-semibold uppercase text-gray-500">{tt('New quotation')}</h2>
             <input
               className="w-full rounded border px-2 py-1.5 text-sm"
-              placeholder="Client ID"
+              placeholder={tt('Client ID')}
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
             />
             <input
               className="w-full rounded border px-2 py-1.5 text-sm"
-              placeholder="Asset ID"
+              placeholder={tt('Asset ID')}
               value={assetId}
               onChange={(e) => setAssetId(e.target.value)}
             />
@@ -157,7 +158,7 @@ export default function QuotationsV2Page() {
             </div>
             <input
               className="w-full rounded border px-2 py-1.5 text-sm"
-              placeholder="Unit rate"
+              placeholder={tt('Unit rate')}
               value={unitRate}
               onChange={(e) => setUnitRate(e.target.value)}
             />
@@ -167,10 +168,10 @@ export default function QuotationsV2Page() {
               onClick={createQuote}
               className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
             >
-              Create quotation
+              {tt('Create quotation')}
             </button>
 
-            <h2 className="pt-4 text-sm font-semibold uppercase text-gray-500">Quotations</h2>
+            <h2 className="pt-4 text-sm font-semibold uppercase text-gray-500">{tt('Quotations')}</h2>
             <ul className="divide-y rounded border">
               {quotations.map((q) => (
                 <li key={q.id} className="px-3 py-2 text-sm">
@@ -197,7 +198,7 @@ export default function QuotationsV2Page() {
           </section>
 
           <section>
-            <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500">Reservations</h2>
+            <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500">{tt('Reservations')}</h2>
             <ul className="divide-y rounded border">
               {reservations.map((r) => (
                 <li key={r.id} className="px-3 py-2 text-sm">
@@ -211,7 +212,7 @@ export default function QuotationsV2Page() {
                       onClick={() => reservationAction(r.id, 'convert')}
                       className="rounded border px-2 py-0.5 text-xs"
                     >
-                      convert → contract
+                      {tt('convert → contract')}
                     </button>
                     <button
                       type="button"
@@ -219,13 +220,13 @@ export default function QuotationsV2Page() {
                       onClick={() => reservationAction(r.id, 'release')}
                       className="rounded border px-2 py-0.5 text-xs"
                     >
-                      release
+                      {tt('release')}
                     </button>
                   </div>
                 </li>
               ))}
               {!reservations.length ? (
-                <li className="px-3 py-4 text-sm text-gray-500">No reservations</li>
+                <li className="px-3 py-4 text-sm text-gray-500">{tt('No reservations')}</li>
               ) : null}
             </ul>
           </section>

@@ -94,7 +94,7 @@ export default function AppShell({ children }) {
   const toggleSidebar = () => setSidebarOpen((v) => !v);
 
   return (
-    <div className="relative flex min-h-screen w-full overflow-hidden bg-[var(--background-secondary)]">
+    <div className="relative flex h-[100dvh] min-h-0 w-full overflow-hidden bg-[var(--background-secondary)]">
       <RouteDocumentTitle />
       <ClientConsoleGate />
 
@@ -104,7 +104,7 @@ export default function AppShell({ children }) {
             id={drawerId}
             aria-label={t('accessibility.mainNavigation')}
             className={cn(
-              'fixed left-0 top-0 z-[var(--z-drawer)] h-screen overflow-hidden bg-[var(--surface-primary)] shadow-sm transition-[transform,width] duration-200 ease-[var(--motion-ease)]',
+              'fixed left-0 top-0 z-[var(--z-drawer)] h-[100dvh] overflow-hidden bg-[var(--surface-primary)] shadow-sm transition-[transform,width] duration-200 ease-[var(--motion-ease)]',
               sidebarOpen ? 'w-[var(--sidebar-width)] translate-x-0' : 'w-0 -translate-x-full md:w-0',
               !isMobile && sidebarOpen && 'md:translate-x-0'
             )}
@@ -125,7 +125,7 @@ export default function AppShell({ children }) {
 
       <div
         className={cn(
-          'flex min-h-screen w-full flex-1 flex-col overflow-auto transition-[margin] duration-200 ease-[var(--motion-ease)]',
+          'flex h-[100dvh] min-h-0 w-full flex-1 flex-col overflow-hidden transition-[margin] duration-200 ease-[var(--motion-ease)]',
           !hide && 'tenant-shell-canvas',
           !hide && !isMobile && sidebarOpen && 'md:ml-[var(--sidebar-width)]'
         )}
@@ -142,14 +142,14 @@ export default function AppShell({ children }) {
         <DesktopSyncBanner />
         <main
           className={cn(
-            'main-content-full-width flex-1',
+            'main-content-full-width min-h-0 flex-1 overflow-x-hidden overflow-y-auto',
             !hide && 'px-4 py-4 sm:px-6 sm:py-6 lg:px-8'
           )}
         >
           {hide ? children : <OnboardingGate>{children}</OnboardingGate>}
+          {!hide && <DesktopSyncFooter />}
+          {!hide && <Footer />}
         </main>
-        {!hide && <DesktopSyncFooter />}
-        {!hide && <Footer />}
       </div>
 
       <FloatingWhatsApp />

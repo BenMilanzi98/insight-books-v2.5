@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from "react";
 import { AlertCircle, Check, DollarSign, ArrowRightLeft, TrendingUp, Wallet, Clock, ArrowUpRight, ArrowDownRight, Edit, Trash2, Save, X, PlusCircle, Building2, Banknote } from "lucide-react";
 import { paymentMethods } from "@/lib/paymentMethods";
@@ -404,7 +405,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mb-4" />
-        <p className="text-slate-500 font-medium">Loading capital account...</p>
+        <p className="text-slate-500 font-medium">{tt('Loading capital account...')}</p>
       </div>
     );
   }
@@ -444,17 +445,17 @@ const CapitalAccountManager = ({ onboarding = false }) => {
     <div className="space-y-6">
       {onboarding && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-sm shadow-sm">
-          <p className="font-medium">Required setup — capital</p>
+          <p className="font-medium">{tt('Required setup — capital')}</p>
           <p className="mt-1 text-amber-900/90">
             Set your opening capital (initial balance or contributions) and review distributions. When finished, continue to{" "}
-            <strong>Payment accounts</strong> in the next step.
+            <strong>{tt('Payment accounts')}</strong> {tt('in the next step.')}
           </p>
           <button
             type="button"
             onClick={completeCapitalOnboarding}
             className="mt-3 inline-flex items-center rounded-lg bg-amber-600 px-4 py-2 text-white text-sm font-medium hover:bg-amber-700"
           >
-            I have configured capital — continue to payment accounts
+            {tt('I have configured capital — continue to payment accounts')}
           </button>
         </div>
       )}
@@ -463,7 +464,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
           <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
             <Wallet className="h-6 w-6 text-blue-600" />
-            Capital Account
+            {tt('Capital Account')}
           </h2>
           <p className="text-sm text-slate-500 lg:text-right">
             Linked to GL{" "}
@@ -487,7 +488,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-medium hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Edit className="h-4 w-4" />
-              Edit Account
+              {tt('Edit Account')}
             </button>
             <button
               type="button"
@@ -495,7 +496,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors"
             >
               <PlusCircle className="h-4 w-4" />
-              Add Contribution
+              {tt('Add Contribution')}
             </button>
             <button
               type="button"
@@ -503,7 +504,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-600 text-white font-medium hover:bg-slate-700 transition-colors"
             >
               <DollarSign className="h-4 w-4" />
-              Set Initial Balance
+              {tt('Set Initial Balance')}
             </button>
             <button
               type="button"
@@ -517,14 +518,14 @@ const CapitalAccountManager = ({ onboarding = false }) => {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
             >
               <ArrowRightLeft className="h-4 w-4" />
-              Transfer Funds
+              {tt('Transfer Funds')}
             </button>
             <a
               href="/capital-account/transfers"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
             >
               <ArrowRightLeft className="h-4 w-4" />
-              View Transfers
+              {tt('View Transfers')}
             </a>
             <button
               type="button"
@@ -533,7 +534,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 text-white font-medium hover:bg-rose-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Trash2 className="h-4 w-4" />
-              Delete Account
+              {tt('Delete Account')}
             </button>
           </div>
         </div>
@@ -552,7 +553,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
               (Transfers to payment accounts do not reduce this figure; it increases when you add contributions.)
             </p>
             {(capitalAccount?.balance || 0) <= 0 ? (
-              <p className="mt-1 text-xs text-amber-700">Available transfer balance is empty — add capital or contributions first</p>
+              <p className="mt-1 text-xs text-amber-700">{tt('Available transfer balance is empty — add capital or contributions first')}</p>
             ) : null}
           </StatCard>
 
@@ -581,21 +582,21 @@ const CapitalAccountManager = ({ onboarding = false }) => {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
               <ArrowRightLeft className="h-5 w-5 text-blue-600" />
-              Recent Transfers
+              {tt('Recent Transfers')}
             </h3>
             <a href="/capital-account/transfers" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-              View all transfers →
+              {tt('View all transfers →')}
             </a>
           </div>
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Reference</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Date')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Type')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Amount')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Reference')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Description')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -611,12 +612,12 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                         {transfer.type === 'outgoing' ? (
                           <span className="flex items-center">
                             <ArrowDownRight size={12} className="mr-1" />
-                            Outgoing
+                            {tt('Outgoing')}
                           </span>
                         ) : (
                           <span className="flex items-center">
                             <ArrowUpRight size={12} className="mr-1" />
-                            Incoming
+                            {tt('Incoming')}
                           </span>
                         )}
                       </span>
@@ -659,25 +660,25 @@ const CapitalAccountManager = ({ onboarding = false }) => {
       {showEditModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold mb-4">Edit Capital Account</h3>
+            <h3 className="text-lg font-semibold mb-4">{tt('Edit Capital Account')}</h3>
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Account Name</label>
+              <label className="block text-sm font-medium mb-2">{tt('Account Name')}</label>
               <input
                 type="text"
                 value={editData.name}
                 onChange={(e) => setEditData({...editData, name: e.target.value})}
                 className="w-full p-2 border border-gray-300 rounded-md"
-                placeholder="Enter account name"
+                placeholder={tt('Enter account name')}
               />
             </div>
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Account Code</label>
+              <label className="block text-sm font-medium mb-2">{tt('Account Code')}</label>
               <input
                 type="text"
                 value={editData.code}
                 onChange={(e) => setEditData({...editData, code: e.target.value})}
                 className="w-full p-2 border border-gray-300 rounded-md"
-                placeholder="Enter account code"
+                placeholder={tt('Enter account code')}
               />
             </div>
             <div className="mb-4 flex items-center">
@@ -688,21 +689,21 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                 onChange={(e) => setEditData({...editData, isActive: e.target.checked})}
                 className="mr-2"
               />
-              <label htmlFor="isActive">Active</label>
+              <label htmlFor="isActive">{tt('Active')}</label>
             </div>
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowEditModal(false)}
                 className="px-4 py-2 border border-gray-300 rounded-md"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 onClick={handleEditAccount}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
               >
                 <Save className="mr-2 h-4 w-4" />
-                Save Changes
+                {tt('Save Changes')}
               </button>
             </div>
           </div>
@@ -713,26 +714,26 @@ const CapitalAccountManager = ({ onboarding = false }) => {
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold mb-4 text-red-600">Delete Capital Account</h3>
+            <h3 className="text-lg font-semibold mb-4 text-red-600">{tt('Delete Capital Account')}</h3>
             <p className="text-sm text-gray-600 mb-4">
               Are you sure you want to delete this capital account? This action cannot be undone.
             </p>
             <p className="text-sm text-gray-600 mb-4">
-              <strong>Note:</strong> You can only delete a capital account if it has no balance and has not been used in any transactions.
+              <strong>{tt('Note:')}</strong> {tt('You can only delete a capital account if it has no balance and has not been used in any transactions.')}
             </p>
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 className="px-4 py-2 border border-gray-300 rounded-md"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 onClick={handleDeleteAccount}
                 className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center"
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                Delete Account
+                {tt('Delete Account')}
               </button>
             </div>
           </div>
@@ -743,7 +744,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
       {showInitialBalanceModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold mb-4">Set Initial Capital Balance</h3>
+            <h3 className="text-lg font-semibold mb-4">{tt('Set Initial Capital Balance')}</h3>
             <p className="text-sm text-gray-600 mb-4">
               This will create a journal entry crediting your Capital Account and debiting your Cash Account. 
               If no Cash Account exists, one will be created automatically.
@@ -755,7 +756,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                 value={initialBalance}
                 onChange={(e) => setInitialBalance(e.target.value)}
                 className="w-full p-2 border border-gray-300 rounded-md"
-                placeholder="Enter initial balance"
+                placeholder={tt('Enter initial balance')}
                 min="0"
                 step="0.01"
               />
@@ -765,13 +766,13 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                 onClick={() => setShowInitialBalanceModal(false)}
                 className="px-4 py-2 border border-gray-300 rounded-md"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 onClick={handleSetInitialBalance}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
               >
-                Set Balance
+                {tt('Set Balance')}
               </button>
             </div>
           </div>
@@ -807,14 +808,14 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                       <ArrowRightLeft className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 animate-pulse" />
                     </div>
                   </div>
-                  <p className="mt-4 text-sm sm:text-base font-medium text-gray-700">Transferring funds...</p>
-                  <p className="mt-2 text-xs sm:text-sm text-gray-500 text-center px-4">Please wait while we process your transfer</p>
+                  <p className="mt-4 text-sm sm:text-base font-medium text-gray-700">{tt('Transferring funds...')}</p>
+                  <p className="mt-2 text-xs sm:text-sm text-gray-500 text-center px-4">{tt('Please wait while we process your transfer')}</p>
                 </div>
               )}
 
               {/* Modal header */}
               <div className="flex items-center justify-between px-4 py-4 sm:px-6 sm:py-5 border-b border-gray-200">
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Transfer from Capital Account</h3>
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">{tt('Transfer from Capital Account')}</h3>
                 <button
                   onClick={() => {
                     if (!isTransferring) {
@@ -836,7 +837,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
               <div className="px-4 py-4 sm:px-6 sm:py-5 max-h-[calc(100vh-200px)] overflow-y-auto">
                 {/* Source Account */}
                 <div className="mb-4 sm:mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Source Account</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{tt('Source Account')}</label>
                   <div className="w-full p-3 sm:p-4 border border-gray-300 rounded-lg bg-gray-50">
                     <div className="text-sm sm:text-base font-medium text-gray-900 break-words">
                       {capitalAccount?.code} - {capitalAccount?.name} ({capitalAccount?.type})
@@ -860,7 +861,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                     value={transferData.amount}
                     onChange={(e) => setTransferData({...transferData, amount: e.target.value})}
                     className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
-                    placeholder="Enter amount"
+                    placeholder={tt('Enter amount')}
                     min="0"
                     step="0.01"
                     disabled={isTransferring || transferSuccess}
@@ -875,14 +876,14 @@ const CapitalAccountManager = ({ onboarding = false }) => {
 
                 {/* Destination Account */}
                 <div className="mb-4 sm:mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Destination Account <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{tt('Destination Account')} <span className="text-red-500">*</span></label>
                   <select
                     value={transferData.destinationAccount}
                     onChange={(e) => setTransferData({...transferData, destinationAccount: e.target.value})}
                     className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base bg-white"
                     disabled={isTransferring || transferSuccess}
                   >
-                    <option value="">Select destination account</option>
+                    <option value="">{tt('Select destination account')}</option>
                     {paymentAccounts
                       .filter((a) => a.isActive !== false)
                       .map((acc) => (
@@ -903,7 +904,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                 {/* Description */}
                 <div className="mb-4 sm:mb-5">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Description <span className="text-gray-500 font-normal text-xs">(Optional)</span>
+                    {tt('Description')} <span className="text-gray-500 font-normal text-xs">(Optional)</span>
                   </label>
                   <input
                     type="text"
@@ -917,7 +918,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
 
                 {/* Date */}
                 <div className="mb-4 sm:mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{tt('Date')}</label>
                   <input
                     type="date"
                     value={transferData.date}
@@ -930,26 +931,26 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                 {/* Transfer Summary */}
                 {transferData.amount && transferData.destinationAccount && (
                   <div className="mb-4 sm:mb-5 p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h4 className="text-sm sm:text-base font-semibold text-blue-900 mb-2 sm:mb-3">Transfer Summary</h4>
+                    <h4 className="text-sm sm:text-base font-semibold text-blue-900 mb-2 sm:mb-3">{tt('Transfer Summary')}</h4>
                     <div className="text-xs sm:text-sm text-blue-800 space-y-1.5">
                       <div className="flex flex-wrap gap-1">
-                        <span className="font-medium">From:</span>
+                        <span className="font-medium">{tt('From:')}</span>
                         <span>{capitalAccount?.name} (Capital Account)</span>
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        <span className="font-medium">To:</span>
+                        <span className="font-medium">{tt('To:')}</span>
                         <span>{getAccountName(transferData.destinationAccount)}</span>
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        <span className="font-medium">Amount:</span>
+                        <span className="font-medium">{tt('Amount:')}</span>
                         <span>MWK {formatCurrency(parseFloat(transferData.amount))}</span>
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        <span className="font-medium">Date:</span>
+                        <span className="font-medium">{tt('Date:')}</span>
                         <span>{formatDate(transferData.date)}</span>
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        <span className="font-medium">Description:</span>
+                        <span className="font-medium">{tt('Description:')}</span>
                         <span>{transferData.description || 'No description'}</span>
                       </div>
                     </div>
@@ -1003,17 +1004,17 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                     {isTransferring ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>Transferring...</span>
+                        <span>{tt('Transferring...')}</span>
                       </>
                     ) : transferSuccess ? (
                       <>
                         <Check className="w-4 h-4" />
-                        <span>Success</span>
+                        <span>{tt('Success')}</span>
                       </>
                     ) : (
                       <>
                         <ArrowRightLeft className="w-4 h-4" />
-                        <span>Transfer</span>
+                        <span>{tt('Transfer')}</span>
                       </>
                     )}
                   </button>
@@ -1027,7 +1028,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
       <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-6 sm:p-8">
         <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-emerald-600" />
-          Capital Summary
+          {tt('Capital Summary')}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <StatCard
@@ -1059,13 +1060,13 @@ const CapitalAccountManager = ({ onboarding = false }) => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="text-left py-2 px-3 font-semibold text-slate-600">Date</th>
-                  <th className="text-left py-2 px-3 font-semibold text-slate-600">Type</th>
-                  <th className="text-left py-2 px-3 font-semibold text-slate-600">Description</th>
+                  <th className="text-left py-2 px-3 font-semibold text-slate-600">{tt('Date')}</th>
+                  <th className="text-left py-2 px-3 font-semibold text-slate-600">{tt('Type')}</th>
+                  <th className="text-left py-2 px-3 font-semibold text-slate-600">{tt('Description')}</th>
                   <th className="text-left py-2 px-3 font-semibold text-slate-600">GL (under 3100)</th>
-                  <th className="text-left py-2 px-3 font-semibold text-slate-600">Account Debited</th>
-                  <th className="text-right py-2 px-3 font-semibold text-slate-600">Amount</th>
-                  <th className="text-right py-2 px-3 font-semibold text-slate-600">Running Total</th>
+                  <th className="text-left py-2 px-3 font-semibold text-slate-600">{tt('Account Debited')}</th>
+                  <th className="text-right py-2 px-3 font-semibold text-slate-600">{tt('Amount')}</th>
+                  <th className="text-right py-2 px-3 font-semibold text-slate-600">{tt('Running Total')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1093,7 +1094,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
             </table>
           </div>
         ) : (
-          <p className="text-slate-400 text-sm text-center py-6">No capital contributions recorded yet.</p>
+          <p className="text-slate-400 text-sm text-center py-6">{tt('No capital contributions recorded yet.')}</p>
         )}
       </div>
 
@@ -1102,7 +1103,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowContributionModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-200">
-              <h3 className="text-lg font-semibold text-slate-800">Record Capital Contribution</h3>
+              <h3 className="text-lg font-semibold text-slate-800">{tt('Record Capital Contribution')}</h3>
               <button type="button" onClick={() => setShowContributionModal(false)} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
             </div>
             <div className="p-5 space-y-4">
@@ -1112,15 +1113,15 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Contribution Type</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{tt('Contribution Type')}</label>
                 <div className="flex gap-3">
                   <button type="button" onClick={() => setContributionData(d => ({ ...d, type: 'cash' }))}
                     className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 font-medium transition-colors ${contributionData.type === 'cash' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
-                    <Banknote className="h-5 w-5" /> Cash
+                    <Banknote className="h-5 w-5" /> {tt('Cash')}
                   </button>
                   <button type="button" onClick={() => setContributionData(d => ({ ...d, type: 'asset' }))}
                     className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 font-medium transition-colors ${contributionData.type === 'asset' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
-                    <Building2 className="h-5 w-5" /> Asset
+                    <Building2 className="h-5 w-5" /> {tt('Asset')}
                   </button>
                 </div>
               </div>
@@ -1131,7 +1132,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="0.00" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{tt('Date')}</label>
                 <input type="date" value={contributionData.date}
                   onChange={(e) => setContributionData(d => ({ ...d, date: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
@@ -1142,7 +1143,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                   <select value={contributionData.cashAccountId}
                     onChange={(e) => setContributionData(d => ({ ...d, cashAccountId: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
-                    <option value="">Default — GL 1110 Cash - Main Account</option>
+                    <option value="">{tt('Default — GL 1110 Cash - Main Account')}</option>
                     {paymentAccounts.map(a => (
                       <option key={a.id} value={a.id}>{a.name}</option>
                     ))}
@@ -1152,24 +1153,24 @@ const CapitalAccountManager = ({ onboarding = false }) => {
               {contributionData.type === 'asset' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Asset Name</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{tt('Asset Name')}</label>
                     <input type="text" value={contributionData.assetName}
                       onChange={(e) => setContributionData(d => ({ ...d, assetName: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. Office Computer" />
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder={tt('e.g. Office Computer')} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Asset Type</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">{tt('Asset Type')}</label>
                     <select value={contributionData.assetType}
                       onChange={(e) => setContributionData(d => ({ ...d, assetType: e.target.value }))}
                       className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                      <option value="">Select type...</option>
-                      <option value="Equipment">Equipment</option>
-                      <option value="Motor Vehicle">Motor Vehicle</option>
+                      <option value="">{tt('Select type...')}</option>
+                      <option value="Equipment">{tt('Equipment')}</option>
+                      <option value="Motor Vehicle">{tt('Motor Vehicle')}</option>
                       <option value="Furniture">Furniture &amp; Fixtures</option>
                       <option value="Computer">Computer &amp; Electronics</option>
-                      <option value="Machinery">Machinery</option>
-                      <option value="Software">Software / Intangible</option>
-                      <option value="Other">Other</option>
+                      <option value="Machinery">{tt('Machinery')}</option>
+                      <option value="Software">{tt('Software / Intangible')}</option>
+                      <option value="Other">{tt('Other')}</option>
                     </select>
                   </div>
                   <div>
@@ -1177,7 +1178,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                     <select value={contributionData.assetAccountId}
                       onChange={(e) => setContributionData(d => ({ ...d, assetAccountId: e.target.value }))}
                       className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                      <option value="">Auto-detect from type</option>
+                      <option value="">{tt('Auto-detect from type')}</option>
                       {assetAccounts.map(a => (
                         <option key={a.id} value={a.id}>{a.code ? `${a.code} — ` : ''}{a.name}</option>
                       ))}
@@ -1189,17 +1190,17 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                 <label className="block text-sm font-medium text-slate-700 mb-1">Description (optional)</label>
                 <input type="text" value={contributionData.description}
                   onChange={(e) => setContributionData(d => ({ ...d, description: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="e.g. Owner invested cash into business" />
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder={tt('e.g. Owner invested cash into business')} />
               </div>
             </div>
             <div className="flex justify-end gap-3 p-5 border-t border-slate-200">
-              <button type="button" onClick={() => setShowContributionModal(false)} className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 font-medium">Cancel</button>
+              <button type="button" onClick={() => setShowContributionModal(false)} className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 font-medium">{tt('Cancel')}</button>
               <button type="button" onClick={handleSubmitContribution} disabled={isSubmittingContribution}
                 className="px-5 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2">
                 {isSubmittingContribution ? (
-                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Recording...</>
+                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> {tt('Recording...')}</>
                 ) : (
-                  <><PlusCircle className="h-4 w-4" /> Record Contribution</>
+                  <><PlusCircle className="h-4 w-4" /> {tt('Record Contribution')}</>
                 )}
               </button>
             </div>

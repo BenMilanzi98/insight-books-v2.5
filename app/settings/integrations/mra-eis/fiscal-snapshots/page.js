@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -89,7 +90,7 @@ export default function MraEisFiscalSnapshotsPage() {
       <p className="text-sm text-slate-600">
         <Link href="/settings/integrations/mra-eis">← MRA EIS settings</Link>
         {' · '}
-        <Link href="/settings/integrations/mra-eis/sales-bridge">Sales bridge</Link>
+        <Link href="/settings/integrations/mra-eis/sales-bridge">{tt('Sales bridge')}</Link>
       </p>
       <h1 className="mt-2 text-2xl font-semibold text-slate-900">Fiscal snapshots &amp; sequences</h1>
       <p className="mt-2 max-w-2xl text-slate-700">
@@ -98,7 +99,7 @@ export default function MraEisFiscalSnapshotsPage() {
         submission and no QR code are produced here.
       </p>
       <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
-        Fiscal snapshot created locally. Not yet submitted to MRA.
+        {tt('Fiscal snapshot created locally. Not yet submitted to MRA.')}
       </p>
 
       <div className="mt-6 flex flex-wrap gap-3">
@@ -107,14 +108,14 @@ export default function MraEisFiscalSnapshotsPage() {
           onClick={load}
           className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
         >
-          Refresh
+          {tt('Refresh')}
         </button>
         <button
           type="button"
           onClick={processOutbox}
           className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
         >
-          Process snapshot outbox
+          {tt('Process snapshot outbox')}
         </button>
         {selected && (
           <button
@@ -122,7 +123,7 @@ export default function MraEisFiscalSnapshotsPage() {
             onClick={verifyIntegrity}
             className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
           >
-            Verify integrity
+            {tt('Verify integrity')}
           </button>
         )}
       </div>
@@ -132,7 +133,7 @@ export default function MraEisFiscalSnapshotsPage() {
           {error}
         </p>
       )}
-      {loading && <p className="mt-4 text-sm text-slate-600">Loading…</p>}
+      {loading && <p className="mt-4 text-sm text-slate-600">{tt('Loading…')}</p>}
 
       {workerResult && (
         <pre className="mt-4 overflow-auto rounded border bg-slate-50 p-3 text-xs">
@@ -142,17 +143,17 @@ export default function MraEisFiscalSnapshotsPage() {
 
       <section className="mt-8" aria-labelledby="snapshots-heading">
         <h2 id="snapshots-heading" className="text-lg font-medium text-slate-900">
-          Recent snapshots
+          {tt('Recent snapshots')}
         </h2>
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b text-slate-600">
-                <th className="py-2 pr-3">Status</th>
-                <th className="py-2 pr-3">Source</th>
-                <th className="py-2 pr-3">Checksum</th>
-                <th className="py-2 pr-3">Created</th>
-                <th className="py-2">Action</th>
+                <th className="py-2 pr-3">{tt('Status')}</th>
+                <th className="py-2 pr-3">{tt('Source')}</th>
+                <th className="py-2 pr-3">{tt('Checksum')}</th>
+                <th className="py-2 pr-3">{tt('Created')}</th>
+                <th className="py-2">{tt('Action')}</th>
               </tr>
             </thead>
             <tbody>
@@ -176,7 +177,7 @@ export default function MraEisFiscalSnapshotsPage() {
                       className="text-blue-700 underline"
                       onClick={() => openSnapshot(s.id)}
                     >
-                      Open
+                      {tt('Open')}
                     </button>
                   </td>
                 </tr>
@@ -184,7 +185,7 @@ export default function MraEisFiscalSnapshotsPage() {
               {!snapshots.length && !loading && (
                 <tr>
                   <td colSpan={5} className="py-4 text-slate-500">
-                    No fiscal snapshots yet. Process Phase 11 READY bridges via outbox.
+                    {tt('No fiscal snapshots yet. Process Phase 11 READY bridges via outbox.')}
                   </td>
                 </tr>
               )}
@@ -196,31 +197,31 @@ export default function MraEisFiscalSnapshotsPage() {
       {selected && (
         <section className="mt-8 rounded border border-slate-200 p-4" aria-labelledby="detail-heading">
           <h2 id="detail-heading" className="text-lg font-medium">
-            Snapshot detail
+            {tt('Snapshot detail')}
           </h2>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-slate-500">Status</dt>
+              <dt className="text-slate-500">{tt('Status')}</dt>
               <dd>{selected.status}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Environment</dt>
+              <dt className="text-slate-500">{tt('Environment')}</dt>
               <dd>{selected.environment}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Gross</dt>
+              <dt className="text-slate-500">{tt('Gross')}</dt>
               <dd>{String(selected.invoiceTotal)}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Tax</dt>
+              <dt className="text-slate-500">{tt('Tax')}</dt>
               <dd>{String(selected.taxTotal)}</dd>
             </div>
             <div className="sm:col-span-2">
-              <dt className="text-slate-500">Checksum</dt>
+              <dt className="text-slate-500">{tt('Checksum')}</dt>
               <dd className="break-all font-mono text-xs">{selected.snapshotChecksum}</dd>
             </div>
             <div className="sm:col-span-2">
-              <dt className="text-slate-500">Buyer</dt>
+              <dt className="text-slate-500">{tt('Buyer')}</dt>
               <dd>
                 {selected.buyerName || 'Anonymous / B2C'}
                 {selected.buyerTin ? ` · TIN ${selected.buyerTin}` : ''}
@@ -229,7 +230,7 @@ export default function MraEisFiscalSnapshotsPage() {
           </dl>
           {integrity && (
             <p className="mt-3 text-sm" role="status">
-              Integrity: <strong>{integrity.status}</strong>
+              {tt('Integrity:')} <strong>{integrity.status}</strong>
               {integrity.checksum ? ` · ${integrity.checksum}` : ''}
             </p>
           )}
@@ -242,10 +243,10 @@ export default function MraEisFiscalSnapshotsPage() {
 
       <section className="mt-8" aria-labelledby="sequences-heading">
         <h2 id="sequences-heading" className="text-lg font-medium text-slate-900">
-          Fiscal sequences
+          {tt('Fiscal sequences')}
         </h2>
         <p className="mt-1 text-sm text-slate-600">
-          Direct editing of nextValue is prohibited. Gaps are preserved. Offline allocation remains disabled.
+          {tt('Direct editing of nextValue is prohibited. Gaps are preserved. Offline allocation remains disabled.')}
         </p>
         <ul className="mt-3 space-y-2 text-sm">
           {sequences.map((seq) => (
@@ -258,7 +259,7 @@ export default function MraEisFiscalSnapshotsPage() {
             </li>
           ))}
           {!sequences.length && !loading && (
-            <li className="text-slate-500">No sequence scopes initialized yet.</li>
+            <li className="text-slate-500">{tt('No sequence scopes initialized yet.')}</li>
           )}
         </ul>
       </section>

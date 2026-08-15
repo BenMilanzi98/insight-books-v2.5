@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -54,7 +55,7 @@ function Flash({ tone = 'danger', children, onDismiss }) {
     <div className={`mb-4 flex items-start gap-3 rounded-[var(--admin-radius)] border px-4 py-3 text-sm ${cls}`} role="status">
       <p className="min-w-0 flex-1 break-words">{children}</p>
       {onDismiss ? (
-        <button type="button" onClick={onDismiss} className="rounded p-1 opacity-70 hover:opacity-100" aria-label="Dismiss">
+        <button type="button" onClick={onDismiss} className="rounded p-1 opacity-70 hover:opacity-100" aria-label={tt('Dismiss')}>
           <X className="h-4 w-4" />
         </button>
       ) : null}
@@ -447,13 +448,13 @@ export default function AffiliatePage() {
         actions={
           <>
             <button type="button" onClick={exportCsv} className={btnGhost} disabled={!filtered.length}>
-              <Download className="h-4 w-4" aria-hidden /> Export
+              <Download className="h-4 w-4" aria-hidden /> {tt('Export')}
             </button>
             <button type="button" onClick={load} className={btnGhost}>
-              <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+              <RefreshCw className="h-4 w-4" aria-hidden /> {tt('Refresh')}
             </button>
             <button type="button" onClick={openCreate} className={btnPrimary}>
-              <Plus className="h-4 w-4" aria-hidden /> Add affiliate
+              <Plus className="h-4 w-4" aria-hidden /> {tt('Add affiliate')}
             </button>
           </>
         }
@@ -489,11 +490,11 @@ export default function AffiliatePage() {
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
           >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="suspended">Suspended</option>
-            <option value="pending">Pending</option>
+            <option value="all">{tt('All statuses')}</option>
+            <option value="active">{tt('Active')}</option>
+            <option value="inactive">{tt('Inactive')}</option>
+            <option value="suspended">{tt('Suspended')}</option>
+            <option value="pending">{tt('Pending')}</option>
           </AdminField.Select>
         </AdminField>
         <AdminField label="Per page" htmlFor="aff-page-size">
@@ -521,7 +522,7 @@ export default function AffiliatePage() {
           icon={Users}
           action={
             <button type="button" onClick={openCreate} className={btnPrimary}>
-              <Plus className="h-4 w-4" aria-hidden /> Add affiliate
+              <Plus className="h-4 w-4" aria-hidden /> {tt('Add affiliate')}
             </button>
           }
         />
@@ -554,7 +555,7 @@ export default function AffiliatePage() {
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 className={btnGhost}
               >
-                Previous
+                {tt('Previous')}
               </button>
               <span className="text-sm text-[var(--admin-text-muted)]">
                 Page {safePage} / {totalPages}
@@ -565,7 +566,7 @@ export default function AffiliatePage() {
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 className={btnGhost}
               >
-                Next
+                {tt('Next')}
               </button>
             </div>
           </div>
@@ -579,7 +580,7 @@ export default function AffiliatePage() {
         footer={
           <>
             <button type="button" onClick={closeForm} className={btnGhost} disabled={actionLoading}>
-              Cancel
+              {tt('Cancel')}
             </button>
             <button type="submit" form="affiliate-form" className={btnPrimary} disabled={actionLoading}>
               {actionLoading ? 'Saving…' : editing ? 'Update' : 'Add'}
@@ -622,10 +623,10 @@ export default function AffiliatePage() {
               value={formData.status}
               onChange={(e) => setFormData((p) => ({ ...p, status: e.target.value }))}
             >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
-              <option value="pending">Pending</option>
+              <option value="active">{tt('Active')}</option>
+              <option value="inactive">{tt('Inactive')}</option>
+              <option value="suspended">{tt('Suspended')}</option>
+              <option value="pending">{tt('Pending')}</option>
             </AdminField.Select>
           </AdminField>
           <AdminField label="Payment method" htmlFor="aff-pay">
@@ -634,9 +635,9 @@ export default function AffiliatePage() {
               value={formData.paymentMethod}
               onChange={(e) => setFormData((p) => ({ ...p, paymentMethod: e.target.value }))}
             >
-              <option value="bank">Bank</option>
-              <option value="mobile">Mobile money</option>
-              <option value="other">Other</option>
+              <option value="bank">{tt('Bank')}</option>
+              <option value="mobile">{tt('Mobile money')}</option>
+              <option value="other">{tt('Other')}</option>
             </AdminField.Select>
           </AdminField>
           {formData.paymentMethod === 'bank' ? (
@@ -700,7 +701,7 @@ export default function AffiliatePage() {
         title="Affiliate details"
         footer={
           <button type="button" onClick={() => setDetails(null)} className={btnGhost}>
-            Close
+            {tt('Close')}
           </button>
         }
       >
@@ -719,25 +720,25 @@ export default function AffiliatePage() {
             </div>
             <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <dt className="text-xs text-[var(--admin-text-muted)]">Commissions</dt>
+                <dt className="text-xs text-[var(--admin-text-muted)]">{tt('Commissions')}</dt>
                 <dd className="font-medium">{money(details.totalCommissions)}</dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--admin-text-muted)]">Pending payouts</dt>
+                <dt className="text-xs text-[var(--admin-text-muted)]">{tt('Pending payouts')}</dt>
                 <dd className="font-medium">{money(details.pendingPayouts)}</dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--admin-text-muted)]">Referrals</dt>
+                <dt className="text-xs text-[var(--admin-text-muted)]">{tt('Referrals')}</dt>
                 <dd className="font-medium">{details.referralCount ?? 0}</dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--admin-text-muted)]">Joined</dt>
+                <dt className="text-xs text-[var(--admin-text-muted)]">{tt('Joined')}</dt>
                 <dd className="font-medium">{fmtDate(details.createdAt)}</dd>
               </div>
             </dl>
             <div>
               <p className="mb-1 text-xs font-medium uppercase tracking-wide text-[var(--admin-text-muted)]">
-                Bank details
+                {tt('Bank details')}
               </p>
               <p className="text-[var(--admin-text)]">
                 {formatMaskedBank(details.bankDetailsMasked)
@@ -746,7 +747,7 @@ export default function AffiliatePage() {
             </div>
             <div>
               <p className="mb-1 text-xs font-medium uppercase tracking-wide text-[var(--admin-text-muted)]">
-                Referral link
+                {tt('Referral link')}
               </p>
               <div className="flex gap-2">
                 <AdminField.Input
@@ -769,7 +770,7 @@ export default function AffiliatePage() {
         footer={
           <>
             <button type="button" onClick={() => setPasswordTarget(null)} className={btnGhost} disabled={actionLoading}>
-              Cancel
+              {tt('Cancel')}
             </button>
             <button type="submit" form="aff-password-form" className={btnPrimary} disabled={actionLoading}>
               {actionLoading ? 'Saving…' : 'Set password'}

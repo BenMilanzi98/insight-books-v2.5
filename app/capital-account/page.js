@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { Suspense } from "react";
 import CapitalAccountManager from "@/components/CapitalAccountManager";
@@ -24,7 +25,7 @@ export default function CapitalAccountPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center text-slate-500 text-sm">Loading…</div>
+        <div className="min-h-screen flex items-center justify-center text-slate-500 text-sm">{tt('Loading…')}</div>
       }
     >
       <CapitalAccountPageInner />

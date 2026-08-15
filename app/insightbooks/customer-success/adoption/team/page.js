@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import AdoptionContextBar from '@/components/admin/customerSuccess/AdoptionContextBar';
@@ -8,7 +9,7 @@ export default function AdoptionTeamPage() {
   return (
     <div style={{ padding: '1.5rem', maxWidth: 960 }}>
       <AdoptionContextBar population="adoption-team" />
-      <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Team</h1>
+      <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{tt('Team')}</h1>
       <p style={{ color: '#555', marginBottom: '1.25rem' }}>
         CS owner workload view (thin). Portfolio fail-closed.
       </p>

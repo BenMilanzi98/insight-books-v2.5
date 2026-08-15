@@ -1,5 +1,6 @@
 // components/COGSExpensesTable.js
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState } from 'react';
 import { Calendar, DollarSign, User, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -124,7 +125,7 @@ const COGSExpensesTable = ({ expenses }) => {
     return (
       <div className="text-center py-8">
         <div className="text-gray-400 mb-2">📋</div>
-        <p className="text-gray-500">No COGS expenses found</p>
+        <p className="text-gray-500">{tt('No COGS expenses found')}</p>
       </div>
     );
   }
@@ -140,7 +141,7 @@ const COGSExpensesTable = ({ expenses }) => {
             >
               <div className="flex items-center space-x-1">
                 <Calendar className="w-4 h-4" />
-                <span>Date</span>
+                <span>{tt('Date')}</span>
                 {sortField === 'date' && (
                   <span className="text-blue-600">
                     {sortDirection === 'asc' ? '↑' : '↓'}
@@ -154,7 +155,7 @@ const COGSExpensesTable = ({ expenses }) => {
             >
               <div className="flex items-center space-x-1">
                 <FileText className="w-4 h-4" />
-                <span>Description</span>
+                <span>{tt('Description')}</span>
                 {sortField === 'description' && (
                   <span className="text-blue-600">
                     {sortDirection === 'asc' ? '↑' : '↓'}
@@ -168,7 +169,7 @@ const COGSExpensesTable = ({ expenses }) => {
             >
               <div className="flex items-center space-x-1">
                 <DollarSign className="w-4 h-4" />
-                <span>Amount</span>
+                <span>{tt('Amount')}</span>
                 {sortField === 'amount' && (
                   <span className="text-blue-600">
                     {sortDirection === 'asc' ? '↑' : '↓'}
@@ -181,7 +182,7 @@ const COGSExpensesTable = ({ expenses }) => {
               onClick={() => handleSort('category')}
             >
               <div className="flex items-center space-x-1">
-                <span>Category</span>
+                <span>{tt('Category')}</span>
                 {sortField === 'category' && (
                   <span className="text-blue-600">
                     {sortDirection === 'asc' ? '↑' : '↓'}
@@ -195,7 +196,7 @@ const COGSExpensesTable = ({ expenses }) => {
             >
               <div className="flex items-center space-x-1">
                 <User className="w-4 h-4" />
-                <span>Submitted By</span>
+                <span>{tt('Submitted By')}</span>
                 {sortField === 'submittedByName' && (
                   <span className="text-blue-600">
                     {sortDirection === 'asc' ? '↑' : '↓'}
@@ -252,14 +253,14 @@ const COGSExpensesTable = ({ expenses }) => {
                 className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronLeft className="w-4 h-4 mr-1" />
-                Previous
+                {tt('Previous')}
               </button>
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
                 className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                Next
+                {tt('Next')}
                 <ChevronRight className="w-4 h-4 ml-1" />
               </button>
             </div>
@@ -271,15 +272,15 @@ const COGSExpensesTable = ({ expenses }) => {
               {/* Left side - Results info and page size selector */}
               <div className="flex items-center space-x-4">
                 <div className="text-sm text-gray-700">
-                  Showing <span className="font-semibold text-gray-900">{startIndex + 1}</span> to{' '}
+                  {tt('Showing')} <span className="font-semibold text-gray-900">{startIndex + 1}</span> to{' '}
                   <span className="font-semibold text-gray-900">{Math.min(endIndex, sortedExpenses.length)}</span> of{' '}
-                  <span className="font-semibold text-gray-900">{sortedExpenses.length}</span> results
+                  <span className="font-semibold text-gray-900">{sortedExpenses.length}</span> {tt('results')}
                 </div>
                 
                 {/* Page size selector */}
                 <div className="flex items-center space-x-2">
                   <label htmlFor="itemsPerPage" className="text-sm text-gray-600">
-                    Show:
+                    {tt('Show:')}
                   </label>
                   <select
                     id="itemsPerPage"
@@ -293,7 +294,7 @@ const COGSExpensesTable = ({ expenses }) => {
                     <option value={50}>50</option>
                     <option value={100}>100</option>
                   </select>
-                  <span className="text-sm text-gray-600">per page</span>
+                  <span className="text-sm text-gray-600">{tt('per page')}</span>
                 </div>
               </div>
 
@@ -301,7 +302,7 @@ const COGSExpensesTable = ({ expenses }) => {
               <div className="flex items-center space-x-2">
                 {/* Jump to page */}
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-600">Go to:</span>
+                  <span className="text-sm text-gray-600">{tt('Go to:')}</span>
                   <input
                     type="number"
                     min="1"
@@ -309,7 +310,7 @@ const COGSExpensesTable = ({ expenses }) => {
                     value={jumpToPage}
                     onChange={(e) => setJumpToPage(e.target.value)}
                     onKeyPress={handleJumpToPageKeyPress}
-                    placeholder="Page"
+                    placeholder={tt('Page')}
                     className="w-16 text-sm border border-gray-300 rounded-md px-2 py-1 text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                   <button
@@ -317,7 +318,7 @@ const COGSExpensesTable = ({ expenses }) => {
                     disabled={!jumpToPage || jumpToPage < 1 || jumpToPage > totalPages}
                     className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    Go
+                    {tt('Go')}
                   </button>
                 </div>
 

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useRef } from 'react';
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle, X } from 'lucide-react';
@@ -368,7 +369,7 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-fadeInUp">
         <div className="p-5 border-b border-gray-200 flex-shrink-0">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Bulk stock operations</h2>
+            <h2 className="text-xl font-semibold">{tt('Bulk stock operations')}</h2>
             <button 
               className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
               onClick={onClose}
@@ -391,7 +392,7 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
               }`}
             >
               <Upload size={16} className="inline mr-2" />
-              Bulk Upload
+              {tt('Bulk Upload')}
             </button>
             <button
               onClick={() => setUploadMode('export')}
@@ -402,7 +403,7 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
               }`}
             >
               <Download size={16} className="inline mr-2" />
-              Export Data
+              {tt('Export Data')}
             </button>
           </div>
 
@@ -410,7 +411,7 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
             /* Upload Mode */
             <div className="space-y-6">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-medium text-blue-800 mb-2">Bulk Upload Instructions</h3>
+                <h3 className="font-medium text-blue-800 mb-2">{tt('Bulk Upload Instructions')}</h3>
                 <ul className="text-sm text-blue-700 space-y-1">
                   <li>• Upload Excel (.xlsx, .xls) or CSV files</li>
                   <li>• Maximum file size: 5MB</li>
@@ -426,7 +427,7 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center"
                 >
                   <FileSpreadsheet size={16} className="mr-2" />
-                  Download Template
+                  {tt('Download Template')}
                 </button>
               </div>
 
@@ -439,13 +440,13 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
                   <div>
                     <CheckCircle size={48} className="mx-auto mb-4 text-green-500" />
                     <p className="text-lg font-medium text-gray-800">{uploadedFile.name}</p>
-                    <p className="text-sm text-gray-500">Click to change file</p>
+                    <p className="text-sm text-gray-500">{tt('Click to change file')}</p>
                   </div>
                 ) : (
                   <div>
                     <Upload size={48} className="mx-auto mb-4 text-gray-400" />
-                    <p className="text-lg font-medium text-gray-800">Click to upload file</p>
-                    <p className="text-sm text-gray-500">Excel or CSV files only</p>
+                    <p className="text-lg font-medium text-gray-800">{tt('Click to upload file')}</p>
+                    <p className="text-sm text-gray-500">{tt('Excel or CSV files only')}</p>
                   </div>
                 )}
                 
@@ -466,12 +467,12 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
                     <table className="w-full text-sm">
                       <thead className="sticky top-0 bg-gray-50">
                         <tr className="border-b border-gray-200">
-                          <th className="text-left py-2">Product Name</th>
-                          <th className="text-left py-2">Category</th>
-                          <th className="text-left py-2">Order Price</th>
-                          <th className="text-left py-2">Selling Price</th>
-                          <th className="text-left py-2">Quantity</th>
-                          <th className="text-left py-2">Reorder Point</th>
+                          <th className="text-left py-2">{tt('Product Name')}</th>
+                          <th className="text-left py-2">{tt('Category')}</th>
+                          <th className="text-left py-2">{tt('Order Price')}</th>
+                          <th className="text-left py-2">{tt('Selling Price')}</th>
+                          <th className="text-left py-2">{tt('Quantity')}</th>
+                          <th className="text-left py-2">{tt('Reorder Point')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -513,9 +514,9 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
             /* Export Mode */
             <div className="space-y-6">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <h3 className="font-medium text-green-800 mb-2">Export Options</h3>
+                <h3 className="font-medium text-green-800 mb-2">{tt('Export Options')}</h3>
                 <p className="text-sm text-green-700">
-                  Export your current stock data to Excel or CSV format for backup or analysis.
+                  {tt('Export your current stock data to Excel or CSV format for backup or analysis.')}
                 </p>
               </div>
 
@@ -526,7 +527,7 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
                   className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
                   <FileSpreadsheet size={32} className="mx-auto mb-2 text-green-600" />
-                  <p className="font-medium">Export to Excel</p>
+                  <p className="font-medium">{tt('Export to Excel')}</p>
                   <p className="text-sm text-gray-500">.xlsx format</p>
                 </button>
 
@@ -536,7 +537,7 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
                   className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
                   <Download size={32} className="mx-auto mb-2 text-blue-600" />
-                  <p className="font-medium">Export to CSV</p>
+                  <p className="font-medium">{tt('Export to CSV')}</p>
                   <p className="text-sm text-gray-500">.csv format</p>
                 </button>
               </div>
@@ -551,7 +552,7 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
             onClick={onClose}
             className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           
           {uploadMode === 'upload' && uploadedFile && (
@@ -564,7 +565,7 @@ const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast })
               {isProcessing ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  <span>Processing...</span>
+                  <span>{tt('Processing...')}</span>
                 </>
               ) : (
                 <>

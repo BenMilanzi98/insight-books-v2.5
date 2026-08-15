@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { DollarSign, Plus, Eye, Edit, Trash2, Calendar, User, RefreshCw, AlertCircle, CheckCircle, Loader } from "lucide-react";
@@ -239,7 +240,7 @@ export default function SalaryAdvancesManagement() {
             className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md"
           >
             <Plus size={20} className="mr-2" />
-            New Salary Advance
+            {tt('New Salary Advance')}
           </button>
         }
       />
@@ -289,17 +290,17 @@ export default function SalaryAdvancesManagement() {
           onChange={(e) => setFilterStatus(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-2"
         >
-          <option value="all">All Status</option>
-          <option value="Active">Active</option>
-          <option value="Completed">Completed</option>
-          <option value="Cancelled">Cancelled</option>
+          <option value="all">{tt('All Status')}</option>
+          <option value="Active">{tt('Active')}</option>
+          <option value="Completed">{tt('Completed')}</option>
+          <option value="Cancelled">{tt('Cancelled')}</option>
         </select>
         <button
           onClick={fetchAdvances}
           className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center gap-2"
         >
           <RefreshCw size={20} />
-          Refresh
+          {tt('Refresh')}
         </button>
       </div>
 
@@ -308,24 +309,24 @@ export default function SalaryAdvancesManagement() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Advance Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Deduction</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Deducted</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Outstanding</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Advance Date')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Amount')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Monthly Deduction')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Total Deducted')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Outstanding')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-4 text-center text-gray-500">Loading...</td>
+                  <td colSpan="8" className="px-6 py-4 text-center text-gray-500">{tt('Loading...')}</td>
                 </tr>
               ) : advances.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-4 text-center text-gray-500">No salary advances found</td>
+                  <td colSpan="8" className="px-6 py-4 text-center text-gray-500">{tt('No salary advances found')}</td>
                 </tr>
               ) : (
                 advances.map((advance) => (
@@ -411,16 +412,16 @@ export default function SalaryAdvancesManagement() {
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">New Salary Advance</h2>
+            <h2 className="text-xl font-bold mb-4">{tt('New Salary Advance')}</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Employee *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Employee *')}</label>
                 <select
                   value={formData.employeeId}
                   onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 >
-                  <option value="">Select Employee</option>
+                  <option value="">{tt('Select Employee')}</option>
                   {employees.map((emp) => (
                     <option key={emp.id} value={emp.id}>
                       {emp.name} ({emp.employeeId || emp.id})
@@ -429,7 +430,7 @@ export default function SalaryAdvancesManagement() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Advance Amount *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Advance Amount *')}</label>
                 <input
                   type="number"
                   step="0.01"
@@ -440,7 +441,7 @@ export default function SalaryAdvancesManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Advance Date *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Advance Date *')}</label>
                 <input
                   type="date"
                   value={formData.advanceDate}
@@ -449,7 +450,7 @@ export default function SalaryAdvancesManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Payment Method *')}</label>
                 <select
                   value={formData.paymentMethod}
                   onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
@@ -464,7 +465,7 @@ export default function SalaryAdvancesManagement() {
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  This will create an expense entry in your accounting records
+                  {tt('This will create an expense entry in your accounting records')}
                 </p>
               </div>
               <div>
@@ -486,20 +487,20 @@ export default function SalaryAdvancesManagement() {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reference</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Reference')}</label>
                 <input
                   type="text"
                   value={formData.reference}
                   readOnly
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 cursor-not-allowed"
-                  placeholder="Auto-generated reference"
+                  placeholder={tt('Auto-generated reference')}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Reference number is automatically generated
+                  {tt('Reference number is automatically generated')}
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Notes')}</label>
                 <textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -513,7 +514,7 @@ export default function SalaryAdvancesManagement() {
                 onClick={handleCreate}
                 className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
               >
-                Create Advance
+                {tt('Create Advance')}
               </button>
               <button
                 onClick={() => {
@@ -531,7 +532,7 @@ export default function SalaryAdvancesManagement() {
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
             </div>
           </div>
@@ -542,29 +543,29 @@ export default function SalaryAdvancesManagement() {
       {showEditModal && selectedAdvance && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4">Edit Salary Advance</h2>
+            <h2 className="text-xl font-bold mb-4">{tt('Edit Salary Advance')}</h2>
             <div className="space-y-4">
               <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600">Employee: <span className="font-medium">{selectedAdvance.employee?.name}</span></p>
-                <p className="text-sm text-gray-600">Amount: <span className="font-medium">{formatCurrency(selectedAdvance.amount)}</span></p>
+                <p className="text-sm text-gray-600">{tt('Employee:')} <span className="font-medium">{selectedAdvance.employee?.name}</span></p>
+                <p className="text-sm text-gray-600">{tt('Amount:')} <span className="font-medium">{formatCurrency(selectedAdvance.amount)}</span></p>
                 {selectedAdvance.totalDeducted > 0 && (
                   <p className="text-xs text-orange-600 mt-2">⚠️ Cannot modify amount after deductions have been made</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Status')}</label>
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 >
-                  <option value="Active">Active</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Cancelled">Cancelled</option>
+                  <option value="Active">{tt('Active')}</option>
+                  <option value="Completed">{tt('Completed')}</option>
+                  <option value="Cancelled">{tt('Cancelled')}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Notes')}</label>
                 <textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -578,7 +579,7 @@ export default function SalaryAdvancesManagement() {
                 onClick={handleUpdate}
                 className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
               >
-                Update
+                {tt('Update')}
               </button>
               <button
                 onClick={() => {
@@ -587,7 +588,7 @@ export default function SalaryAdvancesManagement() {
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
             </div>
           </div>
@@ -598,14 +599,14 @@ export default function SalaryAdvancesManagement() {
       {showDeleteModal && selectedAdvance && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4">Delete Salary Advance</h2>
+            <h2 className="text-xl font-bold mb-4">{tt('Delete Salary Advance')}</h2>
             <p className="mb-4 text-gray-600">
               Are you sure you want to delete this salary advance? This action cannot be undone.
             </p>
             <div className="p-3 bg-gray-50 rounded-lg mb-4">
-              <p className="text-sm"><strong>Employee:</strong> {selectedAdvance.employee?.name}</p>
-              <p className="text-sm"><strong>Amount:</strong> {formatCurrency(selectedAdvance.amount)}</p>
-              <p className="text-sm"><strong>Outstanding:</strong> {formatCurrency(selectedAdvance.outstandingAmount)}</p>
+              <p className="text-sm"><strong>{tt('Employee:')}</strong> {selectedAdvance.employee?.name}</p>
+              <p className="text-sm"><strong>{tt('Amount:')}</strong> {formatCurrency(selectedAdvance.amount)}</p>
+              <p className="text-sm"><strong>{tt('Outstanding:')}</strong> {formatCurrency(selectedAdvance.outstandingAmount)}</p>
             </div>
             {selectedAdvance.totalDeducted > 0 && (
               <p className="text-sm text-red-600 mb-4">
@@ -622,7 +623,7 @@ export default function SalaryAdvancesManagement() {
                     : 'bg-red-600 text-white hover:bg-red-700'
                 }`}
               >
-                Delete
+                {tt('Delete')}
               </button>
               <button
                 onClick={() => {
@@ -631,7 +632,7 @@ export default function SalaryAdvancesManagement() {
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
             </div>
           </div>
@@ -642,43 +643,43 @@ export default function SalaryAdvancesManagement() {
       {showDetailsModal && selectedAdvance && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">Salary Advance Details</h2>
+            <h2 className="text-xl font-bold mb-4">{tt('Salary Advance Details')}</h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-600">Employee</p>
+                  <p className="text-sm text-gray-600">{tt('Employee')}</p>
                   <p className="font-medium">{selectedAdvance.employee?.name}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Employee ID</p>
+                  <p className="text-sm text-gray-600">{tt('Employee ID')}</p>
                   <p className="font-medium">{selectedAdvance.employee?.employeeId}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Advance Amount</p>
+                  <p className="text-sm text-gray-600">{tt('Advance Amount')}</p>
                   <p className="font-medium text-blue-600">{formatCurrency(selectedAdvance.amount || 0)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Advance Date</p>
+                  <p className="text-sm text-gray-600">{tt('Advance Date')}</p>
                   <p className="font-medium">{formatDate(selectedAdvance.advanceDate)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Repayment Period</p>
+                  <p className="text-sm text-gray-600">{tt('Repayment Period')}</p>
                   <p className="font-medium">{selectedAdvance.repaymentMonths} months</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Monthly Deduction</p>
+                  <p className="text-sm text-gray-600">{tt('Monthly Deduction')}</p>
                   <p className="font-medium">{formatCurrency(selectedAdvance.monthlyDeduction || 0)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Total Deducted</p>
+                  <p className="text-sm text-gray-600">{tt('Total Deducted')}</p>
                   <p className="font-medium text-green-600">{formatCurrency(selectedAdvance.totalDeducted || 0)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Outstanding</p>
+                  <p className="text-sm text-gray-600">{tt('Outstanding')}</p>
                   <p className="font-medium text-orange-600">{formatCurrency(selectedAdvance.outstandingAmount || 0)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Status</p>
+                  <p className="text-sm text-gray-600">{tt('Status')}</p>
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                     selectedAdvance.status === 'Active' ? 'bg-blue-100 text-blue-800' :
                     selectedAdvance.status === 'Completed' ? 'bg-green-100 text-green-800' :
@@ -689,7 +690,7 @@ export default function SalaryAdvancesManagement() {
                 </div>
                 {selectedAdvance.reference && (
                   <div>
-                    <p className="text-sm text-gray-600">Reference</p>
+                    <p className="text-sm text-gray-600">{tt('Reference')}</p>
                     <p className="font-medium">{selectedAdvance.reference}</p>
                   </div>
                 )}
@@ -699,7 +700,7 @@ export default function SalaryAdvancesManagement() {
               {selectedAdvance.amount > 0 && (
                 <div className="mt-6">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-medium text-gray-700">Repayment Progress</p>
+                    <p className="text-sm font-medium text-gray-700">{tt('Repayment Progress')}</p>
                     <p className="text-sm text-gray-600">
                       {Math.round((selectedAdvance.totalDeducted || 0) / selectedAdvance.amount * 100)}% Complete
                     </p>
@@ -722,14 +723,14 @@ export default function SalaryAdvancesManagement() {
               {/* Deduction History */}
               {selectedAdvance.deductions && selectedAdvance.deductions.length > 0 && (
                 <div className="mt-6">
-                  <p className="text-sm font-medium text-gray-700 mb-3">Deduction History</p>
+                  <p className="text-sm font-medium text-gray-700 mb-3">{tt('Deduction History')}</p>
                   <div className="border rounded-lg overflow-hidden">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Amount</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Payroll Period</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Date')}</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Amount')}</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Payroll Period')}</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -759,7 +760,7 @@ export default function SalaryAdvancesManagement() {
               }}
               className="mt-6 w-full bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
             >
-              Close
+              {tt('Close')}
             </button>
           </div>
         </div>

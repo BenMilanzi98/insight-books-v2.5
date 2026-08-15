@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -60,9 +61,9 @@ export default function AffiliateForgotPasswordPage() {
           <div className="mx-auto h-16 w-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
             <Mail className="h-8 w-8 text-indigo-600" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900">Forgot Password</h2>
+          <h2 className="text-3xl font-bold text-gray-900">{tt('Forgot Password')}</h2>
           <p className="mt-2 text-sm text-gray-600">
-            Enter your email address and we'll send you a link to reset your password
+            {tt("Enter your email address and we'll send you a link to reset your password")}
           </p>
         </div>
       </div>
@@ -72,7 +73,7 @@ export default function AffiliateForgotPasswordPage() {
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email Address
+                {tt('Email Address')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -86,7 +87,7 @@ export default function AffiliateForgotPasswordPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Enter your email address"
+                  placeholder={tt('Enter your email address')}
                 />
               </div>
             </div>
@@ -97,7 +98,7 @@ export default function AffiliateForgotPasswordPage() {
                 <div className="flex">
                   <AlertCircle className="h-5 w-5 text-red-400" />
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">Error</h3>
+                    <h3 className="text-sm font-medium text-red-800">{tt('Error')}</h3>
                     <div className="mt-2 text-sm text-red-700">{error}</div>
                   </div>
                 </div>
@@ -109,7 +110,7 @@ export default function AffiliateForgotPasswordPage() {
                 <div className="flex">
                   <CheckCircle className="h-5 w-5 text-green-400" />
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-green-800">Success</h3>
+                    <h3 className="text-sm font-medium text-green-800">{tt('Success')}</h3>
                     <div className="mt-2 text-sm text-green-700">{success}</div>
                   </div>
                 </div>
@@ -144,7 +145,7 @@ export default function AffiliateForgotPasswordPage() {
                 className="w-full flex justify-center items-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Login
+                {tt('Back to Login')}
               </button>
             </div>
           </div>

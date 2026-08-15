@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 import React, { useState, useEffect } from 'react';
 import { CreditCard, Calendar, FileText, DollarSign, CheckCircle, Clock, Download, Receipt, Printer } from 'lucide-react';
 import ReceiptTemplateCapture from '@/components/ReceiptTemplateCapture';
@@ -238,10 +239,9 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
     return (
       <div className="text-center py-8 text-gray-500">
         <Receipt className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-        <p className="font-medium text-gray-700">No payment history for COGS</p>
+        <p className="font-medium text-gray-700">{tt('No payment history for COGS')}</p>
         <p className="text-sm text-gray-400 mt-2 max-w-md mx-auto">
-          Cost of goods sold entries come from inventory journals when items are sold.
-          They are not paid like supplier expenses.
+          {tt('Cost of goods sold entries come from inventory journals when items are sold. They are not paid like supplier expenses.')}
         </p>
       </div>
     );
@@ -251,7 +251,7 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
     return (
       <div className="flex items-center justify-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2 text-gray-600">Loading payment history...</span>
+        <span className="ml-2 text-gray-600">{tt('Loading payment history...')}</span>
       </div>
     );
   }
@@ -264,7 +264,7 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
           onClick={fetchPaymentHistory}
           className="text-blue-600 hover:text-blue-800 underline"
         >
-          Try again
+          {tt('Try again')}
         </button>
       </div>
     );
@@ -273,7 +273,7 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
   if (!expense) {
     return (
       <div className="text-center py-8 text-gray-500">
-        Expense not found
+        {tt('Expense not found')}
       </div>
     );
   }
@@ -282,29 +282,29 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
     <div className="space-y-6">
       {/* Payment Summary */}
       <div className="bg-gray-50 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Summary</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{tt('Payment Summary')}</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div className="text-center">
             <div className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-gray-900 sm:text-2xl">{formatCurrency(expense.amount)}</div>
-            <div className="text-sm text-gray-600">Total Amount</div>
+            <div className="text-sm text-gray-600">{tt('Total Amount')}</div>
           </div>
           <div className="text-center">
             <div className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-green-600 sm:text-2xl">{formatCurrency(getTotalPaid())}</div>
-            <div className="text-sm text-gray-600">Total Paid</div>
+            <div className="text-sm text-gray-600">{tt('Total Paid')}</div>
           </div>
           <div className="text-center">
             <div className={`min-w-0 break-words text-xl font-bold leading-tight tabular-nums sm:text-2xl ${getRemainingBalance() > 0 ? 'text-red-600' : 'text-green-600'}`}>
               {formatCurrency(getRemainingBalance())}
             </div>
-            <div className="text-sm text-gray-600">Remaining Balance</div>
+            <div className="text-sm text-gray-600">{tt('Remaining Balance')}</div>
           </div>
         </div>
 
         {/* Progress Bar */}
         <div className="mb-4">
           <div className="flex justify-between text-sm text-gray-600 mb-2">
-            <span>Payment Progress</span>
+            <span>{tt('Payment Progress')}</span>
             <span>{calculateProgress().toFixed(1)}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-3">
@@ -329,17 +329,17 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
             {isFullyPaid() ? (
               <>
                 <CheckCircle className="h-4 w-4 mr-1" />
-                Fully Paid
+                {tt('Fully Paid')}
               </>
             ) : getTotalPaid() > 0 ? (
               <>
                 <Clock className="h-4 w-4 mr-1" />
-                Partially Paid
+                {tt('Partially Paid')}
               </>
             ) : (
               <>
                 <Clock className="h-4 w-4 mr-1" />
-                Pending Payment
+                {tt('Pending Payment')}
               </>
             )}
           </span>
@@ -357,12 +357,12 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
             {isCapturingReceipt ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Downloading...
+                {tt('Downloading...')}
               </>
             ) : (
               <>
                 <Download className="h-4 w-4 mr-2" />
-                Download All Receipts
+                {tt('Download All Receipts')}
               </>
             )}
           </button>
@@ -371,14 +371,14 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
 
       {/* Payment History */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment History</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{tt('Payment History')}</h3>
         
         {payments.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <Receipt className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-            <p>No payments recorded yet</p>
+            <p>{tt('No payments recorded yet')}</p>
             <p className="text-sm text-gray-400 mt-2">
-              Payments will appear here once they are added to this expense
+              {tt('Payments will appear here once they are added to this expense')}
             </p>
           </div>
         ) : (
@@ -435,19 +435,19 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
                       {isCapturingReceipt ? (
                         <>
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-1"></div>
-                          <span className="text-xs">Loading...</span>
+                          <span className="text-xs">{tt('Loading...')}</span>
                         </>
                       ) : (
                         <>
                           <Download className="h-4 w-4 mr-1" />
-                          Receipt
+                          {tt('Receipt')}
                         </>
                       )}
                       </button>
                     ) : (
                       <span className="inline-flex items-center px-3 py-1 bg-gray-50 text-gray-500 text-sm font-medium rounded-md cursor-not-allowed" title="Receipt not available for legacy payments">
                         <Receipt className="h-4 w-4 mr-1" />
-                        Legacy
+                        {tt('Legacy')}
                       </span>
                     )}
                   </div>
@@ -474,7 +474,7 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
           <div className="bg-white p-6 rounded-lg shadow-lg">
             <div className="flex items-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
-              <p>Preparing receipt for download...</p>
+              <p>{tt('Preparing receipt for download...')}</p>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState, useCallback } from "react";
 import { AlertCircle, X, ChevronRight } from "lucide-react";
@@ -69,7 +70,7 @@ export default function SetupWizardReminderBanner() {
             <AlertCircle className="h-5 w-5 text-amber-700" aria-hidden />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-amber-950">Finish your business setup</p>
+            <p className="text-sm font-semibold text-amber-950">{tt('Finish your business setup')}</p>
             <p className="mt-1 text-xs text-amber-900/90">
               Resume account, stock, customers, suppliers, or opening balances. Still pending:{" "}
               <span className="font-medium">{preview}</span>
@@ -81,7 +82,7 @@ export default function SetupWizardReminderBanner() {
                 onClick={() => openWizard()}
                 className="inline-flex items-center rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
               >
-                Open setup wizard
+                {tt('Open setup wizard')}
                 <ChevronRight className="ml-1 h-3.5 w-3.5" aria-hidden />
               </button>
               <button
@@ -90,7 +91,7 @@ export default function SetupWizardReminderBanner() {
                 disabled={snoozing}
                 className="inline-flex items-center rounded-lg border border-amber-300 bg-white/80 px-3 py-1.5 text-xs font-medium text-amber-950 hover:bg-white disabled:opacity-50"
               >
-                Remind me in 7 days
+                {tt('Remind me in 7 days')}
               </button>
             </div>
           </div>
@@ -99,7 +100,7 @@ export default function SetupWizardReminderBanner() {
           type="button"
           onClick={() => setDismissed(true)}
           className="self-start rounded-md p-1 text-amber-800/70 hover:bg-amber-100/80 hover:text-amber-950"
-          aria-label="Dismiss banner for this session"
+          aria-label={tt('Dismiss banner for this session')}
         >
           <X className="h-4 w-4" />
         </button>

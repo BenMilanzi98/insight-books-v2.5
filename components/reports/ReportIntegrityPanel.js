@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
@@ -44,15 +45,15 @@ export default function ReportIntegrityPanel() {
   return (
     <section
       className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-      aria-label="Report integrity status"
+      aria-label={tt('Report integrity status')}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           {icon}
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Report Integrity</h3>
+            <h3 className="text-sm font-semibold text-slate-900">{tt('Report Integrity')}</h3>
             <p className="text-xs text-slate-500">
-              Ledger-backed reconciliation — Chart of Accounts vs General Ledger vs journals
+              {tt('Ledger-backed reconciliation — Chart of Accounts vs General Ledger vs journals')}
             </p>
           </div>
         </div>
@@ -102,7 +103,7 @@ export default function ReportIntegrityPanel() {
           )}
           {result.status === 'ok' && (
             <p className="text-xs text-emerald-700">
-              No integrity issues detected. Reports are aligned with posted ledger entries.
+              {tt('No integrity issues detected. Reports are aligned with posted ledger entries.')}
             </p>
           )}
         </div>

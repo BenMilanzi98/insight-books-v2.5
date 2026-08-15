@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * Internal Historical Accounting Repair console (Phase 6).
@@ -108,7 +109,7 @@ export default function AccountingRepairPage() {
     <div className="mx-auto max-w-6xl space-y-6 p-8">
       <header className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Historical Accounting Repair</h1>
+          <h1 className="text-2xl font-bold">{tt('Historical Accounting Repair')}</h1>
           <p className="text-sm text-slate-500">
             Phase 6 repair console — anomaly registry, repair batches and exception register for
             the current business. Every repair is evidence-based, approved and idempotent; posted
@@ -134,34 +135,34 @@ export default function AccountingRepairPage() {
 
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <div className="rounded border p-4">
-          <div className="text-xs uppercase text-slate-500">Open anomalies</div>
+          <div className="text-xs uppercase text-slate-500">{tt('Open anomalies')}</div>
           <div className="text-2xl font-bold">{pagination?.total ?? anomalies.length}</div>
         </div>
         <div className="rounded border p-4">
-          <div className="text-xs uppercase text-slate-500">Critical / High</div>
+          <div className="text-xs uppercase text-slate-500">{tt('Critical / High')}</div>
           <div className="text-2xl font-bold">
             {(bySeverity.CRITICAL ?? 0) + (bySeverity.HIGH ?? 0)}
           </div>
         </div>
         <div className="rounded border p-4">
-          <div className="text-xs uppercase text-slate-500">Repair batches</div>
+          <div className="text-xs uppercase text-slate-500">{tt('Repair batches')}</div>
           <div className="text-2xl font-bold">{batches.length}</div>
         </div>
         <div className="rounded border p-4">
-          <div className="text-xs uppercase text-slate-500">Exceptions</div>
+          <div className="text-xs uppercase text-slate-500">{tt('Exceptions')}</div>
           <div className="text-2xl font-bold">{exceptions.length}</div>
         </div>
       </section>
 
       <section className="space-y-2">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">Anomaly registry</h2>
+          <h2 className="text-lg font-semibold">{tt('Anomaly registry')}</h2>
           <select
             className="rounded border px-2 py-1 text-sm"
             value={filters.severity}
             onChange={(e) => setFilters((f) => ({ ...f, severity: e.target.value }))}
           >
-            <option value="">All severities</option>
+            <option value="">{tt('All severities')}</option>
             {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((s) => (
               <option key={s}>{s}</option>
             ))}
@@ -171,7 +172,7 @@ export default function AccountingRepairPage() {
             value={filters.status}
             onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
           >
-            <option value="">All statuses</option>
+            <option value="">{tt('All statuses')}</option>
             {[
               'DETECTED',
               'UNDER_INVESTIGATION',
@@ -187,21 +188,21 @@ export default function AccountingRepairPage() {
           </select>
         </div>
         {loading ? (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <p className="text-sm text-slate-500">{tt('Loading…')}</p>
         ) : anomalies.length === 0 ? (
-          <p className="text-sm text-slate-500">No anomalies match the current filters.</p>
+          <p className="text-sm text-slate-500">{tt('No anomalies match the current filters.')}</p>
         ) : (
           <div className="overflow-x-auto rounded border">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">Code</th>
-                  <th className="px-3 py-2">Type</th>
-                  <th className="px-3 py-2">Severity</th>
-                  <th className="px-3 py-2">Confidence</th>
-                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">{tt('Code')}</th>
+                  <th className="px-3 py-2">{tt('Type')}</th>
+                  <th className="px-3 py-2">{tt('Severity')}</th>
+                  <th className="px-3 py-2">{tt('Confidence')}</th>
+                  <th className="px-3 py-2">{tt('Status')}</th>
                   <th className="px-3 py-2">Impact (minor)</th>
-                  <th className="px-3 py-2">Detected</th>
+                  <th className="px-3 py-2">{tt('Detected')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -227,20 +228,20 @@ export default function AccountingRepairPage() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Repair batches</h2>
+        <h2 className="text-lg font-semibold">{tt('Repair batches')}</h2>
         {batches.length === 0 ? (
-          <p className="text-sm text-slate-500">No repair batches yet.</p>
+          <p className="text-sm text-slate-500">{tt('No repair batches yet.')}</p>
         ) : (
           <div className="overflow-x-auto rounded border">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">Batch</th>
-                  <th className="px-3 py-2">Category</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Actions</th>
-                  <th className="px-3 py-2">Dry run</th>
-                  <th className="px-3 py-2">Approved by</th>
+                  <th className="px-3 py-2">{tt('Batch')}</th>
+                  <th className="px-3 py-2">{tt('Category')}</th>
+                  <th className="px-3 py-2">{tt('Status')}</th>
+                  <th className="px-3 py-2">{tt('Actions')}</th>
+                  <th className="px-3 py-2">{tt('Dry run')}</th>
+                  <th className="px-3 py-2">{tt('Approved by')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -261,19 +262,19 @@ export default function AccountingRepairPage() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Exception register</h2>
+        <h2 className="text-lg font-semibold">{tt('Exception register')}</h2>
         {exceptions.length === 0 ? (
-          <p className="text-sm text-slate-500">No accepted exceptions.</p>
+          <p className="text-sm text-slate-500">{tt('No accepted exceptions.')}</p>
         ) : (
           <div className="overflow-x-auto rounded border">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">Type</th>
-                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">{tt('Type')}</th>
+                  <th className="px-3 py-2">{tt('Status')}</th>
                   <th className="px-3 py-2">Amount (minor)</th>
-                  <th className="px-3 py-2">Reason blocked</th>
-                  <th className="px-3 py-2">Owner</th>
+                  <th className="px-3 py-2">{tt('Reason blocked')}</th>
+                  <th className="px-3 py-2">{tt('Owner')}</th>
                 </tr>
               </thead>
               <tbody>

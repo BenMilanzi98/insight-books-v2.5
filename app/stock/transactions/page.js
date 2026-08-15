@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -14,7 +15,7 @@ export default function StockTransactionsPage() {
   }, [router]);
   return (
     <div className="flex items-center justify-center min-h-[200px]">
-      <p className="text-gray-500">Redirecting to Stock…</p>
+      <p className="text-gray-500">{tt('Redirecting to Stock…')}</p>
     </div>
   );
 }

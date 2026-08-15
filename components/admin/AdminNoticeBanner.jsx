@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -41,7 +42,7 @@ export default function AdminNoticeBanner() {
         type="button"
         onClick={dismiss}
         className="rounded p-1 text-sky-700 hover:bg-sky-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
-        aria-label="Dismiss notice"
+        aria-label={tt('Dismiss notice')}
       >
         <X className="h-4 w-4" />
       </button>

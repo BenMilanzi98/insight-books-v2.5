@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * Chart of Accounts — Governance Console (Phase 3).
@@ -78,7 +79,7 @@ function LoadingRow({ colSpan }) {
   return (
     <tr>
       <td colSpan={colSpan} className="px-3 py-6 text-center text-sm text-gray-500">
-        Loading…
+        {tt('Loading…')}
       </td>
     </tr>
   );
@@ -135,7 +136,7 @@ function ValidationTab() {
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Re-run validation
+          {tt('Re-run validation')}
         </button>
       }
     >
@@ -144,7 +145,7 @@ function ValidationTab() {
         <>
           <div className="flex flex-wrap gap-3 mb-4">
             <div className="px-3 py-2 rounded-md bg-gray-50 border border-gray-200">
-              <div className="text-xs text-gray-500">Findings</div>
+              <div className="text-xs text-gray-500">{tt('Findings')}</div>
               <div className="text-lg font-semibold text-gray-900">{data.findingCount}</div>
             </div>
             {Object.entries(data.bySeverity ?? {}).map(([sev, count]) => (
@@ -158,10 +159,10 @@ function ValidationTab() {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-gray-500 uppercase border-b border-gray-200">
-                  <th className="px-3 py-2">Check</th>
-                  <th className="px-3 py-2">Severity</th>
-                  <th className="px-3 py-2">Description</th>
-                  <th className="px-3 py-2">Recommendation</th>
+                  <th className="px-3 py-2">{tt('Check')}</th>
+                  <th className="px-3 py-2">{tt('Severity')}</th>
+                  <th className="px-3 py-2">{tt('Description')}</th>
+                  <th className="px-3 py-2">{tt('Recommendation')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -171,7 +172,7 @@ function ValidationTab() {
                   <tr>
                     <td colSpan={4} className="px-3 py-8 text-center">
                       <CheckCircle className="w-6 h-6 text-green-500 mx-auto mb-2" />
-                      <span className="text-sm text-gray-600">No integrity issues detected.</span>
+                      <span className="text-sm text-gray-600">{tt('No integrity issues detected.')}</span>
                     </td>
                   </tr>
                 ) : (
@@ -189,7 +190,7 @@ function ValidationTab() {
           </div>
         </>
       ) : loading ? (
-        <p className="text-sm text-gray-500">Running integrity checks…</p>
+        <p className="text-sm text-gray-500">{tt('Running integrity checks…')}</p>
       ) : null}
     </SectionCard>
   );
@@ -239,7 +240,7 @@ function MappingsTab() {
           onClick={load}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
         >
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
+          <RefreshCw className="w-3.5 h-3.5" /> {tt('Refresh')}
         </button>
       }
     >
@@ -249,10 +250,10 @@ function MappingsTab() {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500 uppercase border-b border-gray-200">
-              <th className="px-3 py-2">Purpose</th>
-              <th className="px-3 py-2">Account</th>
-              <th className="px-3 py-2">Scope</th>
-              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">{tt('Purpose')}</th>
+              <th className="px-3 py-2">{tt('Account')}</th>
+              <th className="px-3 py-2">{tt('Scope')}</th>
+              <th className="px-3 py-2">{tt('Status')}</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
@@ -284,7 +285,7 @@ function MappingsTab() {
                         onClick={() => retire(m.id)}
                         className="text-xs text-red-600 hover:text-red-800 font-medium"
                       >
-                        Retire
+                        {tt('Retire')}
                       </button>
                     ) : null}
                   </td>
@@ -328,11 +329,11 @@ function DuplicatesTab({ onCreatePlan }) {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500 uppercase border-b border-gray-200">
-              <th className="px-3 py-2">Code</th>
-              <th className="px-3 py-2">Name</th>
-              <th className="px-3 py-2">Class</th>
-              <th className="px-3 py-2">Activity</th>
-              <th className="px-3 py-2">Proposed action</th>
+              <th className="px-3 py-2">{tt('Code')}</th>
+              <th className="px-3 py-2">{tt('Name')}</th>
+              <th className="px-3 py-2">{tt('Class')}</th>
+              <th className="px-3 py-2">{tt('Activity')}</th>
+              <th className="px-3 py-2">{tt('Proposed action')}</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
@@ -359,7 +360,7 @@ function DuplicatesTab({ onCreatePlan }) {
                         onClick={() => onCreatePlan(r)}
                         className="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
                       >
-                        Create plan
+                        {tt('Create plan')}
                       </button>
                     ) : null}
                   </td>
@@ -421,7 +422,7 @@ function ConsolidationTab({ refreshKey }) {
           onClick={load}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
         >
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
+          <RefreshCw className="w-3.5 h-3.5" /> {tt('Refresh')}
         </button>
       }
     >
@@ -431,10 +432,10 @@ function ConsolidationTab({ refreshKey }) {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500 uppercase border-b border-gray-200">
-              <th className="px-3 py-2">Duplicate</th>
-              <th className="px-3 py-2">Canonical</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Phase 6 repair</th>
+              <th className="px-3 py-2">{tt('Duplicate')}</th>
+              <th className="px-3 py-2">{tt('Canonical')}</th>
+              <th className="px-3 py-2">{tt('Status')}</th>
+              <th className="px-3 py-2">{tt('Phase 6 repair')}</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
@@ -458,10 +459,10 @@ function ConsolidationTab({ refreshKey }) {
                   <td className="px-3 py-2">
                     {p.phase6RepairRequired ? (
                       <span className="inline-flex items-center gap-1 text-xs text-amber-700">
-                        <AlertTriangle className="w-3.5 h-3.5" /> Required
+                        <AlertTriangle className="w-3.5 h-3.5" /> {tt('Required')}
                       </span>
                     ) : (
-                      <span className="text-xs text-gray-400">No</span>
+                      <span className="text-xs text-gray-400">{tt('No')}</span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-right space-x-3 whitespace-nowrap">
@@ -470,7 +471,7 @@ function ConsolidationTab({ refreshKey }) {
                         onClick={() => act(p.id, 'approve')}
                         className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                       >
-                        Approve
+                        {tt('Approve')}
                       </button>
                     ) : null}
                     {p.status === 'APPROVED' ? (
@@ -478,7 +479,7 @@ function ConsolidationTab({ refreshKey }) {
                         onClick={() => act(p.id, 'execute')}
                         className="text-xs text-green-700 hover:text-green-900 font-medium"
                       >
-                        Execute
+                        {tt('Execute')}
                       </button>
                     ) : null}
                   </td>
@@ -578,11 +579,11 @@ function TemplatesTab() {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-gray-500 uppercase border-b border-gray-200">
-              <th className="px-3 py-2">Template</th>
-              <th className="px-3 py-2">Version</th>
-              <th className="px-3 py-2">Business type</th>
-              <th className="px-3 py-2">Accounts</th>
-              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">{tt('Template')}</th>
+              <th className="px-3 py-2">{tt('Version')}</th>
+              <th className="px-3 py-2">{tt('Business type')}</th>
+              <th className="px-3 py-2">{tt('Accounts')}</th>
+              <th className="px-3 py-2">{tt('Status')}</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
@@ -629,14 +630,14 @@ function TemplatesTab() {
             </button>
           </div>
           <div className="flex flex-wrap gap-3 mb-3 text-xs text-gray-600">
-            <span>Present: <strong>{comparison.counts.present}</strong></span>
-            <span>Missing required: <strong>{comparison.counts.missingRequired}</strong></span>
-            <span>Missing optional: <strong>{comparison.counts.missingOptional}</strong></span>
-            <span>Business custom: <strong>{comparison.counts.businessCustom}</strong></span>
+            <span>{tt('Present:')} <strong>{comparison.counts.present}</strong></span>
+            <span>{tt('Missing required:')} <strong>{comparison.counts.missingRequired}</strong></span>
+            <span>{tt('Missing optional:')} <strong>{comparison.counts.missingOptional}</strong></span>
+            <span>{tt('Business custom:')} <strong>{comparison.counts.businessCustom}</strong></span>
           </div>
           {missing.length === 0 ? (
             <p className="text-sm text-gray-500 flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-green-500" /> This business already has every template account.
+              <CheckCircle className="w-4 h-4 text-green-500" /> {tt('This business already has every template account.')}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -644,11 +645,11 @@ function TemplatesTab() {
                 <thead>
                   <tr className="text-left text-xs text-gray-500 uppercase border-b border-gray-200">
                     <th className="px-3 py-2" />
-                    <th className="px-3 py-2">Code</th>
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">Category</th>
-                    <th className="px-3 py-2">Behaviour</th>
-                    <th className="px-3 py-2">Required</th>
+                    <th className="px-3 py-2">{tt('Code')}</th>
+                    <th className="px-3 py-2">{tt('Name')}</th>
+                    <th className="px-3 py-2">{tt('Category')}</th>
+                    <th className="px-3 py-2">{tt('Behaviour')}</th>
+                    <th className="px-3 py-2">{tt('Required')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -721,17 +722,16 @@ export default function CoaGovernancePage() {
       <div className="p-6 max-w-7xl mx-auto space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Chart of Accounts Governance</h1>
+            <h1 className="text-xl font-bold text-gray-900">{tt('Chart of Accounts Governance')}</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              Integrity validation, purpose mappings, duplicate control, and templates. Historical
-              journals are never modified from this console.
+              {tt('Integrity validation, purpose mappings, duplicate control, and templates. Historical journals are never modified from this console.')}
             </p>
           </div>
           <a
             href="/api/coa-v2/export"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
           >
-            <FileDown className="w-3.5 h-3.5" /> Export CSV
+            <FileDown className="w-3.5 h-3.5" /> {tt('Export CSV')}
           </a>
         </div>
 

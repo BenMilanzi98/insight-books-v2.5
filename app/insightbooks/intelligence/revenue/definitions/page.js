@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -69,10 +70,10 @@ export default function RevenueDefinitionsPage() {
             <table className="min-w-full text-left text-sm">
               <thead className="bg-[var(--admin-surface-muted)] text-[var(--admin-text-muted)]">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Code</th>
-                  <th className="px-3 py-2 font-medium">Label</th>
-                  <th className="px-3 py-2 font-medium">Readiness</th>
-                  <th className="px-3 py-2 font-medium">Definition</th>
+                  <th className="px-3 py-2 font-medium">{tt('Code')}</th>
+                  <th className="px-3 py-2 font-medium">{tt('Label')}</th>
+                  <th className="px-3 py-2 font-medium">{tt('Readiness')}</th>
+                  <th className="px-3 py-2 font-medium">{tt('Definition')}</th>
                 </tr>
               </thead>
               <tbody>

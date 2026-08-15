@@ -1,4 +1,11 @@
+'use client';
+
 import { cn } from '@/lib/utils';
+import { tt } from '@/lib/i18n/runtime';
+
+function text(node) {
+  return typeof node === 'string' ? tt(node) : node;
+}
 
 /**
  * Standard page header: title, description, actions.
@@ -26,12 +33,12 @@ export default function PageHeader({
         ) : null}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] sm:text-3xl sm:tracking-tight">
-            {title}
+            {text(title)}
           </h1>
           {status}
         </div>
         {description ? (
-          <p className="mt-1.5 max-w-3xl text-sm text-[var(--text-secondary)]">{description}</p>
+          <p className="mt-1.5 max-w-3xl text-sm text-[var(--text-secondary)]">{text(description)}</p>
         ) : null}
         {children}
       </div>

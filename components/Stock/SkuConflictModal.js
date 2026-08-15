@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from "react";
 import { X, AlertTriangle, RotateCcw, Package, Calendar, User, RefreshCw } from "lucide-react";
@@ -59,7 +60,7 @@ const SkuConflictModal = ({
             <div className="flex items-center">
               <AlertTriangle className="h-6 w-6 text-amber-600 mr-3" />
               <h3 className="text-lg font-semibold text-gray-900">
-                SKU Conflict Detected
+                {tt('SKU Conflict Detected')}
               </h3>
             </div>
             <button
@@ -74,8 +75,7 @@ const SkuConflictModal = ({
           <div className="px-6 py-6">
             <div className="mb-6">
               <p className="text-gray-700 mb-4">
-                The SKU <span className="font-semibold text-gray-900">{deletedProduct.sku}</span> you're trying to use 
-                belongs to a previously deleted product. You have two options:
+                {tt('The SKU')} <span className="font-semibold text-gray-900">{deletedProduct.sku}</span> {tt("you're trying to use belongs to a previously deleted product. You have two options:")}
               </p>
             </div>
 
@@ -84,31 +84,31 @@ const SkuConflictModal = ({
               <div className="flex items-start">
                 <Package className="h-5 w-5 text-gray-400 mt-0.5 mr-3" />
                 <div className="flex-1">
-                  <h4 className="font-medium text-gray-900 mb-2">Deleted Product Details</h4>
+                  <h4 className="font-medium text-gray-900 mb-2">{tt('Deleted Product Details')}</h4>
                   <div className="space-y-2 text-sm text-gray-600">
                     <div className="flex items-center">
-                      <span className="font-medium w-20">Name:</span>
+                      <span className="font-medium w-20">{tt('Name:')}</span>
                       <span>{deletedProduct.name}</span>
                     </div>
                     <div className="flex items-center">
-                      <span className="font-medium w-20">SKU:</span>
+                      <span className="font-medium w-20">{tt('SKU:')}</span>
                       <span className="font-mono bg-gray-200 px-2 py-1 rounded">{deletedProduct.sku}</span>
                     </div>
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 mr-2" />
-                      <span className="font-medium w-20">Deleted:</span>
+                      <span className="font-medium w-20">{tt('Deleted:')}</span>
                       <span>{deletedDate} at {deletedTime}</span>
                     </div>
                     {deletedProduct.deletedByUser && (
                       <div className="flex items-center">
                         <User className="h-4 w-4 mr-2" />
-                        <span className="font-medium w-20">By:</span>
+                        <span className="font-medium w-20">{tt('By:')}</span>
                         <span>{deletedProduct.deletedByUser.name}</span>
                       </div>
                     )}
                     {deletedProduct.deletionReason && (
                       <div className="flex items-start">
-                        <span className="font-medium w-20 mt-0.5">Reason:</span>
+                        <span className="font-medium w-20 mt-0.5">{tt('Reason:')}</span>
                         <span className="text-gray-700">{deletedProduct.deletionReason}</span>
                       </div>
                     )}
@@ -119,7 +119,7 @@ const SkuConflictModal = ({
 
             {/* Action Options */}
             <div className="space-y-4">
-              <h4 className="font-medium text-gray-900 mb-3">Choose an action:</h4>
+              <h4 className="font-medium text-gray-900 mb-3">{tt('Choose an action:')}</h4>
               
               {/* Option 1: Restore Product */}
               <div className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
@@ -134,11 +134,10 @@ const SkuConflictModal = ({
                   <div className="flex-1">
                     <div className="flex items-center mb-2">
                       <RotateCcw className="h-5 w-5 text-blue-600 mr-2" />
-                      <h5 className="font-medium text-gray-900">Restore the deleted product</h5>
+                      <h5 className="font-medium text-gray-900">{tt('Restore the deleted product')}</h5>
                     </div>
                     <p className="text-sm text-gray-600 mb-3">
-                      Restore the deleted product and then edit it with your new information. 
-                      This will bring back the original product with the same SKU.
+                      {tt('Restore the deleted product and then edit it with your new information. This will bring back the original product with the same SKU.')}
                     </p>
                     <button
                       onClick={handleRestore}
@@ -148,12 +147,12 @@ const SkuConflictModal = ({
                       {isProcessing && selectedAction === 'restore' ? (
                         <>
                           <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          Restoring...
+                          {tt('Restoring...')}
                         </>
                       ) : (
                         <>
                           <RotateCcw className="h-4 w-4 mr-2" />
-                          Restore Product
+                          {tt('Restore Product')}
                         </>
                       )}
                     </button>
@@ -174,10 +173,10 @@ const SkuConflictModal = ({
                   <div className="flex-1">
                     <div className="flex items-center mb-2">
                       <Package className="h-5 w-5 text-green-600 mr-2" />
-                      <h5 className="font-medium text-gray-900">Create with a different SKU</h5>
+                      <h5 className="font-medium text-gray-900">{tt('Create with a different SKU')}</h5>
                     </div>
                     <p className="text-sm text-gray-600 mb-3">
-                      Create your new product with a different SKU. The deleted product will remain deleted.
+                      {tt('Create your new product with a different SKU. The deleted product will remain deleted.')}
                     </p>
                     <button
                       onClick={handleCreateNew}
@@ -187,12 +186,12 @@ const SkuConflictModal = ({
                       {isProcessing && selectedAction === 'create' ? (
                         <>
                           <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          Creating...
+                          {tt('Creating...')}
                         </>
                       ) : (
                         <>
                           <Package className="h-4 w-4 mr-2" />
-                          Create with New SKU
+                          {tt('Create with New SKU')}
                         </>
                       )}
                     </button>
@@ -209,7 +208,7 @@ const SkuConflictModal = ({
               disabled={isProcessing}
               className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Cancel
+              {tt('Cancel')}
             </button>
           </div>
         </div>

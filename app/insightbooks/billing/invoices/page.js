@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -150,7 +151,7 @@ export default function AdminPlatformInvoicesPage() {
         actions={
           <button type="button" onClick={load} className={btnPrimary}>
             <RefreshCw className="h-4 w-4" aria-hidden />
-            Refresh
+            {tt('Refresh')}
           </button>
         }
       />
@@ -173,12 +174,12 @@ export default function AdminPlatformInvoicesPage() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="all">All statuses</option>
-            <option value="DRAFT">Draft</option>
-            <option value="ISSUED">Issued</option>
-            <option value="PARTIALLY_PAID">Partially paid</option>
-            <option value="PAID">Paid</option>
-            <option value="OVERDUE">Overdue</option>
+            <option value="all">{tt('All statuses')}</option>
+            <option value="DRAFT">{tt('Draft')}</option>
+            <option value="ISSUED">{tt('Issued')}</option>
+            <option value="PARTIALLY_PAID">{tt('Partially paid')}</option>
+            <option value="PAID">{tt('Paid')}</option>
+            <option value="OVERDUE">{tt('Overdue')}</option>
           </AdminField.Select>
         </AdminField>
       </AdminFilterBar>

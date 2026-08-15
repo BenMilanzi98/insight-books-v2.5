@@ -73,8 +73,10 @@ describe('journal builders', () => {
   });
 
   it('exports stable source ids and types', () => {
-    expect(posTillOpenSourceId('d1', 2)).toBe('d1:open:2');
-    expect(posTillCloseSourceId('d1', 2)).toBe('d1:close:2');
+    expect(posTillOpenSourceId('d1', 2)).toBe('d1_open_2');
+    expect(posTillCloseSourceId('d1', 2)).toBe('d1_close_2');
+    expect(posTillOpenSourceId('d1', 2)).not.toContain(':');
+    expect(posTillCloseSourceId('d1', 2)).not.toContain(':');
     expect(POS_TILL_SOURCE.OPEN).toBe('PosCashDayOpen');
     expect(POS_TILL_SOURCE.CLOSE).toBe('PosCashDayClose');
   });

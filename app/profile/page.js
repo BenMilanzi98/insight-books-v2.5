@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useEffect, useState } from "react";
 import {
   AlertCircle,
@@ -214,9 +215,9 @@ export default function Profile() {
                 <UserCircle className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Profile details</h2>
+                <h2 className="text-xl font-semibold text-gray-900">{tt('Profile details')}</h2>
                 <p className="text-sm text-gray-600">
-                  Keep your tenant-facing identity and contact details up to date.
+                  {tt('Keep your tenant-facing identity and contact details up to date.')}
                 </p>
               </div>
             </div>
@@ -225,7 +226,7 @@ export default function Profile() {
 
             <div className="grid gap-5 md:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Name</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{tt('Name')}</label>
                 <input
                   name="name"
                   value={profile.name || ""}
@@ -252,7 +253,7 @@ export default function Profile() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Phone</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{tt('Phone')}</label>
                 <div className="relative">
                   <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
@@ -291,7 +292,7 @@ export default function Profile() {
                 {loadingProfile ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
+                    {tt('Saving...')}
                   </>
                 ) : (
                   "Save Profile"
@@ -309,9 +310,9 @@ export default function Profile() {
                 <KeyRound className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Update password</h2>
+                <h2 className="text-xl font-semibold text-gray-900">{tt('Update password')}</h2>
                 <p className="text-sm text-gray-600">
-                  Change your password with the same blue CTA and glass shell used across tenant settings.
+                  {tt('Change your password with the same blue CTA and glass shell used across tenant settings.')}
                 </p>
               </div>
             </div>
@@ -357,7 +358,7 @@ export default function Profile() {
                 {loadingPassword ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Updating...
+                    {tt('Updating...')}
                   </>
                 ) : (
                   "Update Password"

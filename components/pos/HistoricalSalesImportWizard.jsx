@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useRef, useState } from 'react';
 import { Download, Upload, FileText, X, CheckCircle, AlertCircle } from 'lucide-react';
@@ -127,9 +128,9 @@ export default function HistoricalSalesImportWizard({ onImported }) {
         <p className="font-medium mb-1">Import past sales (go-live migration)</p>
         <ul className="list-disc pl-4 space-y-0.5">
           <li>One CSV row = one completed sale on that date</li>
-          <li>Dates: prefer <code className="bg-white/70 px-1 rounded">YYYY-MM-DD</code> (also DD/MM/YYYY)</li>
-          <li>Accounting is posted; <strong>stock is not changed</strong></li>
-          <li>Services belong on invoices — this import uses free-text descriptions only</li>
+          <li>{tt('Dates: prefer')} <code className="bg-white/70 px-1 rounded">{tt('YYYY-MM-DD')}</code> (also DD/MM/YYYY)</li>
+          <li>Accounting is posted; <strong>{tt('stock is not changed')}</strong></li>
+          <li>{tt('Services belong on invoices — this import uses free-text descriptions only')}</li>
         </ul>
       </div>
 
@@ -140,7 +141,7 @@ export default function HistoricalSalesImportWizard({ onImported }) {
           className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
         >
           <Download className="h-4 w-4" />
-          1. Download CSV template
+          {tt('1. Download CSV template')}
         </button>
         <div>
           <input
@@ -156,7 +157,7 @@ export default function HistoricalSalesImportWizard({ onImported }) {
             className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
           >
             <Upload className="h-4 w-4" />
-            2. Select filled CSV
+            {tt('2. Select filled CSV')}
           </button>
         </div>
       </div>
@@ -215,26 +216,26 @@ export default function HistoricalSalesImportWizard({ onImported }) {
 
       {preview && (
         <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950 space-y-2">
-          <p className="font-medium">Preview</p>
+          <p className="font-medium">{tt('Preview')}</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
             <div>
-              <div className="text-blue-700">Rows</div>
+              <div className="text-blue-700">{tt('Rows')}</div>
               <div className="font-semibold">{preview.totalRows}</div>
             </div>
             <div>
-              <div className="text-blue-700">Valid</div>
+              <div className="text-blue-700">{tt('Valid')}</div>
               <div className="font-semibold text-emerald-700">{preview.validCount}</div>
             </div>
             <div>
-              <div className="text-blue-700">Invalid</div>
+              <div className="text-blue-700">{tt('Invalid')}</div>
               <div className="font-semibold text-red-700">{preview.invalidCount}</div>
             </div>
             <div>
-              <div className="text-blue-700">Total amount</div>
+              <div className="text-blue-700">{tt('Total amount')}</div>
               <div className="font-semibold">{formatMoney(preview.totalAmount)}</div>
             </div>
             <div className="col-span-2">
-              <div className="text-blue-700">Date range</div>
+              <div className="text-blue-700">{tt('Date range')}</div>
               <div className="font-semibold">
                 {preview.dateFrom && preview.dateTo
                   ? `${preview.dateFrom} → ${preview.dateTo}`
@@ -242,8 +243,8 @@ export default function HistoricalSalesImportWizard({ onImported }) {
               </div>
             </div>
             <div className="col-span-2">
-              <div className="text-blue-700">Stock impact</div>
-              <div className="font-semibold">None</div>
+              <div className="text-blue-700">{tt('Stock impact')}</div>
+              <div className="font-semibold">{tt('None')}</div>
             </div>
           </div>
           {preview.validRows?.length > 0 && (
@@ -251,10 +252,10 @@ export default function HistoricalSalesImportWizard({ onImported }) {
               <table className="min-w-full text-xs">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
-                    <th className="px-2 py-1 text-left">Row</th>
-                    <th className="px-2 py-1 text-left">Date</th>
-                    <th className="px-2 py-1 text-left">Description</th>
-                    <th className="px-2 py-1 text-right">Total</th>
+                    <th className="px-2 py-1 text-left">{tt('Row')}</th>
+                    <th className="px-2 py-1 text-left">{tt('Date')}</th>
+                    <th className="px-2 py-1 text-left">{tt('Description')}</th>
+                    <th className="px-2 py-1 text-right">{tt('Total')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -291,7 +292,7 @@ export default function HistoricalSalesImportWizard({ onImported }) {
         <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
           <div className="flex items-center gap-2 font-medium mb-2">
             <CheckCircle className="h-4 w-4" />
-            Import finished
+            {tt('Import finished')}
           </div>
           <ul className="text-xs space-y-1">
             <li>Batch: {results.migrationBatch}</li>
@@ -300,7 +301,7 @@ export default function HistoricalSalesImportWizard({ onImported }) {
             </li>
             <li>Created: {results.successful}</li>
             <li>Failed / skipped: {results.failed}</li>
-            <li>Stock impact: none</li>
+            <li>{tt('Stock impact: none')}</li>
           </ul>
           {results.failedTransactions?.length > 0 && (
             <div className="mt-2 max-h-28 overflow-y-auto text-xs text-red-800">

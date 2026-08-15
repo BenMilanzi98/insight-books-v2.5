@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 import { useMemo, useState } from "react";
 
 const labelClass = "block text-sm font-medium text-gray-700";
@@ -123,14 +124,14 @@ export default function SupplierForm({ initialData = {}, onSave, onCancel }) {
         <div className="space-y-4">
           <div>
             <label className={labelClass}>
-              Supplier Name <span className="text-red-500">*</span>
+              {tt('Supplier Name')} <span className="text-red-500">*</span>
             </label>
             <input
               className={`${inputClass} ${validationErrors.supplierName ? 'border-red-500' : ''}`}
               name="supplierName"
               value={formData.supplierName}
               onChange={handleChange}
-              placeholder="e.g., Sunrise Trading Co."
+              placeholder={tt('e.g., Sunrise Trading Co.')}
             />
             {validationErrors.supplierName && (
               <p className="mt-1 text-xs text-red-600">{validationErrors.supplierName}</p>
@@ -138,24 +139,24 @@ export default function SupplierForm({ initialData = {}, onSave, onCancel }) {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Contact Person</label>
+              <label className={labelClass}>{tt('Contact Person')}</label>
               <input
                 className={inputClass}
                 name="contactPerson"
                 value={formData.contactPerson}
                 onChange={handleChange}
-                placeholder="Main point of contact"
+                placeholder={tt('Main point of contact')}
               />
             </div>
             <div>
-              <label className={labelClass}>Email</label>
+              <label className={labelClass}>{tt('Email')}</label>
               <input
                 className={`${inputClass} ${validationErrors.email ? 'border-red-500' : ''}`}
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="accounts@supplier.com"
+                placeholder={tt('accounts@supplier.com')}
               />
               {validationErrors.email && (
                 <p className="mt-1 text-xs text-red-600">{validationErrors.email}</p>
@@ -164,7 +165,7 @@ export default function SupplierForm({ initialData = {}, onSave, onCancel }) {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Phone</label>
+              <label className={labelClass}>{tt('Phone')}</label>
               <input
                 className={`${inputClass} ${validationErrors.phone ? 'border-red-500' : ''}`}
                 name="phone"
@@ -177,13 +178,13 @@ export default function SupplierForm({ initialData = {}, onSave, onCancel }) {
               )}
             </div>
             <div>
-              <label className={labelClass}>Address</label>
+              <label className={labelClass}>{tt('Address')}</label>
               <input
                 className={inputClass}
                 name="address"
                 value={formData.address}
                 onChange={handleChange}
-                placeholder="Blantyre, Malawi"
+                placeholder={tt('Blantyre, Malawi')}
               />
             </div>
           </div>
@@ -199,36 +200,36 @@ export default function SupplierForm({ initialData = {}, onSave, onCancel }) {
                 onChange={handleChange}
                 placeholder="30"
               />
-              <p className="mt-1 text-xs text-gray-500">Default: 30 days</p>
+              <p className="mt-1 text-xs text-gray-500">{tt('Default: 30 days')}</p>
             </div>
             <div>
-              <label className={labelClass}>Payment Preference</label>
+              <label className={labelClass}>{tt('Payment Preference')}</label>
               <select
                 className={inputClass}
                 name="paymentPreference"
                 value={formData.paymentPreference}
                 onChange={handleChange}
               >
-                <option value="">Select preference...</option>
-                <option value="Cash">Cash</option>
-                <option value="Bank transfer">Bank transfer</option>
-                <option value="Card">Card</option>
-                <option value="Mobile Money">Mobile Money</option>
-                <option value="Cheque">Cheque</option>
-                <option value="Other">Other</option>
+                <option value="">{tt('Select preference...')}</option>
+                <option value="Cash">{tt('Cash')}</option>
+                <option value="Bank transfer">{tt('Bank transfer')}</option>
+                <option value="Card">{tt('Card')}</option>
+                <option value="Mobile Money">{tt('Mobile Money')}</option>
+                <option value="Cheque">{tt('Cheque')}</option>
+                <option value="Other">{tt('Other')}</option>
               </select>
-              <p className="mt-1 text-xs text-gray-500">Preferred payment method</p>
+              <p className="mt-1 text-xs text-gray-500">{tt('Preferred payment method')}</p>
             </div>
           </div>
           <div>
-            <label className={labelClass}>Notes</label>
+            <label className={labelClass}>{tt('Notes')}</label>
             <textarea
               className={`${inputClass} min-h-[96px]`}
               rows={3}
               name="notes"
               value={formData.notes}
               onChange={handleChange}
-              placeholder="Any special instructions or terms..."
+              placeholder={tt('Any special instructions or terms...')}
             />
           </div>
           <div>
@@ -240,9 +241,9 @@ export default function SupplierForm({ initialData = {}, onSave, onCancel }) {
                 onChange={handleChange}
                 className="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
               />
-              <span className={labelClass}>Active Supplier</span>
+              <span className={labelClass}>{tt('Active Supplier')}</span>
             </label>
-            <p className="mt-1 text-xs text-gray-500">Inactive suppliers won't appear in selection lists</p>
+            <p className="mt-1 text-xs text-gray-500">{tt("Inactive suppliers won't appear in selection lists")}</p>
           </div>
         </div>
       </FormSection>
@@ -254,7 +255,7 @@ export default function SupplierForm({ initialData = {}, onSave, onCancel }) {
           className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           disabled={isDisabled}
         >
-          Cancel
+          {tt('Cancel')}
         </button>
         <button
           type="submit"

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -168,17 +169,17 @@ export default function InboundHiringPanel({ embedded = false }) {
                 Rental &amp; Hiring
               </Link>
               <span className="mx-2">/</span>
-              Supplier hiring
+              {tt('Supplier hiring')}
             </div>
             <h1 className="text-2xl font-semibold text-gray-900">Supplier hiring (inbound)</h1>
             <p className="mt-2 text-sm text-gray-600">
               Cost / AP path — not customer rental revenue. Separate from{' '}
               <Link href="/rentals/hirings?tab=customer" className="text-blue-600 underline">
-                Customer hire
+                {tt('Customer hire')}
               </Link>{' '}
               and{' '}
               <Link href="/rentals/contracts-v2" className="text-blue-600 underline">
-                Contracts V2
+                {tt('Contracts V2')}
               </Link>
               . Order/agreement creates no expense until approved usage accrual or supplier bill.
             </p>
@@ -197,23 +198,23 @@ export default function InboundHiringPanel({ embedded = false }) {
             onClick={() => setTab('requests')}
             className={`rounded px-3 py-1.5 ${tab === 'requests' ? 'bg-blue-600 text-white' : 'border'}`}
           >
-            Hire requests
+            {tt('Hire requests')}
           </button>
           <button
             type="button"
             onClick={() => setTab('agreements')}
             className={`rounded px-3 py-1.5 ${tab === 'agreements' ? 'bg-blue-600 text-white' : 'border'}`}
           >
-            Agreements
+            {tt('Agreements')}
           </button>
         </div>
 
         {tab === 'requests' ? (
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
             <section className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase text-gray-500">New request</h2>
+              <h2 className="text-sm font-semibold uppercase text-gray-500">{tt('New request')}</h2>
               <label className="block text-sm">
-                Description
+                {tt('Description')}
                 <input
                   className="mt-1 w-full rounded border px-2 py-1.5"
                   value={description}
@@ -222,7 +223,7 @@ export default function InboundHiringPanel({ embedded = false }) {
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="block text-sm">
-                  Start
+                  {tt('Start')}
                   <input
                     type="datetime-local"
                     className="mt-1 w-full rounded border px-2 py-1.5"
@@ -231,7 +232,7 @@ export default function InboundHiringPanel({ embedded = false }) {
                   />
                 </label>
                 <label className="block text-sm">
-                  End
+                  {tt('End')}
                   <input
                     type="datetime-local"
                     className="mt-1 w-full rounded border px-2 py-1.5"
@@ -241,7 +242,7 @@ export default function InboundHiringPanel({ embedded = false }) {
                 </label>
               </div>
               <label className="block text-sm">
-                Estimated cost
+                {tt('Estimated cost')}
                 <input
                   className="mt-1 w-full rounded border px-2 py-1.5"
                   value={estimatedCost}
@@ -254,11 +255,11 @@ export default function InboundHiringPanel({ embedded = false }) {
                 onClick={createRequest}
                 className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
               >
-                Create request
+                {tt('Create request')}
               </button>
             </section>
             <section>
-              <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500">Requests</h2>
+              <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500">{tt('Requests')}</h2>
               <ul className="divide-y rounded border">
                 {requests.map((r) => (
                   <li key={r.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
@@ -274,14 +275,14 @@ export default function InboundHiringPanel({ embedded = false }) {
                         className="rounded border px-2 py-0.5 text-xs"
                         onClick={() => requestAction(r.id, 'submit')}
                       >
-                        submit
+                        {tt('submit')}
                       </button>
                       <button
                         type="button"
                         className="rounded border px-2 py-0.5 text-xs"
                         onClick={() => requestAction(r.id, 'approve')}
                       >
-                        approve
+                        {tt('approve')}
                       </button>
                       <button
                         type="button"
@@ -292,7 +293,7 @@ export default function InboundHiringPanel({ embedded = false }) {
                           setTab('agreements');
                         }}
                       >
-                        use
+                        {tt('use')}
                       </button>
                     </div>
                   </li>
@@ -303,12 +304,12 @@ export default function InboundHiringPanel({ embedded = false }) {
         ) : (
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
             <section className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase text-gray-500">New agreement</h2>
+              <h2 className="text-sm font-semibold uppercase text-gray-500">{tt('New agreement')}</h2>
               <p className="text-xs text-amber-800">
-                Creating an agreement does not post hire expense or AP.
+                {tt('Creating an agreement does not post hire expense or AP.')}
               </p>
               <label className="block text-sm">
-                Supplier ID
+                {tt('Supplier ID')}
                 <input
                   className="mt-1 w-full rounded border px-2 py-1.5"
                   value={supplierId}
@@ -324,7 +325,7 @@ export default function InboundHiringPanel({ embedded = false }) {
                 />
               </label>
               <label className="block text-sm">
-                Accounting policy
+                {tt('Accounting policy')}
                 <select
                   className="mt-1 w-full rounded border px-2 py-1.5"
                   value={accountingPolicy}
@@ -340,10 +341,10 @@ export default function InboundHiringPanel({ embedded = false }) {
                 onClick={createAgreement}
                 className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
               >
-                Create agreement
+                {tt('Create agreement')}
               </button>
 
-              <h2 className="pt-4 text-sm font-semibold uppercase text-gray-500">Agreements</h2>
+              <h2 className="pt-4 text-sm font-semibold uppercase text-gray-500">{tt('Agreements')}</h2>
               <ul className="max-h-64 divide-y overflow-auto rounded border">
                 {agreements.map((row) => (
                   <li key={row.id}>
@@ -365,9 +366,9 @@ export default function InboundHiringPanel({ embedded = false }) {
             </section>
 
             <section className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase text-gray-500">Selected</h2>
+              <h2 className="text-sm font-semibold uppercase text-gray-500">{tt('Selected')}</h2>
               {!a ? (
-                <p className="text-sm text-gray-500">Select an agreement</p>
+                <p className="text-sm text-gray-500">{tt('Select an agreement')}</p>
               ) : (
                 <>
                   <div className="rounded border p-3 text-sm">
@@ -401,7 +402,7 @@ export default function InboundHiringPanel({ embedded = false }) {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block text-sm">
-                      Usage hours
+                      {tt('Usage hours')}
                       <input
                         className="mt-1 w-full rounded border px-2 py-1.5"
                         value={usageHours}
@@ -419,7 +420,7 @@ export default function InboundHiringPanel({ embedded = false }) {
                       }
                       className="self-end rounded border px-2 py-1.5 text-xs"
                     >
-                      Record approved usage
+                      {tt('Record approved usage')}
                     </button>
                   </div>
                   <div className="space-y-2 rounded border border-amber-200 bg-amber-50 p-3">
@@ -427,7 +428,7 @@ export default function InboundHiringPanel({ embedded = false }) {
                       Accrual posts Dr Expense / Cr Accrued liability (ACCRUE policy only).
                     </p>
                     <label className="block text-sm">
-                      Amount
+                      {tt('Amount')}
                       <input
                         className="mt-1 w-full rounded border px-2 py-1.5"
                         value={accrualAmount}
@@ -435,7 +436,7 @@ export default function InboundHiringPanel({ embedded = false }) {
                       />
                     </label>
                     <label className="block text-sm">
-                      Expense account
+                      {tt('Expense account')}
                       <input
                         className="mt-1 w-full rounded border px-2 py-1.5"
                         value={expenseAccountId}
@@ -443,7 +444,7 @@ export default function InboundHiringPanel({ embedded = false }) {
                       />
                     </label>
                     <label className="block text-sm">
-                      Accrued liability account
+                      {tt('Accrued liability account')}
                       <input
                         className="mt-1 w-full rounded border px-2 py-1.5"
                         value={accruedLiabilityAccountId}
@@ -464,7 +465,7 @@ export default function InboundHiringPanel({ embedded = false }) {
                       }
                       className="rounded bg-amber-700 px-3 py-1.5 text-xs text-white disabled:opacity-50"
                     >
-                      Post accrual
+                      {tt('Post accrual')}
                     </button>
                   </div>
                   <div className="space-y-2 rounded border border-slate-200 p-3">
@@ -473,7 +474,7 @@ export default function InboundHiringPanel({ embedded = false }) {
                       expense recognised once.
                     </p>
                     <label className="block text-sm">
-                      Accrual ID
+                      {tt('Accrual ID')}
                       <input
                         className="mt-1 w-full rounded border px-2 py-1.5"
                         value={accrualId}
@@ -482,7 +483,7 @@ export default function InboundHiringPanel({ embedded = false }) {
                       />
                     </label>
                     <label className="block text-sm">
-                      Supplier bill ID
+                      {tt('Supplier bill ID')}
                       <input
                         className="mt-1 w-full rounded border px-2 py-1.5"
                         value={supplierBillId}
@@ -502,7 +503,7 @@ export default function InboundHiringPanel({ embedded = false }) {
                       }
                       className="rounded border px-3 py-1.5 text-xs disabled:opacity-50"
                     >
-                      Clear accrual vs bill
+                      {tt('Clear accrual vs bill')}
                     </button>
                     {(a.accruals || []).length ? (
                       <ul className="text-xs text-gray-500">

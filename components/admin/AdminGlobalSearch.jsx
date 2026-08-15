@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -106,7 +107,7 @@ export default function AdminGlobalSearch({ className, variant = 'default' }) {
       )}
     >
       <label htmlFor={inputId} className="sr-only">
-        Search administration
+        {tt('Search administration')}
       </label>
       <div className="relative">
         <Search
@@ -121,7 +122,7 @@ export default function AdminGlobalSearch({ className, variant = 'default' }) {
           onFocus={() => {
             if (groups.length || error) setOpen(true);
           }}
-          placeholder="Search tenants, users, affiliates…"
+          placeholder={tt('Search tenants, users, affiliates…')}
           className={cn(
             'w-full rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface-muted)] py-2 pl-9 pr-9 text-sm text-[var(--admin-text)] placeholder:text-[var(--admin-text-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--admin-focus-ring)]',
             headerish ? 'h-10 bg-[var(--admin-surface-muted)]' : 'bg-[var(--admin-surface)]'
@@ -136,7 +137,7 @@ export default function AdminGlobalSearch({ className, variant = 'default' }) {
               setQ('');
               setOpen(false);
             }}
-            aria-label="Clear search"
+            aria-label={tt('Clear search')}
           >
             <X className="h-4 w-4" />
           </button>
@@ -146,10 +147,10 @@ export default function AdminGlobalSearch({ className, variant = 'default' }) {
         <div
           className="absolute z-[var(--z-dropdown)] mt-1 max-h-80 w-full overflow-auto rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] shadow-[var(--shadow-modal)]"
           role="listbox"
-          aria-label="Search results"
+          aria-label={tt('Search results')}
         >
           {loading ? (
-            <p className="px-3 py-3 text-sm text-[var(--text-muted)]">Searching…</p>
+            <p className="px-3 py-3 text-sm text-[var(--text-muted)]">{tt('Searching…')}</p>
           ) : null}
           {!loading && error ? (
             <p className="px-3 py-3 text-sm text-[var(--status-danger)]" role="alert">
@@ -157,7 +158,7 @@ export default function AdminGlobalSearch({ className, variant = 'default' }) {
             </p>
           ) : null}
           {!loading && !error && groups.length === 0 && q.trim().length >= 2 ? (
-            <p className="px-3 py-3 text-sm text-[var(--text-muted)]">No results</p>
+            <p className="px-3 py-3 text-sm text-[var(--text-muted)]">{tt('No results')}</p>
           ) : null}
           {!loading &&
             !error &&

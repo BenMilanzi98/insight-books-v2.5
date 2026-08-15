@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -100,9 +101,18 @@ const AppBar = ({
   // Mock notifications
   const notifications = [];
 
-  const appHomeHref =
-    !skipUserFetch && user?.role && isPosDefaultLandingRole(user) ? "/pos" : "/dashboard";
-  const atAppHome = pathname === appHomeHref;
+  // Stable on SSR + first client paint (avoids logo href hydration churn once user loads).
+  const [homeHref, setHomeHref] = useState("/dashboard");
+  useEffect(() => {
+    if (skipUserFetch) {
+      setHomeHref("/dashboard");
+      return;
+    }
+    if (!user?.role) return;
+    setHomeHref(isPosDefaultLandingRole(user) ? "/pos" : "/dashboard");
+  }, [skipUserFetch, user]);
+
+  const atAppHome = pathname === homeHref;
   
   // Get current page title from pathname (friendly labels; keep /reports-v2 URL)
   const getPageTitle = () => {
@@ -134,156 +144,74 @@ const AppBar = ({
   };
 
   return (
-    <header className="app-bar" style={{
-      position: "sticky", 
-      top: 0, 
-      display: "flex", 
-      justifyContent: "space-between", 
-      alignItems: "center", 
-      height: "72px", 
-      padding: "0 16px", 
-      backgroundColor: "var(--surface-primary, #ffffff)", 
-      borderBottom: "1px solid var(--border-default, #e5e7eb)",
-      boxShadow: "var(--shadow-card)", 
-      zIndex: "var(--z-sticky, 100)",
-    }}>
-      <div className="app-bar-left" style={{ 
-        display: "flex", 
-        alignItems: "center", 
-        gap: "20px",
-        flex: 1,
-        minWidth: 0
-      }}>
-        {isMobile && (
-          <button
-            ref={menuButtonRef}
-            type="button"
-            onClick={toggleSidebar}
-            aria-label={sidebarOpen ? "Close navigation menu" : "Open navigation menu"}
-            aria-expanded={Boolean(sidebarOpen)}
-            aria-controls={navId}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "8px",
-              borderRadius: "8px",
-              color: "var(--text-secondary, #4b5563)",
-              transition: "all 0.2s ease",
-              minWidth: "44px",
-              minHeight: "44px",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#f3f4f6";
-              e.currentTarget.style.color = "#111827";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "#4b5563";
-            }}
-          >
-            <Menu size={22} aria-hidden="true" />
-          </button>
-        )}
+    <header className="app-bar sticky top-0 z-[var(--z-sticky,100)] grid h-[72px] shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-[var(--border-default,#e5e7eb)] bg-[var(--surface-primary,#ffffff)] px-3 shadow-[var(--shadow-card)] sm:gap-3 sm:px-4">
+      <div className="app-bar-left flex min-w-0 items-center gap-2 sm:gap-3 md:gap-4">
+        <button
+          ref={menuButtonRef}
+          type="button"
+          onClick={toggleSidebar}
+          aria-label={sidebarOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={Boolean(sidebarOpen)}
+          aria-controls={navId}
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[var(--text-secondary,#4b5563)] transition-colors hover:bg-gray-100 hover:text-gray-900 md:hidden"
+        >
+          <Menu size={22} aria-hidden="true" />
+        </button>
 
-        {!isMobile && (
-          <button
-            onClick={toggleSidebar}
-            title={sidebarOpen ? "Close Sidebar (Ctrl+B)" : "Open Sidebar (Ctrl+B)"}
-            style={{
-              backgroundColor: sidebarOpen ? "#f3f4f6" : "#3b82f6",
-              color: sidebarOpen ? "#4b5563" : "white",
-              border: "none",
-              borderRadius: "8px",
-              padding: "8px 14px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              fontSize: "13px",
-              fontWeight: "500",
-              boxShadow: sidebarOpen ? "none" : "0 1px 2px 0 rgba(59, 130, 246, 0.3)",
-              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
-            }}
-            onMouseEnter={(e) => {
-              if (sidebarOpen) {
-                e.currentTarget.style.backgroundColor = "#e5e7eb";
-              } else {
-                e.currentTarget.style.backgroundColor = "#2563eb";
-                e.currentTarget.style.boxShadow = "0 2px 4px 0 rgba(59, 130, 246, 0.4)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (sidebarOpen) {
-                e.currentTarget.style.backgroundColor = "#f3f4f6";
-              } else {
-                e.currentTarget.style.backgroundColor = "#3b82f6";
-                e.currentTarget.style.boxShadow = "0 1px 2px 0 rgba(59, 130, 246, 0.3)";
-              }
-            }}
-          >
-            <Menu size={16} />
-            <span>{sidebarOpen ? "Close" : "Open"}</span>
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          title={sidebarOpen ? "Close Sidebar (Ctrl+B)" : "Open Sidebar (Ctrl+B)"}
+          className={`hidden items-center gap-2 rounded-lg px-3.5 py-2 text-[13px] font-medium transition-all md:inline-flex ${
+            sidebarOpen
+              ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              : "bg-blue-500 text-white shadow-sm hover:bg-blue-600"
+          }`}
+        >
+          <Menu size={16} />
+          <span>{sidebarOpen ? "Close" : "Open"}</span>
+        </button>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 }}>
-          <h1 className="page-title" style={{
-            fontSize: isMobile ? "18px" : "22px",
-            fontWeight: 700,
-            margin: 0,
-            color: "#111827",
-            letterSpacing: "-0.01em",
-            lineHeight: "1.2"
-          }}>
+        <div className="hidden min-w-0 flex-col gap-0.5 sm:flex">
+          <h1 className="page-title m-0 truncate text-base font-bold leading-tight tracking-tight text-gray-900 md:text-[22px]">
             {getPageTitle()}
           </h1>
-          {!isMobile && (
-            <nav className="breadcrumbs" style={{ 
-              display: "flex", 
-              alignItems: "center", 
-              gap: "6px", 
-              fontSize: "13px", 
-              color: "#6b7280",
-              fontWeight: 400
-            }}>
-              <Link
-                href={appHomeHref}
-                style={{
-                  color: "#3b82f6",
-                  textDecoration: "none",
-                  transition: "color 0.2s ease",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#2563eb")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "#3b82f6")}
-              >
-                {translateNavLabel('Home', t)}
-              </Link>
-              {pathname !== "/" && !atAppHome && (
-                <>
-                  <span style={{ color: "#d1d5db" }}>/</span>
-                  <span style={{ color: "#6b7280" }}>{getPageTitle()}</span>
-                </>
-              )}
-            </nav>
-          )}
+          <nav className="breadcrumbs hidden items-center gap-1.5 text-[13px] font-normal text-gray-500 md:flex">
+            <Link
+              href={homeHref}
+              className="text-blue-500 no-underline transition-colors hover:text-blue-600"
+            >
+              {translateNavLabel('Home', t)}
+            </Link>
+            {pathname !== "/" && !atAppHome && (
+              <>
+                <span className="text-gray-300">/</span>
+                <span className="truncate text-gray-500">{getPageTitle()}</span>
+              </>
+            )}
+          </nav>
         </div>
       </div>
+
+      <Link
+        href={homeHref}
+        aria-label={tt('InsightBooks home')}
+        className="col-start-2 inline-flex max-w-[7.5rem] shrink-0 items-center justify-center rounded-[10px] leading-none sm:max-w-[9rem]"
+      >
+        <img
+          src="/logo.png"
+          alt={tt('InsightBooks')}
+          className="h-8 w-auto max-w-full rounded-lg object-contain sm:h-9 md:h-10"
+        />
+      </Link>
       
-      <div className="app-bar-right" style={{ 
-        display: "flex", 
-        alignItems: "center", 
-        gap: "16px" 
-      }}>
+      <div className="app-bar-right relative z-20 flex min-w-0 items-center justify-end gap-2 bg-[var(--surface-primary,#ffffff)] pl-1 sm:gap-3 sm:pl-2">
         <LanguageSwitcher compact />
         {/* Mobile Search Icon */}
         {isMobile && !showSearch && (
           <button
             onClick={toggleSearch}
-            aria-label="Show search"
+            aria-label={tt('Show search')}
             style={{
               background: "none",
               border: "none",
@@ -365,7 +293,7 @@ const AppBar = ({
             </div>
             <button
               onClick={toggleSearch}
-              aria-label="Close search"
+              aria-label={tt('Close search')}
               style={{
                 background: "none",
                 border: "none",
@@ -438,7 +366,7 @@ const AppBar = ({
           <div ref={notificationRef} style={{ position: "relative" }}>
             <button 
               onClick={handleToggleNotifications}
-              aria-label="Notifications"
+              aria-label={tt('Notifications')}
               style={{
                 background: "none",
                 border: "none",
@@ -508,7 +436,7 @@ const AppBar = ({
                   alignItems: "center",
                   backgroundColor: "#fafafa"
                 }}>
-                  <h3 style={{ margin: "0", fontSize: "16px", fontWeight: "600", color: "#111827" }}>Notifications</h3>
+                  <h3 style={{ margin: "0", fontSize: "16px", fontWeight: "600", color: "#111827" }}>{tt('Notifications')}</h3>
                   <button 
                     style={{
                       background: "none",
@@ -528,7 +456,7 @@ const AppBar = ({
                       e.currentTarget.style.backgroundColor = "transparent";
                     }}
                   >
-                    Mark all as read
+                    {tt('Mark all as read')}
                   </button>
                 </div>
                 <div style={{ maxHeight: "400px", overflowY: "auto" }}>
@@ -555,8 +483,8 @@ const AppBar = ({
                       }}>
                         <Bell size={28} color="#9ca3af" strokeWidth={1.5} />
                       </div>
-                      <span style={{ fontWeight: "500", color: "#6b7280", marginBottom: "4px" }}>No notifications</span>
-                      <span style={{ fontSize: "13px" }}>You're all caught up!</span>
+                      <span style={{ fontWeight: "500", color: "#6b7280", marginBottom: "4px" }}>{tt('No notifications')}</span>
+                      <span style={{ fontSize: "13px" }}>{tt("You're all caught up!")}</span>
                     </div>
                   ) : (
                     notifications.map(notification => (
@@ -623,7 +551,7 @@ const AppBar = ({
                       onMouseEnter={(e) => e.currentTarget.style.color = "#2563eb"}
                       onMouseLeave={(e) => e.currentTarget.style.color = "#3b82f6"}
                     >
-                      View all notifications
+                      {tt('View all notifications')}
                     </Link>
                   </div>
                 )}
@@ -635,7 +563,7 @@ const AppBar = ({
           <div ref={profileRef} style={{ position: "relative" }}>
             <button 
               onClick={handleToggleProfile}
-              aria-label="Profile"
+              aria-label={tt('Profile')}
               style={{
                 background: "none",
                 border: "2px solid transparent",
@@ -696,7 +624,7 @@ const AppBar = ({
                     src={typeof window !== 'undefined' && user.tenant.logoUrl?.startsWith('/uploads/')
                       ? `/api/uploads/${user.tenant.logoUrl.replace(/^\/+uploads\//, '')}`
                       : user.tenant.logoUrl}
-                    alt="Logo"
+                    alt={tt('Logo')}
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%233b82f6" rx="20"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="system-ui">' + (user?.name ? getInitials(user.name) : '?') + '</text></svg>');
@@ -785,7 +713,7 @@ const AppBar = ({
                           src={typeof window !== 'undefined' && user.tenant.logoUrl?.startsWith('/uploads/')
                             ? `/api/uploads/${user.tenant.logoUrl.replace(/^\/+uploads\//, '')}`
                             : user.tenant.logoUrl}
-                          alt="Logo"
+                          alt={tt('Logo')}
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%233b82f6" rx="20"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="system-ui">' + (user?.name ? getInitials(user.name) : '?') + '</text></svg>');
@@ -876,7 +804,7 @@ const AppBar = ({
                     }}
                   >
                     <span style={{ fontSize: "18px" }}>👤</span>
-                    <span>My Profile</span>
+                    <span>{tt('My Profile')}</span>
                   </Link>
                   <Link 
                     href="/account" 
@@ -902,7 +830,7 @@ const AppBar = ({
                     }}
                   >
                     <span style={{ fontSize: "18px" }}>⚙️</span>
-                    <span>Settings</span>
+                    <span>{tt('Settings')}</span>
                   </Link>
                   <Link 
                     href="/switch-tenant" 
@@ -928,7 +856,7 @@ const AppBar = ({
                     }}
                   >
                     <span style={{ fontSize: "18px" }}>🏢</span>
-                    <span>Switch Or Add Business</span>
+                    <span>{tt('Switch Or Add Business')}</span>
                   </Link>
                   
                   <div style={{ height: "1px", backgroundColor: "#e5e7eb", margin: "8px 0" }}></div>
@@ -957,7 +885,7 @@ const AppBar = ({
                     }}
                   >
                     <span style={{ fontSize: "18px" }}>📄</span>
-                    <span>Terms of Service</span>
+                    <span>{tt('Terms of Service')}</span>
                   </Link>
                   <Link
                     href="/privacy"
@@ -983,7 +911,7 @@ const AppBar = ({
                     }}
                   >
                     <span style={{ fontSize: "18px" }}>🔒</span>
-                    <span>Privacy Policy</span>
+                    <span>{tt('Privacy Policy')}</span>
                   </Link>
 
                   <div style={{ height: "1px", backgroundColor: "#e5e7eb", margin: "8px 0" }}></div>
@@ -1021,7 +949,7 @@ const AppBar = ({
                     }}
                   >
                     <span style={{ fontSize: "18px" }}>🚪</span>
-                    <span>Logout</span>
+                    <span>{tt('Logout')}</span>
                   </button>
                 </div>
               </div>

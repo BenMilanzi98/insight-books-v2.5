@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/shell/PageHeader";
@@ -76,7 +77,7 @@ export default function TaxReconciliationPage() {
             onClick={load}
             className="rounded bg-[var(--brand-primary)] px-4 py-2 text-sm font-medium text-white"
           >
-            Re-run
+            {tt('Re-run')}
           </button>
         }
       />
@@ -106,7 +107,7 @@ export default function TaxReconciliationPage() {
         </div>
       ) : null}
       {loading ? (
-        <p className="text-sm text-[var(--text-secondary)]">Running suite…</p>
+        <p className="text-sm text-[var(--text-secondary)]">{tt('Running suite…')}</p>
       ) : (
         <div className="space-y-3">
           <div className="text-sm font-medium">

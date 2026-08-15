@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -137,10 +138,10 @@ export default function AdminBillingPlansPage() {
         actions={
           <>
             <button type="button" onClick={load} className={btnGhost}>
-              <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+              <RefreshCw className="h-4 w-4" aria-hidden /> {tt('Refresh')}
             </button>
             <button type="button" onClick={() => setShowForm(true)} className={btnPrimary}>
-              <Plus className="h-4 w-4" aria-hidden /> New version
+              <Plus className="h-4 w-4" aria-hidden /> {tt('New version')}
             </button>
           </>
         }
@@ -162,7 +163,7 @@ export default function AdminBillingPlansPage() {
         footer={
           <>
             <button type="button" onClick={() => setShowForm(false)} className={btnGhost}>
-              Cancel
+              {tt('Cancel')}
             </button>
             <button type="submit" form="plan-version-form" disabled={saving} className={btnPrimary}>
               {saving ? 'Saving…' : 'Create version'}
@@ -171,7 +172,7 @@ export default function AdminBillingPlansPage() {
         }
       >
         <p className="mb-4 text-xs text-[var(--admin-text-muted)]">
-          Creating a new version supersedes the previous ACTIVE version for that plan code.
+          {tt('Creating a new version supersedes the previous ACTIVE version for that plan code.')}
         </p>
         <form id="plan-version-form" onSubmit={createVersion} className="space-y-3">
           <AdminField label="Plan code" htmlFor="planCode" required>
@@ -212,8 +213,8 @@ export default function AdminBillingPlansPage() {
               value={form.billingFrequency}
               onChange={(e) => setForm((p) => ({ ...p, billingFrequency: e.target.value }))}
             >
-              <option value="month">month</option>
-              <option value="year">year</option>
+              <option value="month">{tt('month')}</option>
+              <option value="year">{tt('year')}</option>
             </AdminField.Select>
           </AdminField>
         </form>

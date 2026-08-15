@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, AlertTriangle, Info, FileText, DollarSign } from 'lucide-react';
@@ -169,7 +170,7 @@ export default function VoidRefundDemoPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-4">
-          Invoice Void & Refund Demo
+          {tt('Invoice Void & Refund Demo')}
         </h1>
         <p className="text-gray-600 text-lg">
           This page demonstrates the void and refund functionality for invoices. 
@@ -192,33 +193,30 @@ export default function VoidRefundDemoPage() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <div className="flex items-center mb-4">
             <AlertTriangle className="h-8 w-8 text-blue-600 mr-3" />
-            <h3 className="text-lg font-semibold text-blue-800">Void Invoices</h3>
+            <h3 className="text-lg font-semibold text-blue-800">{tt('Void Invoices')}</h3>
           </div>
           <p className="text-blue-700 text-sm">
-            Void invoices that haven't been paid yet. This is useful for correcting mistakes, 
-            duplicate invoices, or client cancellations.
+            {tt("Void invoices that haven't been paid yet. This is useful for correcting mistakes, duplicate invoices, or client cancellations.")}
           </p>
         </div>
 
         <div className="bg-green-50 border border-green-200 rounded-lg p-6">
           <div className="flex items-center mb-4">
             <DollarSign className="h-8 w-8 text-green-600 mr-3" />
-            <h3 className="text-lg font-semibold text-green-800">Process Refunds</h3>
+            <h3 className="text-lg font-semibold text-green-800">{tt('Process Refunds')}</h3>
           </div>
           <p className="text-green-700 text-sm">
-            Process full or partial refunds for paid invoices. Supports multiple refund methods 
-            and maintains detailed audit trails.
+            {tt('Process full or partial refunds for paid invoices. Supports multiple refund methods and maintains detailed audit trails.')}
           </p>
         </div>
 
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <div className="flex items-center mb-4">
             <FileText className="h-8 w-8 text-blue-600 mr-3" />
-            <h3 className="text-lg font-semibold text-blue-800">Audit Trail</h3>
+            <h3 className="text-lg font-semibold text-blue-800">{tt('Audit Trail')}</h3>
           </div>
           <p className="text-blue-700 text-sm">
-            Every void and refund action is logged with detailed information including 
-            reasons, timestamps, and user details for compliance.
+            {tt('Every void and refund action is logged with detailed information including reasons, timestamps, and user details for compliance.')}
           </p>
         </div>
       </div>
@@ -226,9 +224,9 @@ export default function VoidRefundDemoPage() {
       {/* Invoice Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Sample Invoices</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{tt('Sample Invoices')}</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Click the action buttons to test void and refund functionality
+            {tt('Click the action buttons to test void and refund functionality')}
           </p>
         </div>
         
@@ -237,19 +235,19 @@ export default function VoidRefundDemoPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Invoice
+                  {tt('Invoice')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
+                  {tt('Client')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
+                  {tt('Amount')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  {tt('Status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                  {tt('Actions')}
                 </th>
               </tr>
             </thead>
@@ -289,7 +287,7 @@ export default function VoidRefundDemoPage() {
                           className="text-orange-600 hover:text-orange-900 bg-orange-100 hover:bg-orange-200 px-3 py-1 rounded-md text-xs font-medium transition-colors"
                           title="Void Invoice"
                         >
-                          Void
+                          {tt('Void')}
                         </button>
                       )}
                       
@@ -301,7 +299,7 @@ export default function VoidRefundDemoPage() {
                           className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-3 py-1 rounded-md text-xs font-medium transition-colors"
                           title="Process Refund"
                         >
-                          Refund
+                          {tt('Refund')}
                         </button>
                       )}
                       

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 
@@ -85,7 +86,7 @@ export default function TenantMraEisSettingsPage() {
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-slate-600">
-        Loading MRA EIS availability…
+        {tt('Loading MRA EIS availability…')}
       </div>
     );
   }
@@ -97,7 +98,7 @@ export default function TenantMraEisSettingsPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <header className="mb-6">
-        <p className="text-sm font-medium text-slate-500">Integrations</p>
+        <p className="text-sm font-medium text-slate-500">{tt('Integrations')}</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">MRA Electronic Invoicing (EIS)</h1>
         <p className="mt-2 text-sm text-slate-600">
           Local sales and accounting continue normally whether or not EIS is enabled. EIS is a compliance
@@ -134,22 +135,22 @@ export default function TenantMraEisSettingsPage() {
       )}
 
       <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold">Availability</h2>
+        <h2 className="text-lg font-semibold">{tt('Availability')}</h2>
         <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-slate-500">Entitlement</dt>
+            <dt className="text-slate-500">{tt('Entitlement')}</dt>
             <dd className="font-medium">{data?.entitlementLabel}</dd>
           </div>
           <div>
-            <dt className="text-slate-500">Participation</dt>
+            <dt className="text-slate-500">{tt('Participation')}</dt>
             <dd className="font-medium">{data?.participationLabel}</dd>
           </div>
           <div>
-            <dt className="text-slate-500">Business operational status</dt>
+            <dt className="text-slate-500">{tt('Business operational status')}</dt>
             <dd className="font-medium">{data?.businessLabel}</dd>
           </div>
           <div>
-            <dt className="text-slate-500">Allowed environment</dt>
+            <dt className="text-slate-500">{tt('Allowed environment')}</dt>
             <dd className="font-medium">
               {data?.entitlement?.productionAllowed ? 'Sandbox + Production (authorized)' : data?.entitlement?.sandboxAllowed ? 'Sandbox only' : 'None'}
             </dd>
@@ -162,7 +163,7 @@ export default function TenantMraEisSettingsPage() {
       </section>
 
       <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold">Blockers & warnings</h2>
+        <h2 className="text-lg font-semibold">{tt('Blockers & warnings')}</h2>
         <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
           {(data?.readiness?.blockers || []).slice(0, 12).map((b) => (
             <li key={b.code}>
@@ -183,7 +184,7 @@ export default function TenantMraEisSettingsPage() {
 
       {entitled && (
         <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold">Participation & setup</h2>
+          <h2 className="text-lg font-semibold">{tt('Participation & setup')}</h2>
           <label className="mt-3 block text-sm">
             <span className="mb-1 block font-medium">Reason (for pause / opt-out / disable)</span>
             <input
@@ -194,30 +195,30 @@ export default function TenantMraEisSettingsPage() {
           </label>
           <div className="mt-4 flex flex-wrap gap-2">
             <button type="button" className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700" onClick={() => participation('opt_in')}>
-              Opt in
+              {tt('Opt in')}
             </button>
             <button type="button" className="rounded bg-amber-700 px-3 py-2 text-sm text-white" onClick={() => participation('pause')}>
-              Pause participation
+              {tt('Pause participation')}
             </button>
             <button type="button" className="rounded bg-slate-800 px-3 py-2 text-sm text-white" onClick={() => participation('resume')}>
-              Resume participation
+              {tt('Resume participation')}
             </button>
             <button type="button" className="rounded border border-slate-300 px-3 py-2 text-sm" onClick={() => participation('opt_out')}>
-              Opt out
+              {tt('Opt out')}
             </button>
           </div>
           <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
             <button type="button" className="rounded bg-slate-900 px-3 py-2 text-sm text-white" onClick={() => businessAction('start_setup')}>
-              Start setup
+              {tt('Start setup')}
             </button>
             <button type="button" className="rounded bg-slate-700 px-3 py-2 text-sm text-white" onClick={() => businessAction('enable')}>
-              Mark ready for activation
+              {tt('Mark ready for activation')}
             </button>
             <button type="button" className="rounded bg-amber-700 px-3 py-2 text-sm text-white" onClick={() => businessAction('pause')}>
-              Pause business operation
+              {tt('Pause business operation')}
             </button>
             <button type="button" className="rounded border border-red-300 px-3 py-2 text-sm text-red-800" onClick={() => businessAction('disable')}>
-              Disable before activation
+              {tt('Disable before activation')}
             </button>
           </div>
           <p className="mt-3 text-xs text-slate-500">
@@ -229,37 +230,37 @@ export default function TenantMraEisSettingsPage() {
               href="/settings/integrations/mra-eis/terminals"
               className="inline-block rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
-              Manage terminals & onboarding
+              {tt('Manage terminals & onboarding')}
             </a>
             <a
               href="/settings/integrations/mra-eis/mappings"
               className="inline-block rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white"
             >
-              Site, tax & payment mappings
+              {tt('Site, tax & payment mappings')}
             </a>
             <a
               href="/settings/integrations/mra-eis/catalogue"
               className="inline-block rounded bg-emerald-900 px-3 py-2 text-sm font-medium text-white"
             >
-              Product & service catalogue
+              {tt('Product & service catalogue')}
             </a>
             <a
               href="/settings/integrations/mra-eis/sales-bridge"
               className="inline-block rounded bg-sky-700 px-3 py-2 text-sm font-medium text-white hover:bg-sky-800"
             >
-              Sales eligibility & bridge
+              {tt('Sales eligibility & bridge')}
             </a>
             <a
               href="/settings/integrations/mra-eis/fiscal-snapshots"
               className="inline-block rounded bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800"
             >
-              Fiscal snapshots & sequences
+              {tt('Fiscal snapshots & sequences')}
             </a>
             <a
               href="/settings/integrations/mra-eis/sales-transmission"
               className="inline-block rounded bg-rose-900 px-3 py-2 text-sm font-medium text-white"
             >
-              Sales transmission
+              {tt('Sales transmission')}
             </a>
             <a
               href="/settings/integrations/mra-eis/fiscal-receipts"
@@ -277,7 +278,7 @@ export default function TenantMraEisSettingsPage() {
               href="/settings/integrations/mra-eis/offline"
               className="inline-block rounded bg-slate-800 px-3 py-2 text-sm font-medium text-white"
             >
-              Certified Offline
+              {tt('Certified Offline')}
             </a>
             <a
               href="/settings/integrations/mra-eis/restrictions"
@@ -289,14 +290,14 @@ export default function TenantMraEisSettingsPage() {
               href="/settings/integrations/mra-eis/centre"
               className="inline-block rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white"
             >
-              EIS Administration Centre
+              {tt('EIS Administration Centre')}
             </a>
           </div>
         </section>
       )}
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold">Recent control audit</h2>
+        <h2 className="text-lg font-semibold">{tt('Recent control audit')}</h2>
         <ul className="mt-3 space-y-2 text-sm">
           {(data?.audit || []).map((a) => (
             <li key={a.id} className="rounded border border-slate-100 px-3 py-2">
@@ -304,7 +305,7 @@ export default function TenantMraEisSettingsPage() {
               <div className="text-xs text-slate-500">{a.createdAt}</div>
             </li>
           ))}
-          {(data?.audit || []).length === 0 && <li className="text-slate-500">No control events yet.</li>}
+          {(data?.audit || []).length === 0 && <li className="text-slate-500">{tt('No control events yet.')}</li>}
         </ul>
       </section>
     </div>

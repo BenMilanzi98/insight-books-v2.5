@@ -1,4 +1,5 @@
  "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
@@ -139,11 +140,11 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
           <div className="rounded-lg border border-gray-200 p-4">
             <div className="flex flex-wrap gap-6 text-sm">
               <div>
-                <div className="text-xs uppercase text-gray-500">Order type</div>
+                <div className="text-xs uppercase text-gray-500">{tt('Order type')}</div>
                 <div className="mt-1 text-gray-900 capitalize">{order.orderType || "goods"}</div>
               </div>
               <div>
-                <div className="text-xs uppercase text-gray-500">Status</div>
+                <div className="text-xs uppercase text-gray-500">{tt('Status')}</div>
                 <div className="mt-1">
                   <span
                     className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
@@ -155,7 +156,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                 </div>
               </div>
               <div>
-                <div className="text-xs uppercase text-gray-500">Expected Delivery</div>
+                <div className="text-xs uppercase text-gray-500">{tt('Expected Delivery')}</div>
                 <div className="mt-1 text-gray-900">
                   {order.expectedDeliveryDate
                     ? formatDateDDMMYYYY(order.expectedDeliveryDate)
@@ -163,13 +164,13 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                 </div>
               </div>
               <div>
-                <div className="text-xs uppercase text-gray-500">Subtotal</div>
+                <div className="text-xs uppercase text-gray-500">{tt('Subtotal')}</div>
                 <div className="mt-1 text-gray-900">
                   MWK {Number(order.subtotal ?? 0).toLocaleString()}
                 </div>
               </div>
               <div>
-                <div className="text-xs uppercase text-gray-500">Tax</div>
+                <div className="text-xs uppercase text-gray-500">{tt('Tax')}</div>
                 <div className="mt-1 text-gray-900">
                   MWK {Number(order.taxAmount ?? 0).toLocaleString()}
                   {order.taxRate != null && Number(order.taxRate) > 0 && (
@@ -178,7 +179,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                 </div>
               </div>
               <div>
-                <div className="text-xs uppercase text-gray-500">Total</div>
+                <div className="text-xs uppercase text-gray-500">{tt('Total')}</div>
                 <div className="mt-1 font-semibold text-gray-900">
                   MWK {Number(order.totalAmount || 0).toLocaleString()}
                 </div>
@@ -187,20 +188,20 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-gray-700">Line Items</h3>
+            <h3 className="text-sm font-semibold text-gray-700">{tt('Line Items')}</h3>
             <div className="mt-2 overflow-x-auto rounded-lg border">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
                   <tr>
-                    <th className="px-4 py-2">Type</th>
-                    <th className="px-4 py-2">Product / Description</th>
+                    <th className="px-4 py-2">{tt('Type')}</th>
+                    <th className="px-4 py-2">{tt('Product / Description')}</th>
                     <th className="px-4 py-2">Expense category (code)</th>
-                    <th className="px-4 py-2">Qty</th>
-                    <th className="px-4 py-2">Unit</th>
-                    <th className="px-4 py-2">Unit Cost</th>
-                    <th className="px-4 py-2 text-right">Tax %</th>
+                    <th className="px-4 py-2">{tt('Qty')}</th>
+                    <th className="px-4 py-2">{tt('Unit')}</th>
+                    <th className="px-4 py-2">{tt('Unit Cost')}</th>
+                    <th className="px-4 py-2 text-right">{tt('Tax %')}</th>
                     <th className="px-4 py-2 text-right">Tax (MWK)</th>
-                    <th className="px-4 py-2 text-right">Line Total</th>
+                    <th className="px-4 py-2 text-right">{tt('Line Total')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 bg-white">
@@ -250,7 +251,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                   </tr>
                   <tr>
                     <td colSpan={7} className="px-4 py-2 text-right text-sm text-gray-600">
-                      Total tax
+                      {tt('Total tax')}
                     </td>
                     <td className="px-4 py-2 text-right">
                       MWK {Number(order.taxAmount ?? 0).toLocaleString()}
@@ -275,7 +276,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
             <div>
               <h3 className="text-sm font-semibold text-gray-700">Supplier bills (payables)</h3>
               <p className="mt-1 text-xs text-gray-500">
-                Created when the PO is fully received. Pay from Purchases → Bills / Payments until status is Paid.
+                {tt('Created when the PO is fully received. Pay from Purchases → Bills / Payments until status is Paid.')}
               </p>
               <div className="mt-2 space-y-3">
                 {order.supplierBills.map((bill) => {
@@ -335,7 +336,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
 
           {order.receipts?.length ? (
             <div>
-              <h3 className="text-sm font-semibold text-gray-700">Linked Receipts</h3>
+              <h3 className="text-sm font-semibold text-gray-700">{tt('Linked Receipts')}</h3>
               <div className="mt-2 space-y-3">
                 {order.receipts.map((receipt) => (
                   <div
@@ -350,7 +351,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                           : "—"}
                       </div>
                     </div>
-                    <span className="text-xs uppercase text-gray-500">Posted</span>
+                    <span className="text-xs uppercase text-gray-500">{tt('Posted')}</span>
                   </div>
                 ))}
               </div>
@@ -358,7 +359,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
           ) : null}
 
           <div>
-            <h3 className="text-sm font-semibold text-gray-700">Supplier Invoice & Ledger</h3>
+            <h3 className="text-sm font-semibold text-gray-700">{tt('Supplier Invoice & Ledger')}</h3>
             <div className="mt-2 space-y-2">
               {order.supplierInvoiceUrl ? (
                 <div className="flex flex-wrap items-center gap-2">
@@ -368,7 +369,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                     rel="noopener noreferrer"
                     className="inline-flex items-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                   >
-                    View supplier invoice
+                    {tt('View supplier invoice')}
                   </a>
                   <span className="text-gray-500">|</span>
                   <button
@@ -403,7 +404,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
               {order.supplierId && (
                 <p className="text-xs text-gray-500">
                   <a href={`/purchases/suppliers/${order.supplierId}`} className="text-blue-600 hover:underline">
-                    View supplier ledger →
+                    {tt('View supplier ledger →')}
                   </a>
                 </p>
               )}
@@ -426,7 +427,7 @@ function ConfirmDialog({ title, message, onConfirm, onCancel, loading }) {
             onClick={onCancel}
             className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             onClick={onConfirm}
@@ -448,8 +449,8 @@ function FormSection({ title, description, children }) {
   return (
     <div className={formPanelClass}>
       <div>
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {description && <p className="text-xs text-gray-500">{description}</p>}
+        <h3 className="text-sm font-semibold text-gray-900">{tt(title)}</h3>
+        {description && <p className="text-xs text-gray-500">{tt(description)}</p>}
       </div>
       {children}
     </div>
@@ -780,7 +781,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Order type
+              {tt('Order type')}
             </label>
             <select
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
@@ -789,14 +790,14 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
             >
               {ORDER_TYPES.map((opt) => (
                 <option key={opt.value} value={opt.value}>
-                  {opt.label}
+                  {tt(opt.label)}
                 </option>
               ))}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Supplier <span className="text-red-500">*</span>
+              {tt('Supplier')} <span className="text-red-500">*</span>
             </label>
             <select
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
@@ -804,7 +805,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
               onChange={(e) => handleChange("supplierId", e.target.value)}
               required
             >
-              <option value="">Select supplier</option>
+              <option value="">{tt('Select supplier')}</option>
               {suppliers.map((supplier) => (
                 <option key={supplier.id} value={supplier.id}>
                   {supplier.supplierName}
@@ -813,7 +814,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Status</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Status')}</label>
             <select
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
               value={form.status}
@@ -827,7 +828,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">PO Date *</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('PO Date *')}</label>
             <input
               type="date"
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
@@ -837,7 +838,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Expected Delivery</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Expected Delivery')}</label>
             <input
               type="date"
               min={form.poDate || undefined}
@@ -854,7 +855,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                 onChange={(e) => handleChange("pricesIncludeTax", e.target.checked)}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm font-medium text-gray-700">Prices include tax</span>
+              <span className="text-sm font-medium text-gray-700">{tt('Prices include tax')}</span>
             </label>
             <span className="text-xs text-gray-500">(Otherwise prices exclude tax)</span>
           </div>
@@ -882,7 +883,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
             <input
               type="search"
               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              placeholder="Type to narrow the account list…"
+              placeholder={tt('Type to narrow the account list…')}
               value={expenseCategorySearch}
               onChange={(e) => setExpenseCategorySearch(e.target.value)}
             />
@@ -929,7 +930,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                   {/* Line type toggle for Goods & Services orders */}
                   {showLineToggle && (
                     <div>
-                      <label className="block text-xs font-medium text-gray-600">Line Type</label>
+                      <label className="block text-xs font-medium text-gray-600">{tt('Line Type')}</label>
                       <select
                         className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                         value={item.lineType || "goods"}
@@ -948,14 +949,14 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                   {/* GOODS lines: product select */}
                   {showProductSelect && (
                     <div className={showLineToggle ? "" : "sm:col-span-2"}>
-                      <label className="block text-xs font-medium text-gray-600">Product <span className="text-red-500">*</span></label>
+                      <label className="block text-xs font-medium text-gray-600">{tt('Product')} <span className="text-red-500">*</span></label>
                       <div className="mt-1">
                         <ProductSearchSelect
                           products={products}
                           value={item.productId}
                           onChange={(productId) => handleItemChange(idx, "productId", productId)}
                           required
-                          placeholder="Search by name, SKU, code, or barcode…"
+                          placeholder={tt('Search by name, SKU, code, or barcode…')}
                         />
                       </div>
                     </div>
@@ -979,7 +980,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                             onChange={(e) => handleItemChange(idx, "productUnitId", e.target.value)}
                             required={pus.length > 1}
                           >
-                            {pus.length > 1 && <option value="">Select unit…</option>}
+                            {pus.length > 1 && <option value="">{tt('Select unit…')}</option>}
                             {pus.map((pu) => (
                               <option key={pu.id} value={pu.id}>
                                 {pu.unit?.symbol || pu.unit?.name || "Unit"}
@@ -995,10 +996,10 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                   {isService && (
                     <>
                       <div className={showLineToggle ? "" : "sm:col-span-2"}>
-                        <label className="block text-xs font-medium text-gray-600">Description <span className="text-red-500">*</span></label>
+                        <label className="block text-xs font-medium text-gray-600">{tt('Description')} <span className="text-red-500">*</span></label>
                         <input
                           type="text"
-                          placeholder="e.g. Maintenance, Consultancy, Cleaning"
+                          placeholder={tt('e.g. Maintenance, Consultancy, Cleaning')}
                           className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                           value={item.description}
                           onChange={(e) => handleItemChange(idx, "description", e.target.value)}
@@ -1007,7 +1008,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600">
-                          Expense Account <span className="text-red-500">*</span>
+                          {tt('Expense Account')} <span className="text-red-500">*</span>
                         </label>
                         <select
                           className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
@@ -1030,10 +1031,10 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                   {isAsset && (
                     <>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600">Asset Name <span className="text-red-500">*</span></label>
+                        <label className="block text-xs font-medium text-gray-600">{tt('Asset Name')} <span className="text-red-500">*</span></label>
                         <input
                           type="text"
-                          placeholder="e.g. Laptop, Office Desk, Vehicle"
+                          placeholder={tt('e.g. Laptop, Office Desk, Vehicle')}
                           className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                           value={item.description}
                           onChange={(e) => handleItemChange(idx, "description", e.target.value)}
@@ -1042,7 +1043,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600">
-                          Expense Account
+                          {tt('Expense Account')}
                         </label>
                         <select
                           className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
@@ -1063,10 +1064,10 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                   {/* Optional description for goods lines */}
                   {showProductSelect && (
                     <div>
-                      <label className="block text-xs font-medium text-gray-600">Description</label>
+                      <label className="block text-xs font-medium text-gray-600">{tt('Description')}</label>
                       <input
                         type="text"
-                        placeholder="Optional note"
+                        placeholder={tt('Optional note')}
                         className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                         value={item.description}
                         onChange={(e) => handleItemChange(idx, "description", e.target.value)}
@@ -1076,7 +1077,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600">Quantity</label>
+                    <label className="block text-xs font-medium text-gray-600">{tt('Quantity')}</label>
                     <input
                       type="number"
                       min="0"
@@ -1088,7 +1089,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600">Unit cost</label>
+                    <label className="block text-xs font-medium text-gray-600">{tt('Unit cost')}</label>
                     <input
                       type="number"
                       min="0"
@@ -1100,7 +1101,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600">Tax type</label>
+                    <label className="block text-xs font-medium text-gray-600">{tt('Tax type')}</label>
                     <select
                       className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                       value={item.taxTypeId}
@@ -1115,7 +1116,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600">Tax %</label>
+                    <label className="block text-xs font-medium text-gray-600">{tt('Tax %')}</label>
                     <input
                       type="number"
                       min="0"
@@ -1137,7 +1138,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                     </span>
                     {items.length > 1 && (
                       <button type="button" className="text-xs text-red-600" onClick={() => removeItem(idx)}>
-                        Remove
+                        {tt('Remove')}
                       </button>
                     )}
                   </div>
@@ -1158,13 +1159,13 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
       <FormSection title="Notes & Totals" description="Internal instructions. Totals: Subtotal, Total Tax, Grand Total.">
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Notes</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Notes')}</label>
             <textarea
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
               rows={3}
               value={form.notes}
               onChange={(e) => handleChange("notes", e.target.value)}
-              placeholder="Delivery windows, approvals, offloading instructions…"
+              placeholder={tt('Delivery windows, approvals, offloading instructions…')}
             />
           </div>
           <div className="space-y-2">
@@ -1173,11 +1174,11 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
               <span className="font-medium text-gray-900">MWK {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm">
-              <span className="text-gray-600">Total Tax</span>
+              <span className="text-gray-600">{tt('Total Tax')}</span>
               <span className="font-medium text-gray-900">MWK {totalTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
-              <span className="text-xs uppercase tracking-wide text-blue-700">Grand Total</span>
+              <span className="text-xs uppercase tracking-wide text-blue-700">{tt('Grand Total')}</span>
               <span className="text-lg font-semibold text-blue-900">MWK {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           </div>
@@ -1190,7 +1191,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
           onClick={onCancel}
           className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          Cancel
+          {tt('Cancel')}
         </button>
         <button
           type="submit"
@@ -1360,7 +1361,7 @@ export default function PurchaseOrdersPage() {
             onClick={openCreateForm}
             className="rounded-[var(--radius-sm)] bg-[var(--action-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
           >
-            New Purchase Order
+            {tt('New Purchase Order')}
           </button>
         }
       />
@@ -1381,7 +1382,7 @@ export default function PurchaseOrdersPage() {
         <div className="mb-4 grid gap-3 md:grid-cols-3">
           <input
             type="text"
-            placeholder="Search PO number or supplier…"
+            placeholder={tt('Search PO number or supplier…')}
             className="rounded-md border border-gray-300 px-3 py-2 text-sm  focus:border-blue-500 focus:ring-blue-500"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -1391,7 +1392,7 @@ export default function PurchaseOrdersPage() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="">All Statuses</option>
+            <option value="">{tt('All Statuses')}</option>
             {Object.keys(statusColors).map((status) => (
               <option key={status} value={status}>
                 {status}
@@ -1401,36 +1402,36 @@ export default function PurchaseOrdersPage() {
         </div>
 
         {loading ? (
-          <p className="text-sm text-gray-500">Loading purchase orders…</p>
+          <p className="text-sm text-gray-500">{tt('Loading purchase orders…')}</p>
         ) : error ? (
           <p className="text-sm text-red-500">{error}</p>
         ) : orders.length === 0 ? (
-          <p className="text-sm text-gray-500">No purchase orders found.</p>
+          <p className="text-sm text-gray-500">{tt('No purchase orders found.')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    PO #
+                    {tt('PO #')}
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Supplier
+                    {tt('Supplier')}
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Date
+                    {tt('Date')}
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Status
+                    {tt('Status')}
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Tax
+                    {tt('Tax')}
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Total
+                    {tt('Total')}
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Actions
+                    {tt('Actions')}
                   </th>
                 </tr>
               </thead>
@@ -1479,7 +1480,7 @@ export default function PurchaseOrdersPage() {
                             }
                           }}
                         >
-                          View
+                          {tt('View')}
                         </button>
                         <button
                           type="button"
@@ -1492,7 +1493,7 @@ export default function PurchaseOrdersPage() {
                               : undefined
                           }
                         >
-                          Edit
+                          {tt('Edit')}
                         </button>
                         <button
                           type="button"
@@ -1505,7 +1506,7 @@ export default function PurchaseOrdersPage() {
                               : undefined
                           }
                         >
-                          Delete
+                          {tt('Delete')}
                         </button>
                       </div>
                     </td>

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -96,14 +97,14 @@ export default function CrmOpportunitiesView({ myPipeline = false }) {
                 aria-label={t('admin-pages.crm.opportunities.stage')}
               >
                 <option value="">{t('admin-pages.crm.opportunities.stageAll')}</option>
-                <option value="OPPORTUNITY_IDENTIFIED">OPPORTUNITY_IDENTIFIED</option>
+                <option value="OPPORTUNITY_IDENTIFIED">{tt('OPPORTUNITY_IDENTIFIED')}</option>
                 <option value="DISCOVERY">DISCOVERY</option>
                 <option value="NEED_CONFIRMED">NEED_CONFIRMED</option>
                 <option value="SOLUTION_FIT">SOLUTION_FIT</option>
-                <option value="COMMERCIAL_SCOPING">COMMERCIAL_SCOPING</option>
+                <option value="COMMERCIAL_SCOPING">{tt('COMMERCIAL_SCOPING')}</option>
                 <option value="DECISION_PROCESS">DECISION_PROCESS</option>
                 <option value="PROPOSAL_READY">PROPOSAL_READY</option>
-                <option value="CUSTOMER_DECISION">CUSTOMER_DECISION</option>
+                <option value="CUSTOMER_DECISION">{tt('CUSTOMER_DECISION')}</option>
                 <option value="CLOSED_WON">CLOSED_WON</option>
                 <option value="CLOSED_LOST">CLOSED_LOST</option>
               </select>

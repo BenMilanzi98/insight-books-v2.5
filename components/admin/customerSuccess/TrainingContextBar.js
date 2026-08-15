@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * Training Context Bar — Phase 18 Wave 4.
@@ -16,7 +17,7 @@ export default function TrainingContextBar({
   return (
     <div
       role="region"
-      aria-label="Training context"
+      aria-label={tt('Training context')}
       style={{
         display: 'flex',
         flexWrap: 'wrap',

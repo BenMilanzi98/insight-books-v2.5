@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import AdoptionContextBar from '@/components/admin/customerSuccess/AdoptionContextBar';
@@ -12,7 +13,7 @@ export default function AdoptionRequestDetailPage() {
     <div style={{ padding: '1.5rem', maxWidth: 960 }}>
       <AdoptionContextBar population="adoption-request-detail" />
       <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
-        Adoption Request
+        {tt('Adoption Request')}
       </h1>
       <p style={{ color: '#555' }}>Request id: {id}</p>
       <p style={{ marginTop: '1rem' }}>

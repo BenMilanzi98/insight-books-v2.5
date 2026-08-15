@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from 'react';
 import { Clock, Crown, X, AlertCircle, ArrowRight } from 'lucide-react';
 
@@ -50,10 +51,10 @@ const TrialCountdown = ({ subscriptionData, onUpgrade, onDismiss, className = ""
             </div>
             <div className="flex-1">
               <h3 className="text-xl font-semibold text-red-800 mb-2">
-                Free Trial Ended
+                {tt('Free Trial Ended')}
               </h3>
               <p className="text-red-700 mb-4">
-                Your 3-day free trial has ended. Upgrade to a paid plan to continue using all features and avoid losing access to your data.
+                {tt('Your 3-day free trial has ended. Upgrade to a paid plan to continue using all features and avoid losing access to your data.')}
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
@@ -61,14 +62,14 @@ const TrialCountdown = ({ subscriptionData, onUpgrade, onDismiss, className = ""
                   className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-red-600 to-orange-600 text-white font-medium rounded-lg hover:from-red-700 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
                   <Crown className="h-5 w-5 mr-2" />
-                  Upgrade Now - Save Your Data
+                  {tt('Upgrade Now - Save Your Data')}
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </button>
                 <button
                   onClick={() => window.location.href = '/subscription'}
                   className="inline-flex items-center justify-center px-6 py-3 bg-white text-red-600 font-medium rounded-lg border border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200"
                 >
-                  View All Plans
+                  {tt('View All Plans')}
                 </button>
               </div>
             </div>
@@ -116,7 +117,7 @@ const TrialCountdown = ({ subscriptionData, onUpgrade, onDismiss, className = ""
                     : 'text-blue-600 border-blue-300 hover:bg-blue-50 focus:ring-blue-500'
                 }`}
               >
-                View All Plans
+                {tt('View All Plans')}
               </button>
             </div>
           </div>

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -201,7 +202,7 @@ export default function SecurityPage() {
         actions={
           <>
             <button type="button" onClick={load} className={btnGhost}>
-              <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+              <RefreshCw className="h-4 w-4" aria-hidden /> {tt('Refresh')}
             </button>
             <button type="button" onClick={handleSaveSettings} disabled={saving} className={btnPrimary}>
               <Save className="h-4 w-4" aria-hidden />
@@ -417,11 +418,11 @@ export default function SecurityPage() {
                 <div className="flex gap-2">
                   <AdminField.Input
                     id="ip-new"
-                    placeholder="Enter IP address"
+                    placeholder={tt('Enter IP address')}
                     value={newIpAddress}
                     onChange={(e) => setNewIpAddress(e.target.value)}
                   />
-                  <button type="button" onClick={addWhitelistedIP} className={btnPrimary} aria-label="Add IP">
+                  <button type="button" onClick={addWhitelistedIP} className={btnPrimary} aria-label={tt('Add IP')}>
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
@@ -499,7 +500,7 @@ export default function SecurityPage() {
                       onClick={() => handleTerminateSession(session.id)}
                       className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-danger)] hover:bg-[var(--admin-surface-muted)]"
                       title="Terminate session"
-                      aria-label="Terminate session"
+                      aria-label={tt('Terminate session')}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

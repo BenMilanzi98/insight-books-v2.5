@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -218,10 +219,10 @@ export default function AuditPage() {
         actions={
           <>
             <button type="button" onClick={exportCsv} className={btnGhost} disabled={!filtered.length}>
-              <Download className="h-4 w-4" aria-hidden /> Export
+              <Download className="h-4 w-4" aria-hidden /> {tt('Export')}
             </button>
             <button type="button" onClick={load} className={btnGhost}>
-              <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+              <RefreshCw className="h-4 w-4" aria-hidden /> {tt('Refresh')}
             </button>
           </>
         }
@@ -263,9 +264,9 @@ export default function AuditPage() {
             value={selectedLogType}
             onChange={(e) => setSelectedLogType(e.target.value)}
           >
-            <option value="all">All logs</option>
-            <option value="user">User activities</option>
-            <option value="admin">Admin activities</option>
+            <option value="all">{tt('All logs')}</option>
+            <option value="user">{tt('User activities')}</option>
+            <option value="admin">{tt('Admin activities')}</option>
           </AdminField.Select>
         </AdminField>
         <AdminField label="Action" htmlFor="audit-action">
@@ -274,17 +275,17 @@ export default function AuditPage() {
             value={selectedAction}
             onChange={(e) => setSelectedAction(e.target.value)}
           >
-            <option value="all">All actions</option>
-            <option value="LOGIN">Login</option>
-            <option value="LOGIN_SUCCESS">Login success</option>
-            <option value="LOGIN_FAILED">Login failed</option>
-            <option value="USER_CREATE">User create</option>
-            <option value="USER_UPDATE">User update</option>
-            <option value="USER_DELETE">User delete</option>
-            <option value="TENANT_CREATE">Tenant create</option>
-            <option value="TENANT_UPDATE">Tenant update</option>
-            <option value="TENANT_DELETE">Tenant delete</option>
-            <option value="SETTINGS_UPDATE">Settings update</option>
+            <option value="all">{tt('All actions')}</option>
+            <option value="LOGIN">{tt('Login')}</option>
+            <option value="LOGIN_SUCCESS">{tt('Login success')}</option>
+            <option value="LOGIN_FAILED">{tt('Login failed')}</option>
+            <option value="USER_CREATE">{tt('User create')}</option>
+            <option value="USER_UPDATE">{tt('User update')}</option>
+            <option value="USER_DELETE">{tt('User delete')}</option>
+            <option value="TENANT_CREATE">{tt('Tenant create')}</option>
+            <option value="TENANT_UPDATE">{tt('Tenant update')}</option>
+            <option value="TENANT_DELETE">{tt('Tenant delete')}</option>
+            <option value="SETTINGS_UPDATE">{tt('Settings update')}</option>
           </AdminField.Select>
         </AdminField>
         <AdminField label="Per page" htmlFor="audit-page-size">
@@ -341,7 +342,7 @@ export default function AuditPage() {
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 className={btnGhost}
               >
-                Previous
+                {tt('Previous')}
               </button>
               <span className="text-sm text-[var(--admin-text-muted)]">
                 Page {safePage} / {totalPages}
@@ -352,7 +353,7 @@ export default function AuditPage() {
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 className={btnGhost}
               >
-                Next
+                {tt('Next')}
               </button>
             </div>
           </div>

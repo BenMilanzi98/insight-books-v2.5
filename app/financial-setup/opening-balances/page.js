@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -310,7 +311,7 @@ export default function OpeningBalancesPage() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Opening Balances Setup</h1>
+              <h1 className="text-3xl font-bold text-gray-900">{tt('Opening Balances Setup')}</h1>
               <p className="text-gray-600 mt-1">
                 Enter bulk COA opening balances — imbalances post to Opening Balance Equity (3190)
               </p>
@@ -337,7 +338,7 @@ export default function OpeningBalancesPage() {
                 className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
               >
                 <HelpCircle className="h-5 w-5" />
-                Help
+                {tt('Help')}
               </button>
             </div>
           </div>
@@ -346,9 +347,9 @@ export default function OpeningBalancesPage() {
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
               <div>
-                <h3 className="font-semibold text-amber-900">Opening balances locked</h3>
+                <h3 className="font-semibold text-amber-900">{tt('Opening balances locked')}</h3>
                 <p className="text-sm text-amber-800">
-                  At least one accounting period has been closed. Use a manual journal entry or controlled period reopening to make corrections.
+                  {tt('At least one accounting period has been closed. Use a manual journal entry or controlled period reopening to make corrections.')}
                 </p>
               </div>
             </div>
@@ -378,14 +379,14 @@ export default function OpeningBalancesPage() {
 
           {showHelp && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <h3 className="font-semibold text-blue-900 mb-2">How to Set Opening Balances</h3>
+              <h3 className="font-semibold text-blue-900 mb-2">{tt('How to Set Opening Balances')}</h3>
               <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
-                <li>Enter the starting balance for each account as of your opening date</li>
-                <li>For Asset and Expense accounts: Enter positive amounts for debit balances</li>
-                <li>For Liability, Equity, and Revenue accounts: Enter positive amounts for credit balances</li>
+                <li>{tt('Enter the starting balance for each account as of your opening date')}</li>
+                <li>{tt('For Asset and Expense accounts: Enter positive amounts for debit balances')}</li>
+                <li>{tt('For Liability, Equity, and Revenue accounts: Enter positive amounts for credit balances')}</li>
                 <li>The system balances any difference to Opening Balance Equity (3190)</li>
-                <li>You can filter accounts by type or search by code/name</li>
-                <li>Only accounts with non-zero balances will be saved</li>
+                <li>{tt('You can filter accounts by type or search by code/name')}</li>
+                <li>{tt('Only accounts with non-zero balances will be saved')}</li>
               </ul>
             </div>
           )}
@@ -394,7 +395,7 @@ export default function OpeningBalancesPage() {
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
               <div>
-                <h3 className="font-semibold text-red-900">Error</h3>
+                <h3 className="font-semibold text-red-900">{tt('Error')}</h3>
                 <p className="text-sm text-red-800">{error}</p>
               </div>
             </div>
@@ -404,7 +405,7 @@ export default function OpeningBalancesPage() {
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 flex items-start gap-3">
               <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
               <div>
-                <h3 className="font-semibold text-green-900">Success</h3>
+                <h3 className="font-semibold text-green-900">{tt('Success')}</h3>
                 <p className="text-sm text-green-800">{success}</p>
               </div>
             </div>
@@ -414,7 +415,7 @@ export default function OpeningBalancesPage() {
         {/* Opening Date */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Opening Balance Date
+            {tt('Opening Balance Date')}
           </label>
           <input
             type="date"
@@ -430,7 +431,7 @@ export default function OpeningBalancesPage() {
             <div className="flex-1 min-w-[200px]">
               <input
                 type="text"
-                placeholder="Search by code or name..."
+                placeholder={tt('Search by code or name...')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -511,7 +512,7 @@ export default function OpeningBalancesPage() {
         <div className="space-y-8">
           {groupedByCoa.length === 0 ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center text-gray-500">
-              No accounts match your filters
+              {tt('No accounts match your filters')}
             </div>
           ) : (
             groupedByCoa.map((group) => {
@@ -539,19 +540,19 @@ export default function OpeningBalancesPage() {
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
-                            Code
+                            {tt('Code')}
                           </th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Account
+                            {tt('Account')}
                           </th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
-                            GL type
+                            {tt('GL type')}
                           </th>
                           <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-36">
-                            Current
+                            {tt('Current')}
                           </th>
                           <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
-                            Opening
+                            {tt('Opening')}
                           </th>
                         </tr>
                       </thead>
@@ -620,7 +621,7 @@ export default function OpeningBalancesPage() {
             onClick={() => router.back()}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             onClick={handleSave}
@@ -630,12 +631,12 @@ export default function OpeningBalancesPage() {
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
+                {tt('Saving...')}
               </>
             ) : (
               <>
                 <Save className="h-4 w-4" />
-                Save Opening Balances
+                {tt('Save Opening Balances')}
               </>
             )}
           </button>

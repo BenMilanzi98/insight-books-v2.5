@@ -1,50 +1,43 @@
-### Task 6: Damage / repair operator hooks (minimal tracing)
+### Task 6: Cloud snapshot builder
 
 **Files:**
-- Create: `app/api/rentals/charges/damage/route.js` (or extend complete/return)
-- Modify: `app/rentals/RentalsClient.js` — optional “Record damage” on active booking
-- Modify: expense create path **or** document notes convention — prefer small API that creates an Expense with `notes` including `source=REPAIR` + `rentalTransactionId=`
+- Create: `lib/desktop/cloud/snapshot.js`
+- Create: `app/api/desktop/snapshot/route.js`
+- Create: `test/desktop/snapshot.test.js`
 
 **Interfaces:**
-- `POST /api/rentals/charges/damage` body `{ transactionId, amount, description }` → creates Customer Invoice line charge **or** standalone Pending invoice with `isRentalInvoice:true` + notes `source=DAMAGE`, linked via notes/`orderNumber=rt.id` if no FK; prefer creating `Invoice` + payment path on `/invoices`.
-- `POST /api/rentals/charges/repair` body `{ transactionId?, rentalAssetId, amount, description }` → Expense with tagged notes for Reports.
+- Produces: `buildDesktopSnapshot({ prisma, tenantId, userId }) → snapshot`
 
-Keep YAGNI: if V2 `RentalCharge` billing already exists for contracts, call into it when `contractId` present; for legacy RT-only bookings use invoice/expense tagging above.
-
-- [ ] **Step 1: Unit test for tag helpers used by damage/repair create**
-
-Extend `test/rentalSourceTags.test.js`:
+Snapshot shape (exact keys):
 
 ```js
-import { formatRentalTraceNote } from '../lib/rentalSourceTags.js';
-
-it('formats repair/damage notes for report scraping', () => {
-  expect(formatRentalTraceNote({ event: 'REPAIR', rentalTransactionId: 'rt-1' })).toContain('source=REPAIR');
-  expect(formatRentalTraceNote({ event: 'DAMAGE', rentalTransactionId: 'rt-1' })).toContain('source=DAMAGE');
-});
-```
-
-Implement:
-
-```js
-export function formatRentalTraceNote({ event, rentalTransactionId, rentalAssetId }) {
-  return [
-    `source=${event}`,
-    rentalTransactionId ? `rentalTransactionId=${rentalTransactionId}` : null,
-    rentalAssetId ? `rentalAssetId=${rentalAssetId}` : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+{
+  version: 1,
+  tenantId: string,
+  sessionUser: { id, name, email, tenantId, role: { id, name, permissions } },
+  tenantSettings: { currencyCode, invoicePrefix, taxEnabled, defaultTaxRate, defaultLanguage },
+  customers: Array,      // Client rows for tenant (isActive + archived)
+  products: Array,       // Product + quantity + barcodes needed by POS
+  taxTypes: Array,       // active tax types
+  paymentAccounts: Array,
+  openInvoices: Array,   // status not paid/void, include items
+  recentPayments: Array, // last 90 days
+  posConfig: { cashDay: object|null },
+  serverNow: string,
 }
 ```
 
-- [ ] **Step 2: Implement damage invoice create + repair expense create** following existing invoice/expense patterns in the codebase (copy money helpers, tax optional 0 for v1 damage unless tax types selected).
+GET `/api/desktop/snapshot` requires auth + bound device (`deviceId` query param). 403 `NOT_BOUND` otherwise.
 
-- [ ] **Step 3: Wire minimal UI actions on Rentals + Customer hire lists.**
+- [ ] **Step 1: Write a test that the builder maps prisma results into those keys**
 
-- [ ] **Step 4: Confirm Reports picks up tagged rows.**
+Use a fake prisma returning one client, one product, one tax type. Assert `snapshot.customers[0].id`, `snapshot.products[0].quantity`, `snapshot.version === 1`.
 
-- [ ] **Step 5: Commit only if user asked**
+- [ ] **Step 2: Implement queries** (real prisma in `snapshot.js`; keep selects explicit — do not `include: true` the whole graph)
+
+- [ ] **Step 3: Run** `npx vitest run test/desktop/snapshot.test.js` — Expected: PASS
+
+- [ ] **Step 4: Commit** (skip unless asked)
 
 ---
 

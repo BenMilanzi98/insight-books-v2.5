@@ -22,10 +22,10 @@ describe('report CSV export', () => {
         },
       ],
     };
-    const csv = await exportReportAsCsv(report);
-    expect(csv).toContain('# report=BUDGET_VS_ACTUAL');
-    expect(csv).toContain('# budgetVersion=2');
-    expect(csv).toContain('# currency=MWK');
+    const csv = await exportReportAsCsv(report, { businessName: 'Acme Ltd' });
+    expect(csv).toContain('"Report"');
+    expect(csv).toContain('Acme Ltd');
+    expect(csv).toContain('MWK');
     expect(csv).toContain('4000');
     expect(csv).toContain('1000');
     expect(csv).toContain('900');

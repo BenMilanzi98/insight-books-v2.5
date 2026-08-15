@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -333,7 +334,7 @@ export default function SystemLedgerCoaTable({
                 {synth.accountName || synth.name || 'Direct postings'}
               </span>
               <span className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-950 ring-1 ring-blue-200/70">
-                Direct
+                {tt('Direct')}
               </span>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 sm:hidden">
@@ -360,7 +361,7 @@ export default function SystemLedgerCoaTable({
           </td>
           <td className="px-4 py-2 align-middle sm:px-5 sm:py-2.5">
             <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 ring-1 ring-slate-200 sm:text-[11px]">
-              Synthetic
+              {tt('Synthetic')}
             </span>
           </td>
           <td className="px-3 py-2 align-middle sm:px-5 sm:py-2.5">
@@ -475,7 +476,7 @@ export default function SystemLedgerCoaTable({
               {primary?.isSystem ? (
                 <span className="inline-flex items-center gap-1 rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                   <Shield size={10} strokeWidth={2.5} />
-                  System
+                  {tt('System')}
                 </span>
               ) : null}
               {isRoot || (hasStructChildren && primary && primary.acceptsNewTransactions === false) ? (
@@ -483,19 +484,19 @@ export default function SystemLedgerCoaTable({
                   className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 ring-1 ring-slate-200/80"
                   title="This code is a section header. Journals post to leaf sub-accounts (e.g. 4100 Product Sales, 5110 Purchases). The balance shown here is the roll-up of those children."
                 >
-                  Roll-up header
+                  {tt('Roll-up header')}
                 </span>
               ) : null}
               {primary?.requiresReclassification ? (
                 <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-950 ring-1 ring-amber-200/80">
-                  Needs reclassification
+                  {tt('Needs reclassification')}
                 </span>
               ) : null}
             </div>
             {(isRoot || (hasStructChildren && primary && primary.acceptsNewTransactions === false)) &&
             Math.abs(Number(rowBalance) || 0) > COA_RECONCILE_TOLERANCE ? (
               <p className="mt-1 text-[11px] leading-snug text-slate-500">
-                No direct journals on this code — total is from sub-accounts.
+                {tt('No direct journals on this code — total is from sub-accounts.')}
               </p>
             ) : null}
             {renderLedgerExtrasDropdown('Multiple database rows for this GL code', dupes)}
@@ -556,18 +557,18 @@ export default function SystemLedgerCoaTable({
           <td className="px-4 py-3 align-middle sm:px-5 sm:py-3.5">
             {!primary ? (
               <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 ring-1 ring-slate-200 sm:text-xs">
-                <span className="hidden sm:inline">Not set up</span>
+                <span className="hidden sm:inline">{tt('Not set up')}</span>
                 <span className="sm:hidden">—</span>
               </span>
             ) : rowActive ? (
               <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800 ring-1 ring-emerald-100 sm:text-xs">
                 <CheckCircle size={12} strokeWidth={2.5} className="text-emerald-600" />
-                <span className="hidden sm:inline">Active</span>
+                <span className="hidden sm:inline">{tt('Active')}</span>
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 ring-1 ring-slate-200 sm:text-xs">
                 <XCircle size={12} strokeWidth={2.5} />
-                <span className="hidden sm:inline">Inactive</span>
+                <span className="hidden sm:inline">{tt('Inactive')}</span>
               </span>
             )}
           </td>
@@ -639,7 +640,7 @@ export default function SystemLedgerCoaTable({
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
             <Loader2 size={24} className="animate-spin" strokeWidth={2} />
           </div>
-          <p className="text-sm text-slate-500">Loading accounts…</p>
+          <p className="text-sm text-slate-500">{tt('Loading accounts…')}</p>
         </div>
       ) : (
         <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
@@ -648,9 +649,9 @@ export default function SystemLedgerCoaTable({
               <div className="flex items-start gap-3">
                 <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" strokeWidth={2} />
                 <div>
-                  <p className="text-sm font-medium text-slate-900">No accounts loaded</p>
+                  <p className="text-sm font-medium text-slate-900">{tt('No accounts loaded')}</p>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    Sync the standard chart or import a template to populate your ledger.
+                    {tt('Sync the standard chart or import a template to populate your ledger.')}
                   </p>
                 </div>
               </div>
@@ -663,11 +664,11 @@ export default function SystemLedgerCoaTable({
             <div className="flex flex-wrap justify-end gap-2 border-b border-slate-100/90 bg-slate-50/50 px-3 py-2 sm:px-4">
               <button type="button" onClick={handleExpandAll} className={coaBtnSecondary} title="Expand all rows">
                 <ChevronsDownUp size={17} strokeWidth={2} />
-                Expand all
+                {tt('Expand all')}
               </button>
               <button type="button" onClick={handleCollapseToRoots} className={coaBtnSecondary} title="Collapse to main categories">
                 <ChevronsUpDown size={17} strokeWidth={2} />
-                Main only
+                {tt('Main only')}
               </button>
             </div>
           ) : null}
@@ -675,22 +676,22 @@ export default function SystemLedgerCoaTable({
             <thead>
               <tr className="border-b border-slate-200/90 bg-slate-50/95 backdrop-blur-md">
                 <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
-                  Code
+                  {tt('Code')}
                 </th>
                 <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
-                  Account
+                  {tt('Account')}
                 </th>
                 <th className="sticky top-0 z-10 hidden whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:table-cell sm:px-5">
-                  Type
+                  {tt('Type')}
                 </th>
                 <th className="sticky top-0 z-10 hidden whitespace-nowrap px-4 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:table-cell sm:px-5">
-                  Balance
+                  {tt('Balance')}
                 </th>
                 <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
-                  Status
+                  {tt('Status')}
                 </th>
                 <th className="sticky top-0 z-10 whitespace-nowrap px-3 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
-                  Actions
+                  {tt('Actions')}
                 </th>
               </tr>
             </thead>

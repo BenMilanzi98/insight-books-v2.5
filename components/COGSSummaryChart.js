@@ -1,5 +1,6 @@
 // components/COGSSummaryChart.js
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const COGSSummaryChart = ({ data }) => {
@@ -8,7 +9,7 @@ const COGSSummaryChart = ({ data }) => {
       <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
         <div className="text-center">
           <div className="text-gray-400 mb-2">📊</div>
-          <p className="text-gray-500">No COGS data available</p>
+          <p className="text-gray-500">{tt('No COGS data available')}</p>
         </div>
       </div>
     );

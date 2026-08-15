@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -13,10 +14,9 @@ export default function OnboardingKickoffTabPage() {
       <p>
         <Link href={`/insightbooks/customer-success/onboarding/projects/${id}`}>← Project</Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>Kick-off</h1>
+      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>{tt('Kick-off')}</h1>
       <p style={{ color: '#555' }}>
-        Schedules / links a Phase 13 <code>CrmMeeting</code> once. RSVP accepted is not attendance.
-        Meeting service unavailable → <code>MEETING_SERVICE_UNAVAILABLE</code>. Never fabricate
+        {tt('Schedules / links a Phase 13')} <code>{tt('CrmMeeting')}</code> {tt('once. RSVP accepted is not attendance. Meeting service unavailable →')} <code>{tt('MEETING_SERVICE_UNAVAILABLE')}</code>. Never fabricate
         kick-off complete without Meeting.
       </p>
     </div>

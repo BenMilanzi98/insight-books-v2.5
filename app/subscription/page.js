@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect, Suspense } from "react";
 import { Crown, Check, Star, ArrowRight, Clock, AlertCircle, Zap, Shield, Users, BarChart3, AlertTriangle } from "lucide-react";
 import { useSearchParams } from 'next/navigation';
@@ -149,10 +150,10 @@ function SubscriptionContent() {
             </div>
             <div className="flex-1">
               <h3 className="text-xl font-semibold text-green-900 mb-2">
-                Payment Successful!
+                {tt('Payment Successful!')}
               </h3>
               <p className="text-green-700">
-                Your subscription has been activated successfully. You now have access to all premium features.
+                {tt('Your subscription has been activated successfully. You now have access to all premium features.')}
               </p>
             </div>
           </div>
@@ -168,7 +169,7 @@ function SubscriptionContent() {
             </div>
             <div className="flex-1">
               <h3 className="text-xl font-semibold text-red-900 mb-2">
-                Error
+                {tt('Error')}
               </h3>
               <p className="text-red-700">
                 {error}
@@ -210,7 +211,7 @@ function SubscriptionContent() {
               </p>
               {(reason === 'no_subscription' || noActiveSubscription) && (
                 <p className="text-sm text-red-600 mt-2">
-                  All features are locked until you choose a subscription plan.
+                  {tt('All features are locked until you choose a subscription plan.')}
                 </p>
               )}
             </div>
@@ -263,7 +264,7 @@ function SubscriptionContent() {
               </div>
               <div>
                 <h3 className="text-xl font-semibold text-blue-900">
-                  Free Trial Active
+                  {tt('Free Trial Active')}
                 </h3>
                 <p className="text-blue-700">
                   {remainingTrialDays > 0 
@@ -296,13 +297,13 @@ function SubscriptionContent() {
             </div>
             <div className="flex-1">
               <h3 className="text-xl font-semibold text-orange-900 mb-2">
-                Trial Expired
+                {tt('Trial Expired')}
               </h3>
               <p className="text-orange-700">
-                Your free trial has ended. To continue using all features, please choose a subscription plan below.
+                {tt('Your free trial has ended. To continue using all features, please choose a subscription plan below.')}
               </p>
               <p className="text-sm text-orange-600 mt-2">
-                All your data is safe and will be restored once you upgrade.
+                {tt('All your data is safe and will be restored once you upgrade.')}
               </p>
             </div>
           </div>
@@ -390,7 +391,7 @@ function SubscriptionContent() {
                         {loading ? (
                           <div className="flex items-center justify-center">
                             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current mr-2"></div>
-                            Processing...
+                            {tt('Processing...')}
                           </div>
                         ) : (
                           <div className="flex items-center justify-center">
@@ -418,34 +419,34 @@ function SubscriptionContent() {
       {(isTrialActive || redirected) && (
         <div className="bg-gray-50 rounded-xl p-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-            What's Included in Premium Plans
+            {tt("What's Included in Premium Plans")}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
               <div className="bg-blue-100 w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-4">
                 <Zap className="h-6 w-6 text-blue-600" />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">MRA E-Invoicing</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">{tt('MRA E-Invoicing')}</h3>
               <p className="text-gray-600 text-sm">
-                Direct integration with Malawi Revenue Authority for seamless tax compliance
+                {tt('Direct integration with Malawi Revenue Authority for seamless tax compliance')}
               </p>
             </div>
             <div className="text-center">
               <div className="bg-green-100 w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-4">
                 <BarChart3 className="h-6 w-6 text-green-600" />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Advanced Reports</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">{tt('Advanced Reports')}</h3>
               <p className="text-gray-600 text-sm">
-                Comprehensive financial analytics and business intelligence reports
+                {tt('Comprehensive financial analytics and business intelligence reports')}
               </p>
             </div>
             <div className="text-center">
               <div className="bg-purple-100 w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-4">
                 <Users className="h-6 w-6 text-purple-600" />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Multi-User Access</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">{tt('Multi-User Access')}</h3>
               <p className="text-gray-600 text-sm">
-                Collaborate with your team with role-based permissions and access control
+                {tt('Collaborate with your team with role-based permissions and access control')}
               </p>
             </div>
           </div>
@@ -455,15 +456,15 @@ function SubscriptionContent() {
       {/* Current Subscription Status */}
       {!isTrialActive && (
         <div className="bg-white rounded-xl shadow border p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Current Subscription Status</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">{tt('Current Subscription Status')}</h2>
           
           {!subscription?.isActive ? (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <div className="flex items-center">
                 <AlertCircle className="h-5 w-5 text-yellow-600 mr-3" />
                 <div>
-                  <p className="text-yellow-800 font-medium">No Active Subscription</p>
-                  <p className="text-yellow-700 text-sm">Choose a plan above to get started</p>
+                  <p className="text-yellow-800 font-medium">{tt('No Active Subscription')}</p>
+                  <p className="text-yellow-700 text-sm">{tt('Choose a plan above to get started')}</p>
                 </div>
               </div>
             </div>
@@ -473,7 +474,7 @@ function SubscriptionContent() {
                 <div className="flex items-center">
                   <Check className="h-5 w-5 text-green-600 mr-3" />
                   <div>
-                    <p className="text-green-800 font-medium">Subscription Active</p>
+                    <p className="text-green-800 font-medium">{tt('Subscription Active')}</p>
                     <p className="text-green-700 text-sm">
                       Next renewal: {formatDate(subscription.expiresAt)}
                     </p>
@@ -492,16 +493,16 @@ function SubscriptionContent() {
 
       {/* Payment History */}
       <div className="bg-white rounded-xl shadow border p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Payment History</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">{tt('Payment History')}</h2>
         <div className="overflow-auto rounded-lg">
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Date')}</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Transaction')}</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Amount')}</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Type')}</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -546,7 +547,7 @@ function SubscriptionContent() {
               ) : (
                 <tr>
                   <td colSpan="5" className="px-4 py-8 text-center text-gray-500">
-                    No payment history found.
+                    {tt('No payment history found.')}
                   </td>
                 </tr>
               )}
@@ -558,23 +559,23 @@ function SubscriptionContent() {
       {/* FAQ Section - Only show if in trial mode */}
       {isTrialActive && (
         <div className="bg-gray-50 rounded-xl p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Frequently Asked Questions</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">{tt('Frequently Asked Questions')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h3 className="font-semibold text-gray-900 mb-2">Can I cancel anytime?</h3>
-              <p className="text-gray-600 text-sm">Yes, you can cancel your subscription at any time. No long-term contracts required.</p>
+              <p className="text-gray-600 text-sm">{tt('Yes, you can cancel your subscription at any time. No long-term contracts required.')}</p>
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 mb-2">Is there a money-back guarantee?</h3>
-              <p className="text-gray-600 text-sm">We offer a 30-day money-back guarantee for all paid plans.</p>
+              <p className="text-gray-600 text-sm">{tt('We offer a 30-day money-back guarantee for all paid plans.')}</p>
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 mb-2">What happens when my trial ends?</h3>
-              <p className="text-gray-600 text-sm">You'll need to upgrade to a paid plan to continue accessing all features.</p>
+              <p className="text-gray-600 text-sm">{tt("You'll need to upgrade to a paid plan to continue accessing all features.")}</p>
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 mb-2">Can I change plans later?</h3>
-              <p className="text-gray-600 text-sm">Yes, you can upgrade or downgrade your plan at any time from your account settings.</p>
+              <p className="text-gray-600 text-sm">{tt('Yes, you can upgrade or downgrade your plan at any time from your account settings.')}</p>
             </div>
           </div>
         </div>

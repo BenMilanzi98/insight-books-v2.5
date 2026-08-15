@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { adminFetch } from '@/lib/admin/adminApi';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -95,7 +96,7 @@ export default function SystemMraEisTerminalsPage() {
         breadcrumb={
           <>
             <Link href="/insightbooks/mra-eis" className="underline">
-              MRA EIS
+              {tt('MRA EIS')}
             </Link>
             {' / '}
             Terminals
@@ -108,7 +109,7 @@ export default function SystemMraEisTerminalsPage() {
       <div className="mb-4 flex flex-wrap gap-2">
         <input
           className={inputCls}
-          placeholder="Tenant ID"
+          placeholder={tt('Tenant ID')}
           value={filters.tenantId}
           onChange={(e) => setFilters((f) => ({ ...f, tenantId: e.target.value }))}
         />
@@ -117,26 +118,26 @@ export default function SystemMraEisTerminalsPage() {
           value={filters.environment}
           onChange={(e) => setFilters((f) => ({ ...f, environment: e.target.value }))}
         >
-          <option value="">All environments</option>
-          <option value="SANDBOX">Sandbox</option>
-          <option value="PRODUCTION">Production</option>
-          <option value="MOCK">Mock</option>
+          <option value="">{tt('All environments')}</option>
+          <option value="SANDBOX">{tt('Sandbox')}</option>
+          <option value="PRODUCTION">{tt('Production')}</option>
+          <option value="MOCK">{tt('Mock')}</option>
         </select>
         <select
           className={inputCls}
           value={filters.status}
           onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
         >
-          <option value="">All statuses</option>
+          <option value="">{tt('All statuses')}</option>
           <option value="ACTIVE">ACTIVE</option>
-          <option value="CONFIRMATION_PENDING">CONFIRMATION_PENDING</option>
-          <option value="UNKNOWN_ACTIVATION_OUTCOME">UNKNOWN_ACTIVATION_OUTCOME</option>
+          <option value="CONFIRMATION_PENDING">{tt('CONFIRMATION_PENDING')}</option>
+          <option value="UNKNOWN_ACTIVATION_OUTCOME">{tt('UNKNOWN_ACTIVATION_OUTCOME')}</option>
           <option value="MANUAL_REVIEW">MANUAL_REVIEW</option>
           <option value="TOKEN_EXPIRED">TOKEN_EXPIRED</option>
           <option value="REVOKED">REVOKED</option>
         </select>
         <button type="button" className={btnPrimary} onClick={load}>
-          Apply
+          {tt('Apply')}
         </button>
       </div>
 

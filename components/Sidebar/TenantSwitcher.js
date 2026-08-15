@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from 'react';
 import { ChevronDown, Check, Building, Plus, Trash2 } from 'lucide-react';
 
@@ -119,7 +120,7 @@ export default function TenantSwitcher() {
             className="flex items-center gap-2 px-3 py-2 text-sm text-blue-400 hover:bg-gray-800 cursor-pointer"
           >
             <Plus size={14} />
-            <span>Add Business</span>
+            <span>{tt('Add Business')}</span>
           </div>
         </div>
       )}
@@ -128,19 +129,19 @@ export default function TenantSwitcher() {
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-20">
           <div className="bg-gray-900 p-4 rounded w-80 border border-gray-700">
-            <h3 className="text-white text-sm mb-2">Add New Business</h3>
+            <h3 className="text-white text-sm mb-2">{tt('Add New Business')}</h3>
             <input
               value={newTenantName}
               onChange={(e) => setNewTenantName(e.target.value)}
               className="w-full rounded border border-gray-600 bg-gray-800 text-white p-2 mb-3"
-              placeholder="Business Name"
+              placeholder={tt('Business Name')}
             />
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowAddModal(false)} className="text-gray-300 hover:text-white text-sm">
-                Cancel
+                {tt('Cancel')}
               </button>
               <button onClick={handleAddTenant} className="text-blue-400 hover:text-blue-600 text-sm">
-                Add
+                {tt('Add')}
               </button>
             </div>
           </div>
@@ -151,13 +152,13 @@ export default function TenantSwitcher() {
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-20">
           <div className="bg-gray-900 p-4 rounded w-80 border border-gray-700">
-            <h3 className="text-white text-sm mb-3">Delete <span className="text-red-400">{tenantToDelete?.name}</span>?</h3>
+            <h3 className="text-white text-sm mb-3">{tt('Delete')} <span className="text-red-400">{tenantToDelete?.name}</span>?</h3>
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowDeleteModal(false)} className="text-gray-300 hover:text-white text-sm">
-                Cancel
+                {tt('Cancel')}
               </button>
               <button onClick={handleDeleteTenant} className="text-red-400 hover:text-red-600 text-sm">
-                Delete
+                {tt('Delete')}
               </button>
             </div>
           </div>

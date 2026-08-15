@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -169,7 +170,7 @@ export default function MarketingCampaignsView() {
         description="Governed campaigns with MKT numbering. Distinct from Affiliate referrals and Product Analytics."
         actions={
           <button type="button" className={btnGhost} onClick={load} disabled={loading}>
-            Refresh
+            {tt('Refresh')}
           </button>
         }
       />
@@ -177,7 +178,7 @@ export default function MarketingCampaignsView() {
       <MarketingSectionNav />
 
       <section className="mb-8 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
-        <h2 className="mb-4 text-sm font-semibold text-[var(--admin-text)]">Create campaign</h2>
+        <h2 className="mb-4 text-sm font-semibold text-[var(--admin-text)]">{tt('Create campaign')}</h2>
         <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-2">
           <AdminField label="Name" htmlFor="mkt-campaign-name" required>
             <AdminField.Input

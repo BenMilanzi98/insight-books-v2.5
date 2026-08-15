@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -432,9 +433,9 @@ function AccountContent() {
         <div className="mb-8 overflow-hidden rounded-3xl border border-white/70 bg-white/90 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.45)] backdrop-blur-xl">
           <div className="h-1.5 bg-gradient-to-r from-blue-500 via-sky-500 to-indigo-500" />
           <div className="px-6 py-6 sm:px-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Account Settings</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">{tt('Account Settings')}</h1>
             <p className="max-w-3xl text-sm text-gray-600 sm:text-base">
-              Manage your business information, receipt settings, and account preferences.
+              {tt('Manage your business information, receipt settings, and account preferences.')}
             </p>
           </div>
         </div>
@@ -489,7 +490,7 @@ function AccountContent() {
           <div className="flex min-h-[320px] items-center justify-center rounded-3xl border border-white/70 bg-white/90 p-12 shadow-sm backdrop-blur-xl">
             <div className="text-center">
               <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4 text-blue-600" />
-              <p className="text-gray-600">Loading account settings...</p>
+              <p className="text-gray-600">{tt('Loading account settings...')}</p>
             </div>
           </div>
         ) : (
@@ -503,13 +504,13 @@ function AccountContent() {
                   <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                     <Building className="h-5 w-5" />
                   </div>
-                  <h2 className="text-xl font-semibold text-gray-900">Business Information</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">{tt('Business Information')}</h2>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Business Name *
+                      {tt('Business Name *')}
                     </label>
                     <input
                       type="text"
@@ -518,7 +519,7 @@ function AccountContent() {
                       className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                         errors.name ? 'border-red-500' : 'border-gray-300'
                       }`}
-                      placeholder="Your Business Name"
+                      placeholder={tt('Your Business Name')}
                     />
                     {errors.name && (
                       <p className="mt-1 text-sm text-red-600">{errors.name}</p>
@@ -527,20 +528,20 @@ function AccountContent() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Subdomain
+                      {tt('Subdomain')}
                     </label>
                     <input
                       type="text"
                       value={settings.subdomain}
                       disabled
                       className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                      placeholder="your-business"
+                      placeholder={tt('your-business')}
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Logo
+                      {tt('Logo')}
                     </label>
                     <div className="flex items-center gap-4 border border-gray-300 rounded-lg p-3">
                       <div className="flex-shrink-0">
@@ -548,7 +549,7 @@ function AccountContent() {
                           // Show preview of selected file
                           <img
                             src={URL.createObjectURL(logoFile)}
-                            alt="Logo Preview"
+                            alt={tt('Logo Preview')}
                             className="max-h-32 max-w-48 h-auto w-auto object-contain rounded border p-2 bg-white"
                             style={{ maxHeight: '128px', maxWidth: '192px' }}
                             onError={(e) => {
@@ -561,7 +562,7 @@ function AccountContent() {
                           // Show actual uploaded logo
                           <img
                             src={normalizedLogoUrl}
-                            alt="Logo"
+                            alt={tt('Logo')}
                             className="max-h-32 max-w-48 h-auto w-auto object-contain rounded border p-2 bg-white"
                             style={{ maxHeight: '128px', maxWidth: '192px' }}
                             onError={(e) => {
@@ -610,7 +611,7 @@ function AccountContent() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Primary Color
+                      {tt('Primary Color')}
                     </label>
                     <input
                       type="color"
@@ -622,7 +623,7 @@ function AccountContent() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Secondary Color
+                      {tt('Secondary Color')}
                     </label>
                     <input
                       type="color"
@@ -640,55 +641,55 @@ function AccountContent() {
                   <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
                     <MapPin className="h-5 w-5" />
                   </div>
-                  <h2 className="text-xl font-semibold text-gray-900">Business Address</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">{tt('Business Address')}</h2>
                 </div>
                 <p className="text-sm text-gray-600 mb-6">
-                  This information will appear on your receipts and invoices.
+                  {tt('This information will appear on your receipts and invoices.')}
                 </p>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Building/Location Name
+                      {tt('Building/Location Name')}
                     </label>
                     <input
                       type="text"
                       value={settings.buildingName}
                       onChange={(e) => handleChange('buildingName', e.target.value)}
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="e.g., Main Office, Downtown Branch"
+                      placeholder={tt('e.g., Main Office, Downtown Branch')}
                     />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Street Address
+                      {tt('Street Address')}
                     </label>
                     <input
                       type="text"
                       value={settings.businessAddress}
                       onChange={(e) => handleChange('businessAddress', e.target.value)}
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="123 Main Street"
+                      placeholder={tt('123 Main Street')}
                     />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      City/Town
+                      {tt('City/Town')}
                     </label>
                     <input
                       type="text"
                       value={settings.businessCity}
                       onChange={(e) => handleChange('businessCity', e.target.value)}
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Lilongwe, Malawi"
+                      placeholder={tt('Lilongwe, Malawi')}
                     />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Contact Numbers
+                      {tt('Contact Numbers')}
                     </label>
                     <input
                       type="tel"
@@ -701,7 +702,7 @@ function AccountContent() {
                   
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address
+                      {tt('Email Address')}
                     </label>
                     <input
                       type="email"
@@ -710,7 +711,7 @@ function AccountContent() {
                       className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                         errors.businessEmail ? 'border-red-500' : 'border-gray-300'
                       }`}
-                      placeholder="info@yourbusiness.com"
+                      placeholder={tt('info@yourbusiness.com')}
                     />
                     {errors.businessEmail && (
                       <p className="mt-1 text-sm text-red-600">{errors.businessEmail}</p>
@@ -747,7 +748,7 @@ function AccountContent() {
                       <Landmark className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-900">Banking & tax</h3>
+                      <h3 className="text-sm font-semibold text-gray-900">{tt('Banking & tax')}</h3>
                       <p className="text-xs text-gray-500">Default bank details and default tax accounts (inflow & outflow). These defaults are used in Tax types, Tax accounts, and for tracking tax on invoices, expenses and purchases.</p>
                     </div>
                   </div>
@@ -755,8 +756,8 @@ function AccountContent() {
                 <div className="p-4 sm:p-6 space-y-6">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div>
-                      <label htmlFor="defaultBankDetails" className="block text-sm font-medium text-gray-700 mb-1.5">Default bank account details</label>
-                      <p className="text-xs text-gray-500 mb-2">Shown in invoice, quotation and receipt footers. Override per document when needed.</p>
+                      <label htmlFor="defaultBankDetails" className="block text-sm font-medium text-gray-700 mb-1.5">{tt('Default bank account details')}</label>
+                      <p className="text-xs text-gray-500 mb-2">{tt('Shown in invoice, quotation and receipt footers. Override per document when needed.')}</p>
                       <textarea
                         id="defaultBankDetails"
                         name="defaultBankDetails"
@@ -769,17 +770,17 @@ function AccountContent() {
                     </div>
                     <div>
                       <h4 className="text-sm font-semibold text-gray-800 mb-3">Default tax accounts (fixed)</h4>
-                      <p className="text-xs text-gray-500 mb-4">Tax is always recorded to these system accounts. They cannot be changed by tenants.</p>
+                      <p className="text-xs text-gray-500 mb-4">{tt('Tax is always recorded to these system accounts. They cannot be changed by tenants.')}</p>
                       <div className="space-y-4">
                         <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
                           <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax inflow (collected)</span>
                           <p className="text-sm font-medium text-gray-900 mt-0.5">2041 – Tax Inflow (Collected)</p>
-                          <p className="text-xs text-gray-500 mt-0.5">Tax from sales, invoices and POS</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{tt('Tax from sales, invoices and POS')}</p>
                         </div>
                         <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
                           <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax outflow (paid)</span>
                           <p className="text-sm font-medium text-gray-900 mt-0.5">2045 – Tax Outflow (Paid)</p>
-                          <p className="text-xs text-gray-500 mt-0.5">Tax on expenses and supplier bills</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{tt('Tax on expenses and supplier bills')}</p>
                         </div>
                       </div>
                     </div>
@@ -798,16 +799,16 @@ function AccountContent() {
                   <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                     <FileText className="h-5 w-5" />
                   </div>
-                  <h2 className="text-xl font-semibold text-gray-900">Receipt Customization</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">{tt('Receipt Customization')}</h2>
                 </div>
                 <p className="text-sm text-gray-600 mb-6">
-                  Customize receipt footer text and preferred thermal paper width.
+                  {tt('Customize receipt footer text and preferred thermal paper width.')}
                 </p>
                 
                 <div className="space-y-5">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Thermal paper width
+                      {tt('Thermal paper width')}
                     </label>
                     <select
                       value={settings.receiptPaperWidthMm ?? 80}
@@ -828,17 +829,17 @@ function AccountContent() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Receipt Footer Message
+                      {tt('Receipt Footer Message')}
                     </label>
                     <textarea
                       value={settings.receiptFooter}
                       onChange={(e) => handleChange('receiptFooter', e.target.value)}
                       rows={3}
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Thank you for your business! We appreciate your support."
+                      placeholder={tt('Thank you for your business! We appreciate your support.')}
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      This message will appear at the bottom of all receipts. Leave empty to use the default message.
+                      {tt('This message will appear at the bottom of all receipts. Leave empty to use the default message.')}
                     </p>
                   </div>
                 </div>
@@ -850,24 +851,24 @@ function AccountContent() {
                   <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
                     <Settings className="h-5 w-5" />
                   </div>
-                  <h2 className="text-xl font-semibold text-gray-900">Business Settings</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">{tt('Business Settings')}</h2>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Currency Code
+                      {tt('Currency Code')}
                     </label>
                     <select
                       value={settings.currencyCode}
                       onChange={(e) => handleChange('currencyCode', e.target.value)}
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
-                      <option value="MWK">MWK - Malawian Kwacha</option>
-                      <option value="USD">USD - US Dollar</option>
-                      <option value="EUR">EUR - Euro</option>
-                      <option value="GBP">GBP - British Pound</option>
-                      <option value="ZAR">ZAR - South African Rand</option>
+                      <option value="MWK">{tt('MWK - Malawian Kwacha')}</option>
+                      <option value="USD">{tt('USD - US Dollar')}</option>
+                      <option value="EUR">{tt('EUR - Euro')}</option>
+                      <option value="GBP">{tt('GBP - British Pound')}</option>
+                      <option value="ZAR">{tt('ZAR - South African Rand')}</option>
                     </select>
                   </div>
                   
@@ -903,46 +904,46 @@ function AccountContent() {
                   <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                     <User className="h-5 w-5" />
                   </div>
-                  <h2 className="text-xl font-semibold text-gray-900">Account Information</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">{tt('Account Information')}</h2>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Subscription Plan
+                      {tt('Subscription Plan')}
                     </label>
                     <input
                       type="text"
                       value={settings.subscriptionPlan}
                       disabled
                       className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                      placeholder="Free Plan"
+                      placeholder={tt('Free Plan')}
                     />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Custom Domain
+                      {tt('Custom Domain')}
                     </label>
                     <input
                       type="text"
                       value={settings.customDomain}
                       onChange={(e) => handleChange('customDomain', e.target.value)}
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="yourbusiness.com"
+                      placeholder={tt('yourbusiness.com')}
                     />
                   </div>
                   
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Footer
+                      {tt('Email Footer')}
                     </label>
                     <textarea
                       value={settings.emailFooter}
                       onChange={(e) => handleChange('emailFooter', e.target.value)}
                       rows={3}
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Custom footer for email communications..."
+                      placeholder={tt('Custom footer for email communications...')}
                     />
                   </div>
                 </div>
@@ -958,10 +959,10 @@ function AccountContent() {
                   <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                     <Bell className="h-5 w-5" />
                   </div>
-                  <h2 className="text-xl font-semibold text-gray-900">Notification Preferences</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">{tt('Notification Preferences')}</h2>
                 </div>
                 <p className="text-sm text-gray-600 mb-6">
-                  Choose how you want to receive notifications about your business.
+                  {tt('Choose how you want to receive notifications about your business.')}
                 </p>
                 
                 <div className="space-y-4">
@@ -969,8 +970,8 @@ function AccountContent() {
                     <div className="flex items-center">
                       <Mail className="w-5 h-5 text-blue-600 mr-3" />
                       <div>
-                        <h3 className="font-medium text-gray-900">Email Notifications</h3>
-                        <p className="text-sm text-gray-600">Receive important updates via email</p>
+                        <h3 className="font-medium text-gray-900">{tt('Email Notifications')}</h3>
+                        <p className="text-sm text-gray-600">{tt('Receive important updates via email')}</p>
                       </div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -988,8 +989,8 @@ function AccountContent() {
                     <div className="flex items-center">
                       <Phone className="w-5 h-5 text-green-600 mr-3" />
                       <div>
-                        <h3 className="font-medium text-gray-900">SMS Notifications</h3>
-                        <p className="text-sm text-gray-600">Receive urgent alerts via SMS</p>
+                        <h3 className="font-medium text-gray-900">{tt('SMS Notifications')}</h3>
+                        <p className="text-sm text-gray-600">{tt('Receive urgent alerts via SMS')}</p>
                       </div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -1007,8 +1008,8 @@ function AccountContent() {
                     <div className="flex items-center">
                       <Bell className="w-5 h-5 text-blue-600 mr-3" />
                       <div>
-                        <h3 className="font-medium text-gray-900">In-App Notifications</h3>
-                        <p className="text-sm text-gray-600">Receive notifications within the application</p>
+                        <h3 className="font-medium text-gray-900">{tt('In-App Notifications')}</h3>
+                        <p className="text-sm text-gray-600">{tt('Receive notifications within the application')}</p>
                       </div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -1034,10 +1035,10 @@ function AccountContent() {
                   <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
                     <Shield className="h-5 w-5" />
                   </div>
-                  <h2 className="text-xl font-semibold text-gray-900">Legal Information</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">{tt('Legal Information')}</h2>
                 </div>
                 <p className="text-sm text-gray-600 mb-6">
-                  Important legal documents and policies for your business.
+                  {tt('Important legal documents and policies for your business.')}
                 </p>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1047,8 +1048,8 @@ function AccountContent() {
                   >
                     <FileText className="w-5 h-5 text-blue-600 mr-3" />
                     <div>
-                      <h3 className="font-medium text-gray-900">Terms of Service</h3>
-                      <p className="text-sm text-gray-600">Read our terms and conditions</p>
+                      <h3 className="font-medium text-gray-900">{tt('Terms of Service')}</h3>
+                      <p className="text-sm text-gray-600">{tt('Read our terms and conditions')}</p>
                     </div>
                   </Link>
                   
@@ -1058,8 +1059,8 @@ function AccountContent() {
                   >
                     <Shield className="w-5 h-5 text-green-600 mr-3" />
                     <div>
-                      <h3 className="font-medium text-gray-900">Privacy Policy</h3>
-                      <p className="text-sm text-gray-600">Learn about data protection</p>
+                      <h3 className="font-medium text-gray-900">{tt('Privacy Policy')}</h3>
+                      <p className="text-sm text-gray-600">{tt('Learn about data protection')}</p>
                     </div>
                   </Link>
                 </div>
@@ -1078,12 +1079,12 @@ function AccountContent() {
                 {isSaving ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Saving...
+                    {tt('Saving...')}
                   </>
                 ) : (
                   <>
                     <Save className="w-5 h-5 mr-2" />
-                    Save Settings
+                    {tt('Save Settings')}
                   </>
                 )}
               </button>
@@ -1102,7 +1103,7 @@ export default function Account() {
       <div className="flex w-full items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Loading account...</p>
+          <p className="text-gray-600">{tt('Loading account...')}</p>
         </div>
       </div>
     }>

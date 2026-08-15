@@ -20,6 +20,9 @@ import {
   languageLabel,
   LOCALE_COOKIE,
 } from '@/lib/i18n';
+import { setI18nRuntime, tt as translateLiteral } from '@/lib/i18n/runtime';
+import { translatePhrase } from '@/lib/i18n/translatePhrase';
+import nyPhrases from '../../locales/phrases/ny.json';
 
 const I18nContext = createContext(null);
 
@@ -65,6 +68,13 @@ export function I18nProvider({
     [locale, catalogues]
   );
 
+  const tt = useCallback(
+    (text, params) => translatePhrase(text, locale, nyPhrases, params),
+    [locale]
+  );
+
+  setI18nRuntime({ locale, phrasesNy: nyPhrases, t });
+
   const setLocale = useCallback(async (next, { persist = true } = {}) => {
     const loc = coerceLocale(next);
     setLocaleState(loc);
@@ -90,6 +100,7 @@ export function I18nProvider({
       locale,
       setLocale,
       t,
+      tt,
       languageLabel: (code) => languageLabel(code, locale),
       formatCurrency: (v, opts) =>
         formatCurrency(v, { locale, currencyCode, ...opts }),
@@ -104,7 +115,7 @@ export function I18nProvider({
         }),
       catalogues,
     }),
-    [locale, setLocale, t, currencyCode, catalogues]
+    [locale, setLocale, t, tt, currencyCode, catalogues]
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
@@ -126,6 +137,7 @@ export function useI18n() {
           englishMessages: catalogues.en,
           params,
         }),
+      tt: (text, params) => translateLiteral(text, params),
       languageLabel: (code) => languageLabel(code, 'en'),
       formatCurrency: (v, opts) => formatCurrency(v, { locale: 'en', ...opts }),
       formatNumber: (v, opts) => formatNumber(v, { locale: 'en', ...opts }),

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -62,8 +63,8 @@ export default function AdminImportsPage() {
             value={type}
             onChange={(e) => setType(e.target.value)}
           >
-            <option value="tenants">Tenants</option>
-            <option value="users">Users</option>
+            <option value="tenants">{tt('Tenants')}</option>
+            <option value="users">{tt('Users')}</option>
           </AdminField.Select>
         </AdminField>
 

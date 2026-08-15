@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -194,11 +195,11 @@ export default function MraEisMigrationPage() {
       <header className="space-y-2">
         <p className="text-sm text-slate-600">
           <Link href="/settings/integrations/mra-eis/centre" className="underline">
-            EIS Admin Centre
+            {tt('EIS Admin Centre')}
           </Link>{' '}
           / Data Migration
         </p>
-        <h1 className="text-2xl font-semibold text-slate-900">MRA EIS Data Migration</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">{tt('MRA EIS Data Migration')}</h1>
         <p className="text-sm text-slate-700 max-w-3xl">
           Evidence-driven assessment and additive historical import. Ambiguous ownership, environment, or
           fiscal evidence defaults to quarantine and manual review. Historical sales are never submitted.
@@ -214,7 +215,7 @@ export default function MraEisMigrationPage() {
       {invariants && (
         <section aria-labelledby="invariants-heading" className="rounded border border-slate-200 p-4">
           <h2 id="invariants-heading" className="font-medium text-slate-900 mb-2">
-            Migration invariants
+            {tt('Migration invariants')}
           </h2>
           <ul className="grid gap-1 text-sm text-slate-700 sm:grid-cols-2">
             {Object.entries(invariants).map(([k, v]) => (
@@ -228,11 +229,11 @@ export default function MraEisMigrationPage() {
 
       <section aria-labelledby="controls-heading" className="rounded border border-slate-200 p-4 space-y-3">
         <h2 id="controls-heading" className="font-medium text-slate-900">
-          Assessment controls
+          {tt('Assessment controls')}
         </h2>
         <div className="flex flex-wrap gap-3 items-end">
           <label className="text-sm block">
-            Source name
+            {tt('Source name')}
             <input
               className="mt-1 block w-64 border border-slate-300 px-2 py-1"
               value={sourceName}
@@ -240,7 +241,7 @@ export default function MraEisMigrationPage() {
             />
           </label>
           <label className="text-sm block">
-            Environment
+            {tt('Environment')}
             <select
               className="mt-1 block border border-slate-300 px-2 py-1"
               value={environment}
@@ -259,7 +260,7 @@ export default function MraEisMigrationPage() {
             className="border border-slate-400 px-3 py-1.5 text-sm hover:bg-slate-50"
             onClick={registerDemoSource}
           >
-            Register read-only source
+            {tt('Register read-only source')}
           </button>
           <button
             type="button"
@@ -281,14 +282,14 @@ export default function MraEisMigrationPage() {
             className="border border-amber-700 px-3 py-1.5 text-sm text-amber-900 hover:bg-amber-50"
             onClick={rollbackRun}
           >
-            Rollback migration-created records
+            {tt('Rollback migration-created records')}
           </button>
           <button
             type="button"
             className="border border-slate-300 px-3 py-1.5 text-sm"
             onClick={load}
           >
-            Refresh
+            {tt('Refresh')}
           </button>
         </div>
         <p className="text-xs text-slate-600">
@@ -299,7 +300,7 @@ export default function MraEisMigrationPage() {
 
       {loading ? (
         <p className="text-sm text-slate-600" aria-live="polite">
-          Loading sources…
+          {tt('Loading sources…')}
         </p>
       ) : (
         <section aria-labelledby="sources-heading" className="rounded border border-slate-200 p-4">
@@ -307,27 +308,27 @@ export default function MraEisMigrationPage() {
             Source systems ({sources.length})
           </h2>
           {sources.length === 0 ? (
-            <p className="text-sm text-slate-600">No sources registered yet.</p>
+            <p className="text-sm text-slate-600">{tt('No sources registered yet.')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <caption className="sr-only">Registered migration source systems</caption>
+                <caption className="sr-only">{tt('Registered migration source systems')}</caption>
                 <thead>
                   <tr className="border-b text-left">
                     <th scope="col" className="py-2 pr-3">
-                      Name
+                      {tt('Name')}
                     </th>
                     <th scope="col" className="py-2 pr-3">
-                      Type
+                      {tt('Type')}
                     </th>
                     <th scope="col" className="py-2 pr-3">
-                      Environment
+                      {tt('Environment')}
                     </th>
                     <th scope="col" className="py-2 pr-3">
-                      Read-only
+                      {tt('Read-only')}
                     </th>
                     <th scope="col" className="py-2">
-                      Status
+                      {tt('Status')}
                     </th>
                   </tr>
                 </thead>
@@ -350,7 +351,7 @@ export default function MraEisMigrationPage() {
 
       <section aria-labelledby="cohorts-heading" className="rounded border border-slate-200 p-4">
         <h2 id="cohorts-heading" className="font-medium text-slate-900 mb-2">
-          Migration cohorts
+          {tt('Migration cohorts')}
         </h2>
         <ul className="flex flex-wrap gap-2 text-xs">
           {cohorts.map((c) => (
@@ -364,27 +365,27 @@ export default function MraEisMigrationPage() {
       {run && (
         <section aria-labelledby="run-heading" className="rounded border border-slate-200 p-4 space-y-3" aria-live="polite">
           <h2 id="run-heading" className="font-medium text-slate-900">
-            Migration run
+            {tt('Migration run')}
           </h2>
           <dl className="grid gap-2 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-slate-500">State / mode</dt>
+              <dt className="text-slate-500">{tt('State / mode')}</dt>
               <dd>
                 {run.state} / {run.mode}
               </dd>
             </div>
             <div>
-              <dt className="text-slate-500">Dry-run checksum</dt>
+              <dt className="text-slate-500">{tt('Dry-run checksum')}</dt>
               <dd className="font-mono text-xs break-all">{run.dryRunChecksum || '—'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Assessed / eligible / quarantined</dt>
+              <dt className="text-slate-500">{tt('Assessed / eligible / quarantined')}</dt>
               <dd>
                 {run.assessedRecords} / {run.eligibleRecords} / {run.quarantinedRecords}
               </dd>
             </div>
             <div>
-              <dt className="text-slate-500">Migrated / linked / failed</dt>
+              <dt className="text-slate-500">{tt('Migrated / linked / failed')}</dt>
               <dd>
                 {run.migratedRecords} / {run.linkedRecords} / {run.failedRecords}
               </dd>
@@ -394,23 +395,23 @@ export default function MraEisMigrationPage() {
           {Array.isArray(run.records) && run.records.length > 0 && (
             <div className="overflow-x-auto max-h-80 overflow-y-auto">
               <table className="min-w-full text-sm">
-                <caption className="sr-only">Record-level migration lineage</caption>
+                <caption className="sr-only">{tt('Record-level migration lineage')}</caption>
                 <thead>
                   <tr className="border-b text-left">
                     <th scope="col" className="py-2 pr-2">
-                      Source
+                      {tt('Source')}
                     </th>
                     <th scope="col" className="py-2 pr-2">
-                      Decision
+                      {tt('Decision')}
                     </th>
                     <th scope="col" className="py-2 pr-2">
-                      Classification
+                      {tt('Classification')}
                     </th>
                     <th scope="col" className="py-2 pr-2">
-                      State
+                      {tt('State')}
                     </th>
                     <th scope="col" className="py-2">
-                      Blockers
+                      {tt('Blockers')}
                     </th>
                   </tr>
                 </thead>
@@ -436,7 +437,7 @@ export default function MraEisMigrationPage() {
       {(reconciliation || lastDecision) && (
         <section aria-labelledby="recon-heading" className="rounded border border-slate-200 p-4">
           <h2 id="recon-heading" className="font-medium text-slate-900 mb-2">
-            Reconciliation / result
+            {tt('Reconciliation / result')}
           </h2>
           <pre className="text-xs overflow-x-auto whitespace-pre-wrap bg-slate-50 p-3 border border-slate-100">
             {JSON.stringify({ reconciliation, lastDecision }, null, 2)}

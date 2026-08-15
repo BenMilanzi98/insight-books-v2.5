@@ -1,5 +1,6 @@
 // components/PermissionGuard.js
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from "react";
 import { checkPermission } from "@/lib/permissions";
@@ -63,8 +64,8 @@ export default function PermissionGuard({ permission, requiredPermission, permis
     // Show access denied message instead of redirecting
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-        <h3 className="text-lg font-medium text-red-800 mb-2">Access Denied</h3>
-        <p className="text-red-600">You don't have permission to access this feature.</p>
+        <h3 className="text-lg font-medium text-red-800 mb-2">{tt('Access Denied')}</h3>
+        <p className="text-red-600">{tt("You don't have permission to access this feature.")}</p>
       </div>
     );
   }

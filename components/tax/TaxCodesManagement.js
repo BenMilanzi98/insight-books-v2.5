@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { 
@@ -594,7 +595,7 @@ export default function TaxCodesManagement() {
                     className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800"
                     title="Replaced by a newer rate version. Activate this code to make it current again, or activate the new version."
                   >
-                    Replaced
+                    {tt('Replaced')}
                   </span>
                 ) : null}
               </div>
@@ -620,7 +621,7 @@ export default function TaxCodesManagement() {
               <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-gray-900 sm:text-2xl">
                 {tax.calculationType === "Percentage" ? `${tax.taxRate}%` : formatCurrency(tax.taxRate)}
               </p>
-              <p className="text-xs text-gray-500">Tax Rate</p>
+              <p className="text-xs text-gray-500">{tt('Tax Rate')}</p>
             </div>
           </div>
 
@@ -709,7 +710,7 @@ export default function TaxCodesManagement() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading tax types...</p>
+          <p className="mt-4 text-gray-600">{tt('Loading tax types...')}</p>
         </div>
       </div>
     );
@@ -725,10 +726,10 @@ export default function TaxCodesManagement() {
               <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
                 <Calculator className="text-white" size={24} />
               </div>
-              Tax codes
+              {tt('Tax codes')}
             </h1>
             <p className="text-gray-500 mt-1">
-              Malawi MRA tax types linked to GL <strong>2041 Tax Inflow</strong> and <strong>2045 Tax Outflow</strong> — activate codes before use on quotations, invoices, and POS.
+              {tt('Malawi MRA tax types linked to GL')} <strong>{tt('2041 Tax Inflow')}</strong> {tt('and')} <strong>{tt('2045 Tax Outflow')}</strong> — activate codes before use on quotations, invoices, and POS.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -739,7 +740,7 @@ export default function TaxCodesManagement() {
                 className="flex items-center gap-2 px-4 py-2.5 border border-indigo-200 text-indigo-700 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all disabled:opacity-50"
               >
                 <RefreshCw size={18} className={syncingCatalog ? "animate-spin" : ""} />
-                Sync MRA Catalog
+                {tt('Sync MRA Catalog')}
               </button>
             )}
             {canUpdateTax && (
@@ -752,7 +753,7 @@ export default function TaxCodesManagement() {
                 className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm"
               >
                 <Plus size={18} />
-                Add Tax Type
+                {tt('Add Tax Type')}
               </button>
             )}
           </div>
@@ -764,7 +765,7 @@ export default function TaxCodesManagement() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Total Tax Types</p>
+              <p className="text-sm text-gray-500">{tt('Total Tax Types')}</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{taxTypes.length}</p>
             </div>
             <div className="p-3 bg-blue-50 rounded-xl">
@@ -775,7 +776,7 @@ export default function TaxCodesManagement() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Active Taxes</p>
+              <p className="text-sm text-gray-500">{tt('Active Taxes')}</p>
               <p className="text-2xl font-bold text-green-600 mt-1">{activeTaxCount}</p>
             </div>
             <div className="p-3 bg-green-50 rounded-xl">
@@ -786,7 +787,7 @@ export default function TaxCodesManagement() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Avg Tax Rate</p>
+              <p className="text-sm text-gray-500">{tt('Avg Tax Rate')}</p>
               <p className="text-2xl font-bold text-blue-600 mt-1">
                 {taxTypes.length > 0 ? (totalTaxRate / taxTypes.length).toFixed(2) : 0}%
               </p>
@@ -805,11 +806,11 @@ export default function TaxCodesManagement() {
             <Info className="text-blue-600" size={20} />
           </div>
           <div>
-            <p className="text-sm text-blue-800 font-medium">How it works</p>
+            <p className="text-sm text-blue-800 font-medium">{tt('How it works')}</p>
             <p className="text-sm text-blue-600 mt-1">
-              Each tax type posts to a dedicated GL child under <strong>2041</strong> (collected / withheld) or <strong>2045</strong> (paid / input VAT).
-              Users with <strong>Tax → Update</strong> permission can change rates and fixed amounts; MRA system types keep a fixed tax ID and GL link.
-              Invoice voids, sale refunds, and expense deletions create matching tax reversals — see <strong>Reversed Taxes</strong> below.
+              {tt('Each tax type posts to a dedicated GL child under')} <strong>2041</strong> (collected / withheld) or <strong>2045</strong> (paid / input VAT).
+              Users with <strong>{tt('Tax → Update')}</strong> permission can change rates and fixed amounts; MRA system types keep a fixed tax ID and GL link.
+              Invoice voids, sale refunds, and expense deletions create matching tax reversals — see <strong>{tt('Reversed Taxes')}</strong> {tt('below.')}
             </p>
           </div>
         </div>
@@ -828,12 +829,12 @@ export default function TaxCodesManagement() {
           <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax inflow (collected)</span>
             <p className="text-sm font-medium text-gray-900 mt-0.5">2041 – Tax Inflow (Collected)</p>
-            <p className="text-xs text-gray-500 mt-0.5">VAT, PAYE, WHT, excise — child accounts 2041-01+</p>
+            <p className="text-xs text-gray-500 mt-0.5">{tt('VAT, PAYE, WHT, excise — child accounts 2041-01+')}</p>
           </div>
           <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax outflow (paid)</span>
             <p className="text-sm font-medium text-gray-900 mt-0.5">2045 – Tax Outflow (Paid)</p>
-            <p className="text-xs text-gray-500 mt-0.5">Input VAT, CIT, levies — child accounts 2045-01+</p>
+            <p className="text-xs text-gray-500 mt-0.5">{tt('Input VAT, CIT, levies — child accounts 2045-01+')}</p>
           </div>
         </div>
       </div>
@@ -856,18 +857,18 @@ export default function TaxCodesManagement() {
       {/* Balance period: align with /tax-accounts so same period shows same numbers */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm font-medium text-gray-700">Balance period:</span>
+          <span className="text-sm font-medium text-gray-700">{tt('Balance period:')}</span>
           <select
             className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             value={balancePeriod}
             onChange={(e) => setBalancePeriod(e.target.value)}
           >
-            <option value="today">Today</option>
-            <option value="thisWeek">This Week</option>
-            <option value="thisMonth">This Month</option>
-            <option value="lastMonth">Last Month</option>
-            <option value="thisYear">This Year</option>
-            <option value="custom">Custom Range</option>
+            <option value="today">{tt('Today')}</option>
+            <option value="thisWeek">{tt('This Week')}</option>
+            <option value="thisMonth">{tt('This Month')}</option>
+            <option value="lastMonth">{tt('Last Month')}</option>
+            <option value="thisYear">{tt('This Year')}</option>
+            <option value="custom">{tt('Custom Range')}</option>
           </select>
           {balancePeriod === 'custom' && (
             <>
@@ -877,7 +878,7 @@ export default function TaxCodesManagement() {
                 value={balanceStartDate}
                 onChange={(e) => setBalanceStartDate(e.target.value)}
               />
-              <span className="text-gray-500">to</span>
+              <span className="text-gray-500">{tt('to')}</span>
               <input
                 type="date"
                 className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -900,7 +901,7 @@ export default function TaxCodesManagement() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
-              placeholder="Search tax types..."
+              placeholder={tt('Search tax types...')}
               className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -912,9 +913,9 @@ export default function TaxCodesManagement() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option value="All">All status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
+              <option value="All">{tt('All status')}</option>
+              <option value="Active">{tt('Active')}</option>
+              <option value="Inactive">{tt('Inactive')}</option>
             </select>
           </div>
           <div className="relative min-w-[140px]">
@@ -923,9 +924,9 @@ export default function TaxCodesManagement() {
               value={flowFilter}
               onChange={(e) => setFlowFilter(e.target.value)}
             >
-              <option value="All">All flows</option>
-              <option value="inflow">2041 Inflow</option>
-              <option value="outflow">2045 Outflow</option>
+              <option value="All">{tt('All flows')}</option>
+              <option value="inflow">{tt('2041 Inflow')}</option>
+              <option value="outflow">{tt('2045 Outflow')}</option>
             </select>
           </div>
         </div>
@@ -937,15 +938,15 @@ export default function TaxCodesManagement() {
           <div className="p-4 bg-gray-50 rounded-full inline-block mb-4">
             <Calculator className="text-gray-400" size={48} />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No tax types found</h3>
-          <p className="text-gray-500 mb-6">Sync the Malawi MRA catalog or add a custom tax type</p>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">{tt('No tax types found')}</h3>
+          <p className="text-gray-500 mb-6">{tt('Sync the Malawi MRA catalog or add a custom tax type')}</p>
           <button
             onClick={syncMalawiCatalog}
             disabled={syncingCatalog}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors mr-2"
           >
             <RefreshCw size={18} className={syncingCatalog ? "animate-spin" : ""} />
-            Sync MRA Catalog
+            {tt('Sync MRA Catalog')}
           </button>
         </div>
       ) : flowFilter !== "All" ? (
@@ -960,7 +961,7 @@ export default function TaxCodesManagement() {
                 <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
                 2041 — Tax Inflow (Collected)
               </h2>
-              <p className="text-sm text-gray-500 mb-4">VAT output, PAYE withheld, WHT, excise, levies collected on sales and payroll.</p>
+              <p className="text-sm text-gray-500 mb-4">{tt('VAT output, PAYE withheld, WHT, excise, levies collected on sales and payroll.')}</p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {inflowTaxTypes.map(renderTaxCard)}
               </div>
@@ -972,7 +973,7 @@ export default function TaxCodesManagement() {
                 <span className="inline-block w-2 h-2 rounded-full bg-orange-500" />
                 2045 — Tax Outflow (Paid)
               </h2>
-              <p className="text-sm text-gray-500 mb-4">Input VAT, income/CIT, provisional tax, TEVET levy, and other taxes paid or recoverable on purchases.</p>
+              <p className="text-sm text-gray-500 mb-4">{tt('Input VAT, income/CIT, provisional tax, TEVET levy, and other taxes paid or recoverable on purchases.')}</p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {outflowTaxTypes.map(renderTaxCard)}
               </div>
@@ -989,12 +990,12 @@ export default function TaxCodesManagement() {
               <RotateCcw className="text-amber-600" size={22} />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Reversed Taxes</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{tt('Reversed Taxes')}</h2>
               <p className="text-sm text-gray-500">
-                POS and invoice refunds, <strong>invoice void / refund tax GL</strong> (
-                <code className="text-xs bg-gray-100 px-1 rounded">Tax-InvoiceVoid</code>,{" "}
-                <code className="text-xs bg-gray-100 px-1 rounded">Tax-InvoiceRefund</code>
-                ), standalone <code className="text-xs bg-gray-100 px-1 rounded">Tax-Reversal</code> entries,
+                {tt('POS and invoice refunds,')} <strong>{tt('invoice void / refund tax GL')}</strong> (
+                <code className="text-xs bg-gray-100 px-1 rounded">{tt('Tax-InvoiceVoid')}</code>,{" "}
+                <code className="text-xs bg-gray-100 px-1 rounded">{tt('Tax-InvoiceRefund')}</code>
+                ), standalone <code className="text-xs bg-gray-100 px-1 rounded">{tt('Tax-Reversal')}</code> entries,
                 tax lines reversed inside compound expense journals, and PAYE reversed from payroll journal
                 postings (including embedded PAYE when no separate Tax-Payroll entry exists). Hover a row for
                 journal IDs.
@@ -1029,7 +1030,7 @@ export default function TaxCodesManagement() {
               className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5"
             >
               <Download size={16} />
-              Export Excel
+              {tt('Export Excel')}
             </button>
             <button
               type="button"
@@ -1038,31 +1039,31 @@ export default function TaxCodesManagement() {
               className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5"
             >
               <Download size={16} />
-              Export PDF
+              {tt('Export PDF')}
             </button>
           </div>
         </div>
         {loadingReversedTaxes ? (
-          <div className="py-8 text-center text-gray-500">Loading reversed taxes...</div>
+          <div className="py-8 text-center text-gray-500">{tt('Loading reversed taxes...')}</div>
         ) : reversedTaxes.length === 0 ? (
           <div className="py-8 text-center text-gray-500 border border-dashed border-gray-200 rounded-lg">
-            No reversed taxes found for the selected period.
+            {tt('No reversed taxes found for the selected period.')}
           </div>
         ) : (
           <>
             <div className="mb-3 text-sm font-medium text-gray-700">
-              Total tax reversed: <span className="text-amber-600 font-semibold">{formatCurrency(totalTaxReversed)}</span>
+              {tt('Total tax reversed:')} <span className="text-amber-600 font-semibold">{formatCurrency(totalTaxReversed)}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700">Date</th>
-                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700">Transaction</th>
-                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700">Type</th>
-                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700 max-w-[140px]">GL / audit</th>
-                    <th className="px-4 py-2.5 text-right font-semibold text-gray-700">Tax Reversed</th>
-                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700">Reason</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700">{tt('Date')}</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700">{tt('Transaction')}</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700">{tt('Type')}</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700 max-w-[140px]">{tt('GL / audit')}</th>
+                    <th className="px-4 py-2.5 text-right font-semibold text-gray-700">{tt('Tax Reversed')}</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700">{tt('Reason')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -1125,13 +1126,12 @@ export default function TaxCodesManagement() {
       {supersedingId && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Supersede tax type</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">{tt('Supersede tax type')}</h2>
             <p className="text-sm text-gray-500 mb-4">
-              Creates a new active version with the rate below and marks the current type
-              inactive. Historical sale/invoice tax snapshots are unchanged.
+              {tt('Creates a new active version with the rate below and marks the current type inactive. Historical sale/invoice tax snapshots are unchanged.')}
             </p>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              New rate
+              {tt('New rate')}
             </label>
             <input
               type="number"
@@ -1150,7 +1150,7 @@ export default function TaxCodesManagement() {
                 }}
                 className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="button"
@@ -1194,7 +1194,7 @@ export default function TaxCodesManagement() {
             <form onSubmit={handleSubmit} className="p-6 space-y-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Tax ID <span className="text-red-500">*</span>
+                  {tt('Tax ID')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -1205,16 +1205,16 @@ export default function TaxCodesManagement() {
                   }`}
                   value={formData.taxId}
                   onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
-                  placeholder="e.g., TAX001"
+                  placeholder={tt('e.g., TAX001')}
                 />
                 {editingIsSystem && (
-                  <p className="text-xs text-gray-500 mt-1">MRA system tax IDs cannot be changed.</p>
+                  <p className="text-xs text-gray-500 mt-1">{tt('MRA system tax IDs cannot be changed.')}</p>
                 )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Tax Name <span className="text-red-500">*</span>
+                  {tt('Tax Name')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -1222,7 +1222,7 @@ export default function TaxCodesManagement() {
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   value={formData.taxName}
                   onChange={(e) => setFormData({ ...formData, taxName: e.target.value })}
-                  placeholder="e.g., PAYE, VAT, Withholding Tax"
+                  placeholder={tt('e.g., PAYE, VAT, Withholding Tax')}
                 />
               </div>
 
@@ -1254,7 +1254,7 @@ export default function TaxCodesManagement() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Type <span className="text-red-500">*</span>
+                    {tt('Type')} <span className="text-red-500">*</span>
                   </label>
                   <select
                     required
@@ -1262,22 +1262,22 @@ export default function TaxCodesManagement() {
                     value={formData.calculationType}
                     onChange={(e) => setFormData({ ...formData, calculationType: e.target.value })}
                   >
-                    <option value="Percentage">Percentage</option>
-                    <option value="Fixed">Fixed Amount</option>
+                    <option value="Percentage">{tt('Percentage')}</option>
+                    <option value="Fixed">{tt('Fixed Amount')}</option>
                   </select>
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Linked Account
+                  {tt('Linked Account')}
                 </label>
                 <select
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
                   value={formData.accountId}
                   onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
                 >
-                  <option value="">Select an account</option>
+                  <option value="">{tt('Select an account')}</option>
                   {accounts.map((account) => (
                     <option key={account.id} value={account.id}>
                       {account.accountCode || account.code} - {account.accountName || account.name}
@@ -1291,7 +1291,7 @@ export default function TaxCodesManagement() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Status <span className="text-red-500">*</span>
+                  {tt('Status')} <span className="text-red-500">*</span>
                 </label>
                 <select
                   required
@@ -1299,15 +1299,15 @@ export default function TaxCodesManagement() {
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                 >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
+                  <option value="Active">{tt('Active')}</option>
+                  <option value="Inactive">{tt('Inactive')}</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Effective from
+                    {tt('Effective from')}
                   </label>
                   <input
                     type="date"
@@ -1320,7 +1320,7 @@ export default function TaxCodesManagement() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Effective to
+                    {tt('Effective to')}
                   </label>
                   <input
                     type="date"
@@ -1344,7 +1344,7 @@ export default function TaxCodesManagement() {
                   }}
                   className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   type="submit"
@@ -1387,7 +1387,7 @@ export default function TaxCodesManagement() {
             <div className="p-4 border-b bg-gray-50">
               <div className="flex flex-wrap gap-4 items-end">
                 <div className="flex-1 min-w-[150px]">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{tt('Start Date')}</label>
                   <input
                     type="date"
                     className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
@@ -1396,7 +1396,7 @@ export default function TaxCodesManagement() {
                   />
                 </div>
                 <div className="flex-1 min-w-[150px]">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">End Date</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{tt('End Date')}</label>
                   <input
                     type="date"
                     className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
@@ -1410,7 +1410,7 @@ export default function TaxCodesManagement() {
                   disabled={loadingReports}
                 >
                   <RefreshCw size={16} className={loadingReports ? "animate-spin" : ""} />
-                  Refresh
+                  {tt('Refresh')}
                 </button>
               </div>
             </div>
@@ -1425,15 +1425,15 @@ export default function TaxCodesManagement() {
                   {/* Summary Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-5 text-white">
-                      <p className="text-blue-100 text-sm">Products</p>
+                      <p className="text-blue-100 text-sm">{tt('Products')}</p>
                       <p className="text-3xl font-bold mt-1">{taxReports.summary.productCount}</p>
                     </div>
                     <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-5 text-white">
-                      <p className="text-green-100 text-sm">Sales</p>
+                      <p className="text-green-100 text-sm">{tt('Sales')}</p>
                       <p className="text-3xl font-bold mt-1">{taxReports.summary.saleCount}</p>
                     </div>
                     <div className="bg-gradient-to-br from-sky-500 to-blue-600 rounded-xl p-5 text-white">
-                      <p className="text-sky-100 text-sm">Tax Collected</p>
+                      <p className="text-sky-100 text-sm">{tt('Tax Collected')}</p>
                       <p className="mt-1 min-w-0 break-words text-2xl font-bold leading-tight tabular-nums sm:text-3xl">{formatCurrency(taxReports.summary.totalTaxCollected)}</p>
                     </div>
                   </div>
@@ -1448,10 +1448,10 @@ export default function TaxCodesManagement() {
                         <table className="w-full">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Product')}</th>
                               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
-                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
-                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Price')}</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Status')}</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
@@ -1485,11 +1485,11 @@ export default function TaxCodesManagement() {
                         <table className="w-full">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sale #</th>
-                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxable</th>
-                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tax Amount</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Sale #')}</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Date')}</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Client')}</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Taxable')}</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Tax Amount')}</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
@@ -1512,13 +1512,13 @@ export default function TaxCodesManagement() {
                   {taxReports.products.length === 0 && taxReports.sales.length === 0 && (
                     <div className="text-center py-12 bg-gray-50 rounded-xl">
                       <Info className="mx-auto text-gray-400 mb-3" size={48} />
-                      <p className="text-gray-500">No data found for this tax type in the selected period</p>
+                      <p className="text-gray-500">{tt('No data found for this tax type in the selected period')}</p>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="text-center py-12">
-                  <p className="text-gray-500">Click "Refresh" to load reports</p>
+                  <p className="text-gray-500">{tt('Click "Refresh" to load reports')}</p>
                 </div>
               )}
             </div>

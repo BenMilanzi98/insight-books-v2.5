@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * Onboarding Context Bar — Phase 17 Wave 4.
@@ -16,7 +17,7 @@ export default function OnboardingContextBar({
   return (
     <div
       role="region"
-      aria-label="Onboarding context"
+      aria-label={tt('Onboarding context')}
       style={{
         display: 'flex',
         flexWrap: 'wrap',

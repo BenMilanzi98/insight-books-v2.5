@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import AdoptionContextBar from '@/components/admin/customerSuccess/AdoptionContextBar';
@@ -15,7 +16,7 @@ export default function CustomerSuccessAdoptionPage() {
         permissionScope="customerSuccess.read"
       />
       <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
-        Customer Adoption
+        {tt('Customer Adoption')}
       </h1>
       <p style={{ color: '#555', marginBottom: '1.25rem' }}>
         Phase 19 Wave 4 — Overview, My Work, Team, Portfolio, Attention/Dormancy,
@@ -24,78 +25,78 @@ export default function CustomerSuccessAdoptionPage() {
       </p>
 
       <section style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Queues</h2>
+        <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>{tt('Queues')}</h2>
         <ul style={{ lineHeight: 1.8, columns: 2, maxWidth: 640 }}>
-          <li>New requests</li>
-          <li>Active plans</li>
-          <li>At risk / churn risk</li>
-          <li>Value review</li>
-          <li>Dormancy attention</li>
-          <li>Expansion handoffs</li>
+          <li>{tt('New requests')}</li>
+          <li>{tt('Active plans')}</li>
+          <li>{tt('At risk / churn risk')}</li>
+          <li>{tt('Value review')}</li>
+          <li>{tt('Dormancy attention')}</li>
+          <li>{tt('Expansion handoffs')}</li>
         </ul>
         <p style={{ fontSize: '0.875rem', color: '#777' }}>
-          Card counts load via <code>getAdoptionOverviewCards</code> — gate fail →
+          {tt('Card counts load via')} <code>{tt('getAdoptionOverviewCards')}</code> — gate fail →
           UNAVAILABLE / null (never false zero).
         </p>
       </section>
 
       <ul style={{ lineHeight: 1.8 }}>
         <li>
-          <Link href="/insightbooks/customer-success/adoption/my-work">My Work</Link>
+          <Link href="/insightbooks/customer-success/adoption/my-work">{tt('My Work')}</Link>
         </li>
         <li>
-          <Link href="/insightbooks/customer-success/adoption/team">Team</Link>
+          <Link href="/insightbooks/customer-success/adoption/team">{tt('Team')}</Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/adoption/portfolio">
-            Portfolio
+            {tt('Portfolio')}
           </Link>
         </li>
         <li>
-          <Link href="/insightbooks/customer-success/adoption/queues">Queues</Link>
+          <Link href="/insightbooks/customer-success/adoption/queues">{tt('Queues')}</Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/adoption/attention">
-            Attention / Dormancy
+            {tt('Attention / Dormancy')}
           </Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/adoption/requests">
-            Adoption Requests
+            {tt('Adoption Requests')}
           </Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/adoption/plans">
-            Adoption Plans
+            {tt('Adoption Plans')}
           </Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/adoption/milestones">
-            Milestones
+            {tt('Milestones')}
           </Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/adoption/outcomes">
-            Value Outcomes
+            {tt('Value Outcomes')}
           </Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/adoption/champions">
-            Champions
+            {tt('Champions')}
           </Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/adoption/dormancy">
-            Dormancy Recovery
+            {tt('Dormancy Recovery')}
           </Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/adoption/expansion">
-            Expansion Handoffs
+            {tt('Expansion Handoffs')}
           </Link>
         </li>
         <li>
-          <Link href="/insightbooks/customer-success/adoption/reports">Reports</Link>
+          <Link href="/insightbooks/customer-success/adoption/reports">{tt('Reports')}</Link>
         </li>
       </ul>
     </div>

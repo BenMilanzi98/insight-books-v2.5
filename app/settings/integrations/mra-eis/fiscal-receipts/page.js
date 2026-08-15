@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -126,9 +127,9 @@ export default function MraEisFiscalReceiptsPage() {
       <p className="text-sm text-slate-600">
         <Link href="/settings/integrations/mra-eis">← MRA EIS settings</Link>
         {' · '}
-        <Link href="/settings/integrations/mra-eis/sales-transmission">Sales transmission</Link>
+        <Link href="/settings/integrations/mra-eis/sales-transmission">{tt('Sales transmission')}</Link>
       </p>
-      <h1 className="mt-2 text-2xl font-semibold text-slate-900">Fiscal receipts</h1>
+      <h1 className="mt-2 text-2xl font-semibold text-slate-900">{tt('Fiscal receipts')}</h1>
       <p className="mt-2 max-w-2xl text-slate-700">
         Phase 14 creates immutable fiscal receipts and validation QR codes only after conclusive MRA
         acceptance. HTTP 200 alone is not acceptance. Sandbox receipts are clearly marked TEST.
@@ -154,20 +155,20 @@ export default function MraEisFiscalReceiptsPage() {
           onClick={processOutbox}
           className="rounded bg-slate-900 px-4 py-2 text-sm text-white"
         >
-          Process accepted-receipt outbox
+          {tt('Process accepted-receipt outbox')}
         </button>
         <button
           type="button"
           onClick={load}
           className="rounded border border-slate-300 px-4 py-2 text-sm"
         >
-          Refresh
+          {tt('Refresh')}
         </button>
       </div>
 
       <div className="mt-4 flex flex-wrap items-end gap-2">
         <label className="block text-sm">
-          Accepted transmission ID
+          {tt('Accepted transmission ID')}
           <input
             className="mt-1 block w-80 rounded border border-slate-300 px-2 py-1"
             value={transmissionId}
@@ -179,7 +180,7 @@ export default function MraEisFiscalReceiptsPage() {
           onClick={generateFromTransmission}
           className="rounded bg-emerald-700 px-4 py-2 text-sm text-white"
         >
-          Generate receipt
+          {tt('Generate receipt')}
         </button>
       </div>
 
@@ -196,7 +197,7 @@ export default function MraEisFiscalReceiptsPage() {
       )}
 
       {loading ? (
-        <p className="mt-6 text-slate-600">Loading…</p>
+        <p className="mt-6 text-slate-600">{tt('Loading…')}</p>
       ) : (
         <ul className="mt-6 divide-y rounded border border-slate-200">
           {receipts.map((r) => (
@@ -222,10 +223,10 @@ export default function MraEisFiscalReceiptsPage() {
       )}
 
       {selected?.receipt && (
-        <section className="mt-8 rounded border border-slate-200 p-4" aria-label="Receipt detail">
-          <h2 className="text-lg font-semibold">Receipt detail</h2>
+        <section className="mt-8 rounded border border-slate-200 p-4" aria-label={tt('Receipt detail')}>
+          <h2 className="text-lg font-semibold">{tt('Receipt detail')}</h2>
           <p className="mt-2 text-sm">
-            Status: <strong>{selected.receipt.state}</strong>
+            {tt('Status:')} <strong>{selected.receipt.state}</strong>
           </p>
           <p className="text-sm">Fiscal number: {selected.receipt.fiscalNumber}</p>
           <p className="text-sm">MRA transaction: {selected.receipt.mraTransactionId}</p>
@@ -251,10 +252,10 @@ export default function MraEisFiscalReceiptsPage() {
 
           <div className="mt-4 flex flex-wrap gap-2">
             <button type="button" className="rounded border px-3 py-1 text-sm" onClick={verifySelected}>
-              Verify integrity
+              {tt('Verify integrity')}
             </button>
             <button type="button" className="rounded border px-3 py-1 text-sm" onClick={reprintSelected}>
-              Request reprint
+              {tt('Request reprint')}
             </button>
             {(selected.artifacts || []).map((a) => (
               <a
@@ -274,7 +275,7 @@ export default function MraEisFiscalReceiptsPage() {
             </pre>
           )}
 
-          <h3 className="mt-6 text-sm font-semibold">QR evidence</h3>
+          <h3 className="mt-6 text-sm font-semibold">{tt('QR evidence')}</h3>
           <ul className="mt-2 text-sm text-slate-700">
             {(selected.qrEvidence || []).map((q) => (
               <li key={q.id}>

@@ -1,5 +1,6 @@
 // components/PrintableInvoice.js
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useRef } from 'react';
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview';
@@ -41,7 +42,7 @@ const PrintableInvoice = ({ invoice, template, branding, onPrintComplete }) => {
         className="hidden"
         id="trigger-print-button"
       >
-        Print
+        {tt('Print')}
       </button>
     </div>
   );

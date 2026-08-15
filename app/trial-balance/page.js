@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { 
@@ -374,7 +375,7 @@ const TrialBalance = () => {
                   disabled={isLoading || isPrinting}
                 >
                   <Printer size={18} className="mr-2" />
-                  Print
+                  {tt('Print')}
                 </PosStyleHeaderButton>
                 {pagePermissions.canExportTrial && (
                   <div className="relative" ref={exportTriggerRef}>
@@ -384,7 +385,7 @@ const TrialBalance = () => {
                       disabled={isLoading || isExporting}
                     >
                       <Download size={18} className="mr-2" />
-                      Export
+                      {tt('Export')}
                     </PosStyleHeaderButton>
                     <PortalPopover
                       open={showExportOptions}
@@ -396,7 +397,7 @@ const TrialBalance = () => {
                       className="w-48 rounded-xl"
                       variant="dashboard"
                     >
-                      <label className="block text-sm font-medium text-slate-700 mb-2">Format</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">{tt('Format')}</label>
                       <select
                         className="w-full px-3 py-2 rounded-lg border border-slate-200 mb-3 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                         value={exportFormat}
@@ -404,7 +405,7 @@ const TrialBalance = () => {
                       >
                         <option value="pdf">PDF</option>
                         <option value="csv">CSV</option>
-                        <option value="xlsx">Excel</option>
+                        <option value="xlsx">{tt('Excel')}</option>
                       </select>
                       <button
                         type="button"
@@ -447,7 +448,7 @@ const TrialBalance = () => {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search accounts..."
+                    placeholder={tt('Search accounts...')}
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400"
                     value={searchTerm}
                     onChange={handleSearchChange}
@@ -477,7 +478,7 @@ const TrialBalance = () => {
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-20">
                 <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mb-4" />
-                <p className="text-slate-500 font-medium">Loading trial balance...</p>
+                <p className="text-slate-500 font-medium">{tt('Loading trial balance...')}</p>
               </div>
             ) : (
               <>
@@ -485,11 +486,11 @@ const TrialBalance = () => {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
-                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider" style={{ width: '10%' }}>Account Code</th>
-                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider" style={{ width: '40%' }}>Account Name</th>
-                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider" style={{ width: '15%' }}>Type</th>
-                        <th className="px-4 py-3.5 text-right text-xs font-semibold text-amber-600 uppercase tracking-wider" style={{ width: '17.5%' }}>Debit</th>
-                        <th className="px-4 py-3.5 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider" style={{ width: '17.5%' }}>Credit</th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider" style={{ width: '10%' }}>{tt('Account Code')}</th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider" style={{ width: '40%' }}>{tt('Account Name')}</th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider" style={{ width: '15%' }}>{tt('Type')}</th>
+                        <th className="px-4 py-3.5 text-right text-xs font-semibold text-amber-600 uppercase tracking-wider" style={{ width: '17.5%' }}>{tt('Debit')}</th>
+                        <th className="px-4 py-3.5 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider" style={{ width: '17.5%' }}>{tt('Credit')}</th>
                       </tr>
                     </thead>
                 <tbody>
@@ -522,7 +523,7 @@ const TrialBalance = () => {
                   {/* Totals row */}
                   {filteredAccounts.length > 0 && (
                     <tr className="border-t border-gray-200 bg-gray-50 font-semibold">
-                      <td className="p-3" colSpan={3}>Totals</td>
+                      <td className="p-3" colSpan={3}>{tt('Totals')}</td>
                       <td className="p-3 text-right">{formatCurrency(totalDebits)}</td>
                       <td className="p-3 text-right">{formatCurrency(totalCredits)}</td>
                     </tr>
@@ -559,7 +560,7 @@ const TrialBalance = () => {
               <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
               <div>
-                <h2 className="text-xl font-bold">Account History</h2>
+                <h2 className="text-xl font-bold">{tt('Account History')}</h2>
                 {selectedAccount && (
                   <p className="text-sm text-gray-600 mt-1">
                     {selectedAccount.code} - {selectedAccount.name}
@@ -585,13 +586,13 @@ const TrialBalance = () => {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 text-left border-b">
-                        <th className="p-3 font-medium">Date</th>
-                        <th className="p-3 font-medium">Reference</th>
-                        <th className="p-3 font-medium">Description</th>
-                        <th className="p-3 font-medium text-right">Debit</th>
-                        <th className="p-3 font-medium text-right">Credit</th>
-                        <th className="p-3 font-medium">Source</th>
-                        <th className="p-3 font-medium">Audit</th>
+                        <th className="p-3 font-medium">{tt('Date')}</th>
+                        <th className="p-3 font-medium">{tt('Reference')}</th>
+                        <th className="p-3 font-medium">{tt('Description')}</th>
+                        <th className="p-3 font-medium text-right">{tt('Debit')}</th>
+                        <th className="p-3 font-medium text-right">{tt('Credit')}</th>
+                        <th className="p-3 font-medium">{tt('Source')}</th>
+                        <th className="p-3 font-medium">{tt('Audit')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -642,7 +643,7 @@ const TrialBalance = () => {
                           <td className="p-3">
                             {transaction.isReversal ? (
                               <span className="px-2 py-1 text-xs rounded bg-rose-100 text-rose-800 font-medium">
-                                Reversal
+                                {tt('Reversal')}
                               </span>
                             ) : (
                               <span className="text-gray-300">—</span>
@@ -656,7 +657,7 @@ const TrialBalance = () => {
               ) : (
                 <div className="text-center py-12 text-gray-500">
                   <Clock size={48} className="mx-auto mb-4 text-gray-400" />
-                  <p>No transaction history found for this account in the selected period.</p>
+                  <p>{tt('No transaction history found for this account in the selected period.')}</p>
                 </div>
               )}
             </div>
@@ -667,7 +668,7 @@ const TrialBalance = () => {
                 onClick={() => setShowHistoryModal(false)}
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
               >
-                Close
+                {tt('Close')}
               </button>
             </div>
           </div>

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React,{ useState } from "react";
 import { ArrowUpDown, FileText } from "lucide-react";
@@ -24,9 +25,9 @@ export default function TaxPaidTable({ paidTaxes, searchTerm = "" }) {
     return (
       <div className="text-center py-12">
         <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No Tax Data Available</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">{tt('No Tax Data Available')}</h3>
         <p className="text-gray-500 max-w-md mx-auto">
-          Loading tax expense data...
+          {tt('Loading tax expense data...')}
         </p>
       </div>
     );
@@ -68,7 +69,7 @@ export default function TaxPaidTable({ paidTaxes, searchTerm = "" }) {
     return (
       <div className="text-center py-12">
         <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No Tax Data Found</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">{tt('No Tax Data Found')}</h3>
         <p className="text-gray-500 max-w-md mx-auto">
           {searchTerm 
             ? `No paid taxes match "${searchTerm}". Try a different search term.`
@@ -92,7 +93,7 @@ export default function TaxPaidTable({ paidTaxes, searchTerm = "" }) {
                 onClick={() => handleSort("id")}
               >
                 <div className="flex items-center">
-                  Reference
+                  {tt('Reference')}
                   <ArrowUpDown 
                     className={`h-4 w-4 ml-1 ${sortField === "id" ? "text-blue-500" : "text-gray-400"}`} 
                   />
@@ -104,7 +105,7 @@ export default function TaxPaidTable({ paidTaxes, searchTerm = "" }) {
                 onClick={() => handleSort("date")}
               >
                 <div className="flex items-center">
-                  Date
+                  {tt('Date')}
                   <ArrowUpDown 
                     className={`h-4 w-4 ml-1 ${sortField === "date" ? "text-blue-500" : "text-gray-400"}`} 
                   />
@@ -116,7 +117,7 @@ export default function TaxPaidTable({ paidTaxes, searchTerm = "" }) {
                 onClick={() => handleSort("description")}
               >
                 <div className="flex items-center">
-                  Description
+                  {tt('Description')}
                   <ArrowUpDown 
                     className={`h-4 w-4 ml-1 ${sortField === "description" ? "text-blue-500" : "text-gray-400"}`} 
                   />
@@ -128,7 +129,7 @@ export default function TaxPaidTable({ paidTaxes, searchTerm = "" }) {
                 onClick={() => handleSort("amount")}
               >
                 <div className="flex items-center justify-end">
-                  Tax Amount
+                  {tt('Tax Amount')}
                   <ArrowUpDown 
                     className={`h-4 w-4 ml-1 ${sortField === "amount" ? "text-blue-500" : "text-gray-400"}`} 
                   />
@@ -157,7 +158,7 @@ export default function TaxPaidTable({ paidTaxes, searchTerm = "" }) {
             {/* Total row */}
             <tr className="bg-gray-100 font-medium">
               <td colSpan="3" className="px-6 py-4 whitespace-nowrap">
-                Total Paid Tax
+                {tt('Total Paid Tax')}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-red-600">
                 {formatCurrency(paidTaxes.totalTaxPaid)}

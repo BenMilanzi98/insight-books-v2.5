@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
@@ -130,18 +131,18 @@ function LoginForm() {
         <section className="hidden flex-col justify-between p-8 text-white xl:flex xl:p-10">
           <div>
             <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 shadow-2xl shadow-indigo-950/20 backdrop-blur">
-              <img src="/logo.png" alt="InsightBooks Logo" className="h-9 w-auto rounded-lg object-contain" />
+              <img src="/logo.png" alt={tt('InsightBooks Logo')} className="h-9 w-auto rounded-lg object-contain" />
             </div>
 
             <div className="mt-16 max-w-xl">
               <p className="mb-4 inline-flex rounded-full border border-sky-400/20 bg-blue-950/40 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-sky-100 backdrop-blur">
-                Future-ready business OS
+                {tt('Future-ready business OS')}
               </p>
               <h1 className="text-4xl font-black leading-tight tracking-tight">
-                Control finance, stock, sales, and payroll from one intelligent workspace.
+                {tt('Control finance, stock, sales, and payroll from one intelligent workspace.')}
               </h1>
               <p className="mt-5 max-w-lg text-sm leading-7 text-slate-200">
-                A compact, secure command center for daily operations, reporting, and team workflows.
+                {tt('A compact, secure command center for daily operations, reporting, and team workflows.')}
               </p>
             </div>
           </div>
@@ -154,7 +155,7 @@ function LoginForm() {
             ].map(([metric, label]) => (
               <div key={label} className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
                 <p className="text-xl font-bold">{metric}</p>
-                <p className="mt-1 text-xs text-slate-300">{label}</p>
+                <p className="mt-1 text-xs text-slate-300">{tt(label)}</p>
               </div>
             ))}
           </div>
@@ -164,7 +165,7 @@ function LoginForm() {
           <div className="w-full max-w-2xl">
             <div className="mb-4 flex items-center justify-center xl:hidden">
               <div className="rounded-2xl bg-white/95 p-2.5 shadow-xl">
-                <img src="/logo.png" alt="InsightBooks Logo" className="h-8 w-auto object-contain sm:h-9" />
+                <img src="/logo.png" alt={tt('InsightBooks Logo')} className="h-8 w-auto object-contain sm:h-9" />
               </div>
             </div>
 
@@ -213,12 +214,12 @@ function LoginForm() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 {showBusinessChoice && tenantChoices.length > 0 && (
                   <div className="rounded-2xl border border-indigo-100 bg-indigo-50/80 p-4 text-sm text-indigo-950">
-                    <p className="font-semibold">Choose your business</p>
+                    <p className="font-semibold">{tt('Choose your business')}</p>
                     <p className="mt-1 text-indigo-900/75">
-                      Your email is linked to more than one business. Select where you want to log in.
+                      {tt('Your email is linked to more than one business. Select where you want to log in.')}
                     </p>
                     <fieldset className="mt-4 space-y-2">
-                      <legend className="sr-only">Business</legend>
+                      <legend className="sr-only">{tt('Business')}</legend>
                       {tenantChoices.map((tenant) => (
                         <label
                           key={tenant.id}
@@ -248,9 +249,9 @@ function LoginForm() {
 
                 {showBusinessChoice && tenantChoices.length === 0 && (
                   <div className="rounded-2xl border border-indigo-100 bg-indigo-50/80 p-4 text-sm text-indigo-950">
-                    <p className="font-semibold">Choose your business</p>
+                    <p className="font-semibold">{tt('Choose your business')}</p>
                     <p className="mt-1 text-indigo-900/75">
-                      Enter your password and continue. If this email belongs to multiple businesses, we will show them here for selection.
+                      {tt('Enter your password and continue. If this email belongs to multiple businesses, we will show them here for selection.')}
                     </p>
                   </div>
                 )}
@@ -265,7 +266,7 @@ function LoginForm() {
                       id="email"
                       type="email"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
-                      placeholder="you@company.com"
+                      placeholder={tt('you@company.com')}
                       value={email}
                       onChange={(e) => handleEmailChange(e.target.value)}
                       required
@@ -288,7 +289,7 @@ function LoginForm() {
                       id="password"
                       type={showPassword ? "text" : "password"}
                       className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 pr-12 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
-                      placeholder="Enter your password"
+                      placeholder={tt('Enter your password')}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -329,7 +330,7 @@ function LoginForm() {
               <p className="mt-5 text-center text-sm text-slate-600">
                 New to InsightBooks?{" "}
                 <Link href="/auth/signup" className="font-bold text-indigo-700 hover:text-indigo-900">
-                  Create Account
+                  {tt('Create Account')}
                 </Link>
               </p>
             </div>
@@ -345,7 +346,7 @@ const Login = () => {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse">Loading...</div>
+        <div className="animate-pulse">{tt('Loading...')}</div>
       </div>
     }>
       <LoginForm />

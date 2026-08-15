@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { tx } from '@/lib/i18n/runtime';
 
 const tones = {
   neutral: 'bg-slate-100 text-slate-700 ring-slate-200',
@@ -22,7 +23,7 @@ export default function Badge({ children, tone = 'neutral', className, icon }) {
       )}
     >
       {icon}
-      {children}
+      {tx(children)}
     </span>
   );
 }
@@ -48,7 +49,7 @@ export function StatusBadge({ status, map = {}, className }) {
     }[key] || 'neutral');
   return (
     <Badge tone={tone} className={className}>
-      {status}
+      {tx(status)}
     </Badge>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -146,7 +147,7 @@ export function PaymentAccountFormModal({
             type="button"
             onClick={onClose}
             className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-            aria-label="Close"
+            aria-label={tt('Close')}
           >
             <X size={20} />
           </button>
@@ -160,14 +161,14 @@ export function PaymentAccountFormModal({
 
           {form.accountType === "Cash" ? (
             <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-600">
-              Cash posts to GL <span className="font-mono font-semibold">1110</span> — Cash - Main Account
+              {tt('Cash posts to GL')} <span className="font-mono font-semibold">1110</span> — Cash - Main Account
             </div>
           ) : null}
 
           {needsChannel && !editingAccount ? (
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
-                Bank / mobile channel *
+                {tt('Bank / mobile channel *')}
               </label>
               <select
                 required
@@ -175,7 +176,7 @@ export function PaymentAccountFormModal({
                 onChange={(e) => setForm((p) => ({ ...p, parentGlCode: e.target.value }))}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
               >
-                <option value="">Select channel…</option>
+                <option value="">{tt('Select channel…')}</option>
                 {channelOptions.map((ch) => (
                   <option key={ch.code} value={ch.code}>
                     {ch.code} — {ch.name}
@@ -190,7 +191,7 @@ export function PaymentAccountFormModal({
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
-              Account name *
+              {tt('Account name *')}
             </label>
             <input
               type="text"
@@ -199,14 +200,14 @@ export function PaymentAccountFormModal({
               value={form.name}
               onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm disabled:bg-slate-50"
-              placeholder="e.g. Operations account"
+              placeholder={tt('e.g. Operations account')}
             />
           </div>
 
           {!editingAccount ? (
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
-                Type
+                {tt('Type')}
               </label>
               <select
                 value={form.accountType}
@@ -220,15 +221,15 @@ export function PaymentAccountFormModal({
                 }}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
               >
-                <option value="Bank">Bank</option>
-                <option value="Mobile Money">Mobile Money</option>
-                <option value="Wallet">Wallet</option>
-                <option value="POS Terminal">POS Terminal</option>
+                <option value="Bank">{tt('Bank')}</option>
+                <option value="Mobile Money">{tt('Mobile Money')}</option>
+                <option value="Wallet">{tt('Wallet')}</option>
+                <option value="POS Terminal">{tt('POS Terminal')}</option>
               </select>
             </div>
           ) : (
             <div className="text-sm text-slate-600">
-              Type: <span className="font-medium text-slate-900">{form.accountType}</span>
+              {tt('Type:')} <span className="font-medium text-slate-900">{form.accountType}</span>
               {form.parentGlCode ? (
                 <>
                   {" "}
@@ -274,7 +275,7 @@ export function PaymentAccountFormModal({
               disabled={editingAccount?.isSystem}
               onChange={(e) => setForm((p) => ({ ...p, isActive: e.target.checked }))}
             />
-            Active
+            {tt('Active')}
           </label>
 
           <div className="flex justify-end gap-2 pt-2">
@@ -283,7 +284,7 @@ export function PaymentAccountFormModal({
               onClick={onClose}
               className="px-4 py-2 text-sm rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
             >
-              Cancel
+              {tt('Cancel')}
             </button>
             <button
               type="submit"
@@ -321,7 +322,7 @@ function AccountRow({ account, mode, onSelect, onEdit, onDelete }) {
                 type="button"
                 onClick={() => onEdit?.(account)}
                 className="p-1.5 rounded-md text-slate-500 hover:text-indigo-700 hover:bg-indigo-50"
-                aria-label="Edit"
+                aria-label={tt('Edit')}
               >
                 <Edit2 size={15} />
               </button>
@@ -329,13 +330,13 @@ function AccountRow({ account, mode, onSelect, onEdit, onDelete }) {
                 type="button"
                 onClick={() => onDelete?.(account)}
                 className="p-1.5 rounded-md text-slate-500 hover:text-rose-700 hover:bg-rose-50"
-                aria-label="Delete"
+                aria-label={tt('Delete')}
               >
                 <Trash2 size={15} />
               </button>
             </div>
           ) : (
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">System</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{tt('System')}</span>
           )}
         </div>
       </div>
@@ -407,7 +408,7 @@ function ChannelCard({
               onClick={() => onAddAccount?.(channel.code, channel.accountType)}
               className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
             >
-              <Plus size={14} /> Add
+              <Plus size={14} /> {tt('Add')}
             </button>
           ) : null}
         </div>
@@ -427,7 +428,7 @@ function ChannelCard({
             ))
           ) : (
             <p className="text-xs text-slate-400 text-center py-4 px-2">
-              No accounts yet — add one under this channel.
+              {tt('No accounts yet — add one under this channel.')}
             </p>
           )}
         </div>
@@ -496,13 +497,13 @@ export default function PaymentChannelsPanel({
     return (
       <div className="flex items-center justify-center py-20 text-slate-500 gap-2">
         <Loader className="h-5 w-5 animate-spin" />
-        Loading payment channels…
+        {tt('Loading payment channels…')}
       </div>
     );
   }
 
   if (!data) {
-    return <p className="text-center py-12 text-sm text-slate-500">Could not load payment channels.</p>;
+    return <p className="text-center py-12 text-sm text-slate-500">{tt('Could not load payment channels.')}</p>;
   }
 
   return (
@@ -512,7 +513,7 @@ export default function PaymentChannelsPanel({
       <section>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Cash</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tt('Cash')}</h2>
             <p className="text-xs text-slate-500 mt-0.5">
               GL {data.cash?.code} — {data.cash?.name}
             </p>
@@ -534,7 +535,7 @@ export default function PaymentChannelsPanel({
           ))}
           {!(data.cash?.accounts || []).length ? (
             <p className="text-xs text-slate-400 text-center py-4 px-2">
-              Cash uses GL 1110 automatically.
+              {tt('Cash uses GL 1110 automatically.')}
             </p>
           ) : null}
         </div>
@@ -545,7 +546,7 @@ export default function PaymentChannelsPanel({
       {(isManagement || bankChannels.length > 0) ? (
       <section>
         <div className="mb-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Banks</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tt('Banks')}</h2>
           <p className="text-xs text-slate-500 mt-0.5">
             {isManagement
               ? "Parent accounts 1131–1138 show accumulated totals. Post to child GL accounts only."
@@ -569,7 +570,7 @@ export default function PaymentChannelsPanel({
         </div>
         ) : (
           <p className="text-sm text-slate-500 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center">
-            No bank accounts yet. Add them under Manage accounts.
+            {tt('No bank accounts yet. Add them under Manage accounts.')}
           </p>
         )}
       </section>
@@ -579,10 +580,10 @@ export default function PaymentChannelsPanel({
       {(isManagement || mobileChannels.length > 0) ? (
       <section>
         <div className="mb-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Mobile money</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tt('Mobile money')}</h2>
           {!isManagement ? (
             <p className="text-xs text-slate-500 mt-0.5">
-              Only mobile accounts you have added. Manage channels under Payment accounts management.
+              {tt('Only mobile accounts you have added. Manage channels under Payment accounts management.')}
             </p>
           ) : null}
         </div>
@@ -603,7 +604,7 @@ export default function PaymentChannelsPanel({
         </div>
         ) : (
           <p className="text-sm text-slate-500 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center">
-            No mobile money accounts yet. Add them under Manage accounts.
+            {tt('No mobile money accounts yet. Add them under Manage accounts.')}
           </p>
         )}
       </section>
@@ -611,7 +612,7 @@ export default function PaymentChannelsPanel({
 
       {data.otherAccounts?.length ? (
         <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-3">Other</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-3">{tt('Other')}</h2>
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
             {data.otherAccounts.map((acc) => (
               <AccountRow

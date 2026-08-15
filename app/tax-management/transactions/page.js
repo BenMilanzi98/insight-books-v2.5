@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/shell/PageHeader";
@@ -93,8 +94,7 @@ export default function TaxTransactionsPage() {
         </p>
       ) : (
         <p className="mb-4 text-sm text-[var(--text-secondary)]">
-          Subledger fills as journals are projected. Until then, balances still come
-          from tax accounts / GL.
+          {tt('Subledger fills as journals are projected. Until then, balances still come from tax accounts / GL.')}
         </p>
       )}
 
@@ -108,24 +108,24 @@ export default function TaxTransactionsPage() {
         <table className="min-w-full text-left text-sm">
           <thead className="bg-[var(--surface-muted)] text-[var(--text-secondary)]">
             <tr>
-              <th className="px-4 py-2 font-medium">Date</th>
-              <th className="px-4 py-2 font-medium">Purpose</th>
-              <th className="px-4 py-2 font-medium">Direction</th>
-              <th className="px-4 py-2 font-medium">Amount</th>
-              <th className="px-4 py-2 font-medium">Source</th>
+              <th className="px-4 py-2 font-medium">{tt('Date')}</th>
+              <th className="px-4 py-2 font-medium">{tt('Purpose')}</th>
+              <th className="px-4 py-2 font-medium">{tt('Direction')}</th>
+              <th className="px-4 py-2 font-medium">{tt('Amount')}</th>
+              <th className="px-4 py-2 font-medium">{tt('Source')}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-[var(--text-secondary)]">
-                  Loading…
+                  {tt('Loading…')}
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-[var(--text-secondary)]">
-                  No tax subledger rows yet.
+                  {tt('No tax subledger rows yet.')}
                 </td>
               </tr>
             ) : (

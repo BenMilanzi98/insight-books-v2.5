@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import Link from "next/link";
 import { useState,useEffect } from "react";
 import { getPermission } from "@/lib/permissions";
@@ -67,9 +68,9 @@ const Footer = ({ skipPermissions = false }) => {
                 fontWeight: "bold",
                 borderRadius: "4px"
               }}>
-                IB
+                {tt('IB')}
               </div>
-              <span style={{ fontWeight: "600", color: "#1e293b" }}>InsightBooks</span>
+              <span style={{ fontWeight: "600", color: "#1e293b" }}>{tt('InsightBooks')}</span>
             </div>
             <p style={{ margin: "0 0 12px 0", lineHeight: "1.6" }}>
               A powerful Business Management platform designed for businesses of all sizes.
@@ -102,7 +103,7 @@ const Footer = ({ skipPermissions = false }) => {
               fontWeight: "600", 
               color: "#374151" 
             }}>
-              Quick Links
+              {tt('Quick Links')}
             </h3>
             <ul style={{ 
               margin: 0, 
@@ -114,28 +115,28 @@ const Footer = ({ skipPermissions = false }) => {
             }}>
               <li>
                 <Link href="/dashboard" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  Dashboard
+                  {tt('Dashboard')}
                 </Link>
               </li>
               {pagePermissions.canViewInvoice &&( <li>
               
                 <Link href="/invoice" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  Invoicing
+                  {tt('Invoicing')}
                 </Link>
               </li>)}
                {pagePermissions.canViewPayments &&(<li>
                 <Link href="/payments" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  Payments
+                  {tt('Payments')}
                 </Link>
               </li>)}
               {pagePermissions.canViewReports &&(   <li>
                 <Link href="/reports-v2" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  Reports
+                  {tt('Reports')}
                 </Link>
               </li>)}
               {pagePermissions.canViewSettings &&( <li>
                 <Link href="/settings" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  Settings
+                  {tt('Settings')}
                 </Link>
               </li>)}
             </ul>
@@ -150,7 +151,7 @@ const Footer = ({ skipPermissions = false }) => {
               fontWeight: "600", 
               color: "#374151" 
             }}>
-              Resources
+              {tt('Resources')}
             </h3>
             <ul style={{ 
               margin: 0, 
@@ -162,27 +163,27 @@ const Footer = ({ skipPermissions = false }) => {
             }}>
               <li>
                 <Link href="/help" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  Help Center
+                  {tt('Help Center')}
                 </Link>
               </li>
               <li>
                 <Link href="/documentation" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  Documentation
+                  {tt('Documentation')}
                 </Link>
               </li>
               <li>
                 <a href="#" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  API Reference
+                  {tt('API Reference')}
                 </a>
               </li>
               <li>
                 <a href="#" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  Video Tutorials
+                  {tt('Video Tutorials')}
                 </a>
               </li>
               <li>
                 <Link href="/blog" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  Blog
+                  {tt('Blog')}
                 </Link>
               </li>
             </ul>
@@ -198,7 +199,7 @@ const Footer = ({ skipPermissions = false }) => {
               fontWeight: "600", 
               color: "#374151" 
             }}>
-              Support
+              {tt('Support')}
             </h3>
             <ul style={{ 
               margin: 0, 
@@ -210,27 +211,27 @@ const Footer = ({ skipPermissions = false }) => {
             }}>
               <li>
                 <Link href="/contact" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  Contact Us
+                  {tt('Contact Us')}
                 </Link>
               </li>
               <li>
                 <Link href="/support" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  Support Portal
+                  {tt('Support Portal')}
                 </Link>
               </li>
               <li>
                 <a href="#" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  Status Page
+                  {tt('Status Page')}
                 </a>
               </li>
               <li>
                 <Link href="/feedback" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  Feedback
+                  {tt('Feedback')}
                 </Link>
               </li>
               <li>
                 <a href="mailto:insightinnovationsltd@gmail.com" style={{ color: "#6b7280", textDecoration: "none" }}>
-                  insightinnovationsltd@gmail.com
+                  {tt('insightinnovationsltd@gmail.com')}
                 </a>
               </li>
             </ul>
@@ -254,13 +255,13 @@ const Footer = ({ skipPermissions = false }) => {
           </div>
           <div style={{ display: "flex", gap: "16px" }}>
             <Link href="/terms" style={{ color: "#6b7280", textDecoration: "none" }}>
-              Terms of Service
+              {tt('Terms of Service')}
             </Link>
             <Link href="/privacy" style={{ color: "#6b7280", textDecoration: "none" }}>
-              Privacy Policy
+              {tt('Privacy Policy')}
             </Link>
             {/* <Link href="/security" style={{ color: "#6b7280", textDecoration: "none" }}>
-              Security
+              {tt('Security')}
             </Link> */}
           </div>
         </div>

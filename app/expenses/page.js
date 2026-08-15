@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -1875,7 +1876,7 @@ const handleFileUpload = async (e) => {
         <div className="fixed top-6 right-6 bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 text-green-800 p-4 rounded-lg shadow-xl z-50 flex items-center animate-fadeIn max-w-md backdrop-blur-sm">
           <CheckCircle className="w-5 h-5 mr-3 flex-shrink-0 text-green-600" />
           <div className="mr-2 flex-grow">
-            <p className="font-semibold text-sm">Receipts successfully attached!</p>
+            <p className="font-semibold text-sm">{tt('Receipts successfully attached!')}</p>
             <p className="text-xs text-green-700 mt-0.5">{selectedExpense ? `Expense ID: ${selectedExpense.id}` : 'New expense created'}</p>
           </div>
           <button 
@@ -1904,7 +1905,7 @@ const handleFileUpload = async (e) => {
                   onClick={handleCreateExpense}
                 >
                   <PlusCircle className="mr-2 h-5 w-5" aria-hidden="true" />
-                  <span className="whitespace-nowrap">Add Expense</span>
+                  <span className="whitespace-nowrap">{tt('Add Expense')}</span>
                 </button>
               )}
               {pagePermissions.canExportExpenses && mainTab === "expenses" && (
@@ -1914,7 +1915,7 @@ const handleFileUpload = async (e) => {
                   onClick={() => handleExport('csv')}
                 >
                   <Download className="mr-2 h-5 w-5" aria-hidden="true" />
-                  <span className="whitespace-nowrap">Export CSV</span>
+                  <span className="whitespace-nowrap">{tt('Export CSV')}</span>
                 </button>
               )}
             </>
@@ -1935,7 +1936,7 @@ const handleFileUpload = async (e) => {
               }`}
             >
                 <Receipt className="h-5 w-5 mr-2" />
-              Expenses
+              {tt('Expenses')}
             </button>
             <button
               onClick={() => setMainTab("cogs")}
@@ -1946,7 +1947,7 @@ const handleFileUpload = async (e) => {
               }`}
             >
                 <Package className="h-5 w-5 mr-2" />
-              Cost of Goods
+              {tt('Cost of Goods')}
             </button>
           </nav>
         </div>
@@ -2032,7 +2033,7 @@ const handleFileUpload = async (e) => {
                     }`}
             onClick={() => setActiveTab("all")}
           >
-            All Expenses
+            {tt('All Expenses')}
           </button>
           <button 
                     className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all duration-200 ${
@@ -2042,7 +2043,7 @@ const handleFileUpload = async (e) => {
                     }`}
             onClick={() => setActiveTab("historical")}
           >
-            Historical Import
+            {tt('Historical Import')}
           </button>
                 </div>
         </div>
@@ -2064,7 +2065,7 @@ const handleFileUpload = async (e) => {
                   onClick={() => setSelectedExpenses([])}
                             className="text-xs text-blue-600 hover:text-blue-800 font-medium mt-1"
                 >
-                  Clear selection
+                  {tt('Clear selection')}
                 </button>
                         </div>
               </div>
@@ -2097,7 +2098,7 @@ const handleFileUpload = async (e) => {
               <div className="relative">
                 <input 
                   type="text" 
-                  placeholder="Search expenses..." 
+                  placeholder={tt('Search expenses...')} 
                           className="w-full p-3 pl-11 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all bg-white shadow-sm"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -2114,8 +2115,8 @@ const handleFileUpload = async (e) => {
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
                 >
-                  <option value="all">All Categories</option>
-                  <option value="salary-advance">Salary Advance</option>
+                  <option value="all">{tt('All Categories')}</option>
+                  <option value="salary-advance">{tt('Salary Advance')}</option>
                   {categories.map((account) => (
                     <option key={account.id} value={account.id}>
                       {account.code ? `${account.code} - ${account.name}` : account.name}
@@ -2146,7 +2147,7 @@ const handleFileUpload = async (e) => {
                   onClick={() => { setDateFrom(''); setDateTo(''); }}
                   className="px-3 py-3 border-2 border-gray-200 rounded-lg bg-white text-sm shadow-sm hover:bg-gray-50"
                 >
-                  Clear dates
+                  {tt('Clear dates')}
                 </button>
               )}
               <div className="flex gap-2">
@@ -2163,7 +2164,7 @@ const handleFileUpload = async (e) => {
                     onClick={() => handleExport('csv')}
                   >
                             <Download className="w-4 h-4 mr-2 text-gray-600" />
-                    <span className="text-gray-700">Export</span>
+                    <span className="text-gray-700">{tt('Export')}</span>
                   </button>
                 )}
               </div>
@@ -2193,7 +2194,7 @@ const handleFileUpload = async (e) => {
         ) : isLoading ? (
           <div className="p-8 text-center">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-            <p className="text-gray-500">Loading expenses...</p>
+            <p className="text-gray-500">{tt('Loading expenses...')}</p>
           </div>
         ) : error ? (
           <div className="p-8 text-center">
@@ -2203,13 +2204,13 @@ const handleFileUpload = async (e) => {
               className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md"
               onClick={loadExpenses}
             >
-              Try Again
+              {tt('Try Again')}
             </button>
           </div>
         ) : expenses.length === 0 ? (
           <div className="p-8 text-center">
             <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <h3 className="text-lg font-medium text-gray-900 mb-1">No expenses found</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-1">{tt('No expenses found')}</h3>
             <p className="text-gray-500 mb-4">
               {activeTab !== "all" || selectedCategory !== "all" || searchQuery || cardFilter
                 ? "Try changing your filters or search query"
@@ -2220,7 +2221,7 @@ const handleFileUpload = async (e) => {
               onClick={handleCreateExpense}
             >
               <PlusCircle className="w-4 h-4 mr-2 inline-block" />
-              Add Expense
+              {tt('Add Expense')}
             </button>)}
           </div>
         ) : (
@@ -2229,38 +2230,38 @@ const handleFileUpload = async (e) => {
                     <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
-                    Description
+                    {tt('Description')}
                   </th>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
-                    Date
+                    {tt('Date')}
                   </th>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
-                    Category
+                    {tt('Category')}
                   </th>
                         <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
-                    Merchant
+                    {tt('Merchant')}
                   </th>
                         <th className="px-4 sm:px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
-                    Amount
+                    {tt('Amount')}
                   </th>
                         <th className="px-4 sm:px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
-                    Payment Status
+                    {tt('Payment Status')}
                   </th>
                   {!showDeletedExpenses && (
                           <th className="px-4 sm:px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
-                      Status
+                      {tt('Status')}
                     </th>
                   )}
                   {showDeletedExpenses && (
                           <th className="px-4 sm:px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
-                      Deleted At
+                      {tt('Deleted At')}
                     </th>
                   )}
                         <th className="px-4 sm:px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
-                    Receipts
+                    {tt('Receipts')}
                   </th>
                         <th className="px-4 sm:px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
-                    Actions
+                    {tt('Actions')}
                   </th>
                 </tr>
               </thead>
@@ -2296,7 +2297,7 @@ const handleFileUpload = async (e) => {
                         {expense.isHistorical && (
                           <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                             <History className="w-3 h-3 mr-1" />
-                            Historical
+                            {tt('Historical')}
                           </span>
                         )}
                       </div>
@@ -2374,10 +2375,10 @@ const handleFileUpload = async (e) => {
                               }
                             >
                               <Eye className="w-4 h-4 mr-1" />
-                              <span className="hidden sm:inline">View</span>
+                              <span className="hidden sm:inline">{tt('View')}</span>
                             </button>
                           ) : (
-                            <span className="text-xs text-gray-400 italic">N/A</span>
+                            <span className="text-xs text-gray-400 italic">{tt('N/A')}</span>
                           )
                         ) : expense.attachments && expense.attachments.length > 0 ? (
                           <>
@@ -2406,8 +2407,8 @@ const handleFileUpload = async (e) => {
                               onClick={() => openUploadModal(expense)}
                             >
                               <Upload className="w-4 h-4 mr-1" />
-                                    <span className="hidden sm:inline">Add Receipt</span>
-                                    <span className="sm:hidden">Add</span>
+                                    <span className="hidden sm:inline">{tt('Add Receipt')}</span>
+                                    <span className="sm:hidden">{tt('Add')}</span>
                             </button>
                           )
                         )}
@@ -2488,7 +2489,7 @@ const handleFileUpload = async (e) => {
         {!isLoading && !error && expenses.length > 0 && (
             <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100/50 flex flex-col sm:flex-row items-center justify-between border-t border-gray-100/50 gap-4">
               <div className="text-sm text-gray-700 order-2 sm:order-1 font-medium">
-                Showing <span className="text-gray-900">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="text-gray-900">{Math.min(pagination.page * pagination.limit, pagination.totalCount)}</span> of <span className="text-gray-900">{pagination.totalCount}</span> expenses
+                {tt('Showing')} <span className="text-gray-900">{(pagination.page - 1) * pagination.limit + 1}</span> {tt('to')} <span className="text-gray-900">{Math.min(pagination.page * pagination.limit, pagination.totalCount)}</span> {tt('of')} <span className="text-gray-900">{pagination.totalCount}</span> {tt('expenses')}
             </div>
               <div className="flex items-center gap-2 order-1 sm:order-2">
               <button 
@@ -2496,7 +2497,7 @@ const handleFileUpload = async (e) => {
                 disabled={pagination.page === 1}
                 onClick={() => handlePageChange(pagination.page - 1)}
               >
-                Previous
+                {tt('Previous')}
               </button>
                 <div className="flex gap-1">
               {[...Array(pagination.totalPages).keys()].map(page => (
@@ -2518,7 +2519,7 @@ const handleFileUpload = async (e) => {
                 disabled={pagination.page === pagination.totalPages}
                 onClick={() => handlePageChange(pagination.page + 1)}
               >
-                Next
+                {tt('Next')}
               </button>
             </div>
           </div>
@@ -2533,7 +2534,7 @@ const handleFileUpload = async (e) => {
                     <div className="rounded-lg bg-blue-100 p-2 mr-3">
                       <BarChart className="w-6 h-6 text-blue-600" />
                     </div>
-              Expense by Category
+              {tt('Expense by Category')}
             </h2>
             {statistics.byCategory.length > categoryPagination.itemsPerPage && (
               <div className="flex items-center space-x-2">
@@ -2576,7 +2577,7 @@ const handleFileUpload = async (e) => {
             {statistics.byCategory.length === 0 && (
               <div className="text-center py-8 text-gray-500">
                 <BarChart className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-                <p>No expense data available</p>
+                <p>{tt('No expense data available')}</p>
               </div>
             )}
           </div>
@@ -2587,7 +2588,7 @@ const handleFileUpload = async (e) => {
                   <div className="rounded-lg bg-green-100 p-2 mr-3">
                     <RefreshCw className="w-6 h-6 text-green-600" />
                   </div>
-                  Recurring Expenses
+                  {tt('Recurring Expenses')}
                 </h2>
           
                 {/* Create Recurring Expense Button */}
@@ -2598,7 +2599,7 @@ const handleFileUpload = async (e) => {
                       className="inline-flex items-center px-5 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium"
                     >
                       <RefreshCw className="w-5 h-5 mr-2" />
-                      Create Recurring Expense
+                      {tt('Create Recurring Expense')}
                     </button>
               </div>
             )}
@@ -2608,12 +2609,12 @@ const handleFileUpload = async (e) => {
             {isLoadingRecurringExpenses ? (
               <div className="text-center py-8 text-gray-500">
                 <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
-                <p>Loading recurring expenses...</p>
+                <p>{tt('Loading recurring expenses...')}</p>
               </div>
             ) : recurringExpenses.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <RefreshCw className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                <p>No recurring expenses found. Create one to get started.</p>
+                <p>{tt('No recurring expenses found. Create one to get started.')}</p>
               </div>
             ) : (
               <>
@@ -2639,16 +2640,16 @@ const handleFileUpload = async (e) => {
                   </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-600">
                           <div>
-                            <span className="font-medium">Amount:</span> {expense.amount}
+                            <span className="font-medium">{tt('Amount:')}</span> {expense.amount}
                 </div>
                           <div>
-                            <span className="font-medium">Category:</span> {expense.category}
+                            <span className="font-medium">{tt('Category:')}</span> {expense.category}
               </div>
                           <div>
-                            <span className="font-medium">Frequency:</span> {expense.frequency}
+                            <span className="font-medium">{tt('Frequency:')}</span> {expense.frequency}
                   </div>
                           <div>
-                            <span className="font-medium">Next Run:</span> {expense.nextRunDate || 'N/A'}
+                            <span className="font-medium">{tt('Next Run:')}</span> {expense.nextRunDate || 'N/A'}
                 </div>
               </div>
                       </div>
@@ -2754,8 +2755,8 @@ const handleFileUpload = async (e) => {
               onClick={triggerFileInput}
             >
               <Upload className={`w-10 h-10 mx-auto mb-3 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
-              <p className="text-lg font-medium mb-1">Drag & drop files here</p>
-              <p className="text-sm text-gray-500 mb-3">or click to browse files</p>
+              <p className="text-lg font-medium mb-1">{tt('Drag & drop files here')}</p>
+              <p className="text-sm text-gray-500 mb-3">{tt('or click to browse files')}</p>
               <p className="text-xs text-gray-400">Supports: JPG, PNG, PDF (Max 10MB per file)</p>
             </div>
               
@@ -2777,7 +2778,7 @@ const handleFileUpload = async (e) => {
                           <div className="flex-shrink-0 w-12 h-12 rounded border bg-white p-1 mr-2 overflow-hidden">
                             <img 
                               src={file.previewUrl} 
-                              alt="Preview" 
+                              alt={tt('Preview')} 
                               className="w-full h-full object-cover rounded"
                             />
                           </div>
@@ -2803,8 +2804,8 @@ const handleFileUpload = async (e) => {
                   <div className="flex items-start">
                     <AlertCircle className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0 mr-3" />
                     <div>
-                      <h4 className="font-medium mb-1">No expense selected</h4>
-                      <p className="text-sm text-gray-600 mb-2">You can:</p>
+                      <h4 className="font-medium mb-1">{tt('No expense selected')}</h4>
+                      <p className="text-sm text-gray-600 mb-2">{tt('You can:')}</p>
                       <div className="space-y-2">
                         <label className="flex items-center">
                           <input 
@@ -2813,7 +2814,7 @@ const handleFileUpload = async (e) => {
                             className="mr-2 h-4 w-4 text-blue-600" 
                             defaultChecked 
                           />
-                          <span>Create new expense from these receipts</span>
+                          <span>{tt('Create new expense from these receipts')}</span>
                         </label>
                         <label className="flex items-center">
                           <input 
@@ -2821,7 +2822,7 @@ const handleFileUpload = async (e) => {
                             name="expenseOption" 
                             className="mr-2 h-4 w-4 text-blue-600" 
                           />
-                          <span>Attach to an existing expense</span>
+                          <span>{tt('Attach to an existing expense')}</span>
                         </label>
                       </div>
                     </div>
@@ -2839,7 +2840,7 @@ const handleFileUpload = async (e) => {
           onClick={() => setUploadModalOpen(false)}
           disabled={isScanning}
         >
-          Cancel
+          {tt('Cancel')}
         </button>
         {!isScanning && (
           <button 
@@ -2852,7 +2853,7 @@ const handleFileUpload = async (e) => {
             {isUploading ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                <span>Processing...</span>
+                <span>{tt('Processing...')}</span>
               </>
             ) : (
               <>
@@ -2890,7 +2891,7 @@ const handleFileUpload = async (e) => {
                     onClick={() => openUploadModal(selectedExpense)}
                   >
                     <PlusCircle className="w-4 h-4 mr-1.5" />
-                    Add More
+                    {tt('Add More')}
                   </button>
                   <button 
                     className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
@@ -2955,18 +2956,18 @@ const handleFileUpload = async (e) => {
                         ) : (
                           <div className="text-center group">
                             <ImageIcon className="w-12 h-12 mx-auto mb-2 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                            <p className="text-sm text-gray-500">Image preview</p>
+                            <p className="text-sm text-gray-500">{tt('Image preview')}</p>
                           </div>
                         )
                       ) : attachment.type && attachment.type.includes('pdf') ? (
                         <div className="text-center group">
                           <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                          <p className="text-sm text-gray-500">PDF document</p>
+                          <p className="text-sm text-gray-500">{tt('PDF document')}</p>
                         </div>
                       ) : (
                         <div className="text-center group">
                           <File className="w-12 h-12 mx-auto mb-2 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                          <p className="text-sm text-gray-500">Document</p>
+                          <p className="text-sm text-gray-500">{tt('Document')}</p>
                         </div>
                       )}
                     </div>
@@ -2985,7 +2986,7 @@ const handleFileUpload = async (e) => {
                 className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1"
                 onClick={() => setViewReceiptModalOpen(false)}
               >
-                Close
+                {tt('Close')}
               </button>
             </div>
           </div>
@@ -3020,28 +3021,28 @@ const handleFileUpload = async (e) => {
               <div className="bg-white p-12 rounded-lg shadow-xl text-center">
                 <FileText className="w-24 h-24 mx-auto mb-4 text-blue-500" />
                 <h3 className="text-xl font-bold mb-2">{selectedAttachment.name}</h3>
-                <p className="text-gray-600 mb-6">PDF documents cannot be previewed here</p>
+                <p className="text-gray-600 mb-6">{tt('PDF documents cannot be previewed here')}</p>
                 <button
                   type="button"
                   onClick={() => downloadExpenseAttachment(selectedAttachment)}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center mx-auto inline-flex"
                 >
                   <Download className="w-5 h-5 mr-2" />
-                  Download PDF
+                  {tt('Download PDF')}
                 </button>
               </div>
             ) : (
               <div className="bg-white p-12 rounded-lg shadow-xl text-center">
                 <File className="w-24 h-24 mx-auto mb-4 text-blue-500" />
                 <h3 className="text-xl font-bold mb-2">{selectedAttachment.name}</h3>
-                <p className="text-gray-600 mb-6">This file type cannot be previewed</p>
+                <p className="text-gray-600 mb-6">{tt('This file type cannot be previewed')}</p>
                 <button
                   type="button"
                   onClick={() => downloadExpenseAttachment(selectedAttachment)}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center mx-auto inline-flex"
                 >
                   <Download className="w-5 h-5 mr-2" />
-                  Download File
+                  {tt('Download File')}
                 </button>
               </div>
             )}
@@ -3105,7 +3106,7 @@ const handleFileUpload = async (e) => {
                     className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
                   >
                     <Download className="w-4 h-4 mr-1" />
-                    Export
+                    {tt('Export')}
                   </button>
                 )}
                 <button
@@ -3121,12 +3122,12 @@ const handleFileUpload = async (e) => {
               {isLoadingRecurringExpenses ? (
                 <div className="text-center py-8 text-gray-500">
                   <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
-                  <p>Loading recurring expenses...</p>
+                  <p>{tt('Loading recurring expenses...')}</p>
                 </div>
               ) : recurringExpenses.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <RefreshCw className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                  <p>No recurring expenses found.</p>
+                  <p>{tt('No recurring expenses found.')}</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -3151,16 +3152,16 @@ const handleFileUpload = async (e) => {
                           </div>
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-600 mb-2">
                             <div>
-                              <span className="font-medium">Amount:</span> {expense.amount}
+                              <span className="font-medium">{tt('Amount:')}</span> {expense.amount}
                             </div>
                             <div>
-                              <span className="font-medium">Category:</span> {expense.category}
+                              <span className="font-medium">{tt('Category:')}</span> {expense.category}
                             </div>
                             <div>
-                              <span className="font-medium">Frequency:</span> {expense.frequency}
+                              <span className="font-medium">{tt('Frequency:')}</span> {expense.frequency}
                             </div>
                             <div>
-                              <span className="font-medium">Next Run:</span> {expense.nextRunDate || 'N/A'}
+                              <span className="font-medium">{tt('Next Run:')}</span> {expense.nextRunDate || 'N/A'}
                             </div>
                           </div>
                           {expense.notes && (
@@ -3177,7 +3178,7 @@ const handleFileUpload = async (e) => {
                             title="View"
                           >
                             <Eye className="w-4 h-4 mr-1" />
-                            View
+                            {tt('View')}
                           </button>
                           {pagePermissions.canUpdateExpenses && (
                             <button
@@ -3189,7 +3190,7 @@ const handleFileUpload = async (e) => {
                               title="Edit"
                             >
                               <Edit className="w-4 h-4 mr-1" />
-                              Edit
+                              {tt('Edit')}
                             </button>
                           )}
                           {pagePermissions.canDeleteExpenses && (
@@ -3199,7 +3200,7 @@ const handleFileUpload = async (e) => {
                               title="Delete"
                             >
                               <Trash2 className="w-4 h-4 mr-1" />
-                              Delete
+                              {tt('Delete')}
                             </button>
                           )}
                         </div>
@@ -3223,7 +3224,7 @@ const handleFileUpload = async (e) => {
             <div className="p-5 border-b border-gray-200 flex justify-between items-center">
               <h3 className="text-xl font-semibold flex items-center">
                 <RefreshCw className="w-5 h-5 mr-2 text-green-600" />
-                Recurring Expense Details
+                {tt('Recurring Expense Details')}
               </h3>
               <button
                 onClick={() => {
@@ -3240,20 +3241,20 @@ const handleFileUpload = async (e) => {
               {isLoadingRecurringExpenseDetails ? (
                 <div className="text-center py-8 text-gray-500">
                   <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
-                  <p>Loading details...</p>
+                  <p>{tt('Loading details...')}</p>
                 </div>
               ) : (
                 <div className="space-y-6">
                   {/* Basic Information */}
                   <div className="bg-gray-50 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900 mb-4">Basic Information</h4>
+                    <h4 className="font-semibold text-gray-900 mb-4">{tt('Basic Information')}</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Description</label>
+                        <label className="text-sm font-medium text-gray-500">{tt('Description')}</label>
                         <p className="text-gray-900 mt-1">{selectedRecurringExpense.description}</p>
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Amount</label>
+                        <label className="text-sm font-medium text-gray-500">{tt('Amount')}</label>
                         <p className="text-gray-900 mt-1 font-semibold">
                           {typeof selectedRecurringExpense.amount === 'string' 
                             ? selectedRecurringExpense.amount 
@@ -3264,11 +3265,11 @@ const handleFileUpload = async (e) => {
                         </p>
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Category</label>
+                        <label className="text-sm font-medium text-gray-500">{tt('Category')}</label>
                         <p className="text-gray-900 mt-1">{selectedRecurringExpense.category}</p>
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Status</label>
+                        <label className="text-sm font-medium text-gray-500">{tt('Status')}</label>
                         <p className="mt-1">
                           <span className={`px-2 py-1 text-xs rounded-full ${
                             selectedRecurringExpense.status === 'active' 
@@ -3286,14 +3287,14 @@ const handleFileUpload = async (e) => {
 
                   {/* Schedule Information */}
                   <div className="bg-gray-50 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900 mb-4">Schedule Information</h4>
+                    <h4 className="font-semibold text-gray-900 mb-4">{tt('Schedule Information')}</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Frequency</label>
+                        <label className="text-sm font-medium text-gray-500">{tt('Frequency')}</label>
                         <p className="text-gray-900 mt-1 capitalize">{selectedRecurringExpense.frequency}</p>
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Start Date</label>
+                        <label className="text-sm font-medium text-gray-500">{tt('Start Date')}</label>
                         <p className="text-gray-900 mt-1">
                           {selectedRecurringExpense.startDate 
                             ? new Date(selectedRecurringExpense.startDate).toLocaleDateString()
@@ -3302,7 +3303,7 @@ const handleFileUpload = async (e) => {
                       </div>
                       {selectedRecurringExpense.endDate && (
                         <div>
-                          <label className="text-sm font-medium text-gray-500">End Date</label>
+                          <label className="text-sm font-medium text-gray-500">{tt('End Date')}</label>
                           <p className="text-gray-900 mt-1">
                             {new Date(selectedRecurringExpense.endDate).toLocaleDateString()}
                           </p>
@@ -3310,18 +3311,18 @@ const handleFileUpload = async (e) => {
                       )}
                       {selectedRecurringExpense.occurrences && (
                         <div>
-                          <label className="text-sm font-medium text-gray-500">Total Occurrences</label>
+                          <label className="text-sm font-medium text-gray-500">{tt('Total Occurrences')}</label>
                           <p className="text-gray-900 mt-1">{selectedRecurringExpense.occurrences}</p>
                         </div>
                       )}
                       {selectedRecurringExpense.remainingOccurrences !== null && selectedRecurringExpense.remainingOccurrences !== undefined && (
                         <div>
-                          <label className="text-sm font-medium text-gray-500">Remaining Occurrences</label>
+                          <label className="text-sm font-medium text-gray-500">{tt('Remaining Occurrences')}</label>
                           <p className="text-gray-900 mt-1">{selectedRecurringExpense.remainingOccurrences}</p>
                         </div>
                       )}
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Next Run Date</label>
+                        <label className="text-sm font-medium text-gray-500">{tt('Next Run Date')}</label>
                         <p className="text-gray-900 mt-1">
                           {selectedRecurringExpense.nextRunDate 
                             ? new Date(selectedRecurringExpense.nextRunDate).toLocaleDateString()
@@ -3330,7 +3331,7 @@ const handleFileUpload = async (e) => {
                       </div>
                       {selectedRecurringExpense.lastRunDate && (
                         <div>
-                          <label className="text-sm font-medium text-gray-500">Last Run Date</label>
+                          <label className="text-sm font-medium text-gray-500">{tt('Last Run Date')}</label>
                           <p className="text-gray-900 mt-1">
                             {new Date(selectedRecurringExpense.lastRunDate).toLocaleDateString()}
                           </p>
@@ -3338,13 +3339,13 @@ const handleFileUpload = async (e) => {
                       )}
                       {selectedRecurringExpense.frequency === 'monthly' && selectedRecurringExpense.dayOfMonth && (
                         <div>
-                          <label className="text-sm font-medium text-gray-500">Day of Month</label>
+                          <label className="text-sm font-medium text-gray-500">{tt('Day of Month')}</label>
                           <p className="text-gray-900 mt-1">{selectedRecurringExpense.dayOfMonth}</p>
                         </div>
                       )}
                       {selectedRecurringExpense.frequency === 'weekly' && selectedRecurringExpense.dayOfWeek !== null && selectedRecurringExpense.dayOfWeek !== undefined && (
                         <div>
-                          <label className="text-sm font-medium text-gray-500">Day of Week</label>
+                          <label className="text-sm font-medium text-gray-500">{tt('Day of Week')}</label>
                           <p className="text-gray-900 mt-1">
                             {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][selectedRecurringExpense.dayOfWeek]}
                           </p>
@@ -3356,7 +3357,7 @@ const handleFileUpload = async (e) => {
                   {/* Notes */}
                   {selectedRecurringExpense.notes && (
                     <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="font-semibold text-gray-900 mb-2">Notes</h4>
+                      <h4 className="font-semibold text-gray-900 mb-2">{tt('Notes')}</h4>
                       <p className="text-gray-700">{selectedRecurringExpense.notes}</p>
                     </div>
                   )}
@@ -3364,7 +3365,7 @@ const handleFileUpload = async (e) => {
                   {/* History */}
                   {selectedRecurringExpense.history && selectedRecurringExpense.history.length > 0 && (
                     <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="font-semibold text-gray-900 mb-4">Execution History</h4>
+                      <h4 className="font-semibold text-gray-900 mb-4">{tt('Execution History')}</h4>
                       <div className="space-y-2">
                         {selectedRecurringExpense.history.map((entry, index) => (
                           <div key={entry.id || index} className="bg-white rounded p-3 border border-gray-200">
@@ -3398,7 +3399,7 @@ const handleFileUpload = async (e) => {
                   {/* Created By */}
                   {selectedRecurringExpense.createdBy && (
                     <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="font-semibold text-gray-900 mb-2">Created By</h4>
+                      <h4 className="font-semibold text-gray-900 mb-2">{tt('Created By')}</h4>
                       <p className="text-gray-700">{selectedRecurringExpense.createdBy.name}</p>
                       {selectedRecurringExpense.createdAt && (
                         <p className="text-xs text-gray-500 mt-1">
@@ -3419,7 +3420,7 @@ const handleFileUpload = async (e) => {
                 }}
                 className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
-                Close
+                {tt('Close')}
               </button>
               {pagePermissions.canUpdateExpenses && (
                 <button
@@ -3430,7 +3431,7 @@ const handleFileUpload = async (e) => {
                   className="px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors flex items-center"
                 >
                   <Edit className="w-4 h-4 mr-2" />
-                  Edit
+                  {tt('Edit')}
                 </button>
               )}
             </div>
@@ -3490,7 +3491,7 @@ const handleFileUpload = async (e) => {
                       )}
                       <div className="text-left rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-3">
                         <p className="text-xs font-medium text-gray-700 uppercase tracking-wide">
-                          COGS reversal scope
+                          {tt('COGS reversal scope')}
                         </p>
                         {deleteModalCogsCtx.hasAnyLinkedSale ? (
                           <>
@@ -3503,7 +3504,7 @@ const handleFileUpload = async (e) => {
                                 onChange={() => setCogsRemovalStrategy('full_sale')}
                               />
                               <span>
-                                <span className="font-medium text-gray-900">Full sale reversal</span>
+                                <span className="font-medium text-gray-900">{tt('Full sale reversal')}</span>
                                 <span className="block text-gray-600 text-xs mt-0.5">
                                   Reverses the linked sale end-to-end (revenue, tax, payments, and related GL).
                                   Recommended when the sale should be unwound, not just cost.
@@ -3519,10 +3520,9 @@ const handleFileUpload = async (e) => {
                                 onChange={() => setCogsRemovalStrategy('journal_only')}
                               />
                               <span>
-                                <span className="font-medium text-gray-900">COGS journals only</span>
+                                <span className="font-medium text-gray-900">{tt('COGS journals only')}</span>
                                 <span className="block text-gray-600 text-xs mt-0.5">
-                                  Reverses only the COGS / cost journal lines. Sale revenue and sales tax stay
-                                  as posted.
+                                  {tt('Reverses only the COGS / cost journal lines. Sale revenue and sales tax stay as posted.')}
                                 </span>
                               </span>
                             </label>
@@ -3546,7 +3546,7 @@ const handleFileUpload = async (e) => {
 
                 <div className="mb-4 text-left">
                   <label htmlFor="deleteReason" className="block text-sm font-medium text-gray-700 mb-2">
-                    Reason for deletion *
+                    {tt('Reason for deletion *')}
                   </label>
                   <textarea
                     id="deleteReason"
@@ -3576,7 +3576,7 @@ const handleFileUpload = async (e) => {
                   setCogsRemovalStrategy('full_sale');
                 }}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="button"
@@ -3626,13 +3626,13 @@ const handleFileUpload = async (e) => {
                 
                 <div className="mb-4">
                   <label htmlFor="restoreReason" className="block text-sm font-medium text-gray-700 mb-2">
-                    Reason for restoration *
+                    {tt('Reason for restoration *')}
                   </label>
                   <textarea
                     id="restoreReason"
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    placeholder="Please provide a reason for restoration..."
+                    placeholder={tt('Please provide a reason for restoration...')}
                     value={restoreReason}
                     onChange={(e) => setRestoreReason(e.target.value)}
                   />
@@ -3650,7 +3650,7 @@ const handleFileUpload = async (e) => {
                   setExpenseToRestore(null);
                 }}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="button"
@@ -3730,8 +3730,8 @@ const handleFileUpload = async (e) => {
             <div className="fixed top-6 right-6 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow-lg z-50 flex items-center animate-fadeIn max-w-md">
               <CheckCircle className="w-5 h-5 mr-2 flex-shrink-0" />
               <div className="mr-2 flex-grow">
-                <p className="font-medium">COGS Settlement Created!</p>
-                <p className="text-sm">The settlement has been recorded as an expense.</p>
+                <p className="font-medium">{tt('COGS Settlement Created!')}</p>
+                <p className="text-sm">{tt('The settlement has been recorded as an expense.')}</p>
               </div>
               <button 
                 className="text-green-700 hover:text-green-800 flex-shrink-0"
@@ -3754,7 +3754,7 @@ const handleFileUpload = async (e) => {
                 }`}
               >
                 <DollarSign className="h-4 w-4 mr-2" />
-                COGS Total
+                {tt('COGS Total')}
               </button>
               <button
                 onClick={() => setCogsActiveTab("tracking")}
@@ -3765,7 +3765,7 @@ const handleFileUpload = async (e) => {
                 }`}
               >
                 <Package className="h-4 w-4 mr-2" />
-                Product Tracking
+                {tt('Product Tracking')}
               </button>
             </nav>
           </div>
@@ -3780,13 +3780,13 @@ const handleFileUpload = async (e) => {
                   <div className="bg-blue-100 p-2 rounded-lg mr-3">
                     <Calendar className="w-5 h-5 text-blue-600" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Date Range Filter</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">{tt('Date Range Filter')}</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                   <div className="md:col-span-1">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       <Calendar className="w-4 h-4 inline mr-1" />
-                      Start Date
+                      {tt('Start Date')}
                     </label>
                     <input
                       type="date"
@@ -3798,7 +3798,7 @@ const handleFileUpload = async (e) => {
                   <div className="md:col-span-1">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       <Calendar className="w-4 h-4 inline mr-1" />
-                      End Date
+                      {tt('End Date')}
                     </label>
                     <input
                       type="date"
@@ -3816,12 +3816,12 @@ const handleFileUpload = async (e) => {
                       {isLoadingCogs ? (
                         <>
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Loading...
+                          {tt('Loading...')}
                         </>
                       ) : (
                         <>
                           <Filter className="w-4 h-4" />
-                          Apply Filter
+                          {tt('Apply Filter')}
                         </>
                       )}
                     </button>
@@ -3845,7 +3845,7 @@ const handleFileUpload = async (e) => {
                 {cogsSummary?.summary?.period && (
                   <div className="mt-4 pt-4 border-t border-blue-200">
                     <p className="text-sm text-gray-600">
-                      <span className="font-medium">Showing data for:</span>{' '}
+                      <span className="font-medium">{tt('Showing data for:')}</span>{' '}
                       {new Date(cogsSummary.summary.period.startDate).toLocaleDateString('en-US', { 
                         year: 'numeric', 
                         month: 'long', 
@@ -3867,7 +3867,7 @@ const handleFileUpload = async (e) => {
                 <div className="bg-white rounded-lg shadow p-8 flex justify-center items-center">
                   <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Loading COGS data...</p>
+                    <p className="text-gray-600">{tt('Loading COGS data...')}</p>
                   </div>
                 </div>
               )}
@@ -3883,8 +3883,8 @@ const handleFileUpload = async (e) => {
                       <TrendingUp className="w-8 h-8 text-blue-600" />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-bold text-gray-900">Accumulative COGS Total</h3>
-                      <p className="text-gray-600">Total Cost of Goods Sold from all products</p>
+                      <h3 className="text-2xl font-bold text-gray-900">{tt('Accumulative COGS Total')}</h3>
+                      <p className="text-gray-600">{tt('Total Cost of Goods Sold from all products')}</p>
                       {cogsSummary?.summary?.period && (
                         <p className="text-sm text-gray-500 mt-1">
                           {new Date(cogsSummary.summary.period.startDate).toLocaleDateString()} - {new Date(cogsSummary.summary.period.endDate).toLocaleDateString()}
@@ -3898,7 +3898,7 @@ const handleFileUpload = async (e) => {
                     <div className="text-4xl font-bold text-blue-600 mb-2">
                       MK {(cogsSummary?.summary?.totalCOGS || 0).toLocaleString()}
                     </div>
-                    <div className="text-lg text-gray-600 mb-4">Total COGS</div>
+                    <div className="text-lg text-gray-600 mb-4">{tt('Total COGS')}</div>
                     <div className="text-sm text-gray-500">
                       {cogsSummary?.summary?.transactionCount || 0} sales with COGS
                     </div>
@@ -3925,18 +3925,18 @@ const handleFileUpload = async (e) => {
                             onClick={resetRecordedCogsAmount}
                             className="px-3 py-1 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 transition-colors"
                           >
-                            Reset
+                            {tt('Reset')}
                           </button>
                           <button
                             onClick={clearAllCogsData}
                             className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
                           >
-                            Clear All
+                            {tt('Clear All')}
                 </button>
               </div>
                       </div>
                       <p className="text-yellow-700 text-xs mt-1">
-                        Reset: Re-record same amount | Clear All: Start fresh
+                        {tt('Reset: Re-record same amount | Clear All: Start fresh')}
                       </p>
                     </div>
                   )}
@@ -3950,12 +3950,12 @@ const handleFileUpload = async (e) => {
                     <div className="bg-green-100 p-2 rounded-lg mr-3">
                       <Package className="w-5 h-5 text-green-600" />
                     </div>
-                    <h4 className="font-semibold text-gray-900">Products Tracked</h4>
+                    <h4 className="font-semibold text-gray-900">{tt('Products Tracked')}</h4>
                   </div>
                   <div className="text-2xl font-bold text-gray-900">
                     {cogsSummary?.summary?.productCount || 0}
                   </div>
-                  <div className="text-sm text-gray-500">Products with COGS data</div>
+                  <div className="text-sm text-gray-500">{tt('Products with COGS data')}</div>
                 </div>
 
                 <div className="bg-white rounded-lg shadow p-4">
@@ -3963,12 +3963,12 @@ const handleFileUpload = async (e) => {
                     <div className="bg-blue-100 p-2 rounded-lg mr-3">
                       <TrendingUp className="w-5 h-5 text-blue-600" />
                     </div>
-                    <h4 className="font-semibold text-gray-900">Total COGS</h4>
+                    <h4 className="font-semibold text-gray-900">{tt('Total COGS')}</h4>
                   </div>
                   <div className="text-2xl font-bold text-gray-900">
                     MK {cogsSummary?.summary?.totalCOGS?.toLocaleString() || '0.00'}
                   </div>
-                  <div className="text-sm text-gray-500">Accumulated from all products</div>
+                  <div className="text-sm text-gray-500">{tt('Accumulated from all products')}</div>
                 </div>
               </div>
               </>
@@ -4061,7 +4061,7 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
           <div className="flex justify-between items-center">
             <h3 className="text-xl font-semibold flex items-center">
               <CheckCircle className="w-5 h-5 mr-2 text-green-600" />
-              Verify Receipt Details
+              {tt('Verify Receipt Details')}
             </h3>
             <button 
               className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
@@ -4075,23 +4075,23 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
         <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-1">
             <div className="flex flex-col h-full">
-              <p className="text-sm text-gray-500 mb-2">Receipt Image:</p>
+              <p className="text-sm text-gray-500 mb-2">{tt('Receipt Image:')}</p>
               <div className="border rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center mb-2 h-64">
                 {receiptData.previewUrl ? (
                   <img 
                     src={receiptData.previewUrl} 
-                    alt="Receipt" 
+                    alt={tt('Receipt')} 
                     className="max-h-full max-w-full object-contain"
                   />
                 ) : (
                   <div className="text-center p-4">
                     <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                    <p className="text-gray-500">No preview available</p>
+                    <p className="text-gray-500">{tt('No preview available')}</p>
                   </div>
                 )}
               </div>
               <p className="text-xs text-gray-500 italic">
-                We've scanned your receipt and extracted the details. Please verify and correct if needed.
+                {tt("We've scanned your receipt and extracted the details. Please verify and correct if needed.")}
               </p>
             </div>
           </div>
@@ -4100,7 +4100,7 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Merchant/Description
+                  {tt('Merchant/Description')}
                 </label>
                 <input
                   type="text"
@@ -4114,7 +4114,7 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
               
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount
+                  {tt('Amount')}
                 </label>
                 <input
                   type="text"
@@ -4128,7 +4128,7 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
               
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Date
+                  {tt('Date')}
                 </label>
                 <input
                   type="date"
@@ -4142,7 +4142,7 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
               
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Expense Category
+                  {tt('Expense Category')}
                 </label>
                 <select
                   name="expenseAccountId"
@@ -4151,7 +4151,7 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
                   className="w-full p-2 border border-gray-300 rounded-md"
                   required
                 >
-                  <option value="">Select an expense category</option>
+                  <option value="">{tt('Select an expense category')}</option>
                   {availableAccounts.map((account) => (
                     <option key={account.id} value={account.id}>
                       {account.code ? `${account.code} - ${account.name}` : account.name}
@@ -4185,7 +4185,7 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
             className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1"
             onClick={onClose}
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button 
             type="button"
@@ -4196,12 +4196,12 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
             {isLoading ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                <span>Processing...</span>
+                <span>{tt('Processing...')}</span>
               </>
             ) : (
               <>
                 <CheckCircle className="w-4 h-4 mr-2" />
-                <span>Create Expense</span>
+                <span>{tt('Create Expense')}</span>
               </>
             )}
           </button>
@@ -4257,10 +4257,10 @@ const ReceiptScanningStatus = ({ progress }) => {
         </div>
       </div>
       
-      <h3 className="text-lg font-medium text-gray-900 mb-2">Scanning Receipt</h3>
+      <h3 className="text-lg font-medium text-gray-900 mb-2">{tt('Scanning Receipt')}</h3>
       <p className="text-gray-500 mb-4 text-center">
-        We're analyzing your receipt to extract merchant, date, and amount information.
-        <br />This may take a few moments...
+        {tt("We're analyzing your receipt to extract merchant, date, and amount information.")}
+        <br />{tt('This may take a few moments...')}
       </p>
       
       <div className="w-full max-w-md bg-gray-200 rounded-full h-2.5 mb-2">

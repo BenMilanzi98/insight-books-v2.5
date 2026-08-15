@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -124,7 +125,7 @@ export default function SupplierReportsPage() {
       <div className="p-6 bg-gray-50 min-h-screen flex items-center justify-center">
         <div className="flex items-center gap-2 text-gray-600">
           <Loader2 size={24} className="animate-spin text-blue-600" />
-          Loading reports...
+          {tt('Loading reports...')}
         </div>
       </div>
     );
@@ -138,14 +139,14 @@ export default function SupplierReportsPage() {
           <div className="mb-6">
             <Link href="/suppliers" className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4">
               <ArrowLeft size={18} />
-              Back to Suppliers
+              {tt('Back to Suppliers')}
             </Link>
             
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Supplier Reports</h1>
+                <h1 className="text-2xl font-bold text-gray-900">{tt('Supplier Reports')}</h1>
                 <p className="text-sm text-gray-600">
-                  Accounts payable aging analysis and supplier spending insights.
+                  {tt('Accounts payable aging analysis and supplier spending insights.')}
                 </p>
               </div>
               
@@ -154,7 +155,7 @@ export default function SupplierReportsPage() {
                 className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
               >
                 <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-                Refresh
+                {tt('Refresh')}
               </button>
             </div>
 
@@ -244,7 +245,7 @@ export default function SupplierReportsPage() {
           {activeReport === 'aging' && agingReport && (
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-semibold text-gray-900">Accounts Payable Aging</h2>
+                <h2 className="text-lg font-semibold text-gray-900">{tt('Accounts Payable Aging')}</h2>
                 <span className="text-sm text-gray-500">As of {formatDate(agingReport.asOfDate)}</span>
               </div>
 
@@ -283,13 +284,13 @@ export default function SupplierReportsPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Supplier</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Current</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">31-60 Days</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">61-90 Days</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Over 90</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Total</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Risk</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">{tt('Supplier')}</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">{tt('Current')}</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">{tt('31-60 Days')}</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">{tt('61-90 Days')}</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">{tt('Over 90')}</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">{tt('Total')}</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">{tt('Risk')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
@@ -324,7 +325,7 @@ export default function SupplierReportsPage() {
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <DollarSign size={40} className="mx-auto mb-3 text-gray-300" />
-                  <p>No outstanding balances found</p>
+                  <p>{tt('No outstanding balances found')}</p>
                 </div>
               )}
             </div>
@@ -334,7 +335,7 @@ export default function SupplierReportsPage() {
           {activeReport === 'spending' && (
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-semibold text-gray-900">Top Suppliers by Spending</h2>
+                <h2 className="text-lg font-semibold text-gray-900">{tt('Top Suppliers by Spending')}</h2>
               </div>
 
               {topSpending && topSpending.length > 0 ? (
@@ -362,7 +363,7 @@ export default function SupplierReportsPage() {
                       
                       <div className="text-right">
                         <p className="text-lg font-bold text-gray-900">{formatCurrency(item.totalSpending)}</p>
-                        <p className="text-xs text-gray-500">Total Spending</p>
+                        <p className="text-xs text-gray-500">{tt('Total Spending')}</p>
                       </div>
                       
                       <div className="w-32">
@@ -398,7 +399,7 @@ export default function SupplierReportsPage() {
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <TrendingUp size={40} className="mx-auto mb-3 text-gray-300" />
-                  <p>No spending data available</p>
+                  <p>{tt('No spending data available')}</p>
                 </div>
               )}
             </div>

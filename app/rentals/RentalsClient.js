@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -593,7 +594,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                         : "bg-white text-slate-700 ring-1 ring-slate-200"
                     }`}
                   >
-                    Rentals
+                    {tt('Rentals')}
                   </Link>
                   <Link
                     href="/rentals/hirings?tab=customer"
@@ -603,19 +604,19 @@ export default function RentalsClient({ mode, embedded = false }) {
                         : "bg-white text-slate-700 ring-1 ring-slate-200"
                     }`}
                   >
-                    Customer hire
+                    {tt('Customer hire')}
                   </Link>
                   <Link
                     href="/rentals/hirings?tab=supplier"
                     className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-amber-900 ring-1 ring-amber-200 hover:bg-amber-50"
                   >
-                    Supplier hire
+                    {tt('Supplier hire')}
                   </Link>
                   <Link
                     href="/invoice"
                     className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
                   >
-                    Invoicing
+                    {tt('Invoicing')}
                   </Link>
                 </div>
               </div>
@@ -627,7 +628,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
               >
                 <RefreshCw className="h-4 w-4" />
-                Refresh
+                {tt('Refresh')}
               </button>
               <button
                 type="button"
@@ -635,7 +636,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
               >
                 <Package className="h-4 w-4" />
-                Add asset
+                {tt('Add asset')}
               </button>
               <button
                 type="button"
@@ -655,7 +656,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                 className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
               >
                 <Plus className="h-4 w-4" />
-                New booking
+                {tt('New booking')}
               </button>
             </div>
           </header>
@@ -697,12 +698,12 @@ export default function RentalsClient({ mode, embedded = false }) {
               <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-center gap-2">
                   <CalendarRange className="h-5 w-5 text-blue-600" />
-                  <h2 className="text-lg font-bold text-slate-900">Calendar</h2>
+                  <h2 className="text-lg font-bold text-slate-900">{tt('Calendar')}</h2>
                   <span className="text-xs text-slate-500">(next 6 weeks)</span>
                 </div>
                 <div className="max-h-64 space-y-2 overflow-y-auto">
                   {calendar.length === 0 ? (
-                    <p className="text-sm text-slate-500">No bookings in this window.</p>
+                    <p className="text-sm text-slate-500">{tt('No bookings in this window.')}</p>
                   ) : (
                     calendar.map((ev) => (
                       <div
@@ -725,16 +726,16 @@ export default function RentalsClient({ mode, embedded = false }) {
               </section>
 
               <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="mb-4 text-lg font-bold text-slate-900">Assets</h2>
+                <h2 className="mb-4 text-lg font-bold text-slate-900">{tt('Assets')}</h2>
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-left text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                        <th className="py-2 pr-4">Name</th>
-                        <th className="py-2 pr-4">Category</th>
-                        <th className="py-2 pr-4">Status</th>
-                        {kind === "hiring" && <th className="py-2 pr-4">Pool qty</th>}
-                        <th className="py-2 pr-4">Default rate</th>
+                        <th className="py-2 pr-4">{tt('Name')}</th>
+                        <th className="py-2 pr-4">{tt('Category')}</th>
+                        <th className="py-2 pr-4">{tt('Status')}</th>
+                        {kind === "hiring" && <th className="py-2 pr-4">{tt('Pool qty')}</th>}
+                        <th className="py-2 pr-4">{tt('Default rate')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -754,7 +755,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                     </tbody>
                   </table>
                   {filteredAssets.length === 0 && (
-                    <p className="mt-4 text-sm text-slate-500">No assets yet — add one to get started.</p>
+                    <p className="mt-4 text-sm text-slate-500">{tt('No assets yet — add one to get started.')}</p>
                   )}
                 </div>
               </section>
@@ -762,17 +763,17 @@ export default function RentalsClient({ mode, embedded = false }) {
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-center gap-2">
                   <ClipboardList className="h-5 w-5 text-blue-600" />
-                  <h2 className="text-lg font-bold text-slate-900">Recent bookings</h2>
+                  <h2 className="text-lg font-bold text-slate-900">{tt('Recent bookings')}</h2>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-left text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                        <th className="py-2 pr-4">Invoice</th>
-                        <th className="py-2 pr-4">Client</th>
-                        <th className="py-2 pr-4">Period</th>
-                        <th className="py-2 pr-4">Status</th>
-                        <th className="py-2 pr-4 text-right">Total</th>
+                        <th className="py-2 pr-4">{tt('Invoice')}</th>
+                        <th className="py-2 pr-4">{tt('Client')}</th>
+                        <th className="py-2 pr-4">{tt('Period')}</th>
+                        <th className="py-2 pr-4">{tt('Status')}</th>
+                        <th className="py-2 pr-4 text-right">{tt('Total')}</th>
                         <th className="py-2 pr-4" />
                       </tr>
                     </thead>
@@ -798,7 +799,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                                 className="text-xs font-semibold text-blue-600 hover:underline"
                                 onClick={() => completeTx(t.id)}
                               >
-                                Complete
+                                {tt('Complete')}
                               </button>
                             )}
                             {["booked", "active", "overdue"].includes(t.status) && (
@@ -807,7 +808,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                                 className="ml-2 text-xs font-semibold text-rose-600 hover:underline"
                                 onClick={() => reverseBooking(t.id)}
                               >
-                                Reverse
+                                {tt('Reverse')}
                               </button>
                             )}
                             {["booked", "active", "overdue"].includes(t.status) && (
@@ -817,7 +818,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                                 className="ml-2 text-xs font-semibold text-amber-700 hover:underline disabled:opacity-50"
                                 onClick={() => recordCharge("DAMAGE", t)}
                               >
-                                Damage
+                                {tt('Damage')}
                               </button>
                             )}
                             {["booked", "active", "overdue"].includes(t.status) && (
@@ -827,7 +828,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                                 className="ml-2 text-xs font-semibold text-slate-700 hover:underline disabled:opacity-50"
                                 onClick={() => recordCharge("REPAIR", t)}
                               >
-                                Repair
+                                {tt('Repair')}
                               </button>
                             )}
                           </td>
@@ -836,7 +837,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                     </tbody>
                   </table>
                   {transactions.length === 0 && (
-                    <p className="mt-4 text-sm text-slate-500">No bookings yet.</p>
+                    <p className="mt-4 text-sm text-slate-500">{tt('No bookings yet.')}</p>
                   )}
                 </div>
               </section>
@@ -847,26 +848,26 @@ export default function RentalsClient({ mode, embedded = false }) {
         {showBook && (
           <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/40 p-4 sm:items-center">
             <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
-              <h3 className="text-lg font-bold text-slate-900">New booking</h3>
+              <h3 className="text-lg font-bold text-slate-900">{tt('New booking')}</h3>
               <p className="mt-1 text-xs text-slate-500">
-                Creates a <strong>Pending</strong> invoice (posted to the ledger) so receivables reflect the
+                {tt('Creates a')} <strong>{tt('Pending')}</strong> invoice (posted to the ledger) so receivables reflect the
                 balance. Revenue is always GL <strong>4000</strong>.
               </p>
               <div className="mt-4 space-y-3">
-                <label className="block text-xs font-semibold text-slate-600">Client</label>
+                <label className="block text-xs font-semibold text-slate-600">{tt('Client')}</label>
                 <select
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   value={bookForm.clientId}
                   onChange={(e) => setBookForm((f) => ({ ...f, clientId: e.target.value }))}
                 >
-                  <option value="">Select…</option>
+                  <option value="">{tt('Select…')}</option>
                   {clients.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
                     </option>
                   ))}
                 </select>
-                <label className="block text-xs font-semibold text-slate-600">Asset</label>
+                <label className="block text-xs font-semibold text-slate-600">{tt('Asset')}</label>
                 <select
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   value={bookForm.rentalAssetId}
@@ -884,7 +885,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                     }));
                   }}
                 >
-                  <option value="">Select…</option>
+                  <option value="">{tt('Select…')}</option>
                   {filteredAssets.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
@@ -893,7 +894,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                 </select>
                 {kind === "hiring" && (
                   <>
-                    <label className="block text-xs font-semibold text-slate-600">Quantity</label>
+                    <label className="block text-xs font-semibold text-slate-600">{tt('Quantity')}</label>
                     <input
                       type="number"
                       min={1}
@@ -908,17 +909,16 @@ export default function RentalsClient({ mode, embedded = false }) {
                 {isHourlyAsset ? (
                   <>
                     <p className="text-xs text-slate-500">
-                      This asset bills by the hour. Start and end must not fall inside an existing booking
-                      window for this item.
+                      {tt('This asset bills by the hour. Start and end must not fall inside an existing booking window for this item.')}
                     </p>
-                    <label className="block text-xs font-semibold text-slate-600">Start</label>
+                    <label className="block text-xs font-semibold text-slate-600">{tt('Start')}</label>
                     <input
                       type="datetime-local"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                       value={bookForm.startAt}
                       onChange={(e) => setBookForm((f) => ({ ...f, startAt: e.target.value }))}
                     />
-                    <label className="block text-xs font-semibold text-slate-600">End</label>
+                    <label className="block text-xs font-semibold text-slate-600">{tt('End')}</label>
                     <input
                       type="datetime-local"
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
@@ -933,7 +933,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                     )}
                     {bookForm.rentalAssetId && assetCalendar.length > 0 && (
                       <div className="max-h-28 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                        <p className="font-semibold text-slate-700">Booked on this asset</p>
+                        <p className="font-semibold text-slate-700">{tt('Booked on this asset')}</p>
                         <ul className="mt-1 list-inside list-disc space-y-0.5">
                           {assetCalendar.map((ev) => (
                             <li key={ev.id}>
@@ -960,7 +960,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                           setDatePickStep("checkIn");
                         }}
                       >
-                        Clear dates
+                        {tt('Clear dates')}
                       </button>
                     </div>
                     <p className="text-xs text-slate-500">
@@ -970,11 +970,11 @@ export default function RentalsClient({ mode, embedded = false }) {
                     </p>
                     {!bookForm.rentalAssetId ? (
                       <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                        Select an asset to load availability.
+                        {tt('Select an asset to load availability.')}
                       </p>
                     ) : assetCalendarLoading ? (
                       <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                        Loading booked dates for this asset…
+                        {tt('Loading booked dates for this asset…')}
                       </p>
                     ) : (
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -1064,7 +1064,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   value={bookForm.unitPrice}
                   onChange={(e) => setBookForm((f) => ({ ...f, unitPrice: e.target.value }))}
-                  placeholder="Uses asset default if empty"
+                  placeholder={tt('Uses asset default if empty')}
                 />
                 <div className="flex flex-wrap items-end justify-between gap-2">
                   <label className="block text-xs font-semibold text-slate-600">Tax (from tax management)</label>
@@ -1072,7 +1072,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                     href="/tax-management"
                     className="text-xs font-semibold text-blue-600 hover:underline"
                   >
-                    Open tax management
+                    {tt('Open tax management')}
                   </Link>
                 </div>
                 <select
@@ -1106,10 +1106,10 @@ export default function RentalsClient({ mode, embedded = false }) {
                     className="text-xs font-semibold text-blue-600 hover:underline"
                     onClick={() => setShowCreateTax(true)}
                   >
-                    Create custom tax…
+                    {tt('Create custom tax…')}
                   </button>
                   <span className="text-xs text-slate-500">
-                    Saved to tax management and selectable on future bookings.
+                    {tt('Saved to tax management and selectable on future bookings.')}
                   </span>
                 </div>
                 {bookForm.selectedTaxTypeId ? (
@@ -1119,7 +1119,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                     (from selected tax type).
                   </p>
                 ) : null}
-                <label className="block text-xs font-semibold text-slate-600">Revenue account</label>
+                <label className="block text-xs font-semibold text-slate-600">{tt('Revenue account')}</label>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
                   {defaultRevenue ? (
                     <>
@@ -1131,10 +1131,10 @@ export default function RentalsClient({ mode, embedded = false }) {
                       </span>
                     </>
                   ) : (
-                    <span className="text-amber-800">Loading account 4000…</span>
+                    <span className="text-amber-800">{tt('Loading account 4000…')}</span>
                   )}
                 </div>
-                <label className="block text-xs font-semibold text-slate-600">Notes</label>
+                <label className="block text-xs font-semibold text-slate-600">{tt('Notes')}</label>
                 <textarea
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   rows={2}
@@ -1148,7 +1148,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                   className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold"
                   onClick={() => setShowBook(false)}
                 >
-                  Close
+                  {tt('Close')}
                 </button>
                 <button
                   type="button"
@@ -1170,7 +1170,7 @@ export default function RentalsClient({ mode, embedded = false }) {
         {showCreateTax && (
           <div className="fixed inset-0 z-[220] flex items-end justify-center bg-black/50 p-4 sm:items-center">
             <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-              <h3 className="text-lg font-bold text-slate-900">Create tax type</h3>
+              <h3 className="text-lg font-bold text-slate-900">{tt('Create tax type')}</h3>
               <p className="mt-1 text-xs text-slate-500">
                 Stored in tax management (same as Settings → Taxes). Link a liability account so tax can be
                 posted correctly from invoices.
@@ -1181,14 +1181,14 @@ export default function RentalsClient({ mode, embedded = false }) {
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   value={createTaxForm.taxId}
                   onChange={(e) => setCreateTaxForm((f) => ({ ...f, taxId: e.target.value }))}
-                  placeholder="e.g. VAT_RENTAL"
+                  placeholder={tt('e.g. VAT_RENTAL')}
                 />
-                <label className="block text-xs font-semibold text-slate-600">Display name</label>
+                <label className="block text-xs font-semibold text-slate-600">{tt('Display name')}</label>
                 <input
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   value={createTaxForm.taxName}
                   onChange={(e) => setCreateTaxForm((f) => ({ ...f, taxName: e.target.value }))}
-                  placeholder="e.g. Rental VAT"
+                  placeholder={tt('e.g. Rental VAT')}
                 />
                 <label className="block text-xs font-semibold text-slate-600">Tax code (optional)</label>
                 <input
@@ -1226,7 +1226,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                   className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold"
                   onClick={() => setShowCreateTax(false)}
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   type="button"
@@ -1246,13 +1246,13 @@ export default function RentalsClient({ mode, embedded = false }) {
             <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
               <h3 className="text-lg font-bold text-slate-900">Add {kind} asset</h3>
               <div className="mt-4 space-y-3">
-                <label className="block text-xs font-semibold text-slate-600">Name</label>
+                <label className="block text-xs font-semibold text-slate-600">{tt('Name')}</label>
                 <input
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   value={assetForm.name}
                   onChange={(e) => setAssetForm((f) => ({ ...f, name: e.target.value }))}
                 />
-                <label className="block text-xs font-semibold text-slate-600">Category</label>
+                <label className="block text-xs font-semibold text-slate-600">{tt('Category')}</label>
                 <input
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   value={assetForm.category}
@@ -1260,7 +1260,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                 />
                 {kind === "hiring" && (
                   <>
-                    <label className="block text-xs font-semibold text-slate-600">Total units in pool</label>
+                    <label className="block text-xs font-semibold text-slate-600">{tt('Total units in pool')}</label>
                     <input
                       type="number"
                       min={1}
@@ -1275,7 +1275,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                     />
                   </>
                 )}
-                <label className="block text-xs font-semibold text-slate-600">Default rate</label>
+                <label className="block text-xs font-semibold text-slate-600">{tt('Default rate')}</label>
                 <input
                   type="number"
                   step="0.01"
@@ -1283,14 +1283,14 @@ export default function RentalsClient({ mode, embedded = false }) {
                   value={assetForm.defaultRate}
                   onChange={(e) => setAssetForm((f) => ({ ...f, defaultRate: e.target.value }))}
                 />
-                <label className="block text-xs font-semibold text-slate-600">Rate unit</label>
+                <label className="block text-xs font-semibold text-slate-600">{tt('Rate unit')}</label>
                 <select
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   value={assetForm.rateUnit}
                   onChange={(e) => setAssetForm((f) => ({ ...f, rateUnit: e.target.value }))}
                 >
-                  <option value="day">Per day</option>
-                  <option value="hour">Per hour</option>
+                  <option value="day">{tt('Per day')}</option>
+                  <option value="hour">{tt('Per hour')}</option>
                 </select>
               </div>
               <div className="mt-6 flex justify-end gap-2">
@@ -1299,7 +1299,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                   className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold"
                   onClick={() => setShowAsset(false)}
                 >
-                  Close
+                  {tt('Close')}
                 </button>
                 <button
                   type="button"

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -85,9 +86,9 @@ export default function CrmLeadsView() {
                 <option value="NEW">NEW</option>
                 <option value="ASSIGNED">ASSIGNED</option>
                 <option value="ACCEPTED">ACCEPTED</option>
-                <option value="QUALIFICATION_IN_PROGRESS">QUALIFICATION_IN_PROGRESS</option>
+                <option value="QUALIFICATION_IN_PROGRESS">{tt('QUALIFICATION_IN_PROGRESS')}</option>
                 <option value="QUALIFIED">QUALIFIED</option>
-                <option value="OPPORTUNITY_READY">OPPORTUNITY_READY</option>
+                <option value="OPPORTUNITY_READY">{tt('OPPORTUNITY_READY')}</option>
                 <option value="NURTURE">NURTURE</option>
                 <option value="MERGED">MERGED</option>
               </select>

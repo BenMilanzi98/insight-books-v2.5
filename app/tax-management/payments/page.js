@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -93,7 +94,7 @@ export default function TaxPaymentsPage() {
               onClick={() => setShowSettle(true)}
               className="rounded-[var(--radius-sm)] bg-[var(--brand-primary)] px-4 py-2 text-sm font-medium text-white"
             >
-              Record settlement
+              {tt('Record settlement')}
             </button>
           ) : null
         }
@@ -101,7 +102,7 @@ export default function TaxPaymentsPage() {
       <p className="mb-4 text-sm text-[var(--text-secondary)]">
         Account balances remain on{" "}
         <Link href="/tax-management/accounts" className="text-[var(--brand-primary)] hover:underline">
-          Tax accounts
+          {tt('Tax accounts')}
         </Link>
         .
       </p>

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -1022,10 +1023,9 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       { href: "/accounting-close", text: "Year-End Close", icon: "yearEndClose", permissions: ["accountingClose.view", "accountingClose.viewDashboard", "journalEntries.view"] },
       { href: "/budget-forecast/forecasts", text: "Financial Planning", icon: "financialPlanning", permissions: ["financialPlanning.view", "financialPlanning.viewDashboard", "budgets.view", "reports.view"] },
       { href: "/loan-readiness", text: "Loan Readiness", icon: "loanReadiness", permissions: ["loanReadiness.view", "loanReadiness.viewDashboard", "reports.view", "liabilities.view"] },
-      { href: "/capital-account", text: "Capital Account", icon: "capital", permission: "accounts.view" },
+      { href: "/capital-account", text: "Capital Account", icon: "capital", permissions: ["accounts.view", "reports.view"] },
       { href: "/chart-of-accounts", text: "Chart of Accounts", icon: "coa", permission: "accounts.view" },
       { href: "/journal-entries", text: "Journal Entries", icon: "journal", permission: "journalEntries.view" },
-      { href: "/capital-account", text: "Capital Account", icon: "capital", permission: "reports.view" },
       { href: "/trial-balance", text: "Trial Balance", icon: "trialBalance", permission: "trialBalance.view" },
       { href: "/transactions/reversals", text: "Reversals", icon: "reversals", permission: "journalEntries.view" },
     ]);
@@ -1131,36 +1131,6 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         overflow: "hidden"
       }}
     >
-      {/* Header Skeleton */}
-      <div className="sidebar-header-skeleton" style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: collapsed ? "center" : "space-between",
-        padding: "16px",
-        borderBottom: "1px solid rgba(255,255,255,0.1)"
-      }}>
-        <div className="logo-skeleton" style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "12px"
-        }}>
-          <div className="logo-icon-skeleton" style={{
-            backgroundColor: "rgba(255, 255, 255, 0.1)",
-            width: "32px",
-            height: "32px",
-            borderRadius: "8px",
-            animation: "pulse 1.5s infinite ease-in-out"
-          }}></div>
-          {!collapsed && <div style={{ 
-            width: "120px", 
-            height: "18px", 
-            backgroundColor: "rgba(255, 255, 255, 0.1)",
-            borderRadius: "4px",
-            animation: "pulse 1.5s infinite ease-in-out"
-          }}></div>}
-        </div>
-      </div>
-
       {/* User Section Skeleton */}
       <div className="user-section-skeleton" style={{
         display: "flex",
@@ -1354,22 +1324,6 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
           animation: "slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
         }}
       >
-      <div className="sidebar-header" style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: collapsed ? "center" : "space-between",
-        padding: "16px",
-        borderBottom: "1px solid rgba(255,255,255,0.1)",
-        position: "relative"
-      }}>
-        {!collapsed && (
-          <div className="flex items-center">
-            <img src="/logo.png" alt="InsightBooks Logo" className="h-11 w-auto object-contain rounded-md"/>
-          </div>
-        )}
-
-      </div>
-
       {/* Compact business switcher + plan / expiry */}
       {!collapsed && user?.tenant && (
         <div style={{ padding: '8px 10px 10px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>

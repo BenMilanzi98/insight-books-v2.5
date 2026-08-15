@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import React, { useState, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Upload, X, Paperclip, Image, FileText, Download, Send, Bold, Italic, Underline, List, AlignLeft, AlignCenter, AlignRight, Link, Quote } from 'lucide-react';
@@ -170,14 +171,14 @@ const ProfessionalEmailComposer = ({
       {/* Subject Field */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Subject *
+          {tt('Subject *')}
         </label>
         <input
           type="text"
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Enter email subject..."
+          placeholder={tt('Enter email subject...')}
           required
         />
       </div>
@@ -185,7 +186,7 @@ const ProfessionalEmailComposer = ({
       {/* Professional Rich Text Editor */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Message *
+          {tt('Message *')}
         </label>
         
         {/* Custom Toolbar */}
@@ -197,7 +198,7 @@ const ProfessionalEmailComposer = ({
               className="p-2 hover:bg-gray-200 rounded-md transition-colors text-sm font-bold"
               title="Heading 1"
             >
-              H1
+              {tt('H1')}
             </button>
             <button
               type="button"
@@ -205,7 +206,7 @@ const ProfessionalEmailComposer = ({
               className="p-2 hover:bg-gray-200 rounded-md transition-colors text-sm font-bold"
               title="Heading 2"
             >
-              H2
+              {tt('H2')}
             </button>
             <button
               type="button"
@@ -213,7 +214,7 @@ const ProfessionalEmailComposer = ({
               className="p-2 hover:bg-gray-200 rounded-md transition-colors text-sm font-bold"
               title="Heading 3"
             >
-              H3
+              {tt('H3')}
             </button>
             <div className="w-px h-6 bg-gray-300 mx-2"></div>
             <button
@@ -312,7 +313,7 @@ const ProfessionalEmailComposer = ({
       {/* File Attachments */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Attachments
+          {tt('Attachments')}
         </label>
         
         {/* Upload Area */}
@@ -328,17 +329,17 @@ const ProfessionalEmailComposer = ({
         >
           <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
           <p className="text-sm text-gray-600 mb-2">
-            Drag and drop files here, or click to select
+            {tt('Drag and drop files here, or click to select')}
           </p>
           <p className="text-xs text-gray-500 mb-3">
-            Images will be inserted inline • Other files will be attached
+            {tt('Images will be inserted inline • Other files will be attached')}
           </p>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="text-blue-600 hover:text-blue-700 text-sm font-medium"
           >
-            Choose Files
+            {tt('Choose Files')}
           </button>
           <input
             ref={fileInputRef}
@@ -353,7 +354,7 @@ const ProfessionalEmailComposer = ({
         {/* Attachments List */}
         {attachments.length > 0 && (
           <div className="mt-4 space-y-2">
-            <h4 className="text-sm font-medium text-gray-700">Attached Files:</h4>
+            <h4 className="text-sm font-medium text-gray-700">{tt('Attached Files:')}</h4>
             {attachments.map((attachment) => (
               <div
                 key={attachment.id}
@@ -402,12 +403,12 @@ const ProfessionalEmailComposer = ({
           {isSending ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              <span>Sending...</span>
+              <span>{tt('Sending...')}</span>
             </>
           ) : (
             <>
               <Send className="h-4 w-4" />
-              <span>Send Professional Email</span>
+              <span>{tt('Send Professional Email')}</span>
             </>
           )}
         </button>
@@ -418,7 +419,7 @@ const ProfessionalEmailComposer = ({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Insert Image</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{tt('Insert Image')}</h3>
               <button
                 onClick={() => setShowImageUpload(false)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -429,7 +430,7 @@ const ProfessionalEmailComposer = ({
             
             <div className="space-y-4">
               <p className="text-sm text-gray-600">
-                Select images to insert directly into your email body.
+                {tt('Select images to insert directly into your email body.')}
               </p>
               
               <button
@@ -437,7 +438,7 @@ const ProfessionalEmailComposer = ({
                 className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors flex items-center justify-center space-x-2"
               >
                 <Image className="h-6 w-6 text-gray-400" />
-                <span className="text-gray-600">Choose Images</span>
+                <span className="text-gray-600">{tt('Choose Images')}</span>
               </button>
             </div>
           </div>

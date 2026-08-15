@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -13,7 +14,7 @@ export default function OnboardingHandoverTabPage() {
       <p>
         <Link href={`/insightbooks/customer-success/onboarding/projects/${id}`}>← Project</Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>Handover</h1>
+      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>{tt('Handover')}</h1>
       <p style={{ color: '#555' }}>
         Create and accept handover (CS / Support / Technical / Billing / Customer Admin) with open
         items. Required before completion certificate.

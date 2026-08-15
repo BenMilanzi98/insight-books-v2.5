@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -12,10 +13,9 @@ export default function TrainingProgramAttendanceTab() {
           ← Program
         </Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem' }}>Attendance</h1>
+      <h1 style={{ fontSize: '1.25rem' }}>{tt('Attendance')}</h1>
       <p style={{ color: '#555' }}>
-        Source-backed capture only. Invitation / calendar / link rejected. Corrections
-        preserve original.
+        {tt('Source-backed capture only. Invitation / calendar / link rejected. Corrections preserve original.')}
       </p>
     </div>
   );

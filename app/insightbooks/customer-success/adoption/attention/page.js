@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import AdoptionContextBar from '@/components/admin/customerSuccess/AdoptionContextBar';
@@ -9,7 +10,7 @@ export default function AdoptionAttentionPage() {
     <div style={{ padding: '1.5rem', maxWidth: 960 }}>
       <AdoptionContextBar population="adoption-attention" />
       <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
-        Attention / Dormancy
+        {tt('Attention / Dormancy')}
       </h1>
       <p style={{ color: '#555', marginBottom: '1.25rem' }}>
         Dormancy risk queue from Phase 9 inactive-class signals. Analytics missing
@@ -18,7 +19,7 @@ export default function AdoptionAttentionPage() {
       <ul style={{ lineHeight: 1.8 }}>
         <li>
           <Link href="/insightbooks/customer-success/adoption/dormancy">
-            Dormancy Recovery cases
+            {tt('Dormancy Recovery cases')}
           </Link>
         </li>
       </ul>

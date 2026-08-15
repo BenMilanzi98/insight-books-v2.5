@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -101,7 +102,7 @@ export default function EmailSuppressionPage() {
         description="Bounced, complained, or manually suppressed addresses. Retries skip suppressed recipients."
         actions={
           <button type="button" onClick={load} className={btnGhost}>
-            <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+            <RefreshCw className="h-4 w-4" aria-hidden /> {tt('Refresh')}
           </button>
         }
       />
@@ -125,10 +126,10 @@ export default function EmailSuppressionPage() {
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           >
-            <option value="manual">manual</option>
-            <option value="bounce">bounce</option>
-            <option value="complaint">complaint</option>
-            <option value="invalid">invalid</option>
+            <option value="manual">{tt('manual')}</option>
+            <option value="bounce">{tt('bounce')}</option>
+            <option value="complaint">{tt('complaint')}</option>
+            <option value="invalid">{tt('invalid')}</option>
           </AdminField.Select>
         </AdminField>
         <button type="submit" disabled={saving} className={btnPrimary}>

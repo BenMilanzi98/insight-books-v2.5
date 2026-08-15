@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -12,9 +13,9 @@ export default function TrainingProgramParticipantsTab() {
           ← Program
         </Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem' }}>Participants</h1>
+      <h1 style={{ fontSize: '1.25rem' }}>{tt('Participants')}</h1>
       <p style={{ color: '#555' }}>
-        Verified identity required for restricted materials. UNKNOWN denied.
+        {tt('Verified identity required for restricted materials. UNKNOWN denied.')}
       </p>
     </div>
   );

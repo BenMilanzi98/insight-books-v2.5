@@ -1,133 +1,133 @@
-### Task 5: Reports service + API + page
+### Task 5: Cloud bind, unbind, heartbeat
 
 **Files:**
-- Create: `lib/rentalReportsService.js`
-- Create: `test/rentalReportsService.test.js`
-- Create: `app/api/rentals/reports/route.js`
-- Create/Replace: `app/rentals/reports/page.js`
+- Create: `lib/desktop/cloud/bind.js`
+- Create: `lib/desktop/cloud/heartbeat.js`
+- Create: `app/api/desktop/bind/route.js`
+- Create: `app/api/desktop/unbind/route.js`
+- Create: `app/api/desktop/heartbeat/route.js`
+- Create: `test/desktop/bind.test.js`
+- Modify: `lib/tenantApiAccess.js` — add `{ prefix: '/api/desktop', anyOf: ['sales.create', 'invoices.create', 'inventory.update', 'payments.create', 'clients.create'] }` (any operational permission is enough to bind; handlers still `requireAuth`)
 
 **Interfaces:**
-- Produces: `buildRentalHiringReport({ prisma, tenantId, from, to, type })` →
+- Consumes: `DESKTOP_CODES`, `getSubscriptionStatus` from `lib/subscriptionService.js`
+- Produces:
+  - `allocateNumberPrefix(existingPrefixes) → string` first unused `TILL1`…`TILL99`
+  - `bindDesktopDevice({ prisma, tenantId, deviceId, name }) → { deviceId, numberPrefix, boundAt }`
+  - `unbindDesktopDevice({ prisma, tenantId, deviceId }) → { ok: true }`
+  - `heartbeatDesktopDevice({ prisma, tenantId, deviceId }) → { serverNow: string, bound: boolean, subscriptionActive: boolean, code?: string }`
+
+Bind rules:
+1. If another row for this `tenantId` has `unboundAt == null` and a **different** `deviceId` → throw `{ code: DESKTOP_CODES.DEVICE_BOUND }`
+2. If this `deviceId` is already bound to this tenant → return existing prefix (idempotent)
+3. If this `deviceId` exists on another tenant → throw 403
+4. Else create with `allocateNumberPrefix`
+
+Heartbeat: 401 if no user; 403 `NOT_BOUND` if device missing or `unboundAt` set; set `lastHeartbeatAt`; `subscriptionActive` is true when `getSubscriptionStatus(tenantId).status` is `'active'` or `'trial'`. If inactive, still return 200 with `subscriptionActive: false` and `code: SUBSCRIPTION_INACTIVE`.
+
+- [ ] **Step 1: Write failing unit tests with an in-memory fake prisma**
 
 ```js
-{
-  revenue: { total, bySource: { RENTAL_SPACE, CUSTOMER_HIRE } },
-  tax: { total },
-  reversals: { count, total },
-  damages: { total, count },
-  repairs: { total, count },
-  utilization: { spaceBookings, customerHireBookings, qtyDays },
-  supplierHireSpend: { total, count },
-  rows: Array<{ date, type, label, amount, invoiceId?, transactionId?, href? }>
+import { describe, expect, it } from 'vitest';
+import { allocateNumberPrefix, bindDesktopDevice } from '../../lib/desktop/cloud/bind.js';
+import { DESKTOP_CODES } from '../../lib/desktop/codes.js';
+
+describe('allocateNumberPrefix', () => {
+  it('starts at TILL1', () => {
+    expect(allocateNumberPrefix([])).toBe('TILL1');
+  });
+  it('skips used prefixes', () => {
+    expect(allocateNumberPrefix(['TILL1', 'TILL2'])).toBe('TILL3');
+  });
+});
+
+function fakePrisma(seed = []) {
+  const devices = [...seed];
+  return {
+    _devices: devices,
+    desktopDevice: {
+      findMany: async ({ where }) =>
+        devices.filter((d) => d.tenantId === where.tenantId && (where.unboundAt === null ? d.unboundAt == null : true)),
+      findFirst: async ({ where }) =>
+        devices.find((d) => {
+          if (where.tenantId && d.tenantId !== where.tenantId) return false;
+          if (where.deviceId && d.deviceId !== where.deviceId) return false;
+          if (where.unboundAt === null && d.unboundAt != null) return false;
+          return true;
+        }) || null,
+      findUnique: async ({ where }) => devices.find((d) => d.deviceId === where.deviceId) || null,
+      create: async ({ data }) => {
+        const row = { ...data, unboundAt: null, boundAt: new Date() };
+        devices.push(row);
+        return row;
+      },
+    },
+  };
 }
-```
 
-Filter `type`: `all` | `space` | `customer_hire` | `supplier_hire`.
+describe('bindDesktopDevice', () => {
+  it('rejects a second active device', async () => {
+    const prisma = fakePrisma([
+      { tenantId: 't1', deviceId: 'pc-a', numberPrefix: 'TILL1', unboundAt: null },
+    ]);
+    await expect(
+      bindDesktopDevice({ prisma, tenantId: 't1', deviceId: 'pc-b', name: 'Shop' })
+    ).rejects.toMatchObject({ code: DESKTOP_CODES.DEVICE_BOUND });
+  });
 
-- [ ] **Step 1: Failing tests with fake prisma**
-
-```js
-import { describe, it, expect, vi } from 'vitest';
-import { buildRentalHiringReport } from '../lib/rentalReportsService.js';
-
-describe('buildRentalHiringReport', () => {
-  it('sums outbound invoice revenue/tax and voids as reversals; excludes supplier from revenue', async () => {
-    const prisma = {
-      invoice: {
-        findMany: vi.fn().mockResolvedValue([
-          {
-            id: 'i1',
-            status: 'Paid',
-            total: 1000,
-            taxAmount: 150,
-            issueDate: new Date('2026-08-01'),
-            isRentalInvoice: true,
-            voidedAt: null,
-            rentalTransaction: { id: 'rt1', kind: 'rental', startAt: new Date('2026-08-01'), endAt: new Date('2026-08-02') },
-          },
-          {
-            id: 'i2',
-            status: 'void',
-            total: 500,
-            taxAmount: 75,
-            issueDate: new Date('2026-08-03'),
-            isRentalInvoice: true,
-            voidedAt: new Date('2026-08-04'),
-            rentalTransaction: { id: 'rt2', kind: 'hiring', startAt: new Date('2026-08-03'), endAt: new Date('2026-08-05') },
-          },
-        ]),
-      },
-      rentalCharge: {
-        findMany: vi.fn().mockResolvedValue([
-          { id: 'c1', chargeType: 'DAMAGE', amount: 80, billingStatus: 'BILLED', createdAt: new Date('2026-08-02') },
-        ]),
-      },
-      expense: {
-        findMany: vi.fn().mockResolvedValue([
-          { id: 'e1', amount: 120, notes: 'source=REPAIR rentalAssetId=asset-1', expenseDate: new Date('2026-08-02') },
-        ]),
-      },
-      hireAgreement: {
-        findMany: vi.fn().mockResolvedValue([]),
-      },
-      // If supplier bills live on SupplierBill with hire link, mock that instead — inspect hiring-v2 bill action and match real model.
-      supplierBill: {
-        findMany: vi.fn().mockResolvedValue([
-          { id: 'sb1', total: 300, status: 'Unpaid', billDate: new Date('2026-08-01'), notes: 'source=SUPPLIER_HIRE' },
-        ]),
-      },
-    };
-
-    const report = await buildRentalHiringReport({
-      prisma,
-      tenantId: 't1',
-      from: new Date('2026-08-01'),
-      to: new Date('2026-08-31'),
-      type: 'all',
-    });
-
-    expect(report.revenue.total).toBe(1000);
-    expect(report.tax.total).toBe(150);
-    expect(report.reversals.count).toBe(1);
-    expect(report.damages.total).toBe(80);
-    expect(report.repairs.total).toBe(120);
-    expect(report.supplierHireSpend.total).toBe(300);
-    expect(report.revenue.total).not.toBe(1300);
+  it('is idempotent for the same device', async () => {
+    const prisma = fakePrisma([]);
+    const a = await bindDesktopDevice({ prisma, tenantId: 't1', deviceId: 'pc-a', name: 'Shop' });
+    const b = await bindDesktopDevice({ prisma, tenantId: 't1', deviceId: 'pc-a', name: 'Shop' });
+    expect(a.numberPrefix).toBe('TILL1');
+    expect(b.numberPrefix).toBe('TILL1');
   });
 });
 ```
 
-Adjust mocks to **real** Prisma model names used by hiring-v2 bill posting (read `app/api/hiring-v2/agreements/[id]/[action]/route.js` before implementing and align the test).
+- [ ] **Step 2: Implement bind/heartbeat modules + thin routes**
 
-- [ ] **Step 2: Run — expect FAIL**
+Route pattern (all three):
 
-- [ ] **Step 3: Implement aggregator**
+```js
+import { NextResponse } from 'next/server';
+import { getUserFromSession } from '@/lib/auth';
+import prisma from '@/lib/prisma';
+import { bindDesktopDevice } from '@/lib/desktop/cloud/bind.js';
+import { DESKTOP_CODES } from '@/lib/desktop/codes.js';
 
-Rules:
-- Revenue: `isRentalInvoice` invoices in range where status not in `void`/`draft`/`cancelled`; classify via `rentalTransaction.kind`.
-- Tax: sum `taxAmount` for those revenue invoices.
-- Reversals: rental invoices with `status=void` or `voidedAt` set in range (use voidedAt for period).
-- Damages: `RentalCharge` where `chargeType` matches `/damage|loss/i`.
-- Repairs: expenses whose `notes` contain `source=REPAIR` or `RENTAL_REPAIR` (document this convention in hub UI for operators recording repairs); if Expense model field names differ, map accordingly.
-- Utilization: count RTs by kind; qty-days ≈ sum over items of `quantity * billableUnits` or day span × qty.
-- Supplier spend: bills/accruals tagged from hiring-v2 (inspect actual write path).
+export async function POST(request) {
+  const user = await getUserFromSession(request);
+  if (!user?.tenantId) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+  const body = await request.json().catch(() => ({}));
+  try {
+    const result = await bindDesktopDevice({
+      prisma,
+      tenantId: user.tenantId,
+      deviceId: String(body.deviceId || ''),
+      name: String(body.name || 'Till'),
+    });
+    return NextResponse.json(result);
+  } catch (e) {
+    const status = e.code === DESKTOP_CODES.DEVICE_BOUND ? 409 : 400;
+    return NextResponse.json({ error: e.message, code: e.code }, { status });
+  }
+}
+```
 
-- [ ] **Step 4: API route**
+Unbind sets `unboundAt = now()` where `tenantId` + `deviceId` and `unboundAt` is null.
 
-`GET /api/rentals/reports?from=&to=&type=`
-Auth via session + `rentals.view`; return JSON report.
+Heartbeat updates `lastHeartbeatAt` and returns ISO `serverNow: new Date().toISOString()`.
 
-Add tenant API access if needed: already covered by `/api/rentals` prefix.
+- [ ] **Step 3: Run tests**
 
-- [ ] **Step 5: Reports page**
+Run: `npx vitest run test/desktop/bind.test.js`
 
-`/rentals/reports` with date filters, type select, metric cards, simple table of `rows`, links to `/invoices` when `invoiceId` present. Use `PosStylePageHeader` / glass panels.
+Expected: PASS
 
-- [ ] **Step 6: Tests PASS + smoke**
-
-Run: `npx vitest run test/rentalReportsService.test.js`
-
-- [ ] **Step 7: Commit only if user asked**
+- [ ] **Step 4: Commit** (skip unless asked)
 
 ---
 

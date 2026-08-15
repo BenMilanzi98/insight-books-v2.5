@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -104,15 +105,14 @@ export default function MraEisRestrictionsPage() {
       <header className="space-y-2">
         <p className="text-sm text-slate-600">
           <Link href="/settings/integrations/mra-eis" className="underline">
-            MRA EIS
+            {tt('MRA EIS')}
           </Link>
           {' / '}
           Restrictions
         </p>
-        <h1 className="text-2xl font-semibold text-slate-900">EIS Compliance Restrictions</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">{tt('EIS Compliance Restrictions')}</h1>
         <p className="text-sm text-slate-700" role="status">
-          Restrictions are source-aware and evidence-driven. Existing accepted receipts remain
-          available. There is no “Set Terminal Active” shortcut.
+          {tt('Restrictions are source-aware and evidence-driven. Existing accepted receipts remain available. There is no “Set Terminal Active” shortcut.')}
         </p>
       </header>
 
@@ -124,10 +124,10 @@ export default function MraEisRestrictionsPage() {
 
       <section className="space-y-3" aria-labelledby="terminal-controls">
         <h2 id="terminal-controls" className="text-lg font-medium">
-          Terminal scope
+          {tt('Terminal scope')}
         </h2>
         <label className="block text-sm">
-          Terminal ID
+          {tt('Terminal ID')}
           <input
             className="mt-1 w-full max-w-md rounded border border-slate-300 px-3 py-2"
             value={terminalId}
@@ -141,28 +141,28 @@ export default function MraEisRestrictionsPage() {
             onClick={load}
             disabled={loading}
           >
-            Refresh
+            {tt('Refresh')}
           </button>
           <button
             type="button"
             className="rounded border border-slate-300 px-3 py-2 text-sm"
             onClick={ingestMraBlock}
           >
-            Simulate MRA block
+            {tt('Simulate MRA block')}
           </button>
           <button
             type="button"
             className="rounded border border-slate-300 px-3 py-2 text-sm"
             onClick={evaluateCapability}
           >
-            Evaluate finalize capability
+            {tt('Evaluate finalize capability')}
           </button>
           <button
             type="button"
             className="rounded border border-amber-600 px-3 py-2 text-sm text-amber-900"
             onClick={runUnblockHappyPath}
           >
-            Mock unblock + revalidate
+            {tt('Mock unblock + revalidate')}
           </button>
         </div>
       </section>
@@ -170,23 +170,23 @@ export default function MraEisRestrictionsPage() {
       {contracts ? (
         <section aria-labelledby="contracts-heading" className="space-y-2">
           <h2 id="contracts-heading" className="text-lg font-medium">
-            Contract decision
+            {tt('Contract decision')}
           </h2>
           <dl className="grid gap-2 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-slate-600">Unblock production</dt>
+              <dt className="text-slate-600">{tt('Unblock production')}</dt>
               <dd className="font-medium">{contracts.unblockStatusProduction}</dd>
             </div>
             <div>
-              <dt className="text-slate-600">HTTP success ≠ clearance</dt>
+              <dt className="text-slate-600">{tt('HTTP success ≠ clearance')}</dt>
               <dd className="font-medium">{String(contracts.httpSuccessInsufficientForClearance)}</dd>
             </div>
             <div>
-              <dt className="text-slate-600">Tenant cannot clear MRA</dt>
+              <dt className="text-slate-600">{tt('Tenant cannot clear MRA')}</dt>
               <dd className="font-medium">{String(contracts.tenantCannotClearMra)}</dd>
             </div>
             <div>
-              <dt className="text-slate-600">Direct ACTIVE forbidden</dt>
+              <dt className="text-slate-600">{tt('Direct ACTIVE forbidden')}</dt>
               <dd className="font-medium">{String(contracts.directActiveForbidden)}</dd>
             </div>
           </dl>
@@ -198,7 +198,7 @@ export default function MraEisRestrictionsPage() {
           Active restrictions ({restrictions.length})
         </h2>
         {restrictions.length === 0 ? (
-          <p className="text-sm text-slate-600">No active restrictions for this scope.</p>
+          <p className="text-sm text-slate-600">{tt('No active restrictions for this scope.')}</p>
         ) : (
           <ul className="mt-2 space-y-2">
             {restrictions.map((r) => (
@@ -220,10 +220,10 @@ export default function MraEisRestrictionsPage() {
       {projection ? (
         <section aria-labelledby="projection-heading" className="space-y-2">
           <h2 id="projection-heading" className="text-lg font-medium">
-            Terminal compliance projection
+            {tt('Terminal compliance projection')}
           </h2>
           <p className="text-sm" role="status">
-            Effective state: <strong>{projection.effectiveState}</strong>
+            {tt('Effective state:')} <strong>{projection.effectiveState}</strong>
             {projection.primaryReasonCode ? ` — ${projection.primarySafeText}` : ''}
           </p>
           <ul className="grid gap-1 text-sm sm:grid-cols-2">
@@ -240,7 +240,7 @@ export default function MraEisRestrictionsPage() {
       {capability ? (
         <section aria-labelledby="cap-heading">
           <h2 id="cap-heading" className="text-lg font-medium">
-            Capability result
+            {tt('Capability result')}
           </h2>
           <pre className="overflow-x-auto rounded bg-slate-50 p-3 text-xs">
             {JSON.stringify(capability, null, 2)}
@@ -251,7 +251,7 @@ export default function MraEisRestrictionsPage() {
       {unblock ? (
         <section aria-labelledby="unblock-heading">
           <h2 id="unblock-heading" className="text-lg font-medium">
-            Unblock + revalidation result
+            {tt('Unblock + revalidation result')}
           </h2>
           <p className="text-sm text-slate-700">
             Operational after revalidation:{' '}

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -93,7 +94,7 @@ export default function SupportTicketsView() {
                 <option value="TRIAGE">TRIAGE</option>
                 <option value="ASSIGNED">ASSIGNED</option>
                 <option value="IN_PROGRESS">IN_PROGRESS</option>
-                <option value="WAITING_FOR_CUSTOMER">WAITING_FOR_CUSTOMER</option>
+                <option value="WAITING_FOR_CUSTOMER">{tt('WAITING_FOR_CUSTOMER')}</option>
                 <option value="RESOLVED">RESOLVED</option>
                 <option value="CLOSED">CLOSED</option>
               </select>

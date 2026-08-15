@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from "react";
 import Link from "next/link";
@@ -15,9 +16,9 @@ export default function SupportPage() {
             className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
           >
             <ArrowLeft size={16} className="mr-2" />
-            Back to Dashboard
+            {tt('Back to Dashboard')}
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">Support Center</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{tt('Support Center')}</h1>
         </div>
 
         {/* Disabled Message */}
@@ -27,7 +28,7 @@ export default function SupportPage() {
           </div>
           
           <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-            Support Center Temporarily Unavailable
+            {tt('Support Center Temporarily Unavailable')}
           </h2>
           
           <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
@@ -39,27 +40,27 @@ export default function SupportPage() {
           <div className="space-y-4">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-blue-800 text-sm">
-                <strong>💡 Tip:</strong> Look for the green WhatsApp button in the bottom-right corner of your screen for instant support!
+                <strong>💡 Tip:</strong> {tt('Look for the green WhatsApp button in the bottom-right corner of your screen for instant support!')}
               </p>
             </div>
             
             <p className="text-sm text-gray-500">
-              Our support team typically responds within 2-4 hours during business days
+              {tt('Our support team typically responds within 2-4 hours during business days')}
             </p>
           </div>
 
           {/* Support Information */}
           <div className="mt-8 pt-8 border-t border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900 mb-6">Support Information</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-6">{tt('Support Information')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <Mail className="h-8 w-8 text-gray-600 mx-auto mb-2" />
-                <h4 className="font-medium text-gray-900 mb-1">Email Support</h4>
-                <p className="text-sm text-gray-600">support@insightbooks.com</p>
+                <h4 className="font-medium text-gray-900 mb-1">{tt('Email Support')}</h4>
+                <p className="text-sm text-gray-600">{tt('support@insightbooks.com')}</p>
               </div>
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <Clock className="h-8 w-8 text-gray-600 mx-auto mb-2" />
-                <h4 className="font-medium text-gray-900 mb-1">Business Hours</h4>
+                <h4 className="font-medium text-gray-900 mb-1">{tt('Business Hours')}</h4>
                 <p className="text-sm text-gray-600">Mon-Fri 8:00 AM - 6:00 PM (CAT)</p>
               </div>
             </div>
@@ -67,7 +68,7 @@ export default function SupportPage() {
 
           {/* Common Issues */}
           <div className="mt-8 pt-8 border-t border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Common Issues</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">{tt('Common Issues')}</h3>
             <div className="text-left max-w-2xl mx-auto">
               <div className="space-y-3 text-sm text-gray-600">
                 <div className="flex items-start">

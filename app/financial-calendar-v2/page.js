@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * Financial Calendar (Phase 8) — canonical financial years, accounting
@@ -118,7 +119,7 @@ function YearSetupCard({ onDone, notify }) {
   return (
     <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-lg shadow-slate-200/50">
       <h2 className="mb-1 flex items-center gap-2 text-lg font-semibold text-slate-800">
-        <CalendarDays className="h-5 w-5 text-blue-600" /> Create Financial Year
+        <CalendarDays className="h-5 w-5 text-blue-600" /> {tt('Create Financial Year')}
       </h2>
       <p className="mb-4 text-sm text-slate-600">
         The server generates all monthly periods atomically from your business calendar configuration
@@ -126,7 +127,7 @@ function YearSetupCard({ onDone, notify }) {
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Start year</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">{tt('Start year')}</label>
           <input
             type="number"
             className="w-32 rounded-xl border border-slate-200 px-3 py-2.5 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/50"
@@ -140,7 +141,7 @@ function YearSetupCard({ onDone, notify }) {
           onClick={doPreview}
           className="rounded-xl bg-slate-700 px-4 py-2.5 font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
         >
-          Preview periods
+          {tt('Preview periods')}
         </button>
         {preview && (
           <button
@@ -218,7 +219,7 @@ function CloseDashboard({ period, runDetail, refresh, notify }) {
 
       {run.trialBalanceStatus && (
         <p className="mb-2 text-xs text-slate-600">
-          Trial Balance: <strong>{run.trialBalanceStatus}</strong> · Reports: <strong>{run.reportStatus ?? '—'}</strong> · Integrity: <strong>{run.integrityStatus ?? '—'}</strong>
+          {tt('Trial Balance:')} <strong>{run.trialBalanceStatus}</strong> · Reports: <strong>{run.reportStatus ?? '—'}</strong> · Integrity: <strong>{run.integrityStatus ?? '—'}</strong>
         </p>
       )}
       {blockingOpen.length > 0 && (
@@ -231,11 +232,11 @@ function CloseDashboard({ period, runDetail, refresh, notify }) {
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-slate-50">
             <tr className="border-b text-left text-slate-500">
-              <th className="px-2 py-1.5">Task</th>
-              <th className="px-2 py-1.5">Module</th>
-              <th className="px-2 py-1.5">Kind</th>
-              <th className="px-2 py-1.5">Status</th>
-              <th className="px-2 py-1.5 text-right">Manual completion</th>
+              <th className="px-2 py-1.5">{tt('Task')}</th>
+              <th className="px-2 py-1.5">{tt('Module')}</th>
+              <th className="px-2 py-1.5">{tt('Kind')}</th>
+              <th className="px-2 py-1.5">{tt('Status')}</th>
+              <th className="px-2 py-1.5 text-right">{tt('Manual completion')}</th>
             </tr>
           </thead>
           <tbody>
@@ -275,7 +276,7 @@ function CloseDashboard({ period, runDetail, refresh, notify }) {
                           )
                         }
                       >
-                        Pass
+                        {tt('Pass')}
                       </button>
                     </div>
                   )}
@@ -288,11 +289,11 @@ function CloseDashboard({ period, runDetail, refresh, notify }) {
 
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={busy} onClick={() => act({ action: 'run-checks', closeRunId: run.id }, 'Automated checks executed.')} className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-          <RefreshCw className="h-3.5 w-3.5" /> Run automated checks
+          <RefreshCw className="h-3.5 w-3.5" /> {tt('Run automated checks')}
         </button>
         {run.status === 'IN_PROGRESS' && (
           <button type="button" disabled={busy} onClick={() => act({ action: 'submit-review', closeRunId: run.id }, 'Close submitted for review.')} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-            Submit for review
+            {tt('Submit for review')}
           </button>
         )}
         {run.status === 'READY_FOR_REVIEW' && (
@@ -302,7 +303,7 @@ function CloseDashboard({ period, runDetail, refresh, notify }) {
         )}
         {run.status === 'APPROVED' && (
           <button type="button" disabled={busy} onClick={() => act({ action: 'close', closeRunId: run.id }, 'Period closed. Snapshots generated.')} className="flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50">
-            <Lock className="h-3.5 w-3.5" /> Close period
+            <Lock className="h-3.5 w-3.5" /> {tt('Close period')}
           </button>
         )}
         <button
@@ -314,7 +315,7 @@ function CloseDashboard({ period, runDetail, refresh, notify }) {
           }}
           className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
         >
-          Cancel close
+          {tt('Cancel close')}
         </button>
       </div>
     </div>
@@ -360,7 +361,7 @@ function PeriodDetail({ periodId, onClose, notify, onChanged }) {
   if (!detail) {
     return (
       <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center text-slate-500 shadow-lg">
-        Loading period…
+        {tt('Loading period…')}
       </div>
     );
   }
@@ -403,7 +404,7 @@ function PeriodDetail({ periodId, onClose, notify, onChanged }) {
               }}
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
             >
-              View reopening impact
+              {tt('View reopening impact')}
             </button>
             <button
               type="button"
@@ -414,7 +415,7 @@ function PeriodDetail({ periodId, onClose, notify, onChanged }) {
               }}
               className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              Request reopening
+              {tt('Request reopening')}
             </button>
           </>
         )}
@@ -428,7 +429,7 @@ function PeriodDetail({ periodId, onClose, notify, onChanged }) {
           }}
           className="flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
         >
-          <Lock className="h-3.5 w-3.5" /> Set lock date
+          <Lock className="h-3.5 w-3.5" /> {tt('Set lock date')}
         </button>
         <button type="button" onClick={() => setShowHistory((v) => !v)} className="flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100">
           <History className="h-3.5 w-3.5" /> Status history ({statusHistory.length})
@@ -453,7 +454,7 @@ function PeriodDetail({ periodId, onClose, notify, onChanged }) {
               }}
               className="rounded border border-blue-300 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
             >
-              Reject
+              {tt('Reject')}
             </button>
           </div>
         </div>
@@ -462,14 +463,14 @@ function PeriodDetail({ periodId, onClose, notify, onChanged }) {
       {/* Reopening impact */}
       {impact && (
         <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-          <p className="mb-1 font-semibold text-slate-800">Reopening impact analysis</p>
+          <p className="mb-1 font-semibold text-slate-800">{tt('Reopening impact analysis')}</p>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
-            <span>Journals in period: <strong>{impact.journalCount}</strong></span>
-            <span>Completed close runs: <strong>{impact.closeRunCount}</strong></span>
-            <span>Snapshots affected: <strong>{impact.snapshotCount ?? '—'}</strong></span>
-            <span>Downstream periods: <strong>{impact.downstreamPeriodCount ?? impact.downstreamPeriods?.length ?? 0}</strong></span>
-            <span>Later years affected: <strong>{impact.downstreamYearCount ?? 0}</strong></span>
-            <span>Open exceptions: <strong>{impact.openExceptionCount ?? 0}</strong></span>
+            <span>{tt('Journals in period:')} <strong>{impact.journalCount}</strong></span>
+            <span>{tt('Completed close runs:')} <strong>{impact.closeRunCount}</strong></span>
+            <span>{tt('Snapshots affected:')} <strong>{impact.snapshotCount ?? '—'}</strong></span>
+            <span>{tt('Downstream periods:')} <strong>{impact.downstreamPeriodCount ?? impact.downstreamPeriods?.length ?? 0}</strong></span>
+            <span>{tt('Later years affected:')} <strong>{impact.downstreamYearCount ?? 0}</strong></span>
+            <span>{tt('Open exceptions:')} <strong>{impact.openExceptionCount ?? 0}</strong></span>
           </div>
         </div>
       )}
@@ -481,7 +482,7 @@ function PeriodDetail({ periodId, onClose, notify, onChanged }) {
       {exceptions.length > 0 && (
         <div className="mt-4">
           <h4 className="mb-2 flex items-center gap-1 text-sm font-semibold text-slate-700">
-            <AlertTriangle className="h-4 w-4 text-amber-600" /> Period exceptions
+            <AlertTriangle className="h-4 w-4 text-amber-600" /> {tt('Period exceptions')}
           </h4>
           <div className="space-y-1">
             {exceptions.map((e) => (
@@ -519,11 +520,11 @@ function PeriodDetail({ periodId, onClose, notify, onChanged }) {
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-slate-50">
               <tr className="border-b text-left text-slate-500">
-                <th className="px-2 py-1.5">When</th>
-                <th className="px-2 py-1.5">Action</th>
-                <th className="px-2 py-1.5">Transition</th>
-                <th className="px-2 py-1.5">By</th>
-                <th className="px-2 py-1.5">Reason</th>
+                <th className="px-2 py-1.5">{tt('When')}</th>
+                <th className="px-2 py-1.5">{tt('Action')}</th>
+                <th className="px-2 py-1.5">{tt('Transition')}</th>
+                <th className="px-2 py-1.5">{tt('By')}</th>
+                <th className="px-2 py-1.5">{tt('Reason')}</th>
               </tr>
             </thead>
             <tbody>
@@ -588,14 +589,14 @@ function IntegrityPanel({ notify }) {
     <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-lg shadow-slate-200/50">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-800">
-          <ShieldCheck className="h-5 w-5 text-emerald-600" /> Calendar Integrity and Readiness
+          <ShieldCheck className="h-5 w-5 text-emerald-600" /> {tt('Calendar Integrity and Readiness')}
         </h2>
         <div className="flex gap-2">
           <button type="button" disabled={busy} onClick={run} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
-            Run integrity audit
+            {tt('Run integrity audit')}
           </button>
           <button type="button" disabled={busy} onClick={() => migrate(false)} className="flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50">
-            <Database className="h-3.5 w-3.5" /> Preview legacy migration
+            <Database className="h-3.5 w-3.5" /> {tt('Preview legacy migration')}
           </button>
           <button
             type="button"
@@ -605,16 +606,16 @@ function IntegrityPanel({ notify }) {
             }}
             className="rounded-lg border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
           >
-            Execute migration
+            {tt('Execute migration')}
           </button>
         </div>
       </div>
       {data && (
         <div className="space-y-3 text-sm">
           <div className="flex flex-wrap gap-4">
-            <span>Integrity: <StatusBadge status={data.integrity?.status === 'PASS' ? 'OPEN' : 'CLOSED'} /> <strong className="ml-1">{data.integrity?.status}</strong> ({data.integrity?.checkedYears} years, {data.integrity?.checkedPeriods} periods)</span>
-            <span>Readiness: <strong>{data.readiness?.status}</strong></span>
-            <span>Monitoring findings: <strong>{data.monitoring?.findings?.length ?? 0}</strong></span>
+            <span>{tt('Integrity:')} <StatusBadge status={data.integrity?.status === 'PASS' ? 'OPEN' : 'CLOSED'} /> <strong className="ml-1">{data.integrity?.status}</strong> ({data.integrity?.checkedYears} years, {data.integrity?.checkedPeriods} periods)</span>
+            <span>{tt('Readiness:')} <strong>{data.readiness?.status}</strong></span>
+            <span>{tt('Monitoring findings:')} <strong>{data.monitoring?.findings?.length ?? 0}</strong></span>
           </div>
           {(data.integrity?.findings ?? []).length > 0 && (
             <div className="space-y-1">
@@ -731,13 +732,13 @@ export default function FinancialCalendarV2Page() {
                 {/* Year timeline */}
                 <PosStylePanel className="p-6">
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-lg font-semibold text-slate-800">Financial Years</h2>
+                    <h2 className="text-lg font-semibold text-slate-800">{tt('Financial Years')}</h2>
                     <select
                       className="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-500/50"
                       value={yearFilter}
                       onChange={(e) => setYearFilter(e.target.value)}
                     >
-                      <option value="">All years</option>
+                      <option value="">{tt('All years')}</option>
                       {years.map((y) => (
                         <option key={y.id} value={y.id}>{y.code} — {y.status}{y.isCurrent ? ' (current)' : ''}</option>
                       ))}
@@ -767,9 +768,9 @@ export default function FinancialCalendarV2Page() {
 
                 {/* Period cards */}
                 <PosStylePanel className="p-6">
-                  <h2 className="mb-4 text-lg font-semibold text-slate-800">Accounting Periods</h2>
+                  <h2 className="mb-4 text-lg font-semibold text-slate-800">{tt('Accounting Periods')}</h2>
                   {visiblePeriods.length === 0 ? (
-                    <p className="py-8 text-center text-slate-500">No periods for this selection.</p>
+                    <p className="py-8 text-center text-slate-500">{tt('No periods for this selection.')}</p>
                   ) : (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                       {visiblePeriods.map((p) => {
@@ -788,7 +789,7 @@ export default function FinancialCalendarV2Page() {
                             <div className="text-xs text-slate-500">{p.code} · {fmtDate(p.startDate)} – {fmtDate(p.endDate)}</div>
                             <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-400">
                               {p.lockDate && <span className="flex items-center gap-0.5 text-amber-600"><Lock className="h-3 w-3" /> locked ≤ {fmtDate(p.lockDate)}</span>}
-                              {isCurrent && <span className="font-semibold text-blue-600">current</span>}
+                              {isCurrent && <span className="font-semibold text-blue-600">{tt('current')}</span>}
                               <ChevronRight className="ml-auto h-3.5 w-3.5" />
                             </div>
                           </button>
@@ -824,7 +825,7 @@ function YearSetupCardInline({ onDone, notify }) {
   const [busy, setBusy] = useState(false);
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      <span className="text-slate-600">Create next financial year:</span>
+      <span className="text-slate-600">{tt('Create next financial year:')}</span>
       <input
         type="number"
         className="w-24 rounded-lg border border-slate-200 px-2 py-1.5"
@@ -858,7 +859,7 @@ function YearSetupCardInline({ onDone, notify }) {
         }}
         className="rounded-lg bg-blue-600 px-3 py-1.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
       >
-        Create + open
+        {tt('Create + open')}
       </button>
     </div>
   );

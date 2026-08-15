@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useMemo } from 'react';
 import { X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
@@ -165,7 +166,7 @@ const BulkTaxApplicationModal = ({
         {/* Header */}
         <div className="p-5 border-b border-gray-200 flex-shrink-0">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Apply Taxes to Products</h2>
+            <h2 className="text-xl font-semibold">{tt('Apply Taxes to Products')}</h2>
             <button 
               className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
               onClick={onClose}
@@ -188,12 +189,12 @@ const BulkTaxApplicationModal = ({
               {taxTypesLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                  <span className="ml-2 text-gray-600">Loading tax types...</span>
+                  <span className="ml-2 text-gray-600">{tt('Loading tax types...')}</span>
                 </div>
               ) : taxTypes.length === 0 ? (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <p className="text-sm text-yellow-800">
-                    No active tax types available. <a href="/tax-management/accounts" className="text-blue-600 hover:underline">Create tax types</a> first.
+                    {tt('No active tax types available.')} <a href="/tax-management/accounts" className="text-blue-600 hover:underline">{tt('Create tax types')}</a> {tt('first.')}
                   </p>
                 </div>
               ) : (
@@ -223,7 +224,7 @@ const BulkTaxApplicationModal = ({
               )}
               {selectedTaxTypeIds.length > 0 && (
                 <p className="mt-2 text-sm text-gray-600">
-                  Selected: <span className="font-medium">{selectedTaxNames}</span>
+                  {tt('Selected:')} <span className="font-medium">{selectedTaxNames}</span>
                 </p>
               )}
             </div>
@@ -231,7 +232,7 @@ const BulkTaxApplicationModal = ({
             {/* Step 2: Select Products */}
             <div>
               <h3 className="text-lg font-medium text-gray-800 mb-3">
-                Step 2: Select Products
+                {tt('Step 2: Select Products')}
               </h3>
               
               {/* Apply to All Option */}
@@ -266,7 +267,7 @@ const BulkTaxApplicationModal = ({
                       type="text"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search products by name, SKU, or category..."
+                      placeholder={tt('Search products by name, SKU, or category...')}
                       className="w-full p-2 border border-gray-300 rounded-md"
                       disabled={isApplying}
                     />
@@ -336,13 +337,13 @@ const BulkTaxApplicationModal = ({
             {/* Summary */}
             {selectedTaxTypeIds.length > 0 && (
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <h4 className="font-medium text-gray-800 mb-2">Summary</h4>
+                <h4 className="font-medium text-gray-800 mb-2">{tt('Summary')}</h4>
                 <div className="space-y-1 text-sm text-gray-600">
                   <p>
                     <span className="font-medium">Tax Type(s):</span> {selectedTaxNames}
                   </p>
                   <p>
-                    <span className="font-medium">Products:</span>{' '}
+                    <span className="font-medium">{tt('Products:')}</span>{' '}
                     {applyToAll 
                       ? `All ${products.length} products`
                       : `${selectedProductIds.length} selected product(s)`
@@ -365,7 +366,7 @@ const BulkTaxApplicationModal = ({
             disabled={isApplying}
             className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="button"
@@ -376,7 +377,7 @@ const BulkTaxApplicationModal = ({
             {isApplying ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                <span>Applying...</span>
+                <span>{tt('Applying...')}</span>
               </>
             ) : (
               <>

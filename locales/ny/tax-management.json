@@ -1,13 +1,13 @@
 {
-  "title": "Kuwongolera Msonkho",
+  "title": "Kuwongolera msonkho",
   "taxCodes": "Makhodi a msonkho",
-  "taxAccounts": "Maakaunti a msonkho",
+  "taxAccounts": "Ma akaunti a msonkho",
   "periods": "Nthawi",
   "returns": "Malipoti a msonkho",
   "payments": "Malipiro a msonkho",
   "refunds": "Kubweza msonkho",
-  "credits": "Ma credit a msonkho",
+  "credits": "Kirediti ya msonkho",
   "withholding": "Msonkho wosungidwa",
   "reconciliation": "Kugwirizanitsa",
-  "transactions": "Ma transaction a msonkho"
+  "transactions": "Zochitika za msonkho"
 }

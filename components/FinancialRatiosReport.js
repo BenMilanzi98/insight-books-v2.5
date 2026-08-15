@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 
 // components/FinancialRatiosReport.jsx
 import React from 'react';
@@ -23,8 +24,8 @@ export const FinancialRatiosReport = ({
     return (
       <div className="text-center p-8 bg-gray-50 rounded-lg">
         <PieChart size={48} className="mx-auto text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-700">No Data Available</h3>
-        <p className="text-gray-500 mt-2">Please select a time period and generate the report.</p>
+        <h3 className="text-lg font-medium text-gray-700">{tt('No Data Available')}</h3>
+        <p className="text-gray-500 mt-2">{tt('Please select a time period and generate the report.')}</p>
       </div>
     );
   }
@@ -71,7 +72,7 @@ export const FinancialRatiosReport = ({
             <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
               <h3 className="text-lg font-medium text-gray-800 mb-4 flex items-center">
                 <TrendingUp size={20} className="mr-2 text-green-600" />
-                Profitability Ratios
+                {tt('Profitability Ratios')}
               </h3>
               
               <div className="space-y-4">
@@ -85,7 +86,7 @@ export const FinancialRatiosReport = ({
                     <p className="text-sm text-gray-600 mb-2">{ratio.description}</p>
                     
                     <div className="flex items-center text-sm">
-                      <span className="mr-2">Interpretation:</span>
+                      <span className="mr-2">{tt('Interpretation:')}</span>
                       {renderInterpretation(ratio.interpretation)}
                     </div>
                     
@@ -101,7 +102,7 @@ export const FinancialRatiosReport = ({
             <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
               <h3 className="text-lg font-medium text-gray-800 mb-4 flex items-center">
                 <BarChart size={20} className="mr-2 text-blue-600" />
-                Liquidity Ratios
+                {tt('Liquidity Ratios')}
               </h3>
               
               <div className="space-y-4">
@@ -115,7 +116,7 @@ export const FinancialRatiosReport = ({
                     <p className="text-sm text-gray-600 mb-2">{ratio.description}</p>
                     
                     <div className="flex items-center text-sm">
-                      <span className="mr-2">Interpretation:</span>
+                      <span className="mr-2">{tt('Interpretation:')}</span>
                       {renderInterpretation(ratio.interpretation)}
                     </div>
                     
@@ -133,7 +134,7 @@ export const FinancialRatiosReport = ({
             <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
               <h3 className="text-lg font-medium text-gray-800 mb-4 flex items-center">
                 <AlertCircle size={20} className="mr-2 text-orange-600" />
-                Solvency Ratios
+                {tt('Solvency Ratios')}
               </h3>
               
               <div className="space-y-4">
@@ -147,7 +148,7 @@ export const FinancialRatiosReport = ({
                     <p className="text-sm text-gray-600 mb-2">{ratio.description}</p>
                     
                     <div className="flex items-center text-sm">
-                      <span className="mr-2">Interpretation:</span>
+                      <span className="mr-2">{tt('Interpretation:')}</span>
                       {renderInterpretation(ratio.interpretation)}
                     </div>
                     
@@ -163,7 +164,7 @@ export const FinancialRatiosReport = ({
             <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
               <h3 className="text-lg font-medium text-gray-800 mb-4 flex items-center">
                 <CheckCircle size={20} className="mr-2 text-indigo-600" />
-                Efficiency Ratios
+                {tt('Efficiency Ratios')}
               </h3>
               
               <div className="space-y-4">
@@ -177,7 +178,7 @@ export const FinancialRatiosReport = ({
                     <p className="text-sm text-gray-600 mb-2">{ratio.description}</p>
                     
                     <div className="flex items-center text-sm">
-                      <span className="mr-2">Interpretation:</span>
+                      <span className="mr-2">{tt('Interpretation:')}</span>
                       {renderInterpretation(ratio.interpretation)}
                     </div>
                     
@@ -203,30 +204,30 @@ export const FinancialRatiosReport = ({
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div className="bg-white p-4 rounded-lg border border-blue-100">
-                <h4 className="font-medium text-blue-800 mb-2">Profitability</h4>
+                <h4 className="font-medium text-blue-800 mb-2">{tt('Profitability')}</h4>
                 <p className="text-sm text-blue-700">
-                  These ratios indicate how effectively your business is generating profit relative to revenue, assets, or equity.
+                  {tt('These ratios indicate how effectively your business is generating profit relative to revenue, assets, or equity.')}
                 </p>
               </div>
               
               <div className="bg-white p-4 rounded-lg border border-blue-100">
-                <h4 className="font-medium text-blue-800 mb-2">Liquidity</h4>
+                <h4 className="font-medium text-blue-800 mb-2">{tt('Liquidity')}</h4>
                 <p className="text-sm text-blue-700">
-                  These ratios measure your business's ability to pay short-term obligations and meet unexpected cash needs.
+                  {tt("These ratios measure your business's ability to pay short-term obligations and meet unexpected cash needs.")}
                 </p>
               </div>
               
               <div className="bg-white p-4 rounded-lg border border-blue-100">
-                <h4 className="font-medium text-blue-800 mb-2">Solvency</h4>
+                <h4 className="font-medium text-blue-800 mb-2">{tt('Solvency')}</h4>
                 <p className="text-sm text-blue-700">
-                  These ratios assess your business's long-term financial stability and ability to meet long-term obligations.
+                  {tt("These ratios assess your business's long-term financial stability and ability to meet long-term obligations.")}
                 </p>
               </div>
               
               <div className="bg-white p-4 rounded-lg border border-blue-100">
-                <h4 className="font-medium text-blue-800 mb-2">Efficiency</h4>
+                <h4 className="font-medium text-blue-800 mb-2">{tt('Efficiency')}</h4>
                 <p className="text-sm text-blue-700">
-                  These ratios indicate how effectively your business is using its assets and managing its liabilities.
+                  {tt('These ratios indicate how effectively your business is using its assets and managing its liabilities.')}
                 </p>
               </div>
             </div>

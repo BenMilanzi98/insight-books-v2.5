@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '@/lib/currencyUtils';
@@ -45,26 +46,26 @@ export default function ReportAccountTable({
         <table className="min-w-full text-sm">
           <thead>
             <tr className="bg-slate-50 text-left text-xs font-medium text-slate-600 uppercase tracking-wide">
-              <th className="px-3 py-2">Code</th>
-              <th className="px-3 py-2">Account Name</th>
-              <th className="px-3 py-2">Type</th>
+              <th className="px-3 py-2">{tt('Code')}</th>
+              <th className="px-3 py-2">{tt('Account Name')}</th>
+              <th className="px-3 py-2">{tt('Type')}</th>
               {showOpeningClosing && (
                 <>
-                  <th className="px-3 py-2 text-right">Opening</th>
-                  <th className="px-3 py-2 text-right">Debit</th>
-                  <th className="px-3 py-2 text-right">Credit</th>
-                  <th className="px-3 py-2 text-right">Net</th>
-                  <th className="px-3 py-2 text-right">Closing</th>
+                  <th className="px-3 py-2 text-right">{tt('Opening')}</th>
+                  <th className="px-3 py-2 text-right">{tt('Debit')}</th>
+                  <th className="px-3 py-2 text-right">{tt('Credit')}</th>
+                  <th className="px-3 py-2 text-right">{tt('Net')}</th>
+                  <th className="px-3 py-2 text-right">{tt('Closing')}</th>
                 </>
               )}
               {!showOpeningClosing && (
                 <>
-                  <th className="px-3 py-2 text-right">Debit</th>
-                  <th className="px-3 py-2 text-right">Credit</th>
-                  <th className="px-3 py-2 text-right">Amount</th>
+                  <th className="px-3 py-2 text-right">{tt('Debit')}</th>
+                  <th className="px-3 py-2 text-right">{tt('Credit')}</th>
+                  <th className="px-3 py-2 text-right">{tt('Amount')}</th>
                 </>
               )}
-              <th className="px-3 py-2 text-center">Details</th>
+              <th className="px-3 py-2 text-center">{tt('Details')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -117,7 +118,7 @@ export default function ReportAccountTable({
                       title="View ledger entries"
                     >
                       <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                      Trace
+                      {tt('Trace')}
                     </button>
                   </td>
                 </tr>
@@ -164,23 +165,23 @@ export function AccountDrillDownModal({ line, period, onClose }) {
             <p className="text-xs text-slate-500">Ledger &amp; journal source trace</p>
           </div>
           <button type="button" onClick={onClose} className="text-slate-500 hover:text-slate-800">
-            Close
+            {tt('Close')}
           </button>
         </div>
         <div className="overflow-auto p-4 flex-1">
-          {loading && <p className="text-sm text-slate-500">Loading…</p>}
+          {loading && <p className="text-sm text-slate-500">{tt('Loading…')}</p>}
           {error && <p className="text-sm text-red-600">{error}</p>}
           {data?.ledgerLines?.length > 0 && (
             <table className="min-w-full text-xs">
               <thead>
                 <tr className="text-left text-slate-600 border-b">
-                  <th className="py-2 pr-2">Date</th>
-                  <th className="py-2 pr-2">Reference</th>
-                  <th className="py-2 pr-2">Source</th>
-                  <th className="py-2 pr-2">Description</th>
-                  <th className="py-2 pr-2 text-right">Debit</th>
-                  <th className="py-2 pr-2 text-right">Credit</th>
-                  <th className="py-2 text-right">Balance</th>
+                  <th className="py-2 pr-2">{tt('Date')}</th>
+                  <th className="py-2 pr-2">{tt('Reference')}</th>
+                  <th className="py-2 pr-2">{tt('Source')}</th>
+                  <th className="py-2 pr-2">{tt('Description')}</th>
+                  <th className="py-2 pr-2 text-right">{tt('Debit')}</th>
+                  <th className="py-2 pr-2 text-right">{tt('Credit')}</th>
+                  <th className="py-2 text-right">{tt('Balance')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -199,7 +200,7 @@ export function AccountDrillDownModal({ line, period, onClose }) {
             </table>
           )}
           {data && !data.ledgerLines?.length && !loading && (
-            <p className="text-sm text-slate-500">No posted ledger lines for this account in the selected period.</p>
+            <p className="text-sm text-slate-500">{tt('No posted ledger lines for this account in the selected period.')}</p>
           )}
         </div>
       </div>

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -13,10 +14,10 @@ export default function OnboardingStakeholdersTabPage() {
       <p>
         <Link href={`/insightbooks/customer-success/onboarding/projects/${id}`}>← Project</Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>Stakeholders</h1>
+      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>{tt('Stakeholders')}</h1>
       <p style={{ color: '#555' }}>
         Assign Customer/Internal roles. Required Customer-facing roles need a verified CRM Contact
-        (<code>CONTACT_NOT_VERIFIED</code> when unverified).
+        (<code>{tt('CONTACT_NOT_VERIFIED')}</code> when unverified).
       </p>
     </div>
   );

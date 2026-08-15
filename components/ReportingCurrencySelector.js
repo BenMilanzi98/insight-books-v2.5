@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Coins } from 'lucide-react';
@@ -36,9 +37,9 @@ export default function ReportingCurrencySelector({
         className="w-full appearance-none pl-9 pr-8 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
         value={value || ''}
         onChange={(e) => onChange(e.target.value || null)}
-        aria-label="Reporting currency for consolidated reports"
+        aria-label={tt('Reporting currency for consolidated reports')}
       >
-        <option value="">Primary business currency</option>
+        <option value="">{tt('Primary business currency')}</option>
         {REPORTING_CURRENCY_OPTIONS.map((code) => (
           <option key={code} value={code}>
             {code}

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -13,9 +14,9 @@ export default function OnboardingProjectAuditPage() {
           ← Project
         </Link>
       </p>
-      <h1 style={{ fontSize: '1.2rem' }}>Audit</h1>
+      <h1 style={{ fontSize: '1.2rem' }}>{tt('Audit')}</h1>
       <p style={{ color: '#555' }}>
-        Status history and evidence trail. Read-only auditor projection.
+        {tt('Status history and evidence trail. Read-only auditor projection.')}
       </p>
     </div>
   );

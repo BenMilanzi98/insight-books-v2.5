@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -12,10 +13,9 @@ export default function TrainingProgramAssessmentsTab() {
           ← Program
         </Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem' }}>Assessments</h1>
+      <h1 style={{ fontSize: '1.25rem' }}>{tt('Assessments')}</h1>
       <p style={{ color: '#555' }}>
-        Server-authoritative timers and attempt limits. Answers are not shown in list
-        payloads. Final results are immutable without regrade.
+        {tt('Server-authoritative timers and attempt limits. Answers are not shown in list payloads. Final results are immutable without regrade.')}
       </p>
     </div>
   );

@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/QuotationTemplateCapture.js
 import React, { useRef, useState, useEffect } from 'react';
 import QuotationTemplatePreview from '@/components/QuotationTemplatePreview';
@@ -151,7 +152,7 @@ const QuotationTemplateCapture = ({
         <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999 }}>
           <div className="bg-white p-6 rounded-lg shadow-lg flex items-center">
             <Loader2 className="h-6 w-6 animate-spin text-blue-600 mr-3" />
-            <span>Generating PDF...</span>
+            <span>{tt('Generating PDF...')}</span>
           </div>
         </div>
       )}

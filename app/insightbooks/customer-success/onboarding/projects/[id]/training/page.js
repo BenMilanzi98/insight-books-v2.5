@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -13,10 +14,9 @@ export default function OnboardingTrainingTabPage() {
       <p>
         <Link href={`/insightbooks/customer-success/onboarding/projects/${id}`}>← Project</Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>Training</h1>
+      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>{tt('Training')}</h1>
       <p style={{ color: '#555' }}>
-        Consumes Phase 16 TRAINING handoff. Cannot set <code>COMPLETED</code> without a Phase 18
-        Training-domain source. Stub returns <code>UNKNOWN</code> / <code>IN_PROGRESS</code> only.
+        {tt('Consumes Phase 16 TRAINING handoff. Cannot set')} <code>COMPLETED</code> {tt('without a Phase 18 Training-domain source. Stub returns')} <code>UNKNOWN</code> / <code>IN_PROGRESS</code> {tt('only.')}
       </p>
     </div>
   );

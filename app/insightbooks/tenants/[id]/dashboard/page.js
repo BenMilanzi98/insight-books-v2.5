@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { adminFetch } from '@/lib/admin/adminApi';
 
@@ -146,7 +147,7 @@ const TenantDashboard = () => {
             <Activity className="h-5 w-5" />
           </div>
           <div className="ml-3">
-            <h3 className="text-sm font-medium text-red-800">Error loading tenant dashboard</h3>
+            <h3 className="text-sm font-medium text-red-800">{tt('Error loading tenant dashboard')}</h3>
             <div className="mt-2 text-sm text-red-700">{error}</div>
           </div>
         </div>
@@ -157,7 +158,7 @@ const TenantDashboard = () => {
   if (!tenant) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">Tenant not found</p>
+        <p className="text-gray-500">{tt('Tenant not found')}</p>
       </div>
     );
   }
@@ -175,7 +176,7 @@ const TenantDashboard = () => {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{tenant.name} Dashboard</h1>
-            <p className="text-sm text-gray-500">Comprehensive analytics and insights</p>
+            <p className="text-sm text-gray-500">{tt('Comprehensive analytics and insights')}</p>
           </div>
         </div>
         <div className="flex items-center space-x-3">
@@ -196,7 +197,7 @@ const TenantDashboard = () => {
               <Users className="h-6 w-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Users</p>
+              <p className="text-sm font-medium text-gray-600">{tt('Total Users')}</p>
               <p className="text-2xl font-bold text-gray-900">{tenant.userCount}</p>
             </div>
           </div>
@@ -208,7 +209,7 @@ const TenantDashboard = () => {
               <Building className="h-6 w-6 text-green-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Subdomain</p>
+              <p className="text-sm font-medium text-gray-600">{tt('Subdomain')}</p>
               <p className="text-lg font-semibold text-gray-900">{tenant.subdomain}</p>
             </div>
           </div>
@@ -220,7 +221,7 @@ const TenantDashboard = () => {
               <Mail className="h-6 w-6 text-purple-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Business Email</p>
+              <p className="text-sm font-medium text-gray-600">{tt('Business Email')}</p>
               <p className="text-sm font-medium text-gray-900">{tenant.email}</p>
             </div>
           </div>
@@ -232,7 +233,7 @@ const TenantDashboard = () => {
               <Calendar className="h-6 w-6 text-orange-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Created</p>
+              <p className="text-sm font-medium text-gray-600">{tt('Created')}</p>
               <p className="text-sm font-medium text-gray-900">
                 {new Date(tenant.createdAt).toLocaleDateString()}
               </p>
@@ -246,20 +247,20 @@ const TenantDashboard = () => {
         {/* User Growth */}
         <div className="bg-white p-6 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">User Growth</h3>
+            <h3 className="text-lg font-semibold text-gray-900">{tt('User Growth')}</h3>
             <TrendingUp className="h-5 w-5 text-green-600" />
           </div>
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Current Users</span>
+              <span className="text-sm text-gray-600">{tt('Current Users')}</span>
               <span className="text-lg font-semibold text-gray-900">{analytics?.userGrowth.current}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Previous Period</span>
+              <span className="text-sm text-gray-600">{tt('Previous Period')}</span>
               <span className="text-sm text-gray-500">{analytics?.userGrowth.previous}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Growth</span>
+              <span className="text-sm text-gray-600">{tt('Growth')}</span>
               <span className="text-sm font-medium text-green-600">
                 {analytics?.userGrowth.percentage > 0 ? `+${analytics.userGrowth.percentage}%` : analytics?.userGrowth.percentage === 0 ? '0%' : 'New'}
               </span>
@@ -277,19 +278,19 @@ const TenantDashboard = () => {
           </div>
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Current Revenue</span>
+              <span className="text-sm text-gray-600">{tt('Current Revenue')}</span>
               <span className="text-lg font-semibold text-gray-900">
                 {analytics?.subscriptionMetrics.currency || 'MWK'} {analytics?.revenue.current > 0 ? analytics.revenue.current.toLocaleString() : '0'}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Previous Period</span>
+              <span className="text-sm text-gray-600">{tt('Previous Period')}</span>
               <span className="text-sm text-gray-500">
                 {analytics?.subscriptionMetrics.currency || 'MWK'} {analytics?.revenue.previous > 0 ? analytics.revenue.previous.toLocaleString() : '0'}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Growth</span>
+              <span className="text-sm text-gray-600">{tt('Growth')}</span>
               <span className="text-sm font-medium text-green-600">
                 {analytics?.revenue.percentage > 0 ? `+${analytics.revenue.percentage}%` : analytics?.revenue.percentage === 0 ? '0%' : 'New'}
               </span>
@@ -297,7 +298,7 @@ const TenantDashboard = () => {
             {tenant?.isTrial && (
               <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-md">
                 <p className="text-xs text-blue-700">
-                  This tenant is currently on a trial period. Revenue will be displayed once they upgrade to a paid plan.
+                  {tt('This tenant is currently on a trial period. Revenue will be displayed once they upgrade to a paid plan.')}
                 </p>
               </div>
             )}
@@ -307,20 +308,20 @@ const TenantDashboard = () => {
         {/* Active Users */}
         <div className="bg-white p-6 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Active Users</h3>
+            <h3 className="text-lg font-semibold text-gray-900">{tt('Active Users')}</h3>
             <Activity className="h-5 w-5 text-blue-600" />
           </div>
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Daily Active</span>
+              <span className="text-sm text-gray-600">{tt('Daily Active')}</span>
               <span className="text-lg font-semibold text-gray-900">{analytics?.activeUsers.daily}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Weekly Active</span>
+              <span className="text-sm text-gray-600">{tt('Weekly Active')}</span>
               <span className="text-sm text-gray-500">{analytics?.activeUsers.weekly}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Monthly Active</span>
+              <span className="text-sm text-gray-600">{tt('Monthly Active')}</span>
               <span className="text-sm text-gray-500">{analytics?.activeUsers.monthly}</span>
             </div>
           </div>
@@ -329,20 +330,20 @@ const TenantDashboard = () => {
         {/* Subscription Details */}
         <div className="bg-white p-6 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Subscription</h3>
+            <h3 className="text-lg font-semibold text-gray-900">{tt('Subscription')}</h3>
             <BarChart3 className="h-5 w-5 text-purple-600" />
           </div>
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Status</span>
+              <span className="text-sm text-gray-600">{tt('Status')}</span>
               <span className="text-sm font-medium text-green-600">{analytics?.subscriptionMetrics.status}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Plan</span>
+              <span className="text-sm text-gray-600">{tt('Plan')}</span>
               <span className="text-sm text-gray-500">{analytics?.subscriptionMetrics.plan}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Next Billing</span>
+              <span className="text-sm text-gray-600">{tt('Next Billing')}</span>
               <span className="text-sm text-gray-500">
                 {analytics?.subscriptionMetrics.nextBilling ? 
                   new Date(analytics.subscriptionMetrics.nextBilling).toLocaleDateString() : 
@@ -352,20 +353,20 @@ const TenantDashboard = () => {
             </div>
             {analytics?.subscriptionMetrics.trialEnds && (
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Trial Ends</span>
+                <span className="text-sm text-gray-600">{tt('Trial Ends')}</span>
                 <span className="text-sm text-gray-500">
                   {new Date(analytics.subscriptionMetrics.trialEnds).toLocaleDateString()}
                 </span>
               </div>
             )}
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Amount</span>
+              <span className="text-sm text-gray-600">{tt('Amount')}</span>
               <span className="text-sm text-gray-500">
                 {analytics?.subscriptionMetrics.currency || 'MWK'} {analytics?.subscriptionMetrics.amount?.toLocaleString() || '0'}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Trial Status</span>
+              <span className="text-sm text-gray-600">{tt('Trial Status')}</span>
               <span className="text-sm text-gray-500">
                 {analytics?.subscriptionMetrics.isTrial ? 'Yes' : 'No'}
               </span>
@@ -377,7 +378,7 @@ const TenantDashboard = () => {
       {/* Recent Activity */}
       <div className="bg-white p-6 rounded-lg border border-gray-200">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{tt('Recent Activity')}</h3>
           <Activity className="h-5 w-5 text-gray-600" />
         </div>
         <div className="space-y-3">
@@ -401,13 +402,13 @@ const TenantDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">User Growth Trend</h3>
+            <h3 className="text-lg font-semibold text-gray-900">{tt('User Growth Trend')}</h3>
             <LineChart className="h-5 w-5 text-blue-600" />
           </div>
           <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
             <div className="text-center">
               <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">Chart visualization would go here</p>
+              <p className="text-sm text-gray-500">{tt('Chart visualization would go here')}</p>
             </div>
           </div>
         </div>
@@ -420,7 +421,7 @@ const TenantDashboard = () => {
           <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
             <div className="text-center">
               <PieChart className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">Chart visualization would go here</p>
+              <p className="text-sm text-gray-500">{tt('Chart visualization would go here')}</p>
             </div>
           </div>
         </div>

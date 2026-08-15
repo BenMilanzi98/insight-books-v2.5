@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 // app/journal-entries/edit/[id]/page.js
 import { useState, useEffect } from 'react';
@@ -48,7 +49,7 @@ export default function EditJournalEntryPage() {
   if (error) {
     return (
       <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mx-auto max-w-2xl my-8">
-        <p className="font-bold">Error:</p>
+        <p className="font-bold">{tt('Error:')}</p>
         <p>{error}</p>
       </div>
     );

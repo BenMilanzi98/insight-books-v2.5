@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle, Info, X } from 'lucide-react';
@@ -64,7 +65,7 @@ export default function Toast({
           variant="ghost"
           size="compact"
           className="min-h-8 min-w-8 px-0"
-          aria-label="Dismiss"
+          aria-label={tt('Dismiss')}
           onClick={onClose}
         >
           <X className="h-4 w-4" />

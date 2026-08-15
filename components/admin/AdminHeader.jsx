@@ -116,6 +116,14 @@ export default function AdminHeader({
         )}
       </button>
 
+      <a
+        href="/insightbooks/dashboard"
+        className="hidden shrink-0 sm:inline-flex"
+        aria-label={t('admin-shell.brand')}
+      >
+        <img src="/logo.png" alt="" className="h-8 w-auto rounded-md object-contain" />
+      </a>
+
       <div className="min-w-0 shrink">
         <p className="truncate text-sm font-semibold tracking-tight text-[var(--admin-text)] sm:text-base">
           {title}

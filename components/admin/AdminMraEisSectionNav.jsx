@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -17,7 +18,7 @@ export default function AdminMraEisSectionNav({ className }) {
         'mb-6 flex flex-wrap gap-2 border-b border-[var(--admin-border)] pb-3',
         className
       )}
-      aria-label="MRA EIS sections"
+      aria-label={tt('MRA EIS sections')}
     >
       {ADMIN_MRA_EIS_SECTIONS.map((section) => {
         const active = isAdminMraEisSectionActive(pathname, section);

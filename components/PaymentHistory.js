@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 import React, { useState, useEffect } from 'react';
 import { CreditCard, Calendar, FileText, DollarSign, CheckCircle, Clock, Download, Receipt, Printer } from 'lucide-react';
 import ReceiptTemplateCapture from '@/components/ReceiptTemplateCapture';
@@ -218,7 +219,7 @@ const PaymentHistory = ({ invoiceId, onPaymentAdded }) => {
             onClick={fetchPaymentHistory}
             className="mt-2 text-blue-600 hover:text-blue-800 underline"
           >
-            Try Again
+            {tt('Try Again')}
           </button>
         </div>
       </div>
@@ -231,7 +232,7 @@ const PaymentHistory = ({ invoiceId, onPaymentAdded }) => {
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Payment History</h3>
+            <h3 className="text-lg font-semibold text-gray-900">{tt('Payment History')}</h3>
             <p className="text-sm text-gray-600">
               {payments.length} payment{payments.length !== 1 ? 's' : ''} received
             </p>
@@ -239,7 +240,7 @@ const PaymentHistory = ({ invoiceId, onPaymentAdded }) => {
           <div className="flex items-center space-x-4">
             {invoice && (
               <div className="text-right">
-                <div className="text-sm text-gray-600">Remaining Balance</div>
+                <div className="text-sm text-gray-600">{tt('Remaining Balance')}</div>
                 <div className="text-lg font-semibold text-red-600">
                   {formatCurrency(invoice.remainingBalance || 0)}
                 </div>
@@ -251,7 +252,7 @@ const PaymentHistory = ({ invoiceId, onPaymentAdded }) => {
                 className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <Receipt className="h-4 w-4" />
-                <span>Download All Receipts</span>
+                <span>{tt('Download All Receipts')}</span>
               </button>
             )}
           </div>
@@ -263,19 +264,19 @@ const PaymentHistory = ({ invoiceId, onPaymentAdded }) => {
         <div className="p-6 bg-gray-50 border-b border-gray-200">
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div className="text-center">
-              <div className="text-gray-600">Total Amount</div>
+              <div className="text-gray-600">{tt('Total Amount')}</div>
               <div className="font-semibold text-gray-900">
                 {formatCurrency(invoice.total)}
               </div>
             </div>
             <div className="text-center">
-              <div className="text-gray-600">Amount Paid</div>
+              <div className="text-gray-600">{tt('Amount Paid')}</div>
               <div className="font-semibold text-green-600">
                 {formatCurrency(invoice.totalPaid || 0)}
               </div>
             </div>
             <div className="text-center">
-              <div className="text-gray-600">Progress</div>
+              <div className="text-gray-600">{tt('Progress')}</div>
               <div className="font-semibold text-blue-600">
                 {Math.round(((invoice.totalPaid || 0) / invoice.total) * 100)}%
               </div>
@@ -301,8 +302,8 @@ const PaymentHistory = ({ invoiceId, onPaymentAdded }) => {
         {payments.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <CreditCard className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-            <p>No payments received yet</p>
-            <p className="text-sm">Payments will appear here once received</p>
+            <p>{tt('No payments received yet')}</p>
+            <p className="text-sm">{tt('Payments will appear here once received')}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -327,12 +328,12 @@ const PaymentHistory = ({ invoiceId, onPaymentAdded }) => {
                         {getStatusIcon(payment.status)}
                         {isFullPayment && (
                           <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                            Full Payment
+                            {tt('Full Payment')}
                           </span>
                         )}
                         {isPartialPayment && (
                           <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                            Partial Payment
+                            {tt('Partial Payment')}
                           </span>
                         )}
                       </div>
@@ -368,7 +369,7 @@ const PaymentHistory = ({ invoiceId, onPaymentAdded }) => {
                       className="flex items-center space-x-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
                     >
                       <Download className="h-4 w-4" />
-                      <span>Receipt</span>
+                      <span>{tt('Receipt')}</span>
                     </button>
                   </div>
                 </div>
@@ -394,7 +395,7 @@ const PaymentHistory = ({ invoiceId, onPaymentAdded }) => {
           <div className="bg-white p-6 rounded-lg shadow-lg">
             <div className="flex items-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
-              <p>Preparing receipt for download...</p>
+              <p>{tt('Preparing receipt for download...')}</p>
             </div>
           </div>
         </div>

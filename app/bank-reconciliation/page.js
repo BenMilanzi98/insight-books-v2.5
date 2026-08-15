@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * Bank Reconciliation (Phase 10) — PaymentAccount statement matching workspace.
@@ -229,7 +230,7 @@ export default function BankReconciliationPage() {
               onClick={() => (activeId ? loadWorkspace(activeId) : loadAccounts())}
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
-              Refresh
+              {tt('Refresh')}
             </PosStyleHeaderButton>
           }
         />
@@ -243,9 +244,9 @@ export default function BankReconciliationPage() {
 
         {featureDisabled ? (
           <PosStylePanel className="p-4">
-            <h2 className="text-sm font-semibold text-slate-800">Enable Bank Reconciliation</h2>
+            <h2 className="text-sm font-semibold text-slate-800">{tt('Enable Bank Reconciliation')}</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Turn on statement matching for this business and mark cash/bank payment accounts as reconcilable.
+              {tt('Turn on statement matching for this business and mark cash/bank payment accounts as reconcilable.')}
             </p>
             <button
               type="button"
@@ -265,14 +266,14 @@ export default function BankReconciliationPage() {
                 }
               }}
             >
-              Enable Bank Reconciliation
+              {tt('Enable Bank Reconciliation')}
             </button>
           </PosStylePanel>
         ) : null}
 
         <section className="grid gap-4 lg:grid-cols-3">
           <PosStylePanel className="p-4 lg:col-span-1">
-            <h2 className="text-sm font-semibold text-slate-800">Bank account</h2>
+            <h2 className="text-sm font-semibold text-slate-800">{tt('Bank account')}</h2>
             <select
               className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               value={paymentAccountId}
@@ -282,7 +283,7 @@ export default function BankReconciliationPage() {
                 setWorkspace(null);
               }}
             >
-              <option value="">Select account…</option>
+              <option value="">{tt('Select account…')}</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name} ({a.accountType}){a.coaAccount ? ` — ${a.coaAccount.code}` : ''}
@@ -290,7 +291,7 @@ export default function BankReconciliationPage() {
               ))}
             </select>
 
-            <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">History</h3>
+            <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">{tt('History')}</h3>
             <ul className="mt-2 max-h-48 space-y-1 overflow-auto text-sm">
               {reconciliations.map((r) => (
                 <li key={r.id}>
@@ -304,10 +305,10 @@ export default function BankReconciliationPage() {
                   </button>
                 </li>
               ))}
-              {!reconciliations.length ? <li className="text-slate-400">No sessions yet</li> : null}
+              {!reconciliations.length ? <li className="text-slate-400">{tt('No sessions yet')}</li> : null}
             </ul>
 
-            <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">New session</h3>
+            <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">{tt('New session')}</h3>
             <div className="mt-2 space-y-2">
               <input
                 type="date"
@@ -317,7 +318,7 @@ export default function BankReconciliationPage() {
               />
               <input
                 type="text"
-                placeholder="Statement closing balance"
+                placeholder={tt('Statement closing balance')}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                 value={createForm.statementClosingBalance}
                 onChange={(e) => setCreateForm((f) => ({ ...f, statementClosingBalance: e.target.value }))}
@@ -336,7 +337,7 @@ export default function BankReconciliationPage() {
                 className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 <PlayCircle className="h-4 w-4" />
-                Start reconciliation
+                {tt('Start reconciliation')}
               </button>
             </div>
           </PosStylePanel>
@@ -351,20 +352,20 @@ export default function BankReconciliationPage() {
               </div>
               {calc ? (
                 <dl className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
-                  <div><dt className="text-slate-500">Statement closing</dt><dd className="font-semibold">{money(calc.statementClosing)}</dd></div>
-                  <div><dt className="text-slate-500">Book balance</dt><dd className="font-semibold">{money(calc.bookBalance)}</dd></div>
-                  <div><dt className="text-slate-500">Deposits in transit</dt><dd className="font-semibold">{money(calc.depositsInTransit)}</dd></div>
-                  <div><dt className="text-slate-500">Outstanding payments</dt><dd className="font-semibold">{money(calc.outstandingPayments)}</dd></div>
-                  <div><dt className="text-slate-500">Adjusted book</dt><dd className="font-semibold">{money(calc.adjustedBook)}</dd></div>
+                  <div><dt className="text-slate-500">{tt('Statement closing')}</dt><dd className="font-semibold">{money(calc.statementClosing)}</dd></div>
+                  <div><dt className="text-slate-500">{tt('Book balance')}</dt><dd className="font-semibold">{money(calc.bookBalance)}</dd></div>
+                  <div><dt className="text-slate-500">{tt('Deposits in transit')}</dt><dd className="font-semibold">{money(calc.depositsInTransit)}</dd></div>
+                  <div><dt className="text-slate-500">{tt('Outstanding payments')}</dt><dd className="font-semibold">{money(calc.outstandingPayments)}</dd></div>
+                  <div><dt className="text-slate-500">{tt('Adjusted book')}</dt><dd className="font-semibold">{money(calc.adjustedBook)}</dd></div>
                   <div>
-                    <dt className="text-slate-500">Difference</dt>
+                    <dt className="text-slate-500">{tt('Difference')}</dt>
                     <dd className={`font-semibold ${Number(calc.difference) === 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                       {money(calc.difference)}
                     </dd>
                   </div>
                 </dl>
               ) : (
-                <p className="mt-2 text-sm text-slate-500">Select or create a reconciliation session.</p>
+                <p className="mt-2 text-sm text-slate-500">{tt('Select or create a reconciliation session.')}</p>
               )}
 
               {activeId ? (
@@ -387,15 +388,15 @@ export default function BankReconciliationPage() {
 
             <PosStylePanel className="p-4">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <Upload className="h-4 w-4" /> Import statement
+                <Upload className="h-4 w-4" /> {tt('Import statement')}
               </h2>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <input type="file" accept=".csv,.xlsx,.xls,.ofx,.qfx,.txt" onChange={(e) => setFile(e.target.files?.[0] || null)} />
                 <button type="button" disabled={!file || busy} onClick={previewImport} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-50">
-                  Preview
+                  {tt('Preview')}
                 </button>
                 <button type="button" disabled={!importPreview || busy} onClick={confirmImport} className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-                  Confirm import
+                  {tt('Confirm import')}
                 </button>
               </div>
               {importPreview ? (
@@ -410,15 +411,15 @@ export default function BankReconciliationPage() {
         {workspace ? (
           <section className="grid gap-4 lg:grid-cols-2">
             <PosStylePanel>
-              <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold">Statement lines</div>
+              <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold">{tt('Statement lines')}</div>
               <div className="max-h-96 overflow-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="sticky top-0 bg-slate-50 text-slate-500">
                     <tr>
-                      <th className="px-3 py-2">Date</th>
-                      <th className="px-3 py-2">Description</th>
-                      <th className="px-3 py-2 text-right">Amount</th>
-                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">{tt('Date')}</th>
+                      <th className="px-3 py-2">{tt('Description')}</th>
+                      <th className="px-3 py-2 text-right">{tt('Amount')}</th>
+                      <th className="px-3 py-2">{tt('Status')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -448,16 +449,16 @@ export default function BankReconciliationPage() {
                   onClick={linkMatch}
                   className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-40"
                 >
-                  <Link2 className="h-3.5 w-3.5" /> Match selected
+                  <Link2 className="h-3.5 w-3.5" /> {tt('Match selected')}
                 </button>
               </div>
               <div className="max-h-96 overflow-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="sticky top-0 bg-slate-50 text-slate-500">
                     <tr>
-                      <th className="px-3 py-2">Date</th>
-                      <th className="px-3 py-2">Description</th>
-                      <th className="px-3 py-2 text-right">Remaining</th>
+                      <th className="px-3 py-2">{tt('Date')}</th>
+                      <th className="px-3 py-2">{tt('Description')}</th>
+                      <th className="px-3 py-2 text-right">{tt('Remaining')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -482,7 +483,7 @@ export default function BankReconciliationPage() {
         {workspace?.matches?.length ? (
           <PosStylePanel className="p-4" as="section">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Matches
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" /> {tt('Matches')}
             </h2>
             <ul className="mt-2 space-y-1 text-xs text-slate-700">
               {workspace.matches.map((m) => (

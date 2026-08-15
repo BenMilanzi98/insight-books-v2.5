@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * Equity Management (Phase 11) — configuration, owners, transactions, dividends, recon.
@@ -180,7 +181,7 @@ export default function EquityManagementPage() {
           actions={
             <PosStyleHeaderButton type="button" onClick={load}>
               <RefreshCw className={`mr-2 h-4 w-4 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
-              Refresh
+              {tt('Refresh')}
             </PosStyleHeaderButton>
           }
         />
@@ -214,7 +215,7 @@ export default function EquityManagementPage() {
               {dashboard.note}
               <div className="mt-2 flex gap-2">
                 <button type="button" onClick={runRecon} className="rounded-md bg-slate-800 px-3 py-1.5 text-xs text-white">
-                  Run equity reconciliation
+                  {tt('Run equity reconciliation')}
                 </button>
                 {dashboard.lastReconciliation ? (
                   <span className="inline-flex items-center gap-1 text-xs">
@@ -229,24 +230,24 @@ export default function EquityManagementPage() {
 
         {tab === 'config' ? (
           <PosStylePanel className="max-w-lg space-y-3 p-4" as="section">
-            <h2 className="text-sm font-semibold">Business equity configuration</h2>
-            <label className="block text-xs text-slate-500">Legal structure
+            <h2 className="text-sm font-semibold">{tt('Business equity configuration')}</h2>
+            <label className="block text-xs text-slate-500">{tt('Legal structure')}
               <select className="mt-1 w-full rounded-md border px-3 py-2 text-sm" value={cfgForm.legalStructure} onChange={(e) => setCfgForm((f) => ({ ...f, legalStructure: e.target.value }))}>
-                <option value="SOLE_PROPRIETORSHIP">Sole proprietorship</option>
-                <option value="PARTNERSHIP">Partnership</option>
-                <option value="PRIVATE_COMPANY">Private company</option>
-                <option value="PUBLIC_COMPANY">Public company</option>
+                <option value="SOLE_PROPRIETORSHIP">{tt('Sole proprietorship')}</option>
+                <option value="PARTNERSHIP">{tt('Partnership')}</option>
+                <option value="PRIVATE_COMPANY">{tt('Private company')}</option>
+                <option value="PUBLIC_COMPANY">{tt('Public company')}</option>
               </select>
             </label>
-            <label className="block text-xs text-slate-500">Equity model
+            <label className="block text-xs text-slate-500">{tt('Equity model')}
               <select className="mt-1 w-full rounded-md border px-3 py-2 text-sm" value={cfgForm.equityModel} onChange={(e) => setCfgForm((f) => ({ ...f, equityModel: e.target.value }))}>
-                <option value="OWNER_CAPITAL">Owner capital</option>
-                <option value="PARTNER_CAPITAL">Partner capital</option>
-                <option value="SHARE_CAPITAL">Share capital</option>
-                <option value="HYBRID_APPROVED_MODEL">Hybrid</option>
+                <option value="OWNER_CAPITAL">{tt('Owner capital')}</option>
+                <option value="PARTNER_CAPITAL">{tt('Partner capital')}</option>
+                <option value="SHARE_CAPITAL">{tt('Share capital')}</option>
+                <option value="HYBRID_APPROVED_MODEL">{tt('Hybrid')}</option>
               </select>
             </label>
-            <button type="button" onClick={saveConfig} className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">Save configuration</button>
+            <button type="button" onClick={saveConfig} className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">{tt('Save configuration')}</button>
             {config ? <p className="text-xs text-slate-500">Current: {config.legalStructure} / {config.equityModel}</p> : null}
           </PosStylePanel>
         ) : null}
@@ -254,19 +255,19 @@ export default function EquityManagementPage() {
         {tab === 'owners' ? (
           <section className="grid gap-4 lg:grid-cols-2">
             <PosStylePanel className="p-4">
-              <h2 className="text-sm font-semibold flex items-center gap-2"><Plus className="h-4 w-4" /> Add owner / partner / shareholder</h2>
+              <h2 className="text-sm font-semibold flex items-center gap-2"><Plus className="h-4 w-4" /> {tt('Add owner / partner / shareholder')}</h2>
               <div className="mt-3 space-y-2">
-                <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Name" value={ownerForm.partyName} onChange={(e) => setOwnerForm((f) => ({ ...f, partyName: e.target.value }))} />
+                <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder={tt('Name')} value={ownerForm.partyName} onChange={(e) => setOwnerForm((f) => ({ ...f, partyName: e.target.value }))} />
                 <select className="w-full rounded-md border px-3 py-2 text-sm" value={ownerForm.relationshipType} onChange={(e) => setOwnerForm((f) => ({ ...f, relationshipType: e.target.value }))}>
-                  <option value="OWNER">Owner</option>
-                  <option value="PARTNER">Partner</option>
-                  <option value="SHAREHOLDER">Shareholder</option>
+                  <option value="OWNER">{tt('Owner')}</option>
+                  <option value="PARTNER">{tt('Partner')}</option>
+                  <option value="SHAREHOLDER">{tt('Shareholder')}</option>
                 </select>
-                <button type="button" onClick={createOwner} className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">Create</button>
+                <button type="button" onClick={createOwner} className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">{tt('Create')}</button>
               </div>
             </PosStylePanel>
             <PosStylePanel className="p-4">
-              <h2 className="text-sm font-semibold">Register</h2>
+              <h2 className="text-sm font-semibold">{tt('Register')}</h2>
               <ul className="mt-2 max-h-80 overflow-auto text-sm divide-y">
                 {owners.map((o) => (
                   <li key={o.id} className="py-2 flex justify-between gap-2">
@@ -282,29 +283,29 @@ export default function EquityManagementPage() {
         {tab === 'transactions' ? (
           <section className="grid gap-4 lg:grid-cols-2">
             <PosStylePanel className="space-y-2 p-4">
-              <h2 className="text-sm font-semibold">New equity transaction</h2>
+              <h2 className="text-sm font-semibold">{tt('New equity transaction')}</h2>
               <select className="w-full rounded-md border px-3 py-2 text-sm" value={txForm.transactionType} onChange={(e) => setTxForm((f) => ({ ...f, transactionType: e.target.value }))}>
-                <option value="CAPITAL_CONTRIBUTION">Capital contribution</option>
-                <option value="OWNER_DRAWING">Owner drawing</option>
+                <option value="CAPITAL_CONTRIBUTION">{tt('Capital contribution')}</option>
+                <option value="OWNER_DRAWING">{tt('Owner drawing')}</option>
                 <option value="OWNER_LOAN_ADVANCE">Owner loan (not capital)</option>
-                <option value="SHARE_ISSUANCE">Share issuance</option>
-                <option value="DIVIDEND_DECLARATION">Dividend declaration</option>
+                <option value="SHARE_ISSUANCE">{tt('Share issuance')}</option>
+                <option value="DIVIDEND_DECLARATION">{tt('Dividend declaration')}</option>
               </select>
               <select className="w-full rounded-md border px-3 py-2 text-sm" value={txForm.relationshipId} onChange={(e) => setTxForm((f) => ({ ...f, relationshipId: e.target.value }))}>
-                <option value="">Select owner…</option>
+                <option value="">{tt('Select owner…')}</option>
                 {owners.map((o) => (
                   <option key={o.id} value={o.id}>{o.partyName}</option>
                 ))}
               </select>
-              <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Amount" value={txForm.amount} onChange={(e) => setTxForm((f) => ({ ...f, amount: e.target.value }))} />
-              <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Bank/Cash CoA account id" value={txForm.bankAccountId} onChange={(e) => setTxForm((f) => ({ ...f, bankAccountId: e.target.value }))} />
+              <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder={tt('Amount')} value={txForm.amount} onChange={(e) => setTxForm((f) => ({ ...f, amount: e.target.value }))} />
+              <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder={tt('Bank/Cash CoA account id')} value={txForm.bankAccountId} onChange={(e) => setTxForm((f) => ({ ...f, bankAccountId: e.target.value }))} />
               <input type="date" className="w-full rounded-md border px-3 py-2 text-sm" value={txForm.transactionDate} onChange={(e) => setTxForm((f) => ({ ...f, transactionDate: e.target.value }))} />
-              <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder="Description" value={txForm.description} onChange={(e) => setTxForm((f) => ({ ...f, description: e.target.value }))} />
-              <button type="button" onClick={createAndPostContribution} className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">Create → approve → preview → post</button>
-              <p className="text-xs text-slate-500">Accounting preview runs server-side before post. Posted journals are immutable.</p>
+              <input className="w-full rounded-md border px-3 py-2 text-sm" placeholder={tt('Description')} value={txForm.description} onChange={(e) => setTxForm((f) => ({ ...f, description: e.target.value }))} />
+              <button type="button" onClick={createAndPostContribution} className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">{tt('Create → approve → preview → post')}</button>
+              <p className="text-xs text-slate-500">{tt('Accounting preview runs server-side before post. Posted journals are immutable.')}</p>
             </PosStylePanel>
             <PosStylePanel className="p-4">
-              <h2 className="text-sm font-semibold">Recent transactions</h2>
+              <h2 className="text-sm font-semibold">{tt('Recent transactions')}</h2>
               <ul className="mt-2 max-h-96 overflow-auto text-xs divide-y">
                 {transactions.map((t) => (
                   <li key={t.id} className="py-2">

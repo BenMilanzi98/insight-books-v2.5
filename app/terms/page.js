@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from "react";
 import Link from "next/link";
@@ -43,7 +44,7 @@ export default function TermsOfService() {
                 className="flex items-center text-gray-600 hover:text-gray-900 transition-colors bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg"
               >
                 <ArrowLeft size={18} className="mr-2" />
-                Back to Home
+                {tt('Back to Home')}
               </Link>
             </div>
             <div className="flex items-center space-x-3">
@@ -51,8 +52,8 @@ export default function TermsOfService() {
                 <FileText size={24} className="text-indigo-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Terms of Service</h1>
-                <p className="text-sm text-gray-500">Last updated: January 15, 2025</p>
+                <h1 className="text-xl font-bold text-gray-900">{tt('Terms of Service')}</h1>
+                <p className="text-sm text-gray-500">{tt('Last updated: January 15, 2025')}</p>
               </div>
             </div>
           </div>
@@ -66,7 +67,7 @@ export default function TermsOfService() {
             <div className="bg-white rounded-xl shadow-sm border p-6 sticky top-24">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                 <FileText size={20} className="mr-2 text-indigo-600" />
-                Table of Contents
+                {tt('Table of Contents')}
               </h2>
               <nav className="space-y-2">
                 {sections.map((section) => {
@@ -100,18 +101,18 @@ export default function TermsOfService() {
                     <FileText size={24} />
                   </div>
                   <div>
-                    <h1 className="text-3xl font-bold">Terms of Service</h1>
-                    <p className="text-indigo-100">Please read these terms carefully before using our service</p>
+                    <h1 className="text-3xl font-bold">{tt('Terms of Service')}</h1>
+                    <p className="text-indigo-100">{tt('Please read these terms carefully before using our service')}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-6 text-sm">
                   <div className="flex items-center space-x-2">
                     <Clock size={16} />
-                    <span>Last Updated: January 15, 2025</span>
+                    <span>{tt('Last Updated: January 15, 2025')}</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Shield size={16} />
-                    <span>Version 2.1</span>
+                    <span>{tt('Version 2.1')}</span>
                   </div>
                 </div>
               </div>
@@ -123,11 +124,11 @@ export default function TermsOfService() {
                     <div className="bg-indigo-100 p-2 rounded-lg">
                       <FileText size={20} className="text-indigo-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">1. Introduction</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('1. Introduction')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4 leading-relaxed">
-                      Welcome to <strong>InsightBooks</strong> ("we," "our," or "us"). These Terms of Service ("Terms") govern your use of our Business Management platform and services (collectively, the "Service").
+                      {tt('Welcome to')} <strong>{tt('InsightBooks')}</strong> ("we," "our," or "us"). These Terms of Service ("Terms") govern your use of our Business Management platform and services (collectively, the "Service").
                     </p>
                     <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg mb-6">
                       <p className="text-blue-800 font-medium">
@@ -143,24 +144,24 @@ export default function TermsOfService() {
                     <div className="bg-purple-100 p-2 rounded-lg">
                       <Building size={20} className="text-purple-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">2. Definitions</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('2. Definitions')}</h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="font-semibold text-gray-900 mb-2">"Service"</h3>
-                      <p className="text-gray-700 text-sm">Refers to the InsightBooks platform, including all features, functionality, and content.</p>
+                      <p className="text-gray-700 text-sm">{tt('Refers to the InsightBooks platform, including all features, functionality, and content.')}</p>
                     </div>
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="font-semibold text-gray-900 mb-2">"User," "you," or "your"</h3>
-                      <p className="text-gray-700 text-sm">Refers to any individual or entity using our Service.</p>
+                      <p className="text-gray-700 text-sm">{tt('Refers to any individual or entity using our Service.')}</p>
                     </div>
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="font-semibold text-gray-900 mb-2">"Account"</h3>
-                      <p className="text-gray-700 text-sm">Refers to your registered user account on InsightBooks.</p>
+                      <p className="text-gray-700 text-sm">{tt('Refers to your registered user account on InsightBooks.')}</p>
                     </div>
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="font-semibold text-gray-900 mb-2">"Content"</h3>
-                      <p className="text-gray-700 text-sm">Refers to any data, information, or materials you upload, create, or generate using our Service.</p>
+                      <p className="text-gray-700 text-sm">{tt('Refers to any data, information, or materials you upload, create, or generate using our Service.')}</p>
                     </div>
                   </div>
                 </section>
@@ -171,11 +172,11 @@ export default function TermsOfService() {
                     <div className="bg-green-100 p-2 rounded-lg">
                       <Users size={20} className="text-green-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">3. Account Registration</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('3. Account Registration')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4">
-                      To use certain features of InsightBooks, you must create an account. You agree to:
+                      {tt('To use certain features of InsightBooks, you must create an account. You agree to:')}
                     </p>
                     <div className="space-y-3">
                       {[
@@ -202,11 +203,11 @@ export default function TermsOfService() {
                     <div className="bg-red-100 p-2 rounded-lg">
                       <Shield size={20} className="text-red-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">4. Acceptable Use</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('4. Acceptable Use')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4">
-                      You agree to use InsightBooks only for lawful purposes and in accordance with these Terms. You agree not to:
+                      {tt('You agree to use InsightBooks only for lawful purposes and in accordance with these Terms. You agree not to:')}
                     </p>
                     <div className="bg-red-50 border border-red-200 rounded-lg p-6">
                       <div className="space-y-3">
@@ -237,11 +238,11 @@ export default function TermsOfService() {
                     <div className="bg-blue-100 p-2 rounded-lg">
                       <CreditCard size={20} className="text-blue-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">5. Subscription and Payment</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('5. Subscription and Payment')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4">
-                      InsightBooks offers various subscription plans. By subscribing, you agree to:
+                      {tt('InsightBooks offers various subscription plans. By subscribing, you agree to:')}
                     </p>
                     <div className="space-y-3 mb-6">
                       {[
@@ -261,7 +262,7 @@ export default function TermsOfService() {
                     </div>
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                       <p className="text-green-800 font-medium">
-                        <strong>Free Trial:</strong> We offer a 3-day free trial for new users. After the trial period, your account will be charged according to your selected plan.
+                        <strong>{tt('Free Trial:')}</strong> {tt('We offer a 3-day free trial for new users. After the trial period, your account will be charged according to your selected plan.')}
                       </p>
                     </div>
                   </div>
@@ -273,14 +274,14 @@ export default function TermsOfService() {
                     <div className="bg-indigo-100 p-2 rounded-lg">
                       <Shield size={20} className="text-indigo-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">6. Data and Privacy</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('6. Data and Privacy')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4">
                       Your privacy is important to us. Our collection and use of personal information is governed by our Privacy Policy, which is incorporated into these Terms.
                     </p>
                     <p className="text-gray-700 mb-4">
-                      You retain ownership of your data. We will:
+                      {tt('You retain ownership of your data. We will:')}
                     </p>
                     <div className="space-y-3">
                       {[
@@ -306,17 +307,17 @@ export default function TermsOfService() {
                     <div className="bg-yellow-100 p-2 rounded-lg">
                       <FileText size={20} className="text-yellow-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">7. Intellectual Property</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('7. Intellectual Property')}</h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                      <h3 className="font-semibold text-gray-900 mb-2">Our Rights</h3>
+                      <h3 className="font-semibold text-gray-900 mb-2">{tt('Our Rights')}</h3>
                       <p className="text-gray-700 text-sm">
                         InsightBooks and its original content, features, and functionality are owned by us and are protected by international copyright, trademark, patent, trade secret, and other intellectual property laws.
                       </p>
                     </div>
                     <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                      <h3 className="font-semibold text-gray-900 mb-2">Your Rights</h3>
+                      <h3 className="font-semibold text-gray-900 mb-2">{tt('Your Rights')}</h3>
                       <p className="text-gray-700 text-sm">
                         You retain ownership of any content you create or upload to our Service. By using our Service, you grant us a limited license to store and process your content as necessary to provide the Service.
                       </p>
@@ -330,11 +331,11 @@ export default function TermsOfService() {
                     <div className="bg-gray-100 p-2 rounded-lg">
                       <Clock size={20} className="text-gray-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">8. Service Availability</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('8. Service Availability')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4">
-                      We strive to maintain high availability of our Service, but we do not guarantee uninterrupted access. We may:
+                      {tt('We strive to maintain high availability of our Service, but we do not guarantee uninterrupted access. We may:')}
                     </p>
                     <div className="space-y-3 mb-4">
                       {[
@@ -352,7 +353,7 @@ export default function TermsOfService() {
                     </div>
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <p className="text-blue-800">
-                        We will provide reasonable notice for planned maintenance and updates.
+                        {tt('We will provide reasonable notice for planned maintenance and updates.')}
                       </p>
                     </div>
                   </div>
@@ -364,7 +365,7 @@ export default function TermsOfService() {
                     <div className="bg-red-100 p-2 rounded-lg">
                       <AlertCircle size={20} className="text-red-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">9. Limitation of Liability</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('9. Limitation of Liability')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4">
@@ -396,11 +397,11 @@ export default function TermsOfService() {
                     <div className="bg-green-100 p-2 rounded-lg">
                       <CheckCircle size={20} className="text-green-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">10. Termination</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('10. Termination')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4">
-                      You may cancel your account at any time through your account settings. We may terminate or suspend your account immediately if:
+                      {tt('You may cancel your account at any time through your account settings. We may terminate or suspend your account immediately if:')}
                     </p>
                     <div className="space-y-3 mb-4">
                       {[
@@ -418,7 +419,7 @@ export default function TermsOfService() {
                     </div>
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                       <p className="text-yellow-800">
-                        Upon termination, your access to the Service will cease, and we may delete your account data after 30 days.
+                        {tt('Upon termination, your access to the Service will cease, and we may delete your account data after 30 days.')}
                       </p>
                     </div>
                   </div>
@@ -430,11 +431,11 @@ export default function TermsOfService() {
                     <div className="bg-purple-100 p-2 rounded-lg">
                       <Building size={20} className="text-purple-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">11. Governing Law</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('11. Governing Law')}</h2>
                   </div>
                   <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
                     <p className="text-gray-700">
-                      These Terms shall be governed by and construed in accordance with the laws of <strong>Malawi</strong>, without regard to its conflict of law provisions.
+                      {tt('These Terms shall be governed by and construed in accordance with the laws of')} <strong>{tt('Malawi')}</strong>, without regard to its conflict of law provisions.
                     </p>
                   </div>
                 </section>
@@ -445,7 +446,7 @@ export default function TermsOfService() {
                     <div className="bg-blue-100 p-2 rounded-lg">
                       <FileText size={20} className="text-blue-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">12. Changes to Terms</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('12. Changes to Terms')}</h2>
                   </div>
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
                     <p className="text-gray-700">
@@ -460,11 +461,11 @@ export default function TermsOfService() {
                     <div className="bg-green-100 p-2 rounded-lg">
                       <Mail size={20} className="text-green-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">13. Contact Information</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('13. Contact Information')}</h2>
                   </div>
                   <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6">
                     <p className="text-gray-700 mb-4">
-                      If you have any questions about these Terms of Service, please contact us:
+                      {tt('If you have any questions about these Terms of Service, please contact us:')}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="flex items-center space-x-3">
@@ -472,8 +473,8 @@ export default function TermsOfService() {
                           <Mail size={16} className="text-green-600" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">Email</p>
-                          <p className="text-gray-700">insightinnovationsltd@gmail.com</p>
+                          <p className="font-medium text-gray-900">{tt('Email')}</p>
+                          <p className="text-gray-700">{tt('insightinnovationsltd@gmail.com')}</p>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
@@ -481,8 +482,8 @@ export default function TermsOfService() {
                           <MapPin size={16} className="text-blue-600" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">Address</p>
-                          <p className="text-gray-700">InsightBooks, Malawi</p>
+                          <p className="font-medium text-gray-900">{tt('Address')}</p>
+                          <p className="text-gray-700">{tt('InsightBooks, Malawi')}</p>
                         </div>
                       </div>
                     </div>
@@ -498,10 +499,10 @@ export default function TermsOfService() {
                   </p>
                   <div className="flex space-x-6">
                     <Link href="/privacy" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
-                      Privacy Policy
+                      {tt('Privacy Policy')}
                     </Link>
                     <Link href="/contact" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
-                      Contact Us
+                      {tt('Contact Us')}
                     </Link>
                   </div>
                 </div>

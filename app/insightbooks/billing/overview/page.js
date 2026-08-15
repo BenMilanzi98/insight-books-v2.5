@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { adminFetch } from '@/lib/admin/adminApi';
 
@@ -62,7 +63,7 @@ export default function AdminBillingOverviewPage() {
         actions={
           <button type="button" onClick={load} className={btnGhost}>
             <RefreshCw className="h-4 w-4" aria-hidden />
-            Refresh
+            {tt('Refresh')}
           </button>
         }
       />
@@ -134,16 +135,16 @@ export default function AdminBillingOverviewPage() {
 
           <div className="mt-6 flex flex-wrap gap-3 text-sm">
             <Link className="text-[var(--action-primary)] hover:underline" href="/insightbooks/billing/plans">
-              Plans
+              {tt('Plans')}
             </Link>
             <Link className="text-[var(--action-primary)] hover:underline" href="/insightbooks/billing/reconciliation">
-              Reconciliation
+              {tt('Reconciliation')}
             </Link>
             <Link className="text-[var(--action-primary)] hover:underline" href="/insightbooks/billing/invoices">
-              Invoices
+              {tt('Invoices')}
             </Link>
             <Link className="text-[var(--action-primary)] hover:underline" href="/insightbooks/billing/payments">
-              Payments
+              {tt('Payments')}
             </Link>
           </div>
         </>

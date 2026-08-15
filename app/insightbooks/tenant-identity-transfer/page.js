@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from "react";
 
@@ -113,13 +114,13 @@ export default function TenantIdentityTransferPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Tenant Identity Transfer</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{tt('Tenant Identity Transfer')}</h1>
         <p className="text-sm text-slate-600 mt-1">
           Export or import tenants, users (with password hashes), roles, memberships, and
           subscription history. Business data is not included.
         </p>
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-sm px-3 py-2">
-          Packages contain bcrypt password hashes. Treat downloaded files as confidential.
+          {tt('Packages contain bcrypt password hashes. Treat downloaded files as confidential.')}
         </div>
       </div>
 
@@ -165,7 +166,7 @@ export default function TenantIdentityTransferPage() {
                 checked={mode === "paid_inactive"}
                 onChange={() => setMode("paid_inactive")}
               />
-              Paid before but inactive
+              {tt('Paid before but inactive')}
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -174,28 +175,28 @@ export default function TenantIdentityTransferPage() {
                 checked={mode === "specific"}
                 onChange={() => setMode("specific")}
               />
-              Specific tenant
+              {tt('Specific tenant')}
             </label>
           </div>
 
           {mode === "specific" && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Tenant ID</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">{tt('Tenant ID')}</label>
                 <input
                   className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
                   value={tenantId}
                   onChange={(e) => setTenantId(e.target.value)}
-                  placeholder="cuid…"
+                  placeholder={tt('cuid…')}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Subdomain</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">{tt('Subdomain')}</label>
                 <input
                   className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
                   value={subdomain}
                   onChange={(e) => setSubdomain(e.target.value)}
-                  placeholder="acme"
+                  placeholder={tt('acme')}
                 />
               </div>
             </div>
@@ -208,7 +209,7 @@ export default function TenantIdentityTransferPage() {
               onClick={() => runExport(true)}
               className="px-4 py-2 rounded-md border border-slate-300 text-sm hover:bg-slate-50 disabled:opacity-50"
             >
-              Preview
+              {tt('Preview')}
             </button>
             <button
               type="button"
@@ -216,7 +217,7 @@ export default function TenantIdentityTransferPage() {
               onClick={() => runExport(false)}
               className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50"
             >
-              Download JSON
+              {tt('Download JSON')}
             </button>
           </div>
 
@@ -225,11 +226,11 @@ export default function TenantIdentityTransferPage() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="text-left text-slate-500 border-b">
-                    <th className="py-2 pr-3">Name</th>
-                    <th className="py-2 pr-3">Subdomain</th>
-                    <th className="py-2 pr-3">Sub status</th>
-                    <th className="py-2 pr-3">Paid before</th>
-                    <th className="py-2 pr-3">Users</th>
+                    <th className="py-2 pr-3">{tt('Name')}</th>
+                    <th className="py-2 pr-3">{tt('Subdomain')}</th>
+                    <th className="py-2 pr-3">{tt('Sub status')}</th>
+                    <th className="py-2 pr-3">{tt('Paid before')}</th>
+                    <th className="py-2 pr-3">{tt('Users')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -258,13 +259,13 @@ export default function TenantIdentityTransferPage() {
         <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Package JSON
+              {tt('Package JSON')}
             </label>
             <textarea
               className="w-full h-48 border border-slate-300 rounded-md px-3 py-2 text-xs font-mono"
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
-              placeholder='Paste insightbooks-tenant-identity-v1 JSON…'
+              placeholder={tt('Paste insightbooks-tenant-identity-v1 JSON…')}
             />
             <input
               type="file"
@@ -284,7 +285,7 @@ export default function TenantIdentityTransferPage() {
               onClick={runDryRun}
               className="px-4 py-2 rounded-md border border-slate-300 text-sm hover:bg-slate-50 disabled:opacity-50"
             >
-              Dry-run
+              {tt('Dry-run')}
             </button>
             <button
               type="button"
@@ -292,7 +293,7 @@ export default function TenantIdentityTransferPage() {
               onClick={runImport}
               className="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50"
             >
-              Commit import
+              {tt('Commit import')}
             </button>
           </div>
 

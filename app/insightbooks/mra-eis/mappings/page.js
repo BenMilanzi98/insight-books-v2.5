@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { adminFetch } from '@/lib/admin/adminApi';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -87,7 +88,7 @@ export default function AdminMraEisMappingsPage() {
         breadcrumb={
           <>
             <Link href="/insightbooks/mra-eis" className="underline">
-              MRA EIS
+              {tt('MRA EIS')}
             </Link>
             {' / '}
             Mappings
@@ -99,7 +100,7 @@ export default function AdminMraEisMappingsPage() {
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <label className="text-sm text-[var(--admin-text)]">
-          <span className="mb-1 block font-medium">Kind</span>
+          <span className="mb-1 block font-medium">{tt('Kind')}</span>
           <select className={inputCls} value={kind} onChange={(e) => setKind(e.target.value)}>
             {['SITE', 'TAX', 'LEVY', 'PAYMENT'].map((k) => (
               <option key={k} value={k}>
@@ -109,25 +110,25 @@ export default function AdminMraEisMappingsPage() {
           </select>
         </label>
         <label className="text-sm text-[var(--admin-text)]">
-          <span className="mb-1 block font-medium">Environment</span>
+          <span className="mb-1 block font-medium">{tt('Environment')}</span>
           <input
             className={inputCls}
             value={environment}
             onChange={(e) => setEnvironment(e.target.value)}
-            placeholder="SANDBOX / PRODUCTION"
+            placeholder={tt('SANDBOX / PRODUCTION')}
           />
         </label>
         <label className="text-sm text-[var(--admin-text)]">
-          <span className="mb-1 block font-medium">Tenant</span>
+          <span className="mb-1 block font-medium">{tt('Tenant')}</span>
           <input
             className={`${inputCls} font-mono text-xs`}
             value={tenantId}
             onChange={(e) => setTenantId(e.target.value)}
-            placeholder="tenantId"
+            placeholder={tt('tenantId')}
           />
         </label>
         <button type="button" className={btnPrimary} onClick={load}>
-          Refresh
+          {tt('Refresh')}
         </button>
       </div>
 

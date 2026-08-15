@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from "react";
 import Link from "next/link";
@@ -15,9 +16,9 @@ export default function HelpPage() {
             className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
           >
             <ArrowLeft size={16} className="mr-2" />
-            Back to Dashboard
+            {tt('Back to Dashboard')}
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900">Help Center</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{tt('Help Center')}</h1>
         </div>
 
         {/* Disabled Message */}
@@ -27,7 +28,7 @@ export default function HelpPage() {
           </div>
           
           <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-            Help Center Temporarily Unavailable
+            {tt('Help Center Temporarily Unavailable')}
           </h2>
           
           <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
@@ -39,24 +40,24 @@ export default function HelpPage() {
           <div className="space-y-4">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-blue-800 text-sm">
-                <strong>💡 Tip:</strong> Look for the green WhatsApp button in the bottom-right corner of your screen for instant support!
+                <strong>💡 Tip:</strong> {tt('Look for the green WhatsApp button in the bottom-right corner of your screen for instant support!')}
               </p>
             </div>
             
             <p className="text-sm text-gray-500">
-              Our support team typically responds within 2-4 hours during business days
+              {tt('Our support team typically responds within 2-4 hours during business days')}
             </p>
           </div>
 
           {/* Alternative Contact Info */}
           <div className="mt-8 pt-8 border-t border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Other Ways to Get Help</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">{tt('Other Ways to Get Help')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
               <div>
-                <strong>Email Support:</strong> support@insightbooks.com
+                <strong>{tt('Email Support:')}</strong> {tt('support@insightbooks.com')}
               </div>
               <div>
-                <strong>Business Hours:</strong> Mon-Fri 8:00 AM - 6:00 PM (CAT)
+                <strong>{tt('Business Hours:')}</strong> Mon-Fri 8:00 AM - 6:00 PM (CAT)
               </div>
             </div>
           </div>

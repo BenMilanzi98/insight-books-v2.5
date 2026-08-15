@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/Expenses/RecurringExpenseModal.js
 import { useState, useEffect } from "react";
 import { 
@@ -209,7 +210,7 @@ const RecurringExpenseModal = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
+                  {tt('Description')}
                 </label>
                 <input
                   type="text"
@@ -217,7 +218,7 @@ const RecurringExpenseModal = ({
                   value={formData.description}
                   onChange={handleChange}
                   className={`w-full p-2 border rounded-md ${errors.description ? 'border-red-500' : 'border-gray-300'}`}
-                  placeholder="Monthly Office Rent"
+                  placeholder={tt('Monthly Office Rent')}
                 />
                 {errors.description && (
                   <p className="mt-1 text-sm text-red-600">{errors.description}</p>
@@ -226,7 +227,7 @@ const RecurringExpenseModal = ({
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount
+                  {tt('Amount')}
                 </label>
                 <input
                   type="text"
@@ -247,7 +248,7 @@ const RecurringExpenseModal = ({
                 value={formData.expenseAccountId}
                 onChange={(value) => setFormData(prev => ({ ...prev, expenseAccountId: value }))}
                 options={categories}
-                placeholder="Select expense category"
+                placeholder={tt('Select expense category')}
                 required={true}
                 label="Expense Category"
               />
@@ -262,7 +263,7 @@ const RecurringExpenseModal = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Start Date
+                  {tt('Start Date')}
                 </label>
                 <div className="relative">
                   <input
@@ -283,7 +284,7 @@ const RecurringExpenseModal = ({
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Frequency
+                  {tt('Frequency')}
                 </label>
                 <select
                   name="frequency"
@@ -291,10 +292,10 @@ const RecurringExpenseModal = ({
                   onChange={handleChange}
                   className="w-full p-2 border border-gray-300 rounded-md"
                 >
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="quarterly">Quarterly</option>
-                  <option value="yearly">Yearly</option>
+                  <option value="weekly">{tt('Weekly')}</option>
+                  <option value="monthly">{tt('Monthly')}</option>
+                  <option value="quarterly">{tt('Quarterly')}</option>
+                  <option value="yearly">{tt('Yearly')}</option>
                 </select>
               </div>
             </div>
@@ -303,7 +304,7 @@ const RecurringExpenseModal = ({
             {formData.frequency === "weekly" && (
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Day of Week
+                  {tt('Day of Week')}
                 </label>
                 <select
                   name="dayOfWeek"
@@ -311,13 +312,13 @@ const RecurringExpenseModal = ({
                   onChange={handleChange}
                   className="w-full p-2 border border-gray-300 rounded-md"
                 >
-                  <option value="0">Sunday</option>
-                  <option value="1">Monday</option>
-                  <option value="2">Tuesday</option>
-                  <option value="3">Wednesday</option>
-                  <option value="4">Thursday</option>
-                  <option value="5">Friday</option>
-                  <option value="6">Saturday</option>
+                  <option value="0">{tt('Sunday')}</option>
+                  <option value="1">{tt('Monday')}</option>
+                  <option value="2">{tt('Tuesday')}</option>
+                  <option value="3">{tt('Wednesday')}</option>
+                  <option value="4">{tt('Thursday')}</option>
+                  <option value="5">{tt('Friday')}</option>
+                  <option value="6">{tt('Saturday')}</option>
                 </select>
               </div>
             )}
@@ -325,7 +326,7 @@ const RecurringExpenseModal = ({
             {formData.frequency === "monthly" && (
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Day of Month
+                  {tt('Day of Month')}
                 </label>
                 <input
                   type="number"
@@ -344,7 +345,7 @@ const RecurringExpenseModal = ({
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                End Scheduling
+                {tt('End Scheduling')}
               </label>
               <div className="space-y-2">
                 <label className="flex items-center">
@@ -356,7 +357,7 @@ const RecurringExpenseModal = ({
                     onChange={handleChange}
                     className="mr-2"
                   />
-                  <span>After</span>
+                  <span>{tt('After')}</span>
                   <input
                     type="number"
                     name="occurrences"
@@ -366,7 +367,7 @@ const RecurringExpenseModal = ({
                     className={`mx-2 p-1 w-16 border rounded-md ${errors.occurrences ? 'border-red-500' : 'border-gray-300'}`}
                     disabled={formData.endType !== "occurrences"}
                   />
-                  <span>occurrences</span>
+                  <span>{tt('occurrences')}</span>
                 </label>
                 {errors.occurrences && (
                   <p className="mt-1 text-sm text-red-600">{errors.occurrences}</p>
@@ -381,7 +382,7 @@ const RecurringExpenseModal = ({
                     onChange={handleChange}
                     className="mr-2"
                   />
-                  <span>On specific end date:</span>
+                  <span>{tt('On specific end date:')}</span>
                 </label>
                 <div className={`ml-6 ${formData.endType !== "date" && "opacity-50"}`}>
                   <div className="relative">
@@ -414,7 +415,7 @@ const RecurringExpenseModal = ({
                 onChange={handleChange}
                 rows="3"
                 className="w-full p-2 border border-gray-300 rounded-md"
-                placeholder="Add any additional details..."
+                placeholder={tt('Add any additional details...')}
               ></textarea>
             </div>
           </div>
@@ -425,7 +426,7 @@ const RecurringExpenseModal = ({
               className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1"
               onClick={onClose}
             >
-              Cancel
+              {tt('Cancel')}
             </button>
             <button 
               type="submit"
@@ -435,7 +436,7 @@ const RecurringExpenseModal = ({
               {isLoading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  <span>Processing...</span>
+                  <span>{tt('Processing...')}</span>
                 </>
               ) : (
                 <>

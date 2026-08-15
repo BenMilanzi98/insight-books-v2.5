@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -484,7 +485,7 @@ export default function AdminSubscriptions() {
             onClick={() => openEditModal(subscription)}
             className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-muted)] hover:text-[var(--admin-text)]"
             title="Edit subscription"
-            aria-label="Edit subscription"
+            aria-label={tt('Edit subscription')}
           >
             <Edit className="h-4 w-4" />
           </button>
@@ -493,7 +494,7 @@ export default function AdminSubscriptions() {
             onClick={() => openDeleteModal(subscription)}
             className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-danger)] hover:bg-[var(--admin-surface-muted)]"
             title="Delete subscription"
-            aria-label="Delete subscription"
+            aria-label={tt('Delete subscription')}
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -516,23 +517,23 @@ export default function AdminSubscriptions() {
                   onClick={() => setActiveTab('subscriptions')}
                   className={activeTab === 'subscriptions' ? btnPrimary : btnGhost}
                 >
-                  Subscriptions
+                  {tt('Subscriptions')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('eis')}
                   className={activeTab === 'eis' ? btnPrimary : btnGhost}
                 >
-                  EIS Subscriptions
+                  {tt('EIS Subscriptions')}
                 </button>
               </>
             ) : null}
             <button type="button" onClick={fetchSubscriptions} className={btnGhost}>
-              <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+              <RefreshCw className="h-4 w-4" aria-hidden /> {tt('Refresh')}
             </button>
             {activeTab === 'subscriptions' ? (
               <button type="button" onClick={() => setShowAddModal(true)} className={btnPrimary}>
-                <Plus className="h-4 w-4" aria-hidden /> Add Subscription
+                <Plus className="h-4 w-4" aria-hidden /> {tt('Add Subscription')}
               </button>
             ) : null}
           </>
@@ -581,12 +582,12 @@ export default function AdminSubscriptions() {
                   setSubscriptionPage(1);
                 }}
               >
-                <option value="all">All Statuses</option>
-                <option value="Pending">Pending</option>
-                <option value="Active">Active</option>
-                <option value="Failed">Failed</option>
-                <option value="Cancelled">Cancelled</option>
-                <option value="Expired">Expired</option>
+                <option value="all">{tt('All Statuses')}</option>
+                <option value="Pending">{tt('Pending')}</option>
+                <option value="Active">{tt('Active')}</option>
+                <option value="Failed">{tt('Failed')}</option>
+                <option value="Cancelled">{tt('Cancelled')}</option>
+                <option value="Expired">{tt('Expired')}</option>
               </AdminField.Select>
             </AdminField>
           </AdminFilterBar>
@@ -597,7 +598,7 @@ export default function AdminSubscriptions() {
               description="Adjust filters or add a new subscription."
               action={
                 <button type="button" onClick={() => setShowAddModal(true)} className={btnPrimary}>
-                  <Plus className="h-4 w-4" aria-hidden /> Add Subscription
+                  <Plus className="h-4 w-4" aria-hidden /> {tt('Add Subscription')}
                 </button>
               }
             />
@@ -628,7 +629,7 @@ export default function AdminSubscriptions() {
                     className={btnGhost}
                     disabled={subscriptionPage === 1}
                   >
-                    Prev
+                    {tt('Prev')}
                   </button>
                   <span>
                     Page {subscriptionPage} of {subscriptionTotalPages}
@@ -639,7 +640,7 @@ export default function AdminSubscriptions() {
                     className={btnGhost}
                     disabled={subscriptionPage === subscriptionTotalPages}
                   >
-                    Next
+                    {tt('Next')}
                   </button>
                 </div>
               </div>
@@ -654,7 +655,7 @@ export default function AdminSubscriptions() {
           <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Add New Subscription</h3>
+                <h3 className="text-lg font-medium text-gray-900">{tt('Add New Subscription')}</h3>
                 <button
                   onClick={() => setShowAddModal(false)}
                   className="text-gray-400 hover:text-gray-600"
@@ -667,7 +668,7 @@ export default function AdminSubscriptions() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tenant *
+                      {tt('Tenant *')}
                     </label>
                     <select
                       required
@@ -675,7 +676,7 @@ export default function AdminSubscriptions() {
                       onChange={(e) => setFormData(prev => ({ ...prev, tenantId: e.target.value }))}
                       className="w-full border border-gray-300 rounded-md px-3 py-2"
                     >
-                      <option value="">Select a tenant</option>
+                      <option value="">{tt('Select a tenant')}</option>
                       {tenants.map((tenant) => (
                         <option key={tenant.id} value={tenant.id}>
                           {tenant.name} ({tenant.subdomain})
@@ -686,7 +687,7 @@ export default function AdminSubscriptions() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Plan *
+                      {tt('Plan *')}
                     </label>
                     <select
                       required
@@ -702,7 +703,7 @@ export default function AdminSubscriptions() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Amount *
+                      {tt('Amount *')}
                     </label>
                     <input
                       type="number"
@@ -716,7 +717,7 @@ export default function AdminSubscriptions() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Currency
+                      {tt('Currency')}
                     </label>
                     <select
                       value={formData.currency}
@@ -731,35 +732,35 @@ export default function AdminSubscriptions() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Status
+                      {tt('Status')}
                     </label>
                     <select
                       value={formData.status}
                       onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
                       className="w-full border border-gray-300 rounded-md px-3 py-2"
                     >
-                      <option value="Pending">Pending</option>
-                      <option value="Active">Active</option>
-                      <option value="Failed">Failed</option>
-                      <option value="Cancelled">Cancelled</option>
-                      <option value="Expired">Expired</option>
+                      <option value="Pending">{tt('Pending')}</option>
+                      <option value="Active">{tt('Active')}</option>
+                      <option value="Failed">{tt('Failed')}</option>
+                      <option value="Cancelled">{tt('Cancelled')}</option>
+                      <option value="Expired">{tt('Expired')}</option>
                     </select>
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Payment Method
+                      {tt('Payment Method')}
                     </label>
                     <select
                       value={formData.paymentMethod}
                       onChange={(e) => setFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
                       className="w-full border border-gray-300 rounded-md px-3 py-2"
                     >
-                      <option value="">Select payment method</option>
-                      <option value="bank">Bank Transfer</option>
-                      <option value="mobile_money">Mobile Money</option>
-                      <option value="card">Credit/Debit Card</option>
-                      <option value="cash">Cash</option>
+                      <option value="">{tt('Select payment method')}</option>
+                      <option value="bank">{tt('Bank Transfer')}</option>
+                      <option value="mobile_money">{tt('Mobile Money')}</option>
+                      <option value="card">{tt('Credit/Debit Card')}</option>
+                      <option value="cash">{tt('Cash')}</option>
                     </select>
                   </div>
                 </div>
@@ -767,7 +768,7 @@ export default function AdminSubscriptions() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Trial Start Date
+                      {tt('Trial Start Date')}
                     </label>
                     <input
                       type="date"
@@ -779,7 +780,7 @@ export default function AdminSubscriptions() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Trial End Date
+                      {tt('Trial End Date')}
                     </label>
                     <input
                       type="date"
@@ -791,7 +792,7 @@ export default function AdminSubscriptions() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Expires At
+                      {tt('Expires At')}
                     </label>
                     <input
                       type="date"
@@ -809,7 +810,7 @@ export default function AdminSubscriptions() {
                         onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
                         className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                       />
-                      <span className="ml-2 text-sm text-gray-700">Active</span>
+                      <span className="ml-2 text-sm text-gray-700">{tt('Active')}</span>
                     </label>
                     
                     <label className="flex items-center">
@@ -819,21 +820,21 @@ export default function AdminSubscriptions() {
                         onChange={(e) => setFormData(prev => ({ ...prev, isTrial: e.target.checked }))}
                         className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                       />
-                      <span className="ml-2 text-sm text-gray-700">Trial</span>
+                      <span className="ml-2 text-sm text-gray-700">{tt('Trial')}</span>
                     </label>
                   </div>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Notes
+                    {tt('Notes')}
                   </label>
                   <textarea
                     value={formData.notes}
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                     rows={3}
                     className="w-full border border-gray-300 rounded-md px-3 py-2"
-                    placeholder="Additional notes about this subscription..."
+                    placeholder={tt('Additional notes about this subscription...')}
                   />
                 </div>
                 
@@ -843,13 +844,13 @@ export default function AdminSubscriptions() {
                     onClick={() => setShowAddModal(false)}
                     className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
                   >
-                    Create Subscription
+                    {tt('Create Subscription')}
                   </button>
                 </div>
               </form>
@@ -864,7 +865,7 @@ export default function AdminSubscriptions() {
           <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Edit Subscription</h3>
+                <h3 className="text-lg font-medium text-gray-900">{tt('Edit Subscription')}</h3>
                 <button
                   onClick={() => setShowEditModal(false)}
                   className="text-gray-400 hover:text-gray-600"
@@ -877,7 +878,7 @@ export default function AdminSubscriptions() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                      <div>
                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                       Tenant *
+                       {tt('Tenant *')}
                      </label>
                      <select
                        required
@@ -885,7 +886,7 @@ export default function AdminSubscriptions() {
                        onChange={(e) => setFormData(prev => ({ ...prev, tenantId: e.target.value }))}
                        className="w-full border border-gray-300 rounded-md px-3 py-2"
                      >
-                       <option value="">Select a tenant</option>
+                       <option value="">{tt('Select a tenant')}</option>
                        {tenants.map((tenant) => (
                          <option key={tenant.id} value={tenant.id}>
                            {tenant.name} ({tenant.subdomain})
@@ -896,7 +897,7 @@ export default function AdminSubscriptions() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Plan *
+                      {tt('Plan *')}
                     </label>
                     <select
                       required
@@ -912,7 +913,7 @@ export default function AdminSubscriptions() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Amount *
+                      {tt('Amount *')}
                     </label>
                     <input
                       type="number"
@@ -926,7 +927,7 @@ export default function AdminSubscriptions() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Currency
+                      {tt('Currency')}
                     </label>
                     <select
                       value={formData.currency}
@@ -941,35 +942,35 @@ export default function AdminSubscriptions() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Status
+                      {tt('Status')}
                     </label>
                     <select
                       value={formData.status}
                       onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
                       className="w-full border border-gray-300 rounded-md px-3 py-2"
                     >
-                      <option value="Pending">Pending</option>
-                      <option value="Active">Active</option>
-                      <option value="Failed">Failed</option>
-                      <option value="Cancelled">Cancelled</option>
-                      <option value="Expired">Expired</option>
+                      <option value="Pending">{tt('Pending')}</option>
+                      <option value="Active">{tt('Active')}</option>
+                      <option value="Failed">{tt('Failed')}</option>
+                      <option value="Cancelled">{tt('Cancelled')}</option>
+                      <option value="Expired">{tt('Expired')}</option>
                     </select>
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Payment Method
+                      {tt('Payment Method')}
                     </label>
                     <select
                       value={formData.paymentMethod}
                       onChange={(e) => setFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
                       className="w-full border border-gray-300 rounded-md px-3 py-2"
                     >
-                      <option value="">Select payment method</option>
-                      <option value="bank">Bank Transfer</option>
-                      <option value="mobile_money">Mobile Money</option>
-                      <option value="card">Credit/Debit Card</option>
-                      <option value="cash">Cash</option>
+                      <option value="">{tt('Select payment method')}</option>
+                      <option value="bank">{tt('Bank Transfer')}</option>
+                      <option value="mobile_money">{tt('Mobile Money')}</option>
+                      <option value="card">{tt('Credit/Debit Card')}</option>
+                      <option value="cash">{tt('Cash')}</option>
                     </select>
                   </div>
                 </div>
@@ -977,7 +978,7 @@ export default function AdminSubscriptions() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Trial Start Date
+                      {tt('Trial Start Date')}
                     </label>
                     <input
                       type="date"
@@ -989,7 +990,7 @@ export default function AdminSubscriptions() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Trial End Date
+                      {tt('Trial End Date')}
                     </label>
                     <input
                       type="date"
@@ -1001,7 +1002,7 @@ export default function AdminSubscriptions() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Expires At
+                      {tt('Expires At')}
                     </label>
                     <input
                       type="date"
@@ -1019,7 +1020,7 @@ export default function AdminSubscriptions() {
                         onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
                         className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                       />
-                      <span className="ml-2 text-sm text-gray-700">Active</span>
+                      <span className="ml-2 text-sm text-gray-700">{tt('Active')}</span>
                     </label>
                     
                     <label className="flex items-center">
@@ -1029,21 +1030,21 @@ export default function AdminSubscriptions() {
                         onChange={(e) => setFormData(prev => ({ ...prev, isTrial: e.target.checked }))}
                         className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                       />
-                      <span className="ml-2 text-sm text-gray-700">Trial</span>
+                      <span className="ml-2 text-sm text-gray-700">{tt('Trial')}</span>
                     </label>
                   </div>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Notes
+                    {tt('Notes')}
                   </label>
                   <textarea
                     value={formData.notes}
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                     rows={3}
                     className="w-full border border-gray-300 rounded-md px-3 py-2"
-                    placeholder="Additional notes about this subscription..."
+                    placeholder={tt('Additional notes about this subscription...')}
                   />
                 </div>
                 
@@ -1053,13 +1054,13 @@ export default function AdminSubscriptions() {
                     onClick={() => setShowEditModal(false)}
                     className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
                   >
-                    Update Subscription
+                    {tt('Update Subscription')}
                   </button>
                 </div>
               </form>
@@ -1074,7 +1075,7 @@ export default function AdminSubscriptions() {
           <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div className="mt-3 text-center">
               <AlertCircle className="mx-auto h-12 w-12 text-red-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Delete Subscription</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">{tt('Delete Subscription')}</h3>
               <p className="text-sm text-gray-500 mb-6">
                 Are you sure you want to delete the subscription for{' '}
                 <strong>{selectedSubscription.tenant?.name || 'Unknown Tenant'}</strong>?
@@ -1086,13 +1087,13 @@ export default function AdminSubscriptions() {
                   onClick={() => setShowDeleteModal(false)}
                   className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   onClick={handleDeleteSubscription}
                   className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700"
                 >
-                  Delete
+                  {tt('Delete')}
                 </button>
               </div>
             </div>
@@ -1107,21 +1108,21 @@ export default function AdminSubscriptions() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-4 rounded-lg text-white">
               <div className="text-center">
-                <p className="text-sm font-medium text-indigo-100">Total EIS</p>
+                <p className="text-sm font-medium text-indigo-100">{tt('Total EIS')}</p>
                 <p className="text-3xl font-bold">{eisStats.total}</p>
               </div>
             </div>
             
             <div className="bg-gradient-to-br from-green-500 to-green-600 p-4 rounded-lg text-white">
               <div className="text-center">
-                <p className="text-sm font-medium text-green-100">Active</p>
+                <p className="text-sm font-medium text-green-100">{tt('Active')}</p>
                 <p className="text-3xl font-bold">{eisStats.active}</p>
               </div>
             </div>
             
             <div className="bg-gradient-to-br from-amber-500 to-amber-600 p-4 rounded-lg text-white">
               <div className="text-center">
-                <p className="text-sm font-medium text-amber-100">Monthly</p>
+                <p className="text-sm font-medium text-amber-100">{tt('Monthly')}</p>
                 <p className="text-3xl font-bold">{eisStats.monthlyActive}</p>
                 <p className="text-xs text-amber-100">of {eisStats.monthly} total</p>
               </div>
@@ -1129,7 +1130,7 @@ export default function AdminSubscriptions() {
             
             <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-4 rounded-lg text-white">
               <div className="text-center">
-                <p className="text-sm font-medium text-blue-100">Yearly</p>
+                <p className="text-sm font-medium text-blue-100">{tt('Yearly')}</p>
                 <p className="text-3xl font-bold">{eisStats.yearlyActive}</p>
                 <p className="text-xs text-blue-100">of {eisStats.yearly} total</p>
               </div>
@@ -1144,7 +1145,7 @@ export default function AdminSubscriptions() {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Search by tenant name, subdomain, TPIN..."
+                    placeholder={tt('Search by tenant name, subdomain, TPIN...')}
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
@@ -1163,9 +1164,9 @@ export default function AdminSubscriptions() {
                   }}
                   className="px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
                 >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="expired">Expired</option>
+                  <option value="all">{tt('All Status')}</option>
+                  <option value="active">{tt('Active')}</option>
+                  <option value="expired">{tt('Expired')}</option>
                 </select>
                 <select
                   value={eisPlanFilter}
@@ -1175,9 +1176,9 @@ export default function AdminSubscriptions() {
                   }}
                   className="px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
                 >
-                  <option value="all">All Plans</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="yearly">Yearly</option>
+                  <option value="all">{tt('All Plans')}</option>
+                  <option value="monthly">{tt('Monthly')}</option>
+                  <option value="yearly">{tt('Yearly')}</option>
                 </select>
                 <button
                   onClick={fetchEISSubscriptions}
@@ -1194,15 +1195,15 @@ export default function AdminSubscriptions() {
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h3 className="text-lg font-medium text-gray-900">EIS Subscriptions</h3>
-                <p className="text-sm text-gray-500">MRA Electronic Invoice System subscriptions</p>
+                <h3 className="text-lg font-medium text-gray-900">{tt('EIS Subscriptions')}</h3>
+                <p className="text-sm text-gray-500">{tt('MRA Electronic Invoice System subscriptions')}</p>
               </div>
               <button
                 onClick={openEISActivateModal}
                 className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Activate EIS
+                {tt('Activate EIS')}
               </button>
             </div>
             
@@ -1210,14 +1211,14 @@ export default function AdminSubscriptions() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tenant</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plan Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Tenant')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Plan Type')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Amount')}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TPIN</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Started</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expires</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Started')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Expires')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -1266,7 +1267,7 @@ export default function AdminSubscriptions() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="8" className="px-6 py-12 text-center text-gray-500">No EIS subscriptions found</td>
+                      <td colSpan="8" className="px-6 py-12 text-center text-gray-500">{tt('No EIS subscriptions found')}</td>
                     </tr>
                   )}
                 </tbody>
@@ -1282,7 +1283,7 @@ export default function AdminSubscriptions() {
           <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Activate EIS Subscription</h3>
+                <h3 className="text-lg font-medium text-gray-900">{tt('Activate EIS Subscription')}</h3>
                 <button onClick={() => setShowEISActivateModal(false)} className="text-gray-400 hover:text-gray-600">
                   <AlertCircle className="h-6 w-6" />
                 </button>
@@ -1290,40 +1291,40 @@ export default function AdminSubscriptions() {
               <form onSubmit={handleActivateEISSubscription} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tenant *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Tenant *')}</label>
                     <select required value={eisFormData.tenantId} onChange={(e) => setEisFormData(prev => ({ ...prev, tenantId: e.target.value }))} className="w-full border border-gray-300 rounded-md px-3 py-2">
-                      <option value="">Select a tenant</option>
+                      <option value="">{tt('Select a tenant')}</option>
                       {tenants.map((tenant) => (<option key={tenant.id} value={tenant.id}>{tenant.name} ({tenant.subdomain})</option>))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Plan *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Plan *')}</label>
                     <select required value={eisFormData.plan} onChange={(e) => setEisFormData(prev => ({ ...prev, plan: e.target.value }))} className="w-full border border-gray-300 rounded-md px-3 py-2">
                       <option value="eis-monthly">EIS Monthly (MK150,000/month)</option>
                       <option value="eis-yearly">EIS Yearly (MK950,000/year)</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Amount')}</label>
                     <input type="number" value={eisFormData.amount} onChange={(e) => setEisFormData(prev => ({ ...prev, amount: e.target.value }))} className="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="150000" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Payment Method')}</label>
                     <select value={eisFormData.paymentMethod} onChange={(e) => setEisFormData(prev => ({ ...prev, paymentMethod: e.target.value }))} className="w-full border border-gray-300 rounded-md px-3 py-2">
-                      <option value="bank">Bank Transfer</option>
-                      <option value="mobile_money">Mobile Money</option>
-                      <option value="card">Credit/Debit Card</option>
-                      <option value="cash">Cash</option>
+                      <option value="bank">{tt('Bank Transfer')}</option>
+                      <option value="mobile_money">{tt('Mobile Money')}</option>
+                      <option value="card">{tt('Credit/Debit Card')}</option>
+                      <option value="cash">{tt('Cash')}</option>
                     </select>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                  <textarea value={eisFormData.notes} onChange={(e) => setEisFormData(prev => ({ ...prev, notes: e.target.value }))} rows={3} className="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="Reason for activation..." />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Notes')}</label>
+                  <textarea value={eisFormData.notes} onChange={(e) => setEisFormData(prev => ({ ...prev, notes: e.target.value }))} rows={3} className="w-full border border-gray-300 rounded-md px-3 py-2" placeholder={tt('Reason for activation...')} />
                 </div>
                 <div className="flex justify-end space-x-3 pt-4">
-                  <button type="button" onClick={() => setShowEISActivateModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">Cancel</button>
-                  <button type="submit" className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Activate EIS</button>
+                  <button type="button" onClick={() => setShowEISActivateModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">{tt('Cancel')}</button>
+                  <button type="submit" className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">{tt('Activate EIS')}</button>
                 </div>
               </form>
             </div>
@@ -1337,15 +1338,15 @@ export default function AdminSubscriptions() {
           <div className="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
             <div className="mt-3 text-center">
               <AlertCircle className="mx-auto h-12 w-12 text-red-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Deactivate EIS Subscription</h3>
-              <p className="text-sm text-gray-500 mb-4">Deactivate EIS for <strong>{selectedSubscription.tenant?.name || 'Unknown Tenant'}</strong>?</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">{tt('Deactivate EIS Subscription')}</h3>
+              <p className="text-sm text-gray-500 mb-4">{tt('Deactivate EIS for')} <strong>{selectedSubscription.tenant?.name || 'Unknown Tenant'}</strong>?</p>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1 text-left">Reason (optional)</label>
-                <textarea value={deactivateReason} onChange={(e) => setDeactivateReason(e.target.value)} rows={2} className="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="Reason for deactivation..." />
+                <textarea value={deactivateReason} onChange={(e) => setDeactivateReason(e.target.value)} rows={2} className="w-full border border-gray-300 rounded-md px-3 py-2" placeholder={tt('Reason for deactivation...')} />
               </div>
               <div className="flex justify-center space-x-3">
-                <button onClick={() => setShowEISDeactivateModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">Cancel</button>
-                <button onClick={handleDeactivateEISSubscription} className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700">Deactivate</button>
+                <button onClick={() => setShowEISDeactivateModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">{tt('Cancel')}</button>
+                <button onClick={handleDeactivateEISSubscription} className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700">{tt('Deactivate')}</button>
               </div>
             </div>
           </div>
@@ -1358,26 +1359,26 @@ export default function AdminSubscriptions() {
           <div className="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">EIS Subscription Details</h3>
+                <h3 className="text-lg font-medium text-gray-900">{tt('EIS Subscription Details')}</h3>
                 <button onClick={() => setShowEISViewModal(false)} className="text-gray-400 hover:text-gray-600">
                   <AlertCircle className="h-6 w-6" />
                 </button>
               </div>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div><p className="text-sm text-gray-500">Tenant</p><p className="font-medium">{selectedSubscription.tenant?.name}</p></div>
-                  <div><p className="text-sm text-gray-500">Subdomain</p><p className="font-medium">{selectedSubscription.tenant?.subdomain}</p></div>
+                  <div><p className="text-sm text-gray-500">{tt('Tenant')}</p><p className="font-medium">{selectedSubscription.tenant?.name}</p></div>
+                  <div><p className="text-sm text-gray-500">{tt('Subdomain')}</p><p className="font-medium">{selectedSubscription.tenant?.subdomain}</p></div>
                   <div><p className="text-sm text-gray-500">TPIN</p><p className="font-medium">{selectedSubscription.tenant?.tpin || '-'}</p></div>
-                  <div><p className="text-sm text-gray-500">Plan</p><p className="font-medium">{selectedSubscription.planType === 'monthly' ? 'Monthly' : 'Yearly'}</p></div>
-                  <div><p className="text-sm text-gray-500">Status</p><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(selectedSubscription.status)}`}>{selectedSubscription.status}</span></div>
-                  <div><p className="text-sm text-gray-500">Amount</p><p className="font-medium">{selectedSubscription.currency} {(selectedSubscription.amount || 0).toLocaleString()}</p></div>
-                  <div><p className="text-sm text-gray-500">Started</p><p className="font-medium">{selectedSubscription.startedAt ? new Date(selectedSubscription.startedAt).toLocaleDateString() : '-'}</p></div>
-                  <div><p className="text-sm text-gray-500">Expires</p><p className="font-medium">{selectedSubscription.expiresAt ? new Date(selectedSubscription.expiresAt).toLocaleDateString() : 'N/A'}</p></div>
+                  <div><p className="text-sm text-gray-500">{tt('Plan')}</p><p className="font-medium">{selectedSubscription.planType === 'monthly' ? 'Monthly' : 'Yearly'}</p></div>
+                  <div><p className="text-sm text-gray-500">{tt('Status')}</p><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(selectedSubscription.status)}`}>{selectedSubscription.status}</span></div>
+                  <div><p className="text-sm text-gray-500">{tt('Amount')}</p><p className="font-medium">{selectedSubscription.currency} {(selectedSubscription.amount || 0).toLocaleString()}</p></div>
+                  <div><p className="text-sm text-gray-500">{tt('Started')}</p><p className="font-medium">{selectedSubscription.startedAt ? new Date(selectedSubscription.startedAt).toLocaleDateString() : '-'}</p></div>
+                  <div><p className="text-sm text-gray-500">{tt('Expires')}</p><p className="font-medium">{selectedSubscription.expiresAt ? new Date(selectedSubscription.expiresAt).toLocaleDateString() : 'N/A'}</p></div>
                 </div>
-                {selectedSubscription.txRef && (<div><p className="text-sm text-gray-500">Transaction Ref</p><p className="font-medium text-xs">{selectedSubscription.txRef}</p></div>)}
+                {selectedSubscription.txRef && (<div><p className="text-sm text-gray-500">{tt('Transaction Ref')}</p><p className="font-medium text-xs">{selectedSubscription.txRef}</p></div>)}
               </div>
               <div className="flex justify-end mt-6">
-                <button onClick={() => setShowEISViewModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">Close</button>
+                <button onClick={() => setShowEISViewModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">{tt('Close')}</button>
               </div>
             </div>
           </div>

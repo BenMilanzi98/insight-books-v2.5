@@ -1,6 +1,8 @@
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import "./globals.css";
 import RootLayoutClient from "./RootLayoutClient";
+import { coerceLocale, LOCALE_COOKIE } from "@/lib/i18n/locales";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -73,9 +75,12 @@ export const metadata = {
   },
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const cookieStore = await cookies();
+  const locale = coerceLocale(cookieStore.get(LOCALE_COOKIE)?.value);
+
   return (
-    <html lang="en">
+    <html lang={locale === "ny" ? "ny" : "en"}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={{
@@ -86,7 +91,7 @@ export default function RootLayout({ children }) {
           flexDirection: "column",
         }}
       >
-        <RootLayoutClient>{children}</RootLayoutClient>
+        <RootLayoutClient initialLocale={locale}>{children}</RootLayoutClient>
       </body>
     </html>
   );

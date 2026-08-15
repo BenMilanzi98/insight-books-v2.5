@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -119,13 +120,13 @@ function AffiliateResetPasswordForm() {
           <div className="mx-auto h-16 w-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
             <AlertCircle className="h-8 w-8 text-red-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Reset Link</h1>
-          <p className="text-gray-600 mb-6">This password reset link is invalid.</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">{tt('Invalid Reset Link')}</h1>
+          <p className="text-gray-600 mb-6">{tt('This password reset link is invalid.')}</p>
           <button
             onClick={() => router.push('/affiliate/login')}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
           >
-            Back to Login
+            {tt('Back to Login')}
           </button>
         </div>
       </div>
@@ -137,7 +138,7 @@ function AffiliateResetPasswordForm() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Validating reset token...</p>
+          <p className="text-gray-600">{tt('Validating reset token...')}</p>
         </div>
       </div>
     );
@@ -150,13 +151,13 @@ function AffiliateResetPasswordForm() {
           <div className="mx-auto h-16 w-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
             <AlertCircle className="h-8 w-8 text-red-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Reset Link Expired</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">{tt('Reset Link Expired')}</h1>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={() => router.push('/affiliate/login')}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
           >
-            Back to Login
+            {tt('Back to Login')}
           </button>
         </div>
       </div>
@@ -170,9 +171,9 @@ function AffiliateResetPasswordForm() {
           <div className="mx-auto h-16 w-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
             <Lock className="h-8 w-8 text-indigo-600" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900">Reset Your Password</h2>
+          <h2 className="text-3xl font-bold text-gray-900">{tt('Reset Your Password')}</h2>
           <p className="mt-2 text-sm text-gray-600">
-            Enter your new password below
+            {tt('Enter your new password below')}
           </p>
         </div>
       </div>
@@ -182,7 +183,7 @@ function AffiliateResetPasswordForm() {
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                New Password
+                {tt('New Password')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -196,7 +197,7 @@ function AffiliateResetPasswordForm() {
                   value={formData.password}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Enter new password"
+                  placeholder={tt('Enter new password')}
                 />
                 <button
                   type="button"
@@ -211,13 +212,13 @@ function AffiliateResetPasswordForm() {
                 </button>
               </div>
               <p className="mt-1 text-xs text-gray-500">
-                Password must be at least 8 characters long
+                {tt('Password must be at least 8 characters long')}
               </p>
             </div>
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Confirm New Password
+                {tt('Confirm New Password')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -231,7 +232,7 @@ function AffiliateResetPasswordForm() {
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Confirm new password"
+                  placeholder={tt('Confirm new password')}
                 />
                 <button
                   type="button"
@@ -253,7 +254,7 @@ function AffiliateResetPasswordForm() {
                 <div className="flex">
                   <AlertCircle className="h-5 w-5 text-red-400" />
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">Error</h3>
+                    <h3 className="text-sm font-medium text-red-800">{tt('Error')}</h3>
                     <div className="mt-2 text-sm text-red-700">{error}</div>
                   </div>
                 </div>
@@ -265,7 +266,7 @@ function AffiliateResetPasswordForm() {
                 <div className="flex">
                   <CheckCircle className="h-5 w-5 text-green-400" />
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-green-800">Success</h3>
+                    <h3 className="text-sm font-medium text-green-800">{tt('Success')}</h3>
                     <div className="mt-2 text-sm text-green-700">{success}</div>
                   </div>
                 </div>
@@ -300,7 +301,7 @@ function AffiliateResetPasswordForm() {
                 className="w-full flex justify-center items-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Login
+                {tt('Back to Login')}
               </button>
             </div>
           </div>
@@ -316,7 +317,7 @@ function LoadingFallback() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">Loading...</p>
+        <p className="text-gray-600">{tt('Loading...')}</p>
       </div>
     </div>
   );

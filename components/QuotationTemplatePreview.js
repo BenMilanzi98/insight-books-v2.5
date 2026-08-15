@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/QuotationTemplatePreview.jsx
 import React, { forwardRef, useState } from 'react';
 import { addMoney, multiplyMoney, percentOfMoney, subtractMoney } from '@/lib/money';
@@ -94,7 +95,7 @@ const QuotationTemplatePreview = forwardRef(({
             )}
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold tracking-tight text-gray-900">Quotation</p>
+            <p className="text-2xl font-bold tracking-tight text-gray-900">{tt('Quotation')}</p>
             <p className="text-sm text-gray-500 mt-0.5">{quotation?.quotationNumber ?? '—'}</p>
             <span className={`inline-block mt-2 px-2.5 py-1 text-xs font-medium rounded-md ${
               quotation?.status === 'Approved' ? 'bg-green-100 text-green-800' :
@@ -111,7 +112,7 @@ const QuotationTemplatePreview = forwardRef(({
       {/* Quotation for + Prepared by + Doc details */}
       <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 bg-gray-50/60">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Quotation for</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">{tt('Quotation for')}</p>
           <p className="font-semibold text-gray-900">
             {quotation?.client?.name || quotation?.clientName || (quotation?.client?.email ? quotation.client.email.split('@')[0] : null) || 'Client Name Not Available'}
           </p>
@@ -122,13 +123,13 @@ const QuotationTemplatePreview = forwardRef(({
         </div>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <div><p className="text-gray-500">Order #</p><p className="text-gray-900">{quotation?.orderNumber ?? '—'}</p></div>
-            <div><p className="text-gray-500">Date</p><p className="text-gray-900">{formatDate(quotation?.issueDate)}</p></div>
-            <div><p className="text-gray-500">Valid until</p><p className="text-gray-900">{formatDate(quotation?.validUntil)}</p></div>
+            <div><p className="text-gray-500">{tt('Order #')}</p><p className="text-gray-900">{quotation?.orderNumber ?? '—'}</p></div>
+            <div><p className="text-gray-500">{tt('Date')}</p><p className="text-gray-900">{formatDate(quotation?.issueDate)}</p></div>
+            <div><p className="text-gray-500">{tt('Valid until')}</p><p className="text-gray-900">{formatDate(quotation?.validUntil)}</p></div>
           </div>
           {quotation?.createdBy && (
             <div className="pt-2 border-t border-gray-200">
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Prepared by</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">{tt('Prepared by')}</p>
               <p className="text-gray-900 font-medium">{quotation.createdBy.name}</p>
               {quotation.createdBy.email && <p className="text-sm text-gray-600">{quotation.createdBy.email}</p>}
               <p className="text-xs text-gray-500 mt-1">Created {formatDate(quotation?.createdAt)}</p>
@@ -144,12 +145,12 @@ const QuotationTemplatePreview = forwardRef(({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b-2 border-gray-200">
-              <th className="text-left py-3 font-semibold text-gray-700">Description</th>
-              <th className="text-right py-3 font-semibold text-gray-700 w-16">Qty</th>
-              <th className="text-right py-3 font-semibold text-gray-700">Selling Price</th>
-              <th className="text-right py-3 font-semibold text-gray-700">Discount</th>
-              {showLineTax && <th className="text-right py-3 font-semibold text-gray-700">Tax</th>}
-              <th className="text-right py-3 font-semibold text-gray-700">Total</th>
+              <th className="text-left py-3 font-semibold text-gray-700">{tt('Description')}</th>
+              <th className="text-right py-3 font-semibold text-gray-700 w-16">{tt('Qty')}</th>
+              <th className="text-right py-3 font-semibold text-gray-700">{tt('Selling Price')}</th>
+              <th className="text-right py-3 font-semibold text-gray-700">{tt('Discount')}</th>
+              {showLineTax && <th className="text-right py-3 font-semibold text-gray-700">{tt('Tax')}</th>}
+              <th className="text-right py-3 font-semibold text-gray-700">{tt('Total')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -191,15 +192,15 @@ const QuotationTemplatePreview = forwardRef(({
         {/* Totals card */}
         <div className="mt-6 flex justify-end">
           <div className="w-64 rounded-lg border border-gray-200 bg-gray-50/80 p-4 text-sm">
-            <div className="flex justify-between py-1.5 text-gray-600"><span>Subtotal</span><span className="font-medium text-gray-900">{formatCurrency(subtotal)}</span></div>
-            {(quotation?.totalDiscountAmount || 0) > 0 && <div className="flex justify-between py-1.5 text-gray-600"><span>Line discounts</span><span className="text-red-600 font-medium">-{formatCurrency(quotation.totalDiscountAmount)}</span></div>}
-            {(quotation?.discount || 0) > 0 && <div className="flex justify-between py-1.5 text-gray-600"><span>Discount</span><span className="text-red-600 font-medium">-{formatCurrency(quotation.discount)}</span></div>}
-            <div className="flex justify-between py-1.5 text-gray-600"><span>Net subtotal</span><span className="font-medium text-gray-900">{formatCurrency(netSubtotal)}</span></div>
+            <div className="flex justify-between py-1.5 text-gray-600"><span>{tt('Subtotal')}</span><span className="font-medium text-gray-900">{formatCurrency(subtotal)}</span></div>
+            {(quotation?.totalDiscountAmount || 0) > 0 && <div className="flex justify-between py-1.5 text-gray-600"><span>{tt('Line discounts')}</span><span className="text-red-600 font-medium">-{formatCurrency(quotation.totalDiscountAmount)}</span></div>}
+            {(quotation?.discount || 0) > 0 && <div className="flex justify-between py-1.5 text-gray-600"><span>{tt('Discount')}</span><span className="text-red-600 font-medium">-{formatCurrency(quotation.discount)}</span></div>}
+            <div className="flex justify-between py-1.5 text-gray-600"><span>{tt('Net subtotal')}</span><span className="font-medium text-gray-900">{formatCurrency(netSubtotal)}</span></div>
             {showDocumentTax && (
-            <div className="flex justify-between py-1.5 text-gray-600"><span>Tax</span><span className="font-medium text-gray-900">{formatCurrency(taxAmount)}</span></div>
+            <div className="flex justify-between py-1.5 text-gray-600"><span>{tt('Tax')}</span><span className="font-medium text-gray-900">{formatCurrency(taxAmount)}</span></div>
             )}
             <div className="flex justify-between py-3 mt-1 border-t-2 border-gray-200" style={{ color: primaryColor }}>
-              <span className="font-bold">Total</span>
+              <span className="font-bold">{tt('Total')}</span>
               <span className="font-bold">{formatCurrency(total)}</span>
             </div>
           </div>

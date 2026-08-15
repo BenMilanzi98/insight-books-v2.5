@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/InvoiceTemplatePreview.jsx
 import React, { useState } from 'react';
 import { formatCurrency, formatAmount, formatAmountForExport, formatCurrencyForExport, formatDate } from '@/lib/invoiceCalculations';
@@ -210,12 +211,12 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             )}
             {sellerTpin && (
               <p className="mt-2 text-xs text-gray-600">
-                <span className="font-semibold">TPIN:</span> {sellerTpin}
+                <span className="font-semibold">{tt('TPIN:')}</span> {sellerTpin}
               </p>
             )}
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold tracking-tight text-gray-900">Invoice</p>
+            <p className="text-2xl font-bold tracking-tight text-gray-900">{tt('Invoice')}</p>
             <p className="text-sm text-gray-500 mt-0.5">#{displayData.invoiceNumber}</p>
             <span className="inline-block mt-2 px-2.5 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-700">{displayData.status}</span>
           </div>
@@ -225,7 +226,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
       {/* Bill To + Invoice Details in a clean grid */}
       <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 bg-gray-50/60">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Bill to</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">{tt('Bill to')}</p>
           <p className="font-semibold text-gray-900">{displayData.client?.name}</p>
           {displayData.client?.contactPerson && <p className="text-sm text-gray-600">Attn: {displayData.client.contactPerson}</p>}
           {displayData.client?.address && displayData.client.address !== '' && <p className="text-sm text-gray-600 mt-1">{displayData.client.address}</p>}
@@ -235,15 +236,15 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <div>
-              <p className="text-gray-500">Order #</p>
+              <p className="text-gray-500">{tt('Order #')}</p>
               <p className="text-gray-900">{displayData.orderNumber || '—'}</p>
             </div>
             <div>
-              <p className="text-gray-500">Issue date</p>
+              <p className="text-gray-500">{tt('Issue date')}</p>
               <p className="text-gray-900">{displayData.issueDate}</p>
             </div>
             <div>
-              <p className="text-gray-500">Due date</p>
+              <p className="text-gray-500">{tt('Due date')}</p>
               <p className="text-gray-900">{displayData.dueDate}</p>
             </div>
           </div>
@@ -256,12 +257,12 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b-2 border-gray-200">
-              <th className="text-left py-3 font-semibold text-gray-700">Item</th>
-              <th className="text-right py-3 font-semibold text-gray-700 w-16">Qty</th>
-              <th className="text-right py-3 font-semibold text-gray-700">Rate</th>
-              <th className="text-right py-3 font-semibold text-gray-700">Discount</th>
-              {showLineTax && <th className="text-right py-3 font-semibold text-gray-700">Tax</th>}
-              <th className="text-right py-3 font-semibold text-gray-700">Amount</th>
+              <th className="text-left py-3 font-semibold text-gray-700">{tt('Item')}</th>
+              <th className="text-right py-3 font-semibold text-gray-700 w-16">{tt('Qty')}</th>
+              <th className="text-right py-3 font-semibold text-gray-700">{tt('Rate')}</th>
+              <th className="text-right py-3 font-semibold text-gray-700">{tt('Discount')}</th>
+              {showLineTax && <th className="text-right py-3 font-semibold text-gray-700">{tt('Tax')}</th>}
+              <th className="text-right py-3 font-semibold text-gray-700">{tt('Amount')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -290,29 +291,29 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         <div className="mt-6 flex justify-end">
           <div className="w-64 rounded-lg border border-gray-200 bg-gray-50/80 p-4 text-sm">
             {displayData.totalDiscountAmount > 0 && (
-              <div className="flex justify-between py-1.5 text-gray-600"><span>Line discounts</span><span className="text-red-600 font-medium">-{formatCurrencyDisplay(displayData.totalDiscountAmount)}</span></div>
+              <div className="flex justify-between py-1.5 text-gray-600"><span>{tt('Line discounts')}</span><span className="text-red-600 font-medium">-{formatCurrencyDisplay(displayData.totalDiscountAmount)}</span></div>
             )}
             {displayData.discount > 0 && (
-              <div className="flex justify-between py-1.5 text-gray-600"><span>Discount</span><span className="text-red-600 font-medium">-{formatCurrencyDisplay(displayData.discount)}</span></div>
+              <div className="flex justify-between py-1.5 text-gray-600"><span>{tt('Discount')}</span><span className="text-red-600 font-medium">-{formatCurrencyDisplay(displayData.discount)}</span></div>
             )}
-            <div className="flex justify-between py-1.5 text-gray-600"><span>Subtotal</span><span className="font-medium text-gray-900">{formatCurrencyDisplay(displayData.subtotal)}</span></div>
+            <div className="flex justify-between py-1.5 text-gray-600"><span>{tt('Subtotal')}</span><span className="font-medium text-gray-900">{formatCurrencyDisplay(displayData.subtotal)}</span></div>
             {showDocumentTax && (
-            <div className="flex justify-between py-1.5 text-gray-600"><span>Tax</span><span className="font-medium text-gray-900">{formatCurrencyDisplay(displayData.taxAmount)}</span></div>
+            <div className="flex justify-between py-1.5 text-gray-600"><span>{tt('Tax')}</span><span className="font-medium text-gray-900">{formatCurrencyDisplay(displayData.taxAmount)}</span></div>
             )}
             <div className="flex justify-between py-3 mt-1 border-t-2 border-gray-200" style={{ color: primaryColor }}>
-              <span className="font-bold">Total</span>
+              <span className="font-bold">{tt('Total')}</span>
               <span className="font-bold">{formatCurrencyDisplay(displayData.total)}</span>
             </div>
             {displayData.paymentInfo &&
               (displayData.paymentInfo.totalPaid > 0 || (displayData.payments?.length ?? 0) > 0) && (
               <div className="mt-3 pt-3 border-t border-gray-200 space-y-1.5">
-                <div className="flex justify-between text-gray-600"><span>Paid</span><span className="font-medium text-green-600">{formatCurrencyDisplay(displayData.paymentInfo.totalPaid)}</span></div>
+                <div className="flex justify-between text-gray-600"><span>{tt('Paid')}</span><span className="font-medium text-green-600">{formatCurrencyDisplay(displayData.paymentInfo.totalPaid)}</span></div>
                 {displayData.paymentInfo.outstandingAmount > 0 && (
-                  <div className="flex justify-between text-gray-600"><span>Outstanding</span><span className="font-medium text-red-600">{formatCurrencyDisplay(displayData.paymentInfo.outstandingAmount)}</span></div>
+                  <div className="flex justify-between text-gray-600"><span>{tt('Outstanding')}</span><span className="font-medium text-red-600">{formatCurrencyDisplay(displayData.paymentInfo.outstandingAmount)}</span></div>
                 )}
                 {displayData.payments?.length > 0 && (
                   <div className="pt-1">
-                    <p className="text-xs font-medium text-gray-500 mb-1">Payment history</p>
+                    <p className="text-xs font-medium text-gray-500 mb-1">{tt('Payment history')}</p>
                     {displayData.payments.map((payment, i) => (
                       <div key={payment.id || i} className="flex justify-between text-xs text-gray-600"><span>{formatDate(payment.paymentDate)} · {payment.paymentMethodName || payment.paymentMethod}</span><span>{formatCurrencyDisplay(payment.amount)}</span></div>
                     ))}
@@ -374,7 +375,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
       {/* Client and Invoice Info */}
       <div className="grid grid-cols-2 gap-8 mb-8">
         <div className="p-4 bg-gray-50 rounded-md">
-          <h3 className="font-medium mb-3 pb-2 border-b" style={{ color: primaryColor }}>BILL TO</h3>
+          <h3 className="font-medium mb-3 pb-2 border-b" style={{ color: primaryColor }}>{tt('BILL TO')}</h3>
           <p className="font-medium">{displayData.client?.name || ''}</p>
           {displayData.client?.contactPerson && displayData.client.contactPerson !== '' && (
             <p>Attn: {displayData.client.contactPerson}</p>
@@ -388,17 +389,17 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           )}
         </div>
         <div className="p-4 bg-gray-50 rounded-md">
-          <h3 className="font-medium mb-3 pb-2 border-b" style={{ color: primaryColor }}>INVOICE DETAILS</h3>
+          <h3 className="font-medium mb-3 pb-2 border-b" style={{ color: primaryColor }}>{tt('INVOICE DETAILS')}</h3>
           <div className="grid grid-cols-2 gap-2">
-            <p className="font-medium">Title:</p>
+            <p className="font-medium">{tt('Title:')}</p>
             <p>{displayData.title || '—'}</p>
-            <p className="font-medium">Order #:</p>
+            <p className="font-medium">{tt('Order #:')}</p>
             <p>{displayData.orderNumber || '—'}</p>
-            <p className="font-medium">Issue Date:</p>
+            <p className="font-medium">{tt('Issue Date:')}</p>
             <p>{displayData.issueDate}</p>
-            <p className="font-medium">Due Date:</p>
+            <p className="font-medium">{tt('Due Date:')}</p>
             <p>{displayData.dueDate}</p>
-            <p className="font-medium">Status:</p>
+            <p className="font-medium">{tt('Status:')}</p>
             <p className="flex items-center">
               {displayData.status}
             </p>
@@ -411,12 +412,12 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
       
       {/* Line Items */}
       <div className="mb-8">
-        <h3 className="font-medium mb-3 pb-2 border-b" style={{ color: primaryColor }}>LINE ITEMS</h3>
+        <h3 className="font-medium mb-3 pb-2 border-b" style={{ color: primaryColor }}>{tt('LINE ITEMS')}</h3>
         <table className="min-w-full">
           <thead>
             <tr style={{ backgroundColor: primaryColor + '15' }}>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Item</th>
-              <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">Quantity</th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">{tt('Item')}</th>
+              <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">{tt('Quantity')}</th>
               <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider">Rate (MWK)</th>
               <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">Discount (MWK)</th>
               {showLineTax && <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">Tax (MWK)</th>}
@@ -458,29 +459,29 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           {/* Show line item discounts if any */}
           {displayData.totalDiscountAmount > 0 && (
             <div className="flex justify-between py-2">
-              <span className="text-gray-600">Line Item Discounts:</span>
+              <span className="text-gray-600">{tt('Line Item Discounts:')}</span>
               <span className="font-medium text-red-600">-{formatCurrencyDisplay(displayData.totalDiscountAmount)}</span>
             </div>
           )}
           {/* Show global discount if any */}
           {displayData.discount > 0 && (
             <div className="flex justify-between py-2">
-              <span className="text-gray-600">Global Discount:</span>
+              <span className="text-gray-600">{tt('Global Discount:')}</span>
               <span className="font-medium text-red-600">-{formatCurrencyDisplay(displayData.discount)}</span>
             </div>
           )}
           <div className="flex justify-between py-2">
-            <span className="text-gray-600">Subtotal:</span>
+            <span className="text-gray-600">{tt('Subtotal:')}</span>
             <span className="font-medium">{formatCurrencyDisplay(displayData.subtotal)}</span>
           </div>
           {showDocumentTax && (
           <div className="flex justify-between py-2">
-            <span className="text-gray-600">Tax:</span>
+            <span className="text-gray-600">{tt('Tax:')}</span>
             <span className="font-medium">{formatCurrencyDisplay(displayData.taxAmount)}</span>
           </div>
           )}
           <div className="flex justify-between py-2 text-lg font-bold mt-2 pt-2 border-t border-gray-300" style={{ color: primaryColor }}>
-            <span>Total:</span>
+            <span>{tt('Total:')}</span>
             <span>{formatCurrencyDisplay(displayData.total)}</span>
           </div>
           
@@ -488,25 +489,25 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           {displayData.paymentInfo &&
             (displayData.paymentInfo.totalPaid > 0 || (displayData.payments?.length ?? 0) > 0) && (
             <div className="mt-4 pt-4 border-t border-gray-200">
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Payment Information</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">{tt('Payment Information')}</h4>
               
               {/* Total Paid */}
               <div className="flex justify-between py-2">
-                <span className="text-gray-600">Total Paid:</span>
+                <span className="text-gray-600">{tt('Total Paid:')}</span>
                 <span className="font-medium text-green-600">{formatCurrencyDisplay(displayData.paymentInfo.totalPaid)}</span>
               </div>
               
               {/* Outstanding Amount */}
               {displayData.paymentInfo.outstandingAmount > 0 && (
                 <div className="flex justify-between py-2">
-                  <span className="text-gray-600">Outstanding:</span>
+                  <span className="text-gray-600">{tt('Outstanding:')}</span>
                   <span className="font-medium text-red-600">{formatCurrencyDisplay(displayData.paymentInfo.outstandingAmount)}</span>
                 </div>
               )}
               
               {/* Payment Status */}
               <div className="flex justify-between py-2">
-                <span className="text-gray-600">Status:</span>
+                <span className="text-gray-600">{tt('Status:')}</span>
                 <span className={`font-medium ${
                   displayData.paymentInfo.isFullyPaid ? 'text-green-600' : 
                   displayData.paymentInfo.isPartiallyPaid ? 'text-yellow-600' : 
@@ -521,7 +522,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
               {/* Payment History */}
               {displayData.payments && displayData.payments.length > 0 && (
                 <div className="mt-3">
-                  <h5 className="text-xs font-medium text-gray-500 mb-2">Payment History:</h5>
+                  <h5 className="text-xs font-medium text-gray-500 mb-2">{tt('Payment History:')}</h5>
                   <div className="space-y-1">
                     {displayData.payments.map((payment, index) => (
                       <div key={payment.id || index} className="flex justify-between text-xs text-gray-600">
@@ -539,7 +540,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
       
       {displayData.notes && (
         <div className="mt-6 sm:mt-8 lg:mt-12 pt-4 sm:pt-6 border-t border-gray-200 text-left">
-          <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Notes:</h3>
+          <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">{tt('Notes:')}</h3>
           <div className="text-xs sm:text-sm text-gray-700">
             <p>{displayData.notes}</p>
           </div>
@@ -592,7 +593,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
       {/* Client and Invoice Info - Simple 2 column layout */}
       <div className="grid grid-cols-2 gap-8 mb-8">
         <div>
-          <p className="text-sm text-gray-500 mb-1">Bill To</p>
+          <p className="text-sm text-gray-500 mb-1">{tt('Bill To')}</p>
           <p className="font-medium">{displayData.client?.name || ''}</p>
           {displayData.client?.contactPerson && displayData.client.contactPerson !== '' && (
             <p className="text-sm">Attn: {displayData.client.contactPerson}</p>
@@ -606,7 +607,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           )}
         </div>
         <div>
-          <p className="text-sm text-gray-500 mb-1">Invoice Details</p>
+          <p className="text-sm text-gray-500 mb-1">{tt('Invoice Details')}</p>
           <p className="text-sm">Title: {displayData.title || '—'}</p>
           <p className="text-sm">Order #: {displayData.orderNumber || '—'}</p>
           <p className="font-medium mt-1">Due Date: {displayData.dueDate}</p>
@@ -622,8 +623,8 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
       <table className="min-w-full">
         <thead>
           <tr>
-            <th className="pb-3 text-left text-xs font-normal text-gray-500 uppercase tracking-wider">Description</th>
-            <th className="pb-3 text-right text-xs font-normal text-gray-500 uppercase tracking-wider">Qty</th>
+            <th className="pb-3 text-left text-xs font-normal text-gray-500 uppercase tracking-wider">{tt('Description')}</th>
+            <th className="pb-3 text-right text-xs font-normal text-gray-500 uppercase tracking-wider">{tt('Qty')}</th>
             <th className="pb-3 text-right text-xs font-normal text-gray-500 uppercase tracking-wider">Rate (MWK)</th>
             <th className="pb-3 text-center text-xs font-normal text-gray-500 uppercase tracking-wider">Discount (MWK)</th>
             {showLineTax && <th className="pb-3 text-center text-xs font-normal text-gray-500 uppercase tracking-wider">Tax (MWK)</th>}
@@ -664,29 +665,29 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           {/* Show line item discounts if any */}
           {displayData.totalDiscountAmount > 0 && (
             <div className="flex justify-between py-2">
-              <span className="text-gray-600">Line Item Discounts</span>
+              <span className="text-gray-600">{tt('Line Item Discounts')}</span>
               <span className="font-medium text-red-600">-{formatCurrencyDisplay(displayData.totalDiscountAmount)}</span>
             </div>
           )}
           {/* Show global discount if any */}
           {displayData.discount > 0 && (
             <div className="flex justify-between py-2">
-              <span className="text-gray-600">Global Discount</span>
+              <span className="text-gray-600">{tt('Global Discount')}</span>
               <span className="font-medium text-red-600">-{formatCurrencyDisplay(displayData.discount)}</span>
             </div>
           )}
           <div className="flex justify-between py-2">
-            <span className="text-gray-600">Subtotal</span>
+            <span className="text-gray-600">{tt('Subtotal')}</span>
             <span className="font-medium">{formatCurrencyDisplay(displayData.subtotal)}</span>
           </div>
           {showDocumentTax && (
           <div className="flex justify-between py-2">
-            <span className="text-gray-600">Tax</span>
+            <span className="text-gray-600">{tt('Tax')}</span>
             <span className="font-medium">{formatCurrencyDisplay(displayData.taxAmount)}</span>
           </div>
           )}
           <div className="flex justify-between py-2 text-lg" style={{ color: primaryColor }}>
-            <span>Total</span>
+            <span>{tt('Total')}</span>
             <span>{formatCurrencyDisplay(displayData.total)}</span>
           </div>
           
@@ -694,25 +695,25 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           {displayData.paymentInfo &&
             (displayData.paymentInfo.totalPaid > 0 || (displayData.payments?.length ?? 0) > 0) && (
             <div className="mt-4 pt-4 border-t border-gray-200">
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Payment Information</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">{tt('Payment Information')}</h4>
               
               {/* Total Paid */}
               <div className="flex justify-between py-2">
-                <span className="text-gray-600">Total Paid:</span>
+                <span className="text-gray-600">{tt('Total Paid:')}</span>
                 <span className="font-medium text-green-600">{formatCurrencyDisplay(displayData.paymentInfo.totalPaid)}</span>
               </div>
               
               {/* Outstanding Amount */}
               {displayData.paymentInfo.outstandingAmount > 0 && (
                 <div className="flex justify-between py-2">
-                  <span className="text-gray-600">Outstanding:</span>
+                  <span className="text-gray-600">{tt('Outstanding:')}</span>
                   <span className="font-medium text-red-600">{formatCurrencyDisplay(displayData.paymentInfo.outstandingAmount)}</span>
                 </div>
               )}
               
               {/* Payment Status */}
               <div className="flex justify-between py-2">
-                <span className="text-gray-600">Status:</span>
+                <span className="text-gray-600">{tt('Status:')}</span>
                 <span className={`font-medium ${
                   displayData.paymentInfo.isFullyPaid ? 'text-green-600' : 
                   displayData.paymentInfo.isPartiallyPaid ? 'text-yellow-600' : 
@@ -727,7 +728,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
               {/* Payment History */}
               {displayData.payments && displayData.payments.length > 0 && (
                 <div className="mt-3">
-                  <h5 className="text-xs font-medium text-gray-500 mb-2">Payment History:</h5>
+                  <h5 className="text-xs font-medium text-gray-500 mb-2">{tt('Payment History:')}</h5>
                   <div className="space-y-1">
                     {displayData.payments.map((payment, index) => (
                       <div key={payment.id || index} className="flex justify-between text-xs text-gray-600">

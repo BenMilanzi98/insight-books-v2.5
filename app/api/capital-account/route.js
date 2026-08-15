@@ -347,7 +347,7 @@ export async function POST(request) {
     const entryDate = new Date();
     await assertPeriodOpen(user.tenantId, entryDate, prisma);
 
-    const reference = `INIT-CAP:${equityAccountForCredit.id}`;
+    const reference = `INIT-CAP-${equityAccountForCredit.id}`;
     const txDescription = 'Initial capital contribution';
 
     const capitalLines = [

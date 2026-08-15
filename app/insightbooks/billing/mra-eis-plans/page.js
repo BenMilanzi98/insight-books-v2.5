@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -126,21 +127,21 @@ export default function MraEisPlansAdminPage() {
               onClick={load}
               className="inline-flex h-11 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-white px-3 text-sm font-medium"
             >
-              <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+              <RefreshCw className="h-4 w-4" aria-hidden /> {tt('Refresh')}
             </button>
             <button
               type="button"
               onClick={() => setShowCreate(true)}
               className="admin-btn-primary inline-flex h-11 items-center gap-2 rounded-[var(--admin-radius)] px-3.5 text-sm font-semibold"
             >
-              <Plus className="h-4 w-4" aria-hidden /> Create plan
+              <Plus className="h-4 w-4" aria-hidden /> {tt('Create plan')}
             </button>
           </>
         }
       />
 
       <p className="mb-4 rounded-[var(--admin-radius)] border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
-        Policy: <strong>subscription first</strong> — payment activates the commercial
+        {tt('Policy:')} <strong>{tt('subscription first')}</strong> — payment activates the commercial
         subscription; MRA EIS entitlement stays pending admin review before setup/transmit.
         Manage entitlement under Compliance → MRA EIS Entitlement.
       </p>
@@ -233,7 +234,7 @@ export default function MraEisPlansAdminPage() {
               onClick={() => setShowCreate(false)}
               className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 py-2 text-sm"
             >
-              Cancel
+              {tt('Cancel')}
             </button>
             <button
               type="submit"
@@ -253,7 +254,7 @@ export default function MraEisPlansAdminPage() {
               required
               value={form.planCode}
               onChange={(e) => setForm((f) => ({ ...f, planCode: e.target.value }))}
-              placeholder="eis-monthly"
+              placeholder={tt('eis-monthly')}
             />
           </AdminField>
           <AdminField label="Internal name" htmlFor="name">
@@ -289,9 +290,9 @@ export default function MraEisPlansAdminPage() {
                 value={form.billingFrequency}
                 onChange={(e) => setForm((f) => ({ ...f, billingFrequency: e.target.value }))}
               >
-                <option value="month">Monthly</option>
-                <option value="year">Annual</option>
-                <option value="quarter">Quarterly</option>
+                <option value="month">{tt('Monthly')}</option>
+                <option value="year">{tt('Annual')}</option>
+                <option value="quarter">{tt('Quarterly')}</option>
               </AdminField.Select>
             </AdminField>
           </div>
@@ -301,8 +302,8 @@ export default function MraEisPlansAdminPage() {
               value={form.status}
               onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
             >
-              <option value="DRAFT">Draft</option>
-              <option value="PUBLISHED">Published</option>
+              <option value="DRAFT">{tt('Draft')}</option>
+              <option value="PUBLISHED">{tt('Published')}</option>
             </AdminField.Select>
           </AdminField>
           <label className="flex items-center gap-2 text-sm">
@@ -311,7 +312,7 @@ export default function MraEisPlansAdminPage() {
               checked={form.isPublic}
               onChange={(e) => setForm((f) => ({ ...f, isPublic: e.target.checked }))}
             />
-            Publicly visible on landing/pricing
+            {tt('Publicly visible on landing/pricing')}
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -319,7 +320,7 @@ export default function MraEisPlansAdminPage() {
               checked={form.isFeatured}
               onChange={(e) => setForm((f) => ({ ...f, isFeatured: e.target.checked }))}
             />
-            Featured / recommended
+            {tt('Featured / recommended')}
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -327,7 +328,7 @@ export default function MraEisPlansAdminPage() {
               checked={form.trialEnabled}
               onChange={(e) => setForm((f) => ({ ...f, trialEnabled: e.target.checked }))}
             />
-            Trial enabled
+            {tt('Trial enabled')}
           </label>
           {form.trialEnabled ? (
             <AdminField label="Trial days" htmlFor="trialDays">

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
@@ -37,17 +38,17 @@ export default function MraEisTerminalsPage() {
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-slate-500">MRA EIS</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Terminals</h1>
+          <p className="text-sm font-medium text-slate-500">{tt('MRA EIS')}</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">{tt('Terminals')}</h1>
           <p className="mt-2 text-sm text-slate-600">
-            Onboarding and activation status. Credentials are never displayed.
+            {tt('Onboarding and activation status. Credentials are never displayed.')}
           </p>
         </div>
         <Link
           href="/settings/integrations/mra-eis/terminals/onboarding"
           className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white"
         >
-          Start onboarding
+          {tt('Start onboarding')}
         </Link>
       </header>
 
@@ -56,12 +57,12 @@ export default function MraEisTerminalsPage() {
       )}
 
       {loading ? (
-        <p className="text-slate-600">Loading terminals…</p>
+        <p className="text-slate-600">{tt('Loading terminals…')}</p>
       ) : terminals.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 px-6 py-10 text-center text-sm text-slate-600">
           No terminals yet.{' '}
           <Link className="font-medium text-slate-900 underline" href="/settings/integrations/mra-eis/terminals/onboarding">
-            Create a draft
+            {tt('Create a draft')}
           </Link>
         </div>
       ) : (
@@ -87,14 +88,14 @@ export default function MraEisTerminalsPage() {
               </div>
               <div className="mt-3 flex flex-wrap gap-3 text-sm">
                 <Link className="font-medium text-blue-700 underline underline-offset-2" href={`/settings/integrations/mra-eis/terminals/${t.id}`}>
-                  View health
+                  {tt('View health')}
                 </Link>
                 {!['ACTIVE', 'REVOKED'].includes(t.status) && (
                   <Link
                     className="font-medium text-slate-800 underline"
                     href={`/settings/integrations/mra-eis/terminals/onboarding?terminalId=${t.id}`}
                   >
-                    Resume onboarding
+                    {tt('Resume onboarding')}
                   </Link>
                 )}
               </div>

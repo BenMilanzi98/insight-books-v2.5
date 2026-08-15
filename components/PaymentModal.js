@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useCallback } from "react";
 import { X } from "lucide-react";
@@ -220,26 +221,26 @@ const PaymentModal = ({
           <form id="payment-modal-form" onSubmit={handleSubmit}>
             {!transferFundsOnly && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700">Type</label>
+                <label className="block text-sm font-medium text-gray-700">{tt('Type')}</label>
                 <select name="type" value={formData.type} onChange={handleChange} className="w-full p-2 border rounded-md">
-                  <option value="sale">Sale Payment</option>
-                  <option value="invoice">Invoice Payment</option>
-                  <option value="expense">Expense</option>
-                  <option value="transfer">Transfer</option>
+                  <option value="sale">{tt('Sale Payment')}</option>
+                  <option value="invoice">{tt('Invoice Payment')}</option>
+                  <option value="expense">{tt('Expense')}</option>
+                  <option value="transfer">{tt('Transfer')}</option>
                 </select>
               </div>
             )}
 
             {!transferFundsOnly && formData.type === "invoice" && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700">Invoice</label>
+                <label className="block text-sm font-medium text-gray-700">{tt('Invoice')}</label>
                 <select
                   name="invoiceId"
                   value={formData.invoiceId}
                   onChange={(e) => handleInvoiceSelect(e.target.value)}
                   className="w-full p-2 border rounded-md"
                 >
-                  <option value="">Select invoice</option>
+                  <option value="">{tt('Select invoice')}</option>
                   {invoices.map((inv) => (
                     <option key={inv.id} value={inv.id}>
                       {inv.invoiceNumber} - {inv.client?.name} (MK {inv.amountDue})
@@ -252,9 +253,9 @@ const PaymentModal = ({
 
             {showTransferSourceDest && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700">Source account</label>
+                <label className="block text-sm font-medium text-gray-700">{tt('Source account')}</label>
                 <select name="sourceAccount" value={formData.sourceAccount} onChange={handleChange} className="w-full p-2 border rounded-md">
-                  <option value="">Select source account</option>
+                  <option value="">{tt('Select source account')}</option>
                   {paymentAccounts.map((account) => (
                     <option key={account.id} value={account.id}>
                       {account.name} — Balance: MWK {formatCurrency(getBalance(account.id))}
@@ -273,14 +274,14 @@ const PaymentModal = ({
 
             {showTransferDestination && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700">Destination account</label>
+                <label className="block text-sm font-medium text-gray-700">{tt('Destination account')}</label>
                 <select
                   name="destinationAccount"
                   value={formData.destinationAccount}
                   onChange={handleChange}
                   className="w-full p-2 border rounded-md"
                 >
-                  <option value="">Select destination account</option>
+                  <option value="">{tt('Select destination account')}</option>
                   {paymentAccounts
                     .filter((account) => account.id !== formData.sourceAccount)
                     .map((account) => (
@@ -313,7 +314,7 @@ const PaymentModal = ({
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700">Payment date</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Payment date')}</label>
               <input
                 type="date"
                 name="paymentDate"
@@ -325,9 +326,9 @@ const PaymentModal = ({
             </div>
             {!transferFundsOnly && ["sale", "invoice"].includes(formData.type) && (
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700">Payment method</label>
+                <label className="block text-sm font-medium text-gray-700">{tt('Payment method')}</label>
                 <select name="sourceAccount" value={formData.sourceAccount} onChange={handleChange} className="w-full p-2 border rounded-md">
-                  <option value="">Select payment method</option>
+                  <option value="">{tt('Select payment method')}</option>
                   {paymentAccounts.map((account) => (
                     <option key={account.id} value={account.id}>
                       {account.name}
@@ -343,26 +344,26 @@ const PaymentModal = ({
               </div>
             )}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700">Reference</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Reference')}</label>
               <input
                 type="text"
                 name="reference"
                 value={formData.reference}
                 onChange={handleChange}
                 className="w-full p-2 border rounded-md"
-                placeholder="Optional reference…"
+                placeholder={tt('Optional reference…')}
               />
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700">Notes</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Notes')}</label>
               <textarea
                 name="notes"
                 value={formData.notes}
                 onChange={handleChange}
                 rows="3"
                 className="w-full p-2 border rounded-md"
-                placeholder="Additional notes…"
+                placeholder={tt('Additional notes…')}
               />
             </div>
           </form>
@@ -370,7 +371,7 @@ const PaymentModal = ({
 
         <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
           <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100">
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="submit"

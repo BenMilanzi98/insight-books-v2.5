@@ -1,67 +1,91 @@
-### Task 3: Sidebar — three hubs + redirects + route permissions
+### Task 3: Operational path lists + runtime flag
 
 **Files:**
-- Modify: `components/Sidebar/Sidebar.js` (all three nav definitions: expandable subItems, `rental` group, `rentalSubItems`)
-- Modify: `next.config.mjs` redirects
-- Modify: path permission map in Sidebar (`"/rentals/hirings"`, `"/rentals/reports"`)
+- Create: `lib/desktop/runtime.js`
+- Create: `lib/desktop/paths.js`
+- Create: `test/desktop/paths.test.js`
 
 **Interfaces:**
-- Produces: operators only see three links; old URLs redirect.
+- Produces:
+  - `DESKTOP_COOKIE = 'ib_desktop'`
+  - `isDesktopRuntime() → process.env.DESKTOP_RUNTIME === '1'`
+  - `isDesktopCookie(requestCookiesValue) → boolean`
+  - `classifyDesktopApiPath(pathname) → 'operational' \| 'desktop-cloud' \| 'desktop-local' \| 'auth-ok' \| 'online-only'`
+  - Operational prefixes: `/api/sales`, `/api/pos`, `/api/invoices`, `/api/clients`, `/api/stock`, `/api/payments`
+  - `auth-ok`: `/api/auth/me`, `/api/auth/logout`, `/api/preferences/language`, `/api/auth/page-guard`, `/api/auth/api-guard`
+  - `desktop-cloud`: `/api/desktop/bind|unbind|snapshot|outbox|heartbeat` (cloud only; local Next must not handle these against SQLite)
+  - `desktop-local`: `/api/desktop-local`
+  - Online-only exceptions inside operational prefixes (still `online-only`):
+    - `/api/invoices/*/send`, `/api/invoices/upload`, `/api/invoices/export`, `/api/invoices/*/download`, `/api/invoices/*/attachments`
+    - `/api/clients/send-email`, `/api/clients/bulk-upload`, `/api/clients/template`, `/api/clients/*/balance-reminder`
+    - `/api/stock/receiving`, `/api/stock/basic-import`, `/api/stock/export`, `/api/stock/upload-image`, `/api/stock/basic-export`
+    - `/api/payments/export`, `/api/payments/sync`
+    - `/api/sales/export`, `/api/sales/receipts/export`, `/api/pos/cash-day/export`
+    - `/api/pos/cash-day/deposit` (GL sweep to other accounts — online only)
 
-- [ ] **Step 1: Update sidebar subItems everywhere to**
+- [ ] **Step 1: Write failing tests**
 
 ```js
-{ href: "/rentals", text: "Rentals", icon: "Rentals", permission: "rentals.view" },
-{ href: "/rentals/hirings", text: "Hirings", icon: "Hiring", permission: "rentals.view" },
-{ href: "/rentals/reports", text: "Reports", icon: "Reports", permission: "rentals.view" },
+import { describe, expect, it } from 'vitest';
+import { classifyDesktopApiPath } from '../../lib/desktop/paths.js';
+
+describe('classifyDesktopApiPath', () => {
+  it('marks POS sale as operational', () => {
+    expect(classifyDesktopApiPath('/api/sales')).toBe('operational');
+    expect(classifyDesktopApiPath('/api/pos/cash-day/open')).toBe('operational');
+  });
+
+  it('marks invoice send as online-only', () => {
+    expect(classifyDesktopApiPath('/api/invoices/abc/send')).toBe('online-only');
+  });
+
+  it('marks stock receiving as online-only', () => {
+    expect(classifyDesktopApiPath('/api/stock/receiving')).toBe('online-only');
+  });
+
+  it('marks payroll as online-only', () => {
+    expect(classifyDesktopApiPath('/api/payroll')).toBe('online-only');
+    expect(classifyDesktopApiPath('/api/reports/trial-balance')).toBe('online-only');
+  });
+
+  it('allows language + me', () => {
+    expect(classifyDesktopApiPath('/api/auth/me')).toBe('auth-ok');
+    expect(classifyDesktopApiPath('/api/preferences/language')).toBe('auth-ok');
+  });
+});
 ```
 
-Remove Contracts V2, Quotations V2, Rental reconcile, Quantity rentals, Supplier hiring from sidebar arrays. Keep `ROUTE_PERMISSIONS` entries for deep-link pages if they still need access when visited directly.
+- [ ] **Step 2: Run test to verify it fails**
 
-Add:
+Run: `npx vitest run test/desktop/paths.test.js`
 
-```js
-"/rentals/hirings": ["rentals.view"],
-"/rentals/reports": ["rentals.view"],
-```
+Expected: FAIL (module not found)
 
-- [ ] **Step 2: Redirects in `next.config.mjs`**
+- [ ] **Step 3: Implement `paths.js` and `runtime.js`**
 
-```js
-{
-  source: '/rentals/hiring',
-  destination: '/rentals/hirings?tab=customer',
-  permanent: false,
-},
-{
-  source: '/rentals/inbound-hiring',
-  destination: '/rentals/hirings?tab=supplier',
-  permanent: false,
-},
-```
-
-Note: Next.js redirects may strip query on some versions — if `?tab=` is unreliable, implement thin pages at old paths that `redirect()` from `next/navigation` with tab query instead.
-
-Preferred fallback — replace `app/rentals/hiring/page.js`:
+`lib/desktop/runtime.js`:
 
 ```js
-import { redirect } from 'next/navigation';
-export default function LegacyHiringRedirect() {
-  redirect('/rentals/hirings?tab=customer');
+export const DESKTOP_COOKIE = 'ib_desktop';
+
+export function isDesktopRuntime() {
+  return process.env.DESKTOP_RUNTIME === '1';
+}
+
+export function isDesktopCookie(value) {
+  return String(value || '') === '1';
 }
 ```
 
-And `app/rentals/inbound-hiring/page.js` → redirect to supplier tab (move UI into extracted component first in Task 4, then redirect this file).
+Implement `classifyDesktopApiPath` with prefix startsWith checks. Exception list is tested with exact prefixes above; implement exceptions **before** the operational prefix match (longest-prefix / explicit deny list).
 
-- [ ] **Step 3: Manual check**
+- [ ] **Step 4: Run tests**
 
-With `npm run dev`, open sidebar under Rental & Hiring — only three items. Hit `/rentals/hiring` — lands on Hirings customer tab (after Task 4 page exists; until then redirect may 404 — order Task 4 immediately after or create stub page in this task).
+Run: `npx vitest run test/desktop/paths.test.js`
 
-- [ ] **Step 4: Stub pages if Task 4 not yet done**
+Expected: PASS
 
-Create minimal `app/rentals/hirings/page.js` and `app/rentals/reports/page.js` placeholders (“Coming soon”) so redirects do not 404; Task 4/5 replace stubs.
-
-- [ ] **Step 5: Commit only if user asked**
+- [ ] **Step 5: Commit** (skip unless asked)
 
 ---
 

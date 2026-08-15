@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -158,7 +159,7 @@ export default function CreditDebitNotesPage() {
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Credit & Debit Notes</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{tt('Credit & Debit Notes')}</h1>
           <p className="mt-1 text-sm text-gray-500">
             Credit notes reduce amount owed; debit notes increase amount owed. Both link to invoices or sales and post to the ledger.
           </p>
@@ -184,7 +185,7 @@ export default function CreditDebitNotesPage() {
           }`}
         >
           <ArrowDownCircle className="h-4 w-4 inline mr-2 text-emerald-600" />
-          Credit Notes
+          {tt('Credit Notes')}
         </button>
         <button
           onClick={() => setActiveTab("debit")}
@@ -195,7 +196,7 @@ export default function CreditDebitNotesPage() {
           }`}
         >
           <ArrowUpCircle className="h-4 w-4 inline mr-2 text-amber-600" />
-          Debit Notes
+          {tt('Debit Notes')}
         </button>
       </div>
 
@@ -206,16 +207,16 @@ export default function CreditDebitNotesPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-md border border-gray-300 text-sm"
           >
-            <option value="">All statuses</option>
-            <option value="Draft">Draft</option>
-            <option value="Posted">Posted</option>
+            <option value="">{tt('All statuses')}</option>
+            <option value="Draft">{tt('Draft')}</option>
+            <option value="Posted">{tt('Posted')}</option>
           </select>
           <select
             value={clientFilter}
             onChange={(e) => setClientFilter(e.target.value)}
             className="rounded-md border border-gray-300 text-sm min-w-[180px]"
           >
-            <option value="">All clients</option>
+            <option value="">{tt('All clients')}</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -247,13 +248,13 @@ export default function CreditDebitNotesPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Number</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Linked to</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Number')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Client')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Linked to')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{tt('Amount')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Date')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Status')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Actions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -291,7 +292,7 @@ export default function CreditDebitNotesPage() {
                           className="text-blue-600 hover:text-blue-800 text-sm font-medium inline-flex items-center gap-1"
                         >
                           <Eye className="h-4 w-4" />
-                          View
+                          {tt('View')}
                         </button>
                       </td>
                     </tr>
@@ -313,14 +314,14 @@ export default function CreditDebitNotesPage() {
                 onClick={() => setPagination((p) => ({ ...p, page: p.page - 1 }))}
                 className="px-3 py-1 rounded border border-gray-300 text-sm disabled:opacity-50"
               >
-                Previous
+                {tt('Previous')}
               </button>
               <button
                 disabled={pagination.page >= pagination.totalPages}
                 onClick={() => setPagination((p) => ({ ...p, page: p.page + 1 }))}
                 className="px-3 py-1 rounded border border-gray-300 text-sm disabled:opacity-50"
               >
-                Next
+                {tt('Next')}
               </button>
             </div>
           </div>
@@ -446,7 +447,7 @@ function CreateNoteModal({ isCredit, clients, onClose, onSuccess }) {
               <div className="p-3 rounded-md bg-red-50 text-red-700 text-sm">{error}</div>
             )}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Client *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Client *')}</label>
               <select
                 value={clientId}
                 onChange={(e) => {
@@ -457,7 +458,7 @@ function CreateNoteModal({ isCredit, clients, onClose, onSuccess }) {
                 required
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               >
-                <option value="">Select client</option>
+                <option value="">{tt('Select client')}</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -473,7 +474,7 @@ function CreateNoteModal({ isCredit, clients, onClose, onSuccess }) {
                 }}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               >
-                <option value="">None</option>
+                <option value="">{tt('None')}</option>
                 {invoices.map((inv) => (
                   <option key={inv.id} value={inv.id}>
                     {inv.invoiceNumber} – {formatCurrency(inv.total)}
@@ -491,7 +492,7 @@ function CreateNoteModal({ isCredit, clients, onClose, onSuccess }) {
                 }}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               >
-                <option value="">None</option>
+                <option value="">{tt('None')}</option>
                 {sales.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.saleNumber || s.id} – {formatCurrency(s.total)}
@@ -500,7 +501,7 @@ function CreateNoteModal({ isCredit, clients, onClose, onSuccess }) {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Amount *')}</label>
               <input
                 type="number"
                 step="0.01"
@@ -512,7 +513,7 @@ function CreateNoteModal({ isCredit, clients, onClose, onSuccess }) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reason *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Reason *')}</label>
               <input
                 type="text"
                 value={reason}
@@ -523,7 +524,7 @@ function CreateNoteModal({ isCredit, clients, onClose, onSuccess }) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Note date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Note date')}</label>
               <input
                 type="date"
                 value={noteDate}
@@ -554,7 +555,7 @@ function CreateNoteModal({ isCredit, clients, onClose, onSuccess }) {
                 onClick={onClose}
                 className="px-4 py-2 rounded-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="submit"
@@ -587,11 +588,11 @@ function DetailModal({ note, isCredit, onClose, onPostToLedger, posting, canPost
           </div>
           <dl className="space-y-3 text-sm">
             <div>
-              <dt className="text-gray-500">Client</dt>
+              <dt className="text-gray-500">{tt('Client')}</dt>
               <dd className="font-medium text-gray-900">{note.client?.name ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-gray-500">Linked to</dt>
+              <dt className="text-gray-500">{tt('Linked to')}</dt>
               <dd className="text-gray-900">
                 {note.invoice?.invoiceNumber
                   ? `Invoice ${note.invoice.invoiceNumber}`
@@ -601,38 +602,38 @@ function DetailModal({ note, isCredit, onClose, onPostToLedger, posting, canPost
               </dd>
             </div>
             <div>
-              <dt className="text-gray-500">Amount</dt>
+              <dt className="text-gray-500">{tt('Amount')}</dt>
               <dd className="font-medium text-gray-900">{formatCurrency(note.amount)}</dd>
             </div>
             <div>
-              <dt className="text-gray-500">Date</dt>
+              <dt className="text-gray-500">{tt('Date')}</dt>
               <dd className="text-gray-900">{formatDate(note.noteDate)}</dd>
             </div>
             <div>
-              <dt className="text-gray-500">Reason</dt>
+              <dt className="text-gray-500">{tt('Reason')}</dt>
               <dd className="text-gray-900">{note.reason || "—"}</dd>
             </div>
             <div>
-              <dt className="text-gray-500">Status</dt>
+              <dt className="text-gray-500">{tt('Status')}</dt>
               <dd>
                 <StatusBadge status={note.status} />
               </dd>
             </div>
             {note.notes && (
               <div>
-                <dt className="text-gray-500">Notes</dt>
+                <dt className="text-gray-500">{tt('Notes')}</dt>
                 <dd className="text-gray-900">{note.notes}</dd>
               </div>
             )}
             {note.createdBy && (
               <div>
-                <dt className="text-gray-500">Created by</dt>
+                <dt className="text-gray-500">{tt('Created by')}</dt>
                 <dd className="text-gray-900">{note.createdBy.name}</dd>
               </div>
             )}
             {note.postedBy && (
               <div>
-                <dt className="text-gray-500">Posted by</dt>
+                <dt className="text-gray-500">{tt('Posted by')}</dt>
                 <dd className="text-gray-900">{note.postedBy.name}</dd>
               </div>
             )}
@@ -657,7 +658,7 @@ function DetailModal({ note, isCredit, onClose, onPostToLedger, posting, canPost
               onClick={onClose}
               className="px-4 py-2 rounded-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Close
+              {tt('Close')}
             </button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Building2, Check, ChevronDown, Search, X } from 'lucide-react';
@@ -132,12 +133,12 @@ export default function BusinessScopeSelector({
           <div className="absolute z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
             <div className="p-3 border-b border-gray-100 space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-gray-900">Business scope</p>
+                <p className="text-sm font-semibold text-gray-900">{tt('Business scope')}</p>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
                   className="p-1 rounded hover:bg-gray-100"
-                  aria-label="Close"
+                  aria-label={tt('Close')}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -148,7 +149,7 @@ export default function BusinessScopeSelector({
                   type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search businesses…"
+                  placeholder={tt('Search businesses…')}
                   className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -169,7 +170,7 @@ export default function BusinessScopeSelector({
               />
 
               <p className="px-2 pt-2 pb-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Select specific businesses
+                {tt('Select specific businesses')}
               </p>
               {filteredTenants.map((tenant) => {
                 const checked = draftIds.includes(tenant.id);
@@ -204,7 +205,7 @@ export default function BusinessScopeSelector({
                 }}
                 className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50"
               >
-                Reset
+                {tt('Reset')}
               </button>
               <button
                 type="button"

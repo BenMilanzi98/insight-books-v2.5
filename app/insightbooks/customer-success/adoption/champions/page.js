@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 
@@ -12,11 +13,10 @@ export default function CustomerSuccessAdoptionChampionsPage() {
         <Link href="/insightbooks/customer-success/adoption">← Adoption</Link>
       </p>
       <h1 style={{ fontSize: '1.35rem', marginBottom: '0.5rem' }}>
-        Adoption Champions
+        {tt('Adoption Champions')}
       </h1>
       <p style={{ color: '#555' }}>
-        Contact-verified enablement records per Plan. Engagement scores are
-        forbidden. Tasks may open Phase 8 interventions/playbooks via link only.
+        {tt('Contact-verified enablement records per Plan. Engagement scores are forbidden. Tasks may open Phase 8 interventions/playbooks via link only.')}
       </p>
     </div>
   );

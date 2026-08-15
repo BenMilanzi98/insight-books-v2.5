@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { X, Plus, Trash2, Info, Loader } from "lucide-react";
@@ -299,7 +300,7 @@ const SalesModal = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="clientId">
-                  Client <span className="text-red-500">*</span>
+                  {tt('Client')} <span className="text-red-500">*</span>
                 </label>
                 <select
                   id="clientId"
@@ -314,7 +315,7 @@ const SalesModal = ({
                     }
                   }}
                 >
-                  <option value="">Select a client</option>
+                  <option value="">{tt('Select a client')}</option>
                   {clients.map(client => (
                     <option key={client.id} value={client.id}>
                       {client.name}
@@ -329,7 +330,7 @@ const SalesModal = ({
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="paymentMethod">
-                  Payment Method
+                  {tt('Payment Method')}
                 </label>
                 <select
                   id="paymentMethod"
@@ -345,17 +346,17 @@ const SalesModal = ({
                       {account.name} {account.accountType ? `(${account.accountType})` : ''}
                     </option>
                   ))}
-                  {/* <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="mobile_money">Mobile Money</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="check">Check</option> */}
+                  {/* <option value="cash">{tt('Cash')}</option>
+                  <option value="card">{tt('Card')}</option>
+                  <option value="mobile_money">{tt('Mobile Money')}</option>
+                  <option value="bank_transfer">{tt('Bank Transfer')}</option>
+                  <option value="check">{tt('Check')}</option> */}
                 </select>
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="saleDate">
-                  Sale Date <span className="text-red-500">*</span>
+                  {tt('Sale Date')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -373,14 +374,14 @@ const SalesModal = ({
             
             <div className="mb-6">
               <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-medium">Sale Items</h3>
+                <h3 className="text-lg font-medium">{tt('Sale Items')}</h3>
                 <button
                   type="button"
                   onClick={addItem}
                   className="flex items-center text-blue-600 hover:text-blue-800"
                 >
                   <Plus className="h-4 w-4 mr-1" />
-                  Add Item
+                  {tt('Add Item')}
                 </button>
               </div>
               
@@ -389,25 +390,25 @@ const SalesModal = ({
                   <thead className="bg-gray-50">
                     <tr>
                       <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Description
+                        {tt('Description')}
                       </th>
                       <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Income Account
+                        {tt('Income Account')}
                       </th>
                       <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Quantity
+                        {tt('Quantity')}
                       </th>
                       <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Selling Price
+                        {tt('Selling Price')}
                       </th>
                       <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Tax Rate (%)
                       </th>
                       <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount
+                        {tt('Amount')}
                       </th>
                       <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
+                        {tt('Actions')}
                       </th>
                     </tr>
                   </thead>
@@ -420,7 +421,7 @@ const SalesModal = ({
                             value={item.productId || ""}
                             onChange={(e) => handleItemChange(index, "productId", e.target.value)}
                           >
-                            <option value="">Custom item</option>
+                            <option value="">{tt('Custom item')}</option>
                             {products.map(product => (
                               <option key={product.id} value={product.id}>
                                 {product.name}
@@ -430,7 +431,7 @@ const SalesModal = ({
                           {!item.productId && (
                             <input
                               type="text"
-                              placeholder="Description"
+                              placeholder={tt('Description')}
                               className={`mt-1 w-full p-2 border rounded-md ${errors[`items.${index}.description`] ? 'border-red-500' : 'border-gray-300'}`}
                               value={item.description}
                               onChange={(e) => handleItemChange(index, "description", e.target.value)}
@@ -446,7 +447,7 @@ const SalesModal = ({
                             value={item.accountId || ""}
                             onChange={(e) => handleItemChange(index, "accountId", e.target.value)}
                           >
-                            <option value="">Select income account</option>
+                            <option value="">{tt('Select income account')}</option>
                             {incomeAccounts.map((account) => (
                               <option key={account.id} value={account.id}>
                                 {account.accountCode ? `${account.accountCode} - ${account.accountName || account.name}` : (account.accountName || account.name)}
@@ -477,7 +478,7 @@ const SalesModal = ({
                             value={item.unitPrice}
                             min="0"
                             step="0.01"
-                            placeholder="MK 0.00"
+                            placeholder={tt('MK 0.00')}
                             onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
                           />
                           {errors[`items.${index}.unitPrice`] && (
@@ -525,15 +526,15 @@ const SalesModal = ({
               <div className="flex justify-end mt-4">
                 <div className="w-64">
                   <div className="flex justify-between py-2 text-sm">
-                    <span className="text-gray-600">Subtotal:</span>
+                    <span className="text-gray-600">{tt('Subtotal:')}</span>
                     <span className="font-medium">{formatCurrency(subtotal)}</span>
                   </div>
                   <div className="flex justify-between py-2 text-sm">
-                    <span className="text-gray-600">Tax:</span>
+                    <span className="text-gray-600">{tt('Tax:')}</span>
                     <span className="font-medium">{formatCurrency(tax)}</span>
                   </div>
                   <div className="flex justify-between py-2 text-lg font-bold border-t border-gray-200 mt-2 pt-2">
-                    <span>Total:</span>
+                    <span>{tt('Total:')}</span>
                     <span>{formatCurrency(total)}</span>
                   </div>
                 </div>
@@ -542,7 +543,7 @@ const SalesModal = ({
             
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="notes">
-                Notes
+                {tt('Notes')}
               </label>
               <textarea
                 id="notes"
@@ -551,7 +552,7 @@ const SalesModal = ({
                 className="w-full p-2 border border-gray-300 rounded-md"
                 value={formData.notes}
                 onChange={handleChange}
-                placeholder="Add any additional notes or payment details"
+                placeholder={tt('Add any additional notes or payment details')}
               ></textarea>
             </div>
           </form>
@@ -563,7 +564,7 @@ const SalesModal = ({
             onClick={onClose}
             className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="button"
@@ -575,7 +576,7 @@ const SalesModal = ({
             {loading ? (
               <>
                 <span className="animate-spin mr-2">⌛</span>
-                Saving...
+                {tt('Saving...')}
               </>
             ) : (
               mode === "create" ? "Create Transaction" : "Update Transaction"

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -214,15 +215,15 @@ export default function MraEisOnboardingWizardPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
       <header className="mb-6">
-        <p className="text-sm font-medium text-slate-500">MRA EIS · Phase 7</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Terminal onboarding</h1>
+        <p className="text-sm font-medium text-slate-500">{tt('MRA EIS · Phase 7')}</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight">{tt('Terminal onboarding')}</h1>
         <p className="mt-2 text-sm text-slate-600">
           Server-authoritative wizard. TAC is masked, never placed in URLs, and never redisplayed after submit.
           JWT and terminal secrets never appear in the browser.
         </p>
       </header>
 
-      <nav aria-label="Onboarding steps" className="mb-6 flex flex-wrap gap-2 text-xs">
+      <nav aria-label={tt('Onboarding steps')} className="mb-6 flex flex-wrap gap-2 text-xs">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
           <span
             key={n}
@@ -245,7 +246,7 @@ export default function MraEisOnboardingWizardPage() {
       )}
 
       <section className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold">Environment & identity</h2>
+        <h2 className="text-lg font-semibold">{tt('Environment & identity')}</h2>
         <label className="mt-3 block text-sm">
           <span className="mb-1 block font-medium">Environment (server-validated)</span>
           <select
@@ -254,13 +255,13 @@ export default function MraEisOnboardingWizardPage() {
             disabled={Boolean(terminal)}
             onChange={(e) => setEnvironment(e.target.value)}
           >
-            <option value="SANDBOX">Sandbox / Mock</option>
+            <option value="SANDBOX">{tt('Sandbox / Mock')}</option>
             <option value="PRODUCTION">Production (blocked until gates pass)</option>
           </select>
         </label>
         <p className="mt-2 text-xs text-slate-500">Selected: {envLabel}. Browser cannot override API base URL.</p>
         <label className="mt-3 block text-sm">
-          <span className="mb-1 block font-medium">Terminal label</span>
+          <span className="mb-1 block font-medium">{tt('Terminal label')}</span>
           <input
             className="w-full rounded border border-slate-300 px-3 py-2"
             value={terminalLabel}
@@ -271,19 +272,19 @@ export default function MraEisOnboardingWizardPage() {
         {readiness && (
           <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-slate-500">Product ID</dt>
+              <dt className="text-slate-500">{tt('Product ID')}</dt>
               <dd className="font-medium">{readiness.productId || '—'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Product version</dt>
+              <dt className="text-slate-500">{tt('Product version')}</dt>
               <dd className="font-medium">{readiness.productVersion || '—'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Ready to create</dt>
+              <dt className="text-slate-500">{tt('Ready to create')}</dt>
               <dd className="font-medium">{readiness.readyToCreateTerminal ? 'Yes' : 'No'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Ready to activate</dt>
+              <dt className="text-slate-500">{tt('Ready to activate')}</dt>
               <dd className="font-medium">{readiness.readyToSubmitActivation ? 'Yes' : 'No'}</dd>
             </div>
           </dl>
@@ -304,14 +305,14 @@ export default function MraEisOnboardingWizardPage() {
             className="mt-4 rounded bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
             onClick={createTerminal}
           >
-            Create terminal draft
+            {tt('Create terminal draft')}
           </button>
         )}
       </section>
 
       {terminal && (
         <section className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold">Terminal</h2>
+          <h2 className="text-lg font-semibold">{tt('Terminal')}</h2>
           <p className="mt-2 text-sm">
             <span className="font-medium">{terminal.terminalLabel}</span> · {terminal.status} · {terminal.environment}
           </p>
@@ -324,9 +325,9 @@ export default function MraEisOnboardingWizardPage() {
 
       {terminal && ['TAC_REQUIRED', 'ACTIVATION_FAILED'].includes(terminal.status) && (
         <section className="mb-4 rounded-xl border border-amber-200 bg-amber-50/40 p-5 shadow-sm">
-          <h2 className="text-lg font-semibold">Terminal Activation Code</h2>
+          <h2 className="text-lg font-semibold">{tt('Terminal Activation Code')}</h2>
           <p className="mt-2 text-sm text-slate-700">
-            Enter the TAC issued by MRA for environment <strong>{terminal.environment}</strong>. It is stored
+            {tt('Enter the TAC issued by MRA for environment')} <strong>{terminal.environment}</strong>. It is stored
             ephemerally on the server and never logged or shown again.
           </p>
           <label className="mt-3 block text-sm">
@@ -343,7 +344,7 @@ export default function MraEisOnboardingWizardPage() {
           </label>
           {environment === 'PRODUCTION' && (
             <div className="mt-3">
-              <Banner tone="warn">Production activation requires stronger confirmation and certification gates.</Banner>
+              <Banner tone="warn">{tt('Production activation requires stronger confirmation and certification gates.')}</Banner>
             </div>
           )}
           <button
@@ -352,14 +353,14 @@ export default function MraEisOnboardingWizardPage() {
             className="mt-4 rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
             onClick={submitTac}
           >
-            Submit TAC securely
+            {tt('Submit TAC securely')}
           </button>
         </section>
       )}
 
       {terminal && terminal.status === 'ACTIVATION_REQUEST_PENDING' && tacReferenceId && (
         <section className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold">Activate with MRA</h2>
+          <h2 className="text-lg font-semibold">{tt('Activate with MRA')}</h2>
           <p className="mt-2 text-sm text-slate-600">
             Submits the activation request server-side. Ambiguous timeouts enter manual review (no blind retry).
           </p>
@@ -369,16 +370,16 @@ export default function MraEisOnboardingWizardPage() {
             className="mt-4 rounded bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
             onClick={activate}
           >
-            Submit activation
+            {tt('Submit activation')}
           </button>
         </section>
       )}
 
       {terminal && terminal.status === 'CONFIRMATION_PENDING' && (
         <section className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold">Confirm activation</h2>
+          <h2 className="text-lg font-semibold">{tt('Confirm activation')}</h2>
           <p className="mt-2 text-sm text-slate-600">
-            Terminal becomes ACTIVE only after confirmation succeeds. Credentials remain encrypted server-side.
+            {tt('Terminal becomes ACTIVE only after confirmation succeeds. Credentials remain encrypted server-side.')}
           </p>
           <button
             type="button"
@@ -386,20 +387,19 @@ export default function MraEisOnboardingWizardPage() {
             className="mt-4 rounded bg-emerald-800 px-4 py-2 text-sm text-white disabled:opacity-50"
             onClick={confirm}
           >
-            Confirm activation
+            {tt('Confirm activation')}
           </button>
         </section>
       )}
 
       {terminal?.status === 'ACTIVE' && (
         <section className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-          <h2 className="text-lg font-semibold text-emerald-950">Onboarding complete</h2>
+          <h2 className="text-lg font-semibold text-emerald-950">{tt('Onboarding complete')}</h2>
           <p className="mt-2 text-sm text-emerald-900">
-            Terminal is ACTIVE. Phase 8 configuration synchronization has been queued. No Sale, Journal, or
-            Stock Movement was created by activation.
+            {tt('Terminal is ACTIVE. Phase 8 configuration synchronization has been queued. No Sale, Journal, or Stock Movement was created by activation.')}
           </p>
           <Link className="mt-3 inline-block text-sm font-medium underline" href={`/settings/integrations/mra-eis/terminals/${terminal.id}`}>
-            View terminal health
+            {tt('View terminal health')}
           </Link>
         </section>
       )}
@@ -409,7 +409,7 @@ export default function MraEisOnboardingWizardPage() {
       ) && (
         <div className="mb-4">
           <Banner tone="warn">
-            This terminal requires manual review or recovery. Ordinary retry is blocked for unknown outcomes.
+            {tt('This terminal requires manual review or recovery. Ordinary retry is blocked for unknown outcomes.')}
           </Banner>
         </div>
       )}

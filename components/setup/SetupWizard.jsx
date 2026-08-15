@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -65,7 +66,7 @@ function StatusPill({ status }) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-500/25">
         <CheckCircle2 className="h-3.5 w-3.5" />
-        Done
+        {tt('Done')}
       </span>
     );
   }
@@ -73,14 +74,14 @@ function StatusPill({ status }) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-500/10 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-400/20">
         <SkipForward className="h-3.5 w-3.5" />
-        Skipped
+        {tt('Skipped')}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-500/25">
       <Circle className="h-3 w-3 fill-amber-500 text-amber-500" />
-      Pending
+      {tt('Pending')}
     </span>
   );
 }
@@ -253,7 +254,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
     return (
       <div className={`flex ${loadingMinH} flex-col items-center justify-center gap-3 text-slate-500`}>
         <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-        <p className="text-sm font-medium">Preparing your workspace…</p>
+        <p className="text-sm font-medium">{tt('Preparing your workspace…')}</p>
       </div>
     );
   }
@@ -261,7 +262,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
   if (!payload?.isTenantOwner) {
     return (
       <div className="mx-auto max-w-lg rounded-2xl border border-slate-200/80 bg-white p-8 shadow-xl shadow-slate-200/50">
-        <p className="text-lg font-semibold text-slate-900">Business owner only</p>
+        <p className="text-lg font-semibold text-slate-900">{tt('Business owner only')}</p>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
           Only the registered business owner can run the setup wizard. Ask your owner to sign in, or
           open the linked pages directly if you have permission.
@@ -273,7 +274,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
             className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
           >
             <ArrowLeft className="h-4 w-4" />
-            Close
+            {tt('Close')}
           </button>
         ) : (
           <Link
@@ -281,7 +282,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
             className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to dashboard
+            {tt('Back to dashboard')}
           </Link>
         )}
       </div>
@@ -300,8 +301,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">You&apos;re all set!</h1>
             <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-600">
-              Every setup step is complete or skipped. You can revisit capital, assets, taxes, and
-              contacts anytime from the main menu.
+              {tt('Every setup step is complete or skipped. You can revisit capital, assets, taxes, and contacts anytime from the main menu.')}
             </p>
             {embedded ? (
               <button
@@ -309,7 +309,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
                 onClick={finishWizard}
                 className="mt-8 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 transition hover:brightness-105"
               >
-                Back to dashboard
+                {tt('Back to dashboard')}
                 <ChevronRight className="h-4 w-4" />
               </button>
             ) : (
@@ -317,7 +317,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
                 href="/dashboard"
                 className="mt-8 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 transition hover:brightness-105"
               >
-                Go to dashboard
+                {tt('Go to dashboard')}
                 <ChevronRight className="h-4 w-4" />
               </Link>
             )}
@@ -334,17 +334,16 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
         <div>
           <div className="inline-flex items-center gap-2 rounded-full bg-indigo-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-indigo-700">
             <Sparkles className="h-3.5 w-3.5" />
-            Get started
+            {tt('Get started')}
           </div>
           <h1
             id={embedded ? "setup-wizard-modal-title" : undefined}
             className={`mt-3 font-bold tracking-tight text-slate-900 ${embedded ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"}`}
           >
-            Complete your setup
+            {tt('Complete your setup')}
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">
-            Five steps: account, stock, customers, suppliers, and opening cash balances. Skip for now
-            and resume anytime from the dashboard.
+            {tt('Five steps: account, stock, customers, suppliers, and opening cash balances. Skip for now and resume anytime from the dashboard.')}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
@@ -362,7 +361,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
             onClick={finishWizard}
             className="text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
           >
-            Skip for Now
+            {tt('Skip for Now')}
           </button>
         </div>
       </div>
@@ -380,7 +379,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
         {/* Step rail */}
         <nav
           className={`rounded-2xl border border-slate-200/80 bg-white/80 p-3 shadow-lg shadow-slate-200/40 backdrop-blur-sm ${embedded ? "" : "lg:sticky lg:top-6 lg:self-start"}`}
-          aria-label="Setup steps"
+          aria-label={tt('Setup steps')}
         >
           <ul className="space-y-1">
             {steps.map((step, idx) => {
@@ -428,14 +427,14 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
               onClick={onClose}
               className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 py-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
             >
-              Continue later
+              {tt('Continue later')}
             </button>
           ) : (
             <Link
               href="/dashboard"
               className="mt-4 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 py-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
             >
-              Continue later
+              {tt('Continue later')}
             </Link>
           )}
         </nav>
@@ -480,7 +479,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
 
             <details className="rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-3">
               <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Tips for this step
+                {tt('Tips for this step')}
               </summary>
               <ul className="mt-2 space-y-1.5">
                 {meta.tips.map((tip) => (
@@ -523,7 +522,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
                 className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-30"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Previous
+                {tt('Previous')}
               </button>
               <button
                 type="button"
@@ -531,14 +530,14 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
                 disabled={activeIndex >= steps.length - 1}
                 className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-indigo-600 hover:bg-indigo-50 disabled:opacity-30"
               >
-                Next step
+                {tt('Next step')}
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
 
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-3">
               <p className="text-xs text-slate-500">
-                <span className="font-semibold text-slate-700">Advanced:</span>{" "}
+                <span className="font-semibold text-slate-700">{tt('Advanced:')}</span>{" "}
                 <button
                   type="button"
                   className="font-medium text-indigo-600 hover:underline"
@@ -554,7 +553,7 @@ export default function SetupWizard({ embedded = false, onClose, initialStepId =
                     }
                   }}
                 >
-                  Run financial bootstrap
+                  {tt('Run financial bootstrap')}
                 </button>{" "}
                 — seeds chart of accounts, payment defaults, and tax GL gaps.
               </p>

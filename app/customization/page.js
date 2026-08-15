@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
@@ -749,8 +750,8 @@ function CustomizationContent() {
       <div className="max-w-7xl mx-auto bg-white shadow-sm rounded-lg p-8 flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-blue-600 mb-4" />
-          <h2 className="text-xl font-semibold text-gray-700">Loading settings...</h2>
-          <p className="text-gray-500 mt-2">Please wait while we load your customization settings.</p>
+          <h2 className="text-xl font-semibold text-gray-700">{tt('Loading settings...')}</h2>
+          <p className="text-gray-500 mt-2">{tt('Please wait while we load your customization settings.')}</p>
         </div>
       </div>
     );
@@ -766,8 +767,8 @@ function CustomizationContent() {
       <div className="border-b border-gray-200 px-6 py-4">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">System Customization</h1>
-            <p className="mt-1 text-sm text-gray-600">Customize your InsightBooks tenant to match your business needs</p>
+            <h1 className="text-2xl font-semibold text-gray-900">{tt('System Customization')}</h1>
+            <p className="mt-1 text-sm text-gray-600">{tt('Customize your InsightBooks tenant to match your business needs')}</p>
           </div>
           <div className="flex space-x-3">
             {hasChanges && (
@@ -777,7 +778,7 @@ function CustomizationContent() {
                 disabled={isSaving}
               >
                 <X className="mr-2 h-4 w-4" />
-                Discard Changes
+                {tt('Discard Changes')}
               </button>
             )}
             {canUpdateSettings &&( <button 
@@ -790,12 +791,12 @@ function CustomizationContent() {
               {isSaving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
+                  {tt('Saving...')}
                 </>
               ) : (
                 <>
                   <Save className="mr-2 h-4 w-4" />
-                  Save Changes
+                  {tt('Save Changes')}
                 </>
               )}
             </button>)}
@@ -811,13 +812,13 @@ function CustomizationContent() {
           </div>
           <div className="ml-3 flex-1">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-blue-800">Setup Progress: 3/5 Completed</h3>
-              <p className="text-sm text-blue-700">60% Complete</p>
+              <h3 className="text-sm font-medium text-blue-800">{tt('Setup Progress: 3/5 Completed')}</h3>
+              <p className="text-sm text-blue-700">{tt('60% Complete')}</p>
             </div>
             <div className="mt-2 w-full bg-blue-200 rounded-full h-2">
               <div className="bg-blue-600 h-2 rounded-full" style={{ width: '60%' }}></div>
             </div>
-            <p className="mt-2 text-xs text-blue-700">Complete all configuration steps to ensure optimal system functionality.</p>
+            <p className="mt-2 text-xs text-blue-700">{tt('Complete all configuration steps to ensure optimal system functionality.')}</p>
           </div>
         </div>
       </div>
@@ -835,7 +836,7 @@ function CustomizationContent() {
               } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center`}
             >
               <Paintbrush className="mr-2 h-5 w-5" />
-              Branding
+              {tt('Branding')}
             </button>
             <button
               onClick={() => setActiveTab('invoices')}
@@ -846,7 +847,7 @@ function CustomizationContent() {
               } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center`}
             >
               <FileText className="mr-2 h-5 w-5" />
-              Invoice Templates
+              {tt('Invoice Templates')}
             </button>
             <button
               onClick={() => setActiveTab('notifications')}
@@ -857,7 +858,7 @@ function CustomizationContent() {
               } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center`}
             >
               <Bell className="mr-2 h-5 w-5" />
-              Notifications
+              {tt('Notifications')}
             </button>
             <button
               onClick={() => setActiveTab('business')}
@@ -868,7 +869,7 @@ function CustomizationContent() {
               } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center`}
             >
               <Building2 className="mr-2 h-5 w-5" />
-              Business
+              {tt('Business')}
             </button>
           </nav>
         </div>
@@ -880,7 +881,7 @@ function CustomizationContent() {
         {activeTab === 'branding' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">Company Branding</h2>
+              <h2 className="text-lg font-medium text-gray-900">{tt('Company Branding')}</h2>
             </div>
             
             <div className="bg-white shadow-sm overflow-hidden border border-gray-200 sm:rounded-lg p-6">
@@ -888,7 +889,7 @@ function CustomizationContent() {
                 <div className="space-y-5">
                   <div>
                     <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
-                      Company Name
+                      {tt('Company Name')}
                     </label>
                     <input
                       id="companyName"
@@ -906,7 +907,7 @@ function CustomizationContent() {
                   
                   <div>
                     <label htmlFor="primaryColor" className="block text-sm font-medium text-gray-700 mb-1">
-                      Primary Color
+                      {tt('Primary Color')}
                     </label>
                     <div className="flex items-center gap-3">
                       <input
@@ -933,7 +934,7 @@ function CustomizationContent() {
                   
                   <div>
                     <label htmlFor="secondaryColor" className="block text-sm font-medium text-gray-700 mb-1">
-                      Secondary Color
+                      {tt('Secondary Color')}
                     </label>
                     <div className="flex items-center gap-3">
                       <input
@@ -960,7 +961,7 @@ function CustomizationContent() {
                   
                   <div>
                     <label htmlFor="emailFooter" className="block text-sm font-medium text-gray-700 mb-1">
-                      Email Footer Text
+                      {tt('Email Footer Text')}
                     </label>
                     <textarea
                       id="emailFooter"
@@ -975,14 +976,14 @@ function CustomizationContent() {
                 <div className="space-y-5">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Company Logo
+                      {tt('Company Logo')}
                     </label>
                     <div className="flex items-center gap-4">
                       <div className="border border-gray-200 rounded-lg p-3 w-24 h-24 flex items-center justify-center bg-gray-50">
                         {logoPreview ? (
                           <img 
                             src={logoPreview} 
-                            alt="Company Logo" 
+                            alt={tt('Company Logo')} 
                             className="max-w-full max-h-full object-contain"
                           />
                         ) : (
@@ -1003,7 +1004,7 @@ function CustomizationContent() {
                           className="inline-flex px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
                         >
                           <Upload className="h-4 w-4 mr-2" />
-                          Upload Logo
+                          {tt('Upload Logo')}
                         </label>
                         <p className="text-xs text-gray-500">
                           Recommended size: 200x50 pixels (PNG, JPG, SVG)
@@ -1014,14 +1015,14 @@ function CustomizationContent() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Favicon
+                      {tt('Favicon')}
                     </label>
                     <div className="flex items-center gap-4">
                       <div className="border border-gray-200 rounded-lg p-2 w-14 h-14 flex items-center justify-center bg-gray-50">
                         {faviconPreview ? (
                           <img 
                             src={faviconPreview} 
-                            alt="Favicon" 
+                            alt={tt('Favicon')} 
                             className="max-w-full max-h-full object-contain"
                           />
                         ) : (
@@ -1042,7 +1043,7 @@ function CustomizationContent() {
                           className="inline-flex px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
                         >
                           <Upload className="h-4 w-4 mr-2" />
-                          Upload Favicon
+                          {tt('Upload Favicon')}
                         </label>
                         <p className="text-xs text-gray-500">
                           Square image, 32x32 pixels (ICO, PNG)
@@ -1058,7 +1059,7 @@ function CustomizationContent() {
             <div className="flex items-start space-x-2 text-sm text-gray-500 bg-gray-50 p-4 rounded-md border border-gray-200">
               <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">About Branding</p>
+                <p className="font-medium text-gray-900">{tt('About Branding')}</p>
                 <p className="mt-1">Your branding settings determine the appearance of your tenant across the platform. These settings will be applied to invoices, user interface elements, emails, and other customer-facing materials.</p>
               </div>
             </div>
@@ -1069,14 +1070,14 @@ function CustomizationContent() {
         {activeTab === 'invoices' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">Invoice Template Management</h2>
+              <h2 className="text-lg font-medium text-gray-900">{tt('Invoice Template Management')}</h2>
               <button 
                 onClick={addInvoiceTemplate}
                 className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 disabled={isSaving}
               >
                 <Plus className="mr-1.5 h-4 w-4" />
-                Add Template
+                {tt('Add Template')}
               </button>
             </div>
             
@@ -1096,12 +1097,12 @@ function CustomizationContent() {
                         {isPreviewMode ? (
                           <>
                             <Edit className="inline-block w-4 h-4 mr-1" />
-                            Edit
+                            {tt('Edit')}
                           </>
                         ) : (
                           <>
                             <Eye className="inline-block w-4 h-4 mr-1" />
-                            Preview
+                            {tt('Preview')}
                           </>
                         )}
                       </button>
@@ -1124,7 +1125,7 @@ function CustomizationContent() {
                       <div className="space-y-4">
                         <div>
                           <label htmlFor="templateName" className="block text-sm font-medium text-gray-700 mb-1">
-                            Template Name
+                            {tt('Template Name')}
                           </label>
                           <input
                             id="templateName"
@@ -1137,7 +1138,7 @@ function CustomizationContent() {
                         
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Layout
+                            {tt('Layout')}
                           </label>
                           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                             {[
@@ -1164,7 +1165,7 @@ function CustomizationContent() {
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Invoice colour
+                            {tt('Invoice colour')}
                           </label>
                           <input
                             type="color"
@@ -1176,7 +1177,7 @@ function CustomizationContent() {
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Template Settings
+                            {tt('Template Settings')}
                           </label>
                           <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
                             <div className="space-y-3">
@@ -1189,7 +1190,7 @@ function CustomizationContent() {
                                   onChange={(e) => patchActiveTemplateContent({ showLogo: e.target.checked })}
                                 />
                                 <label htmlFor="showLogo" className="ml-2 block text-sm text-gray-700">
-                                  Show company logo
+                                  {tt('Show company logo')}
                                 </label>
                               </div>
                               
@@ -1202,7 +1203,7 @@ function CustomizationContent() {
                                   onChange={(e) => patchActiveTemplateContent({ showFooter: e.target.checked })}
                                 />
                                 <label htmlFor="showFooter" className="ml-2 block text-sm text-gray-700">
-                                  Show email footer text
+                                  {tt('Show email footer text')}
                                 </label>
                               </div>
                             </div>
@@ -1217,7 +1218,7 @@ function CustomizationContent() {
                       onClick={() => setActiveTemplate(null)}
                       className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                     >
-                      Cancel
+                      {tt('Cancel')}
                     </button>
                     <button
                       onClick={() => {
@@ -1230,7 +1231,7 @@ function CustomizationContent() {
                       }}
                       className="px-4 py-2 bg-blue-600 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
-                      Save Template
+                      {tt('Save Template')}
                     </button>
                   </div>
                 </div>
@@ -1250,7 +1251,7 @@ function CustomizationContent() {
                     {template.isDefault ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                         <Check className="mr-1 h-3 w-3" />
-                        Default
+                        {tt('Default')}
                       </span>
                     ) : (
                       <button 
@@ -1258,7 +1259,7 @@ function CustomizationContent() {
                         className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                         disabled={isSaving}
                       >
-                        Set as Default
+                        {tt('Set as Default')}
                       </button>
                     )}
                   </div>
@@ -1274,7 +1275,7 @@ function CustomizationContent() {
                         disabled={isSaving}
                       >
                         <Eye className="mr-1 h-3 w-3" />
-                        Preview
+                        {tt('Preview')}
                       </button>
                       <button 
                         className="inline-flex justify-center items-center px-3 py-2 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -1282,7 +1283,7 @@ function CustomizationContent() {
                         disabled={isSaving}
                       >
                         <Edit className="mr-1 h-3 w-3" />
-                        Edit
+                        {tt('Edit')}
                       </button>
                       {!template.isDefault && (
                         <button 
@@ -1291,7 +1292,7 @@ function CustomizationContent() {
                           disabled={isSaving}
                         >
                           <Trash2 className="mr-1 h-3 w-3" />
-                          Delete
+                          {tt('Delete')}
                         </button>
                       )}
                     </div>
@@ -1305,14 +1306,14 @@ function CustomizationContent() {
                 disabled={isSaving}
               >
                 <Plus className="h-8 w-8 mb-2" />
-                <span className="text-sm font-medium">Add New Template</span>
+                <span className="text-sm font-medium">{tt('Add New Template')}</span>
               </button>
             </div>
             
             <div className="flex items-start space-x-2 text-sm text-gray-500 bg-gray-50 p-4 rounded-md border border-gray-200">
               <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">About Invoice Templates</p>
+                <p className="font-medium text-gray-900">{tt('About Invoice Templates')}</p>
                 <p className="mt-1">Templates determine how your invoices appear to clients. The default template will be used for new invoices unless another is selected during invoice creation.</p>
               </div>
             </div>
@@ -1323,12 +1324,12 @@ function CustomizationContent() {
         {activeTab === 'notifications' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">Notification Preferences</h2>
+              <h2 className="text-lg font-medium text-gray-900">{tt('Notification Preferences')}</h2>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white shadow-sm overflow-hidden border border-gray-200 sm:rounded-lg p-6">
-                <h3 className="text-base font-medium text-gray-900 mb-4">System Notifications</h3>
+                <h3 className="text-base font-medium text-gray-900 mb-4">{tt('System Notifications')}</h3>
                 <div className="space-y-4">
                   {Object.entries({
                     emailNotifications: "Email Notifications",
@@ -1358,14 +1359,14 @@ function CustomizationContent() {
               </div>
               
               <div className="bg-white shadow-sm overflow-hidden border border-gray-200 sm:rounded-lg p-6">
-                <h3 className="text-base font-medium text-gray-900 mb-4">Automated Reports</h3>
+                <h3 className="text-base font-medium text-gray-900 mb-4">{tt('Automated Reports')}</h3>
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <label htmlFor="toggle-dailyReports" className="text-sm font-medium text-gray-700">
-                        Daily Reports
+                        {tt('Daily Reports')}
                       </label>
-                      <p className="text-xs text-gray-500 mt-1">Sent every evening at 6 PM</p>
+                      <p className="text-xs text-gray-500 mt-1">{tt('Sent every evening at 6 PM')}</p>
                     </div>
                     <label className="relative inline-flex items-center">
                       <input 
@@ -1382,9 +1383,9 @@ function CustomizationContent() {
                   <div className="flex items-center justify-between">
                     <div>
                       <label htmlFor="toggle-weeklyReports" className="text-sm font-medium text-gray-700">
-                        Weekly Reports
+                        {tt('Weekly Reports')}
                       </label>
-                      <p className="text-xs text-gray-500 mt-1">Sent every Monday at 8 AM</p>
+                      <p className="text-xs text-gray-500 mt-1">{tt('Sent every Monday at 8 AM')}</p>
                     </div>
                     <label className="relative inline-flex items-center">
                       <input 
@@ -1401,9 +1402,9 @@ function CustomizationContent() {
                   <div className="flex items-center justify-between">
                     <div>
                       <label htmlFor="toggle-monthlyReports" className="text-sm font-medium text-gray-700">
-                        Monthly Reports
+                        {tt('Monthly Reports')}
                       </label>
-                      <p className="text-xs text-gray-500 mt-1">Sent on the 1st of each month</p>
+                      <p className="text-xs text-gray-500 mt-1">{tt('Sent on the 1st of each month')}</p>
                     </div>
                     <label className="relative inline-flex items-center">
                       <input 
@@ -1423,7 +1424,7 @@ function CustomizationContent() {
             <div className="flex items-start space-x-2 text-sm text-gray-500 bg-gray-50 p-4 rounded-md border border-gray-200">
               <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">About Notifications</p>
+                <p className="font-medium text-gray-900">{tt('About Notifications')}</p>
                 <p className="mt-1">Customize which notifications and reports you want to receive. Email notifications require a valid email address configured in your profile settings.</p>
               </div>
             </div>
@@ -1436,8 +1437,8 @@ function CustomizationContent() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 tracking-tight">Business & tax settings</h2>
-                <p className="mt-1 text-sm text-gray-500 max-w-xl">Contact details, banking, and defaults for invoices, quotations, and receipts.</p>
+                <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 tracking-tight">{tt('Business & tax settings')}</h2>
+                <p className="mt-1 text-sm text-gray-500 max-w-xl">{tt('Contact details, banking, and defaults for invoices, quotations, and receipts.')}</p>
               </div>
               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 shrink-0">
                 <Building2 className="w-6 h-6" />
@@ -1452,19 +1453,19 @@ function CustomizationContent() {
                     <MapPin className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-900">Contact & location</h3>
-                    <p className="text-xs text-gray-500">Address, phone, and email used in document footers</p>
+                    <h3 className="text-sm font-semibold text-gray-900">{tt('Contact & location')}</h3>
+                    <p className="text-xs text-gray-500">{tt('Address, phone, and email used in document footers')}</p>
                   </div>
                 </div>
               </div>
               <div className="p-4 sm:p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                   <div className="sm:col-span-2">
-                    <label htmlFor="businessAddress" className="block text-sm font-medium text-gray-700 mb-1.5">Business address</label>
+                    <label htmlFor="businessAddress" className="block text-sm font-medium text-gray-700 mb-1.5">{tt('Business address')}</label>
                     <input
                       id="businessAddress"
                       type="text"
-                      placeholder="Street, area, P.O. Box"
+                      placeholder={tt('Street, area, P.O. Box')}
                       className={`w-full px-3.5 py-2.5 text-sm rounded-lg border bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
                         errors.businessAddress ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200'
                       }`}
@@ -1474,11 +1475,11 @@ function CustomizationContent() {
                     {errors.businessAddress && <p className="mt-1.5 text-xs text-red-600">{errors.businessAddress}</p>}
                   </div>
                   <div>
-                    <label htmlFor="businessCity" className="block text-sm font-medium text-gray-700 mb-1.5">City</label>
+                    <label htmlFor="businessCity" className="block text-sm font-medium text-gray-700 mb-1.5">{tt('City')}</label>
                     <input
                       id="businessCity"
                       type="text"
-                      placeholder="e.g. Blantyre"
+                      placeholder={tt('e.g. Blantyre')}
                       className={`w-full px-3.5 py-2.5 text-sm rounded-lg border bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
                         errors.businessCity ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200'
                       }`}
@@ -1492,7 +1493,7 @@ function CustomizationContent() {
                     <input
                       id="buildingName"
                       type="text"
-                      placeholder="Building or floor"
+                      placeholder={tt('Building or floor')}
                       className={`w-full px-3.5 py-2.5 text-sm rounded-lg border bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
                         errors.buildingName ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200'
                       }`}
@@ -1503,7 +1504,7 @@ function CustomizationContent() {
                   </div>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:col-span-2">
                     <div className="flex-1 min-w-0">
-                      <label htmlFor="businessPhone" className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+                      <label htmlFor="businessPhone" className="block text-sm font-medium text-gray-700 mb-1.5">{tt('Phone')}</label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                         <input
@@ -1520,13 +1521,13 @@ function CustomizationContent() {
                       {errors.businessPhone && <p className="mt-1.5 text-xs text-red-600">{errors.businessPhone}</p>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <label htmlFor="businessEmail" className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                      <label htmlFor="businessEmail" className="block text-sm font-medium text-gray-700 mb-1.5">{tt('Email')}</label>
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                         <input
                           id="businessEmail"
                           type="email"
-                          placeholder="contact@company.com"
+                          placeholder={tt('contact@company.com')}
                           className={`w-full pl-10 pr-3.5 py-2.5 text-sm rounded-lg border bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
                             errors.businessEmail ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200'
                           }`}
@@ -1549,16 +1550,16 @@ function CustomizationContent() {
                     <Landmark className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-900">Banking & tax</h3>
-                    <p className="text-xs text-gray-500">Default bank details and purchase tax account</p>
+                    <h3 className="text-sm font-semibold text-gray-900">{tt('Banking & tax')}</h3>
+                    <p className="text-xs text-gray-500">{tt('Default bank details and purchase tax account')}</p>
                   </div>
                 </div>
               </div>
               <div className="p-4 sm:p-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="defaultBankDetails" className="block text-sm font-medium text-gray-700 mb-1.5">Default bank account details</label>
-                    <p className="text-xs text-gray-500 mb-2">Shown in invoice, quotation and receipt footers. Override per document when needed.</p>
+                    <label htmlFor="defaultBankDetails" className="block text-sm font-medium text-gray-700 mb-1.5">{tt('Default bank account details')}</label>
+                    <p className="text-xs text-gray-500 mb-2">{tt('Shown in invoice, quotation and receipt footers. Override per document when needed.')}</p>
                     <textarea
                       id="defaultBankDetails"
                       rows={5}
@@ -1570,7 +1571,7 @@ function CustomizationContent() {
                   </div>
                   <div>
                     <label htmlFor="taxOutflowAccountId" className="block text-sm font-medium text-gray-700 mb-1.5">Tax outflow account (optional)</label>
-                    <p className="text-xs text-gray-500 mb-2">Where tax from expenses and supplier bills is recorded. Leave empty to use the default tax account.</p>
+                    <p className="text-xs text-gray-500 mb-2">{tt('Where tax from expenses and supplier bills is recorded. Leave empty to use the default tax account.')}</p>
                     <select
                       id="taxOutflowAccountId"
                       value={businessSettings.taxOutflowAccountId || ""}
@@ -1595,15 +1596,15 @@ function CustomizationContent() {
                     <Receipt className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-900">Document defaults</h3>
-                    <p className="text-xs text-gray-500">Thermal paper size and footer text for receipts</p>
+                    <h3 className="text-sm font-semibold text-gray-900">{tt('Document defaults')}</h3>
+                    <p className="text-xs text-gray-500">{tt('Thermal paper size and footer text for receipts')}</p>
                   </div>
                 </div>
               </div>
               <div className="p-4 sm:p-6 space-y-4">
                 <div>
                   <label htmlFor="receiptPaperWidthMm" className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Thermal paper width
+                    {tt('Thermal paper width')}
                   </label>
                   <select
                     id="receiptPaperWidthMm"
@@ -1624,11 +1625,11 @@ function CustomizationContent() {
                   </p>
                 </div>
                 <div>
-                  <label htmlFor="receiptFooter" className="block text-sm font-medium text-gray-700 mb-1.5">Receipt footer text</label>
+                  <label htmlFor="receiptFooter" className="block text-sm font-medium text-gray-700 mb-1.5">{tt('Receipt footer text')}</label>
                   <textarea
                     id="receiptFooter"
                     rows={3}
-                    placeholder="Thank you for your business!"
+                    placeholder={tt('Thank you for your business!')}
                     className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-gray-200 bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-y min-h-[80px]"
                     value={businessSettings.receiptFooter}
                     onChange={(e) => handleBusinessChange('receiptFooter', e.target.value)}
@@ -1643,7 +1644,7 @@ function CustomizationContent() {
                 <Info className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900">About business information</p>
+                <p className="text-sm font-medium text-gray-900">{tt('About business information')}</p>
                 <p className="mt-1 text-sm text-gray-600 leading-relaxed">Contact and bank details appear in the footers of invoices, quotations, and receipts. You can override them per document when creating or editing.</p>
               </div>
             </div>
@@ -1660,7 +1661,7 @@ function CustomizationContent() {
             disabled={isSaving}
           >
             <X className="mr-2 h-4 w-4" />
-            Discard Changes
+            {tt('Discard Changes')}
           </button>
           {canUpdateSettings &&(  <button 
             onClick={saveSettings}
@@ -1670,12 +1671,12 @@ function CustomizationContent() {
             {isSaving ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
+                {tt('Saving...')}
               </>
             ) : (
               <>
                 <Save className="mr-2 h-4 w-4" />
-                Save Changes
+                {tt('Save Changes')}
               </>
             )}
           </button> )}
@@ -1718,7 +1719,7 @@ function CustomizationFallback() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="flex flex-col items-center gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-        <p className="text-sm text-gray-500">Loading customization...</p>
+        <p className="text-sm text-gray-500">{tt('Loading customization...')}</p>
       </div>
     </div>
   );
@@ -1733,7 +1734,7 @@ export default function SystemCustomization() {
   return (
     <Suspense fallback={<CustomizationFallback />}>
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-600">Redirecting to Account & business...</p>
+        <p className="text-gray-600">{tt('Redirecting to Account & business...')}</p>
       </div>
     </Suspense>
   );

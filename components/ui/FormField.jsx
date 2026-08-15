@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { tx } from '@/lib/i18n/runtime';
 import { cn } from '@/lib/utils';
 
 export default function FormField({
@@ -19,7 +20,7 @@ export default function FormField({
     <div className={cn('flex flex-col gap-1.5', className)}>
       {label ? (
         <label htmlFor={id} className="text-sm font-medium text-[var(--text-secondary)]">
-          {label}
+          {tx(label)}
           {required ? <span className="text-[var(--status-danger)]"> *</span> : null}
         </label>
       ) : null}
@@ -28,19 +29,19 @@ export default function FormField({
         : children}
       {hint && !error ? (
         <p id={hintId} className="text-xs text-[var(--text-muted)]">
-          {hint}
+          {tx(hint)}
         </p>
       ) : null}
       {error ? (
         <p id={errorId} role="alert" className="text-xs text-[var(--status-danger)]">
-          {error}
+          {tx(error)}
         </p>
       ) : null}
     </div>
   );
 }
 
-export function Input({ className, invalid, ...props }) {
+export function Input({ className, invalid, placeholder, ...props }) {
   return (
     <input
       className={cn(
@@ -52,12 +53,13 @@ export function Input({ className, invalid, ...props }) {
           : 'border-[var(--border-default)]',
         className
       )}
+      placeholder={placeholder != null ? tx(placeholder) : undefined}
       {...props}
     />
   );
 }
 
-export function Textarea({ className, invalid, ...props }) {
+export function Textarea({ className, invalid, placeholder, ...props }) {
   return (
     <textarea
       className={cn(
@@ -69,6 +71,7 @@ export function Textarea({ className, invalid, ...props }) {
           : 'border-[var(--border-default)]',
         className
       )}
+      placeholder={placeholder != null ? tx(placeholder) : undefined}
       {...props}
     />
   );

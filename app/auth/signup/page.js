@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -165,18 +166,18 @@ const Signup = () => {
         <aside className="hidden flex-col justify-between p-8 text-white xl:flex xl:p-10">
           <div>
             <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-2.5 shadow-2xl backdrop-blur">
-              <img src="/logo.png" alt="InsightBooks" className="h-9 w-auto rounded-lg object-contain" />
+              <img src="/logo.png" alt={tt('InsightBooks')} className="h-9 w-auto rounded-lg object-contain" />
             </div>
 
             <div className="mt-16 max-w-xl">
               <p className="mb-4 inline-flex rounded-full border border-sky-400/20 bg-blue-950/40 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-sky-100 backdrop-blur">
-                Future-ready business OS
+                {tt('Future-ready business OS')}
               </p>
               <h1 className="text-4xl font-black leading-tight tracking-tight">
-                Control finance, stock, sales, and payroll from one intelligent workspace.
+                {tt('Control finance, stock, sales, and payroll from one intelligent workspace.')}
               </h1>
               <p className="mt-5 max-w-lg text-sm leading-7 text-slate-200">
-                A compact, secure command center for daily operations, reporting, and team workflows.
+                {tt('A compact, secure command center for daily operations, reporting, and team workflows.')}
               </p>
             </div>
           </div>
@@ -199,32 +200,32 @@ const Signup = () => {
           <div className="w-full max-w-2xl">
             <div className="mb-4 flex justify-center xl:hidden">
               <div className="rounded-2xl bg-white/95 p-2.5 shadow-xl">
-                <img src="/logo.png" alt="InsightBooks" className="h-8 w-auto object-contain sm:h-9" />
+                <img src="/logo.png" alt={tt('InsightBooks')} className="h-8 w-auto object-contain sm:h-9" />
               </div>
             </div>
 
             <div className="rounded-3xl border border-white/70 bg-white/95 p-4 shadow-2xl shadow-blue-950/50 backdrop-blur-xl sm:p-6 lg:p-7">
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-600">Create Account</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-600">{tt('Create Account')}</p>
                   <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-                    Start your free trial
+                    {tt('Start your free trial')}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Register with your business details.
+                    {tt('Register with your business details.')}
                   </p>
                 </div>
                 <Link href="/auth/login" className="rounded-full border border-indigo-100 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100">
-                  Login
+                  {tt('Login')}
                 </Link>
               </div>
 
               <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-1">
                 <div className="grid grid-cols-2 text-center text-sm font-semibold">
                   <Link href="/auth/login" className="rounded-xl px-3 py-2 text-slate-500 hover:text-slate-900">
-                    Login
+                    {tt('Login')}
                   </Link>
-                  <span className="rounded-xl bg-blue-950 px-3 py-2 text-white shadow-sm">Create Account</span>
+                  <span className="rounded-xl bg-blue-950 px-3 py-2 text-white shadow-sm">{tt('Create Account')}</span>
                 </div>
               </div>
 
@@ -245,7 +246,7 @@ const Signup = () => {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <label htmlFor="businessName" className="mb-2 block text-sm font-semibold text-slate-700">
-                      Business Name
+                      {tt('Business Name')}
                     </label>
                     <div className="relative">
                       <Building size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -255,7 +256,7 @@ const Signup = () => {
                         type="text"
                         required
                         className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
-                        placeholder="Your Company Ltd."
+                        placeholder={tt('Your Company Ltd.')}
                         value={formData.businessName}
                         onChange={handleChange}
                       />
@@ -264,7 +265,7 @@ const Signup = () => {
 
                   <div>
                     <label htmlFor="fullName" className="mb-2 block text-sm font-semibold text-slate-700">
-                      Full Name
+                      {tt('Full Name')}
                     </label>
                     <div className="relative">
                       <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -274,7 +275,7 @@ const Signup = () => {
                         type="text"
                         required
                         className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
-                        placeholder="John Doe"
+                        placeholder={tt('John Doe')}
                         value={formData.fullName}
                         onChange={handleChange}
                       />
@@ -283,7 +284,7 @@ const Signup = () => {
 
                   <div>
                     <label htmlFor="email" className="mb-2 block text-sm font-semibold text-slate-700">
-                      Email
+                      {tt('Email')}
                     </label>
                     <div className="relative">
                       <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -293,7 +294,7 @@ const Signup = () => {
                         type="email"
                         required
                         className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
-                        placeholder="you@company.com"
+                        placeholder={tt('you@company.com')}
                         value={formData.email}
                         onChange={handleChange}
                       />
@@ -302,7 +303,7 @@ const Signup = () => {
 
                   <div>
                     <label htmlFor="phone" className="mb-2 block text-sm font-semibold text-slate-700">
-                      Phone
+                      {tt('Phone')}
                     </label>
                     <div className="relative">
                       <Phone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -323,7 +324,7 @@ const Signup = () => {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <label htmlFor="password" className="mb-2 block text-sm font-semibold text-slate-700">
-                      Password
+                      {tt('Password')}
                     </label>
                     <div className="relative">
                       <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -334,7 +335,7 @@ const Signup = () => {
                         required
                         minLength={8}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 pr-12 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
-                        placeholder="Min. 8 characters"
+                        placeholder={tt('Min. 8 characters')}
                         value={formData.password}
                         onChange={handleChange}
                       />
@@ -368,7 +369,7 @@ const Signup = () => {
 
                   <div>
                     <label htmlFor="confirmPassword" className="mb-2 block text-sm font-semibold text-slate-700">
-                      Confirm Password
+                      {tt('Confirm Password')}
                     </label>
                     <div className="relative">
                       <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -378,7 +379,7 @@ const Signup = () => {
                         type={showPassword ? "text" : "password"}
                         required
                         className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 pl-11 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100"
-                        placeholder="Repeat password"
+                        placeholder={tt('Repeat password')}
                         value={formData.confirmPassword}
                         onChange={handleChange}
                       />
@@ -389,7 +390,7 @@ const Signup = () => {
                 {referralSuccess && (
                   <div className="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
                     <Check size={16} className="mt-0.5 flex-shrink-0" />
-                    <span>Referral code <strong>{formData.referralCode}</strong> applied!</span>
+                    <span>{tt('Referral code')} <strong>{formData.referralCode}</strong> {tt('applied!')}</span>
                   </div>
                 )}
 
@@ -405,9 +406,9 @@ const Signup = () => {
                   />
                   <span>
                     I agree to the{" "}
-                    <Link href="/terms" className="font-semibold text-indigo-700 hover:text-indigo-900">Terms of Service</Link>{" "}
+                    <Link href="/terms" className="font-semibold text-indigo-700 hover:text-indigo-900">{tt('Terms of Service')}</Link>{" "}
                     and{" "}
-                    <Link href="/privacy" className="font-semibold text-indigo-700 hover:text-indigo-900">Privacy Policy</Link>
+                    <Link href="/privacy" className="font-semibold text-indigo-700 hover:text-indigo-900">{tt('Privacy Policy')}</Link>
                   </span>
                 </label>
 
@@ -423,11 +424,11 @@ const Signup = () => {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                         </svg>
-                        Creating account...
+                        {tt('Creating account...')}
                       </>
                     ) : (
                       <>
-                        Start Free Trial
+                        {tt('Start Free Trial')}
                         <ArrowRight size={18} />
                       </>
                     )}
@@ -440,21 +441,21 @@ const Signup = () => {
                     className="flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-6 py-3.5 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100"
                   >
                     <Calendar size={18} />
-                    Book a Demo
+                    {tt('Book a Demo')}
                   </a>
                 </div>
 
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3 text-center">
                   <p className="text-sm text-indigo-800">
                     <Clock size={14} className="mr-1 inline -mt-0.5" />
-                    Your <strong>free 2-day trial</strong> starts immediately. No payment required.
+                    {tt('Your')} <strong>{tt('free 2-day trial')}</strong> {tt('starts immediately. No payment required.')}
                   </p>
                 </div>
               </form>
 
               <p className="mt-6 text-center text-sm text-slate-600">
                 Already have an account?{" "}
-                <Link href="/auth/login" className="font-bold text-indigo-700 hover:text-indigo-900">Login</Link>
+                <Link href="/auth/login" className="font-bold text-indigo-700 hover:text-indigo-900">{tt('Login')}</Link>
               </p>
             </div>
           </div>

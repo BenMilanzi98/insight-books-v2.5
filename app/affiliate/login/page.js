@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -97,9 +98,9 @@ export default function AffiliateLoginPage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--action-primary)]/10">
             <User className="h-8 w-8 text-[var(--action-primary)]" aria-hidden="true" />
           </div>
-          <h1 className="text-3xl font-bold text-[var(--text-primary)]">Affiliate Login</h1>
+          <h1 className="text-3xl font-bold text-[var(--text-primary)]">{tt('Affiliate Login')}</h1>
           <p className="mt-2 text-sm text-[var(--text-secondary)]">
-            Access your affiliate dashboard and track your referrals
+            {tt('Access your affiliate dashboard and track your referrals')}
           </p>
         </div>
       </div>
@@ -110,7 +111,7 @@ export default function AffiliateLoginPage() {
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email Address
+                {tt('Email Address')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -124,14 +125,14 @@ export default function AffiliateLoginPage() {
                   value={formData.email}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Enter your email address"
+                  placeholder={tt('Enter your email address')}
                 />
               </div>
             </div>
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
+                {tt('Password')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -145,7 +146,7 @@ export default function AffiliateLoginPage() {
                   value={formData.password}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Enter your password"
+                  placeholder={tt('Enter your password')}
                 />
                 <button
                   type="button"
@@ -167,7 +168,7 @@ export default function AffiliateLoginPage() {
                 <div className="flex">
                   <AlertCircle className="h-5 w-5 text-red-400" />
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">Error</h3>
+                    <h3 className="text-sm font-medium text-red-800">{tt('Error')}</h3>
                     <div className="mt-2 text-sm text-red-700">{error}</div>
                   </div>
                 </div>
@@ -179,7 +180,7 @@ export default function AffiliateLoginPage() {
                 <div className="flex">
                   <CheckCircle className="h-5 w-5 text-green-400" />
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-green-800">Success</h3>
+                    <h3 className="text-sm font-medium text-green-800">{tt('Success')}</h3>
                     <div className="mt-2 text-sm text-green-700">{success}</div>
                   </div>
                 </div>
@@ -223,7 +224,7 @@ export default function AffiliateLoginPage() {
                 onClick={() => router.push('/affiliate/signup')}
                 className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
-                Become an Affiliate
+                {tt('Become an Affiliate')}
               </button>
             </div>
           </div> */}

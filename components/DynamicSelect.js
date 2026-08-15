@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useRef, useEffect } from 'react';
 import { Plus, X, Check, ChevronDown } from 'lucide-react';
@@ -7,7 +8,7 @@ const DynamicSelect = ({
   value, 
   onChange, 
   options = [], 
-  placeholder = "Select or add option",
+  placeholder = tt('Select or add option'),
   searchPlaceholder = "Search options...",
   emptyMessage = "No options available",
   emptySearchMessage = "No options found",

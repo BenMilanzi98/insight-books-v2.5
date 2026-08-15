@@ -1,4 +1,5 @@
 'use client';
+import { tt, tx } from '@/lib/i18n/runtime';
 
 import { useEffect, useId, useRef } from 'react';
 import {
@@ -102,12 +103,12 @@ export default function Dialog({
                           id={titleId}
                           className="text-base font-semibold text-[var(--text-primary)] sm:text-lg"
                         >
-                          {title}
+                          {tx(title)}
                         </DialogTitle>
                       ) : null}
                       {description ? (
                         <DialogDescription className="mt-1 text-sm text-[var(--text-secondary)]">
-                          {description}
+                          {tx(description)}
                         </DialogDescription>
                       ) : null}
                     </div>
@@ -117,7 +118,7 @@ export default function Dialog({
                         variant="ghost"
                         size="compact"
                         className="min-h-10 min-w-10 px-0"
-                        aria-label="Close dialog"
+                        aria-label={tt('Close dialog')}
                         onClick={onClose}
                       >
                         <X className="h-4 w-4" aria-hidden="true" />

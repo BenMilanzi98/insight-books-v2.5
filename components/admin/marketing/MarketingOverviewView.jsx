@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -80,7 +81,7 @@ export default function MarketingOverviewView() {
         description="Campaign governance, taxonomy, and acquisition evidence. Attribution spend and funnels arrive in later waves."
         actions={
           <button type="button" className={btnGhost} onClick={load} disabled={loading}>
-            Refresh
+            {tt('Refresh')}
           </button>
         }
       />
@@ -96,7 +97,7 @@ export default function MarketingOverviewView() {
             className="rounded-[var(--admin-radius)] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900"
             role="status"
           >
-            <p className="font-medium">Wave 1 — foundations only</p>
+            <p className="font-medium">{tt('Wave 1 — foundations only')}</p>
             <p className="mt-1 text-sky-800">
               Attribution, spend facts, and acquisition funnels are planned for later waves.
               Affiliate commissions and Product Analytics funnels are distinct domains — not shown
@@ -111,10 +112,10 @@ export default function MarketingOverviewView() {
 
           <section>
             <h2 className="mb-3 text-sm font-semibold text-[var(--admin-text)]">
-              Performance KPIs
+              {tt('Performance KPIs')}
             </h2>
             <p className="mb-3 text-sm text-[var(--admin-text-muted)]">
-              KPIs show Unavailable until spend and attribution data exist — never fabricated zeros.
+              {tt('KPIs show Unavailable until spend and attribution data exist — never fabricated zeros.')}
             </p>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {metricList.map((m) => (
@@ -125,13 +126,13 @@ export default function MarketingOverviewView() {
 
           <section className="grid gap-4 md:grid-cols-2">
             <div className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
-              <h2 className="text-sm font-semibold text-[var(--admin-text)]">Campaign counts</h2>
+              <h2 className="text-sm font-semibold text-[var(--admin-text)]">{tt('Campaign counts')}</h2>
               {!pack.campaignCountsAvailable ? (
-                <p className="mt-2 text-sm text-[var(--admin-text-muted)]">Counts unavailable.</p>
+                <p className="mt-2 text-sm text-[var(--admin-text-muted)]">{tt('Counts unavailable.')}</p>
               ) : (
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <dt className="text-[var(--admin-text-muted)]">Total</dt>
+                    <dt className="text-[var(--admin-text-muted)]">{tt('Total')}</dt>
                     <dd className="font-semibold tabular-nums">{campaignTotal}</dd>
                   </div>
                   {['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED', 'ARCHIVED'].map((status) => (
@@ -145,25 +146,25 @@ export default function MarketingOverviewView() {
             </div>
 
             <div className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
-              <h2 className="text-sm font-semibold text-[var(--admin-text)]">Taxonomy counts</h2>
+              <h2 className="text-sm font-semibold text-[var(--admin-text)]">{tt('Taxonomy counts')}</h2>
               {!pack.taxonomyCountsAvailable ? (
-                <p className="mt-2 text-sm text-[var(--admin-text-muted)]">Counts unavailable.</p>
+                <p className="mt-2 text-sm text-[var(--admin-text-muted)]">{tt('Counts unavailable.')}</p>
               ) : (
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <dt className="text-[var(--admin-text-muted)]">Channels</dt>
+                    <dt className="text-[var(--admin-text-muted)]">{tt('Channels')}</dt>
                     <dd className="font-semibold tabular-nums">{taxonomyCounts.channels ?? 0}</dd>
                   </div>
                   <div>
-                    <dt className="text-[var(--admin-text-muted)]">Sources</dt>
+                    <dt className="text-[var(--admin-text-muted)]">{tt('Sources')}</dt>
                     <dd className="font-semibold tabular-nums">{taxonomyCounts.sources ?? 0}</dd>
                   </div>
                   <div>
-                    <dt className="text-[var(--admin-text-muted)]">Mediums</dt>
+                    <dt className="text-[var(--admin-text-muted)]">{tt('Mediums')}</dt>
                     <dd className="font-semibold tabular-nums">{taxonomyCounts.mediums ?? 0}</dd>
                   </div>
                   <div>
-                    <dt className="text-[var(--admin-text-muted)]">Normalisation rules</dt>
+                    <dt className="text-[var(--admin-text-muted)]">{tt('Normalisation rules')}</dt>
                     <dd className="font-semibold tabular-nums">
                       {taxonomyCounts.normalisationRules ?? 0}
                     </dd>

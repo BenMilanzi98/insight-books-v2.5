@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from "react";
 import { 
@@ -176,9 +177,9 @@ const TaxRulesManager = () => {
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
       <div className="bg-gray-50 border-b p-4 flex justify-between items-center">
         <div>
-          <h2 className="text-lg font-medium text-gray-900">Tax Rules</h2>
+          <h2 className="text-lg font-medium text-gray-900">{tt('Tax Rules')}</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Manage tax rates applied to invoices and transactions
+            {tt('Manage tax rates applied to invoices and transactions')}
           </p>
         </div>
         <div className="flex space-x-2">
@@ -187,11 +188,11 @@ const TaxRulesManager = () => {
             onClick={importTaxRules}
           >
             <Upload size={14} className="mr-1" />
-            Import
+            {tt('Import')}
           </button>
           <button className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1 rounded text-sm flex items-center">
             <Download size={14} className="mr-1" />
-            Export
+            {tt('Export')}
           </button>
         </div>
       </div>
@@ -199,9 +200,9 @@ const TaxRulesManager = () => {
       <div className="p-6">
         <div className="mb-4 flex justify-between items-center">
           <div>
-            <h3 className="text-md font-medium text-gray-900">Individual Tax Rates</h3>
+            <h3 className="text-md font-medium text-gray-900">{tt('Individual Tax Rates')}</h3>
             <p className="text-xs text-gray-500">
-              Define tax rates that can be applied to invoices and transactions
+              {tt('Define tax rates that can be applied to invoices and transactions')}
             </p>
           </div>
           <button 
@@ -209,7 +210,7 @@ const TaxRulesManager = () => {
             onClick={addTaxRule}
           >
             <Plus size={16} className="mr-1" />
-            Add Tax
+            {tt('Add Tax')}
           </button>
         </div>
         
@@ -218,29 +219,29 @@ const TaxRulesManager = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Name
+                  {tt('Name')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Rate
+                  {tt('Rate')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
+                  {tt('Type')}
                 </th>
                 {showAdvanced && (
                   <>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Applies To
+                      {tt('Applies To')}
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Code
+                      {tt('Code')}
                     </th>
                   </>
                 )}
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Default
+                  {tt('Default')}
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                  {tt('Actions')}
                 </th>
               </tr>
             </thead>
@@ -251,7 +252,7 @@ const TaxRulesManager = () => {
                     <input 
                       type="text" 
                       className="border-gray-300 rounded-md px-3 py-1 w-full"
-                      placeholder="Tax name"
+                      placeholder={tt('Tax name')}
                       value={rule.name}
                       onChange={(e) => updateTaxRule(rule.id, 'name', e.target.value)}
                     />
@@ -274,8 +275,8 @@ const TaxRulesManager = () => {
                       value={rule.type}
                       onChange={(e) => updateTaxRule(rule.id, 'type', e.target.value)}
                     >
-                      <option value="percentage">Percentage</option>
-                      <option value="fixed">Fixed Amount</option>
+                      <option value="percentage">{tt('Percentage')}</option>
+                      <option value="fixed">{tt('Fixed Amount')}</option>
                     </select>
                   </td>
                   {showAdvanced && (
@@ -286,19 +287,19 @@ const TaxRulesManager = () => {
                           value={rule.applies_to}
                           onChange={(e) => updateTaxRule(rule.id, 'applies_to', e.target.value)}
                         >
-                          <option value="all">All Transactions</option>
-                          <option value="sales">POS Only</option>
-                          <option value="purchases">Purchases Only</option>
-                          <option value="services">Services Only</option>
-                          <option value="goods">Goods Only</option>
-                          <option value="exports">Exports Only</option>
+                          <option value="all">{tt('All Transactions')}</option>
+                          <option value="sales">{tt('POS Only')}</option>
+                          <option value="purchases">{tt('Purchases Only')}</option>
+                          <option value="services">{tt('Services Only')}</option>
+                          <option value="goods">{tt('Goods Only')}</option>
+                          <option value="exports">{tt('Exports Only')}</option>
                         </select>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <input 
                           type="text" 
                           className="border-gray-300 rounded-md px-3 py-1 w-full"
-                          placeholder="Tax code"
+                          placeholder={tt('Tax code')}
                           value={rule.code || ''}
                           onChange={(e) => updateTaxRule(rule.id, 'code', e.target.value)}
                         />
@@ -358,9 +359,9 @@ const TaxRulesManager = () => {
           <div className="mt-8">
             <div className="mb-4 flex justify-between items-center">
               <div>
-                <h3 className="text-md font-medium text-gray-900">Tax Groups</h3>
+                <h3 className="text-md font-medium text-gray-900">{tt('Tax Groups')}</h3>
                 <p className="text-xs text-gray-500">
-                  Combine multiple taxes to apply simultaneously
+                  {tt('Combine multiple taxes to apply simultaneously')}
                 </p>
               </div>
               <button 
@@ -368,7 +369,7 @@ const TaxRulesManager = () => {
                 onClick={addTaxGroup}
               >
                 <Plus size={16} className="mr-1" />
-                Add Group
+                {tt('Add Group')}
               </button>
             </div>
             
@@ -397,12 +398,12 @@ const TaxRulesManager = () => {
                   <div className="p-3">
                     <div className="mb-3">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Description
+                        {tt('Description')}
                       </label>
                       <input 
                         type="text" 
                         className="border-gray-300 rounded-md px-3 py-1 w-full"
-                        placeholder="Group description"
+                        placeholder={tt('Group description')}
                         value={group.description}
                         onChange={(e) => updateTaxGroup(group.id, 'description', e.target.value)}
                       />
@@ -410,11 +411,11 @@ const TaxRulesManager = () => {
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Included Taxes
+                        {tt('Included Taxes')}
                       </label>
                       <div className="border border-gray-200 rounded-md p-2 max-h-40 overflow-y-auto">
                         {taxRules.length === 0 ? (
-                          <p className="text-sm text-gray-500">No taxes defined yet</p>
+                          <p className="text-sm text-gray-500">{tt('No taxes defined yet')}</p>
                         ) : (
                           <div className="space-y-2">
                             {taxRules.map((tax) => (
@@ -450,13 +451,13 @@ const TaxRulesManager = () => {
             <HelpCircle className="text-blue-500 flex-shrink-0 mt-0.5" size={16} />
             <div className="ml-3">
               <p className="text-sm text-blue-700">
-                Tax settings will be applied to invoices based on your configuration. Make sure to set one tax rule as the default.
+                {tt('Tax settings will be applied to invoices based on your configuration. Make sure to set one tax rule as the default.')}
               </p>
               <a 
                 href="#"
                 className="text-sm font-medium text-blue-700 hover:text-blue-600 mt-2 inline-block"
               >
-                Learn more about tax setup
+                {tt('Learn more about tax setup')}
               </a>
             </div>
           </div>
@@ -465,11 +466,11 @@ const TaxRulesManager = () => {
       
       <div className="bg-gray-50 p-4 border-t flex justify-end">
         <button className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md mr-2">
-          Cancel
+          {tt('Cancel')}
         </button>
         <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center">
           <Save size={16} className="mr-2" />
-          Save Tax Settings
+          {tt('Save Tax Settings')}
         </button>
       </div>
     </div>

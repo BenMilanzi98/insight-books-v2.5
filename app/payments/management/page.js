@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
@@ -49,7 +50,7 @@ function PaymentManagementPageInner() {
       <div className="mx-auto max-w-6xl">
         {onboarding && (
           <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-sm">
-            <p className="font-medium">Required setup — payment accounts</p>
+            <p className="font-medium">{tt('Required setup — payment accounts')}</p>
             <p className="mt-1 text-amber-900/90">
               Add your bank and mobile money accounts under the matching GL channel (1131–1138, 1140, 1141).
               Cash uses GL 1110 automatically.
@@ -59,7 +60,7 @@ function PaymentManagementPageInner() {
               onClick={completePaymentsOnboarding}
               className="mt-3 inline-flex rounded-lg bg-amber-600 px-4 py-2 text-white text-sm font-medium hover:bg-amber-700"
             >
-              I have configured payment accounts — go to dashboard
+              {tt('I have configured payment accounts — go to dashboard')}
             </button>
           </div>
         )}
@@ -69,11 +70,11 @@ function PaymentManagementPageInner() {
           className="mb-4 flex items-center text-slate-600 hover:text-slate-900 transition-colors text-sm"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Payment Accounts
+          {tt('Back to Payment Accounts')}
         </button>
 
         <header className="mb-8">
-          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Payment accounts management</h1>
+          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">{tt('Payment accounts management')}</h1>
           <p className="text-sm text-slate-500 mt-1">
             Define operational accounts under each bank or mobile channel. GL sub-accounts are created automatically
             (e.g. 1131-01) and appear in Chart of Accounts as children of the parent row.
@@ -105,7 +106,7 @@ function PaymentManagementPageInner() {
 
 export default function PaymentManagementPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-slate-500 text-sm">Loading…</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-slate-500 text-sm">{tt('Loading…')}</div>}>
       <PaymentManagementPageInner />
     </Suspense>
   );

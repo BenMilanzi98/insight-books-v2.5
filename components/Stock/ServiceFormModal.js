@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from "react";
 import { X, Loader2, Briefcase } from "lucide-react";
@@ -227,7 +228,7 @@ export default function ServiceFormModal({
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Billable item — no inventory. Revenue posts to account{" "}
-                <span className="font-semibold text-slate-800">4000</span> when present in your chart of accounts.
+                <span className="font-semibold text-slate-800">4000</span> {tt('when present in your chart of accounts.')}
               </p>
             </div>
           </div>
@@ -235,7 +236,7 @@ export default function ServiceFormModal({
             type="button"
             onClick={() => !submitting && onClose?.()}
             className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-            aria-label="Close"
+            aria-label={tt('Close')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -243,7 +244,7 @@ export default function ServiceFormModal({
 
         <form id="service-modal-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Service name *</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">{tt('Service name *')}</label>
             <input
               type="text"
               value={name}
@@ -251,7 +252,7 @@ export default function ServiceFormModal({
               className={`w-full rounded-lg border px-3 py-2 text-sm ${
                 errors.name ? "border-red-300 bg-red-50/50" : "border-slate-200"
               }`}
-              placeholder="e.g. Consulting"
+              placeholder={tt('e.g. Consulting')}
               autoComplete="off"
             />
             {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
@@ -264,12 +265,12 @@ export default function ServiceFormModal({
               value={sku}
               onChange={(ev) => setSku(ev.target.value)}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono"
-              placeholder="Auto-generated if empty"
+              placeholder={tt('Auto-generated if empty')}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Description</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">{tt('Description')}</label>
             <textarea
               value={description}
               onChange={(ev) => setDescription(ev.target.value)}
@@ -280,9 +281,9 @@ export default function ServiceFormModal({
           </div>
 
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 space-y-3">
-            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Pricing</p>
+            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">{tt('Pricing')}</p>
             <div>
-              <span className="block text-xs font-medium text-slate-600 mb-2">Billing type</span>
+              <span className="block text-xs font-medium text-slate-600 mb-2">{tt('Billing type')}</span>
               <div className="flex flex-wrap gap-2">
                 {BILLING_OPTIONS.map((opt) => (
                   <label
@@ -307,7 +308,7 @@ export default function ServiceFormModal({
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Rate *</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">{tt('Rate *')}</label>
               <input
                 type="number"
                 inputMode="decimal"
@@ -325,7 +326,7 @@ export default function ServiceFormModal({
           </div>
 
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 space-y-3">
-            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Accounting</p>
+            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">{tt('Accounting')}</p>
             <p className="text-sm text-slate-600 leading-relaxed">
               Income is recorded against your standard{" "}
               <span className="font-semibold text-slate-800">Revenue (4000)</span> account (or the first matching revenue account the system finds).
@@ -334,7 +335,7 @@ export default function ServiceFormModal({
               <label className="block text-xs font-medium text-slate-600 mb-1">VAT / tax (from tax management)</label>
               <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 space-y-1.5">
                 {taxTypes.length === 0 && !loadingMeta && (
-                  <p className="text-xs text-slate-500 px-1">No active tax types.</p>
+                  <p className="text-xs text-slate-500 px-1">{tt('No active tax types.')}</p>
                 )}
                 {taxTypes.map((t) => (
                   <label key={t.id} className="flex items-center gap-2 text-sm cursor-pointer px-1 py-0.5 rounded hover:bg-slate-50">
@@ -366,9 +367,9 @@ export default function ServiceFormModal({
               value={defaultQty}
               onChange={(ev) => setDefaultQty(ev.target.value)}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              placeholder="e.g. 1 for one hour"
+              placeholder={tt('e.g. 1 for one hour')}
             />
-            <p className="text-xs text-slate-500 mt-1">Used as a default on invoices or POS when applicable.</p>
+            <p className="text-xs text-slate-500 mt-1">{tt('Used as a default on invoices or POS when applicable.')}</p>
           </div>
         </form>
 
@@ -378,7 +379,7 @@ export default function ServiceFormModal({
             onClick={() => !submitting && onClose?.()}
             className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-white"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="submit"
@@ -389,7 +390,7 @@ export default function ServiceFormModal({
             {submitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Saving…
+                {tt('Saving…')}
               </>
             ) : isEdit ? (
               "Save changes"

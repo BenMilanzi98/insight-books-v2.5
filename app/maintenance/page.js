@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * Public maintenance page shown when CUTOVER_MODE=maintenance.
@@ -20,9 +21,9 @@ export default function MaintenancePage() {
     >
       <div style={{ maxWidth: 480, textAlign: 'center' }}>
         <p style={{ letterSpacing: '0.12em', textTransform: 'uppercase', fontSize: 12, color: '#94a3b8' }}>
-          InsightBooks
+          {tt('InsightBooks')}
         </p>
-        <h1 style={{ fontSize: '2rem', margin: '0.75rem 0' }}>Scheduled maintenance</h1>
+        <h1 style={{ fontSize: '2rem', margin: '0.75rem 0' }}>{tt('Scheduled maintenance')}</h1>
         <p style={{ lineHeight: 1.6, color: '#cbd5e1' }}>
           The system is temporarily unavailable while we complete a controlled production cutover.
           Financial writes are paused. Please try again after the maintenance window.

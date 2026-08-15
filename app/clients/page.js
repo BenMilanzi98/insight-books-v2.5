@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { 
@@ -302,7 +303,7 @@ const ClientForm = ({ client, onSubmit, onCancel, isSubmitting }) => {
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Client Name *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Client Name *')}</label>
             <input
               type="text"
               name="name"
@@ -310,12 +311,12 @@ const ClientForm = ({ client, onSubmit, onCancel, isSubmitting }) => {
               onChange={handleChange}
               required
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter business name"
+              placeholder={tt('Enter business name')}
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Contact Person *')}</label>
             <input
               type="text"
               name="contactPerson"
@@ -323,31 +324,31 @@ const ClientForm = ({ client, onSubmit, onCancel, isSubmitting }) => {
               onChange={handleChange}
               required
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Primary contact name"
+              placeholder={tt('Primary contact name')}
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Email Address')}</label>
             <input
               type="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Contact email"
+              placeholder={tt('Contact email')}
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Phone Number')}</label>
             <input
               type="tel"
               name="phone"
               value={formData.phone}
               onChange={handleChange}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Contact phone"
+              placeholder={tt('Contact phone')}
             />
           </div>
           
@@ -363,45 +364,45 @@ const ClientForm = ({ client, onSubmit, onCancel, isSubmitting }) => {
                 setFormData(prev => ({ ...prev, additionalEmails: list }));
               }}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y min-h-[80px]"
-              placeholder="One per line or comma-separated, e.g. accounts@client.com, finance@client.com"
+              placeholder={tt('One per line or comma-separated, e.g. accounts@client.com, finance@client.com')}
             />
-            <p className="mt-1 text-xs text-gray-500">Use Enter for a new line or commas between addresses. Invoices can be sent to these in addition to the primary email.</p>
+            <p className="mt-1 text-xs text-gray-500">{tt('Use Enter for a new line or commas between addresses. Invoices can be sent to these in addition to the primary email.')}</p>
           </div>
           
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Address')}</label>
             <input
               type="text"
               name="address"
               value={formData.address}
               onChange={handleChange}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Business address"
+              placeholder={tt('Business address')}
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Industry')}</label>
             <input
               type="text"
               name="industry"
               value={formData.industry}
               onChange={handleChange}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Client industry"
+              placeholder={tt('Client industry')}
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Status')}</label>
             <select
               name="status"
               value={formData.status}
               onChange={handleChange}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
             >
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
+              <option value="Active">{tt('Active')}</option>
+              <option value="Inactive">{tt('Inactive')}</option>
             </select>
           </div>
         </div>
@@ -412,7 +413,7 @@ const ClientForm = ({ client, onSubmit, onCancel, isSubmitting }) => {
             onClick={onCancel}
             className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="submit"
@@ -1236,11 +1237,11 @@ const ClientManagement = () => {
             <>
               <Button variant="secondary" onClick={() => setIsBulkUploadOpen(true)}>
                 <Upload size={16} aria-hidden="true" />
-                Bulk Upload
+                {tt('Bulk Upload')}
               </Button>
               <Button onClick={handleAddClient}>
                 <Plus size={16} aria-hidden="true" />
-                Add New Client
+                {tt('Add New Client')}
               </Button>
             </>
           ) : null
@@ -1317,7 +1318,7 @@ const ClientManagement = () => {
           <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search clients..."
+            placeholder={tt('Search clients...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1332,9 +1333,9 @@ const ClientManagement = () => {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="bg-transparent border-none focus:outline-none"
             >
-              <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
+              <option value="All">{tt('All Status')}</option>
+              <option value="Active">{tt('Active')}</option>
+              <option value="Inactive">{tt('Inactive')}</option>
             </select>
           </div>
           
@@ -1343,7 +1344,7 @@ const ClientManagement = () => {
             onClick={() => handleExport('csv')}
           >
             <Download size={18} className="text-gray-500" />
-            <span>Export</span>
+            <span>{tt('Export')}</span>
           </button>)}
           <button 
             className="flex items-center border border-gray-300 rounded-md px-4 py-2 bg-white gap-2 hover:bg-gray-50"
@@ -1351,7 +1352,7 @@ const ClientManagement = () => {
             title="Edit balance reminder email template"
           >
             <FileText size={18} className="text-gray-500" />
-            <span>Balance reminder template</span>
+            <span>{tt('Balance reminder template')}</span>
           </button>
         </div>
       </div>
@@ -1367,7 +1368,7 @@ const ClientManagement = () => {
               onClick={() => setSelectedClientIds([])}
               className="px-3 py-1.5 text-sm border border-amber-300 text-amber-800 rounded-md hover:bg-amber-100"
             >
-              Clear selection
+              {tt('Clear selection')}
             </button>
             <button
               type="button"
@@ -1379,12 +1380,12 @@ const ClientManagement = () => {
               {sendingBulkReminders ? (
                 <>
                   <span className="inline-block h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Sending…
+                  {tt('Sending…')}
                 </>
               ) : (
                 <>
                   <Mail size={16} />
-                  Send payment reminders
+                  {tt('Send payment reminders')}
                 </>
               )}
             </button>
@@ -1395,19 +1396,19 @@ const ClientManagement = () => {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-12">
           <div className="h-10 w-10 border-4 border-t-blue-600 border-r-transparent border-l-transparent border-b-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-600">Loading clients...</p>
+          <p className="text-gray-600">{tt('Loading clients...')}</p>
         </div>
       ) : error ? (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
           <AlertCircle size={24} className="text-red-500 mr-3 flex-shrink-0 mt-0.5" />
           <div>
-            <h3 className="text-red-800 font-medium mb-1">Error Loading Clients</h3>
+            <h3 className="text-red-800 font-medium mb-1">{tt('Error Loading Clients')}</h3>
             <p className="text-red-600">{error}</p>
             <button 
               className="mt-3 px-4 py-2 bg-red-100 text-red-800 rounded-md hover:bg-red-200"
               onClick={loadClients}
             >
-              Try Again
+              {tt('Try Again')}
             </button>
           </div>
         </div>
@@ -1479,7 +1480,7 @@ const ClientManagement = () => {
                       )}
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Phone')}</th>
                   <th 
                     className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => {
@@ -1534,7 +1535,7 @@ const ClientManagement = () => {
                       )}
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
@@ -1605,7 +1606,7 @@ const ClientManagement = () => {
                   </span>
                   
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-700">Show:</span>
+                    <span className="text-sm text-gray-700">{tt('Show:')}</span>
                     <select
                       value={pagination.pageSize}
                       onChange={(e) => handlePageSizeChange(parseInt(e.target.value))}
@@ -1616,7 +1617,7 @@ const ClientManagement = () => {
                       <option value={20}>20</option>
                       <option value={50}>50</option>
                     </select>
-                    <span className="text-sm text-gray-700">per page</span>
+                    <span className="text-sm text-gray-700">{tt('per page')}</span>
                   </div>
                 </div>
                 
@@ -1628,7 +1629,7 @@ const ClientManagement = () => {
                       disabled={pagination.currentPage === 1}
                       className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      First
+                      {tt('First')}
                     </button>
                     
                     <button
@@ -1636,7 +1637,7 @@ const ClientManagement = () => {
                       disabled={pagination.currentPage === 1}
                       className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Previous
+                      {tt('Previous')}
                     </button>
                     
                     <div className="flex items-center gap-1">
@@ -1673,7 +1674,7 @@ const ClientManagement = () => {
                       disabled={pagination.currentPage === pagination.totalPages}
                       className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Next
+                      {tt('Next')}
                     </button>
                     
                     <button
@@ -1681,7 +1682,7 @@ const ClientManagement = () => {
                       disabled={pagination.currentPage === pagination.totalPages}
                       className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Last
+                      {tt('Last')}
                     </button>
                   </div>
                 )}
@@ -1692,13 +1693,13 @@ const ClientManagement = () => {
           {clients.length === 0 && (
             <div className="py-12 text-center">
               <div className="text-4xl mb-2">🔍</div>
-              <h3 className="text-lg font-medium text-gray-900 mb-1">No clients found</h3>
-              <p className="text-gray-600 mb-4">Try adjusting your search or filter criteria</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-1">{tt('No clients found')}</h3>
+              <p className="text-gray-600 mb-4">{tt('Try adjusting your search or filter criteria')}</p>
               {pagePermissions.canCreateClient && (  <button 
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 onClick={handleAddClient}
               >
-                Add Your First Client
+                {tt('Add Your First Client')}
               </button>)}
             </div>
           )}
@@ -1727,7 +1728,7 @@ const ClientManagement = () => {
               <button 
                 className="text-gray-500 hover:text-gray-700 text-2xl"
                 onClick={() => setIsDetailOpen(false)}
-                aria-label="Close client record"
+                aria-label={tt('Close client record')}
               >
                 ×
               </button>
@@ -1759,37 +1760,37 @@ const ClientManagement = () => {
             
             <div className="p-5 overflow-y-auto flex-grow">
               {loadingClientRecord && (
-                <p className="text-sm text-gray-500 mb-4">Loading full client record…</p>
+                <p className="text-sm text-gray-500 mb-4">{tt('Loading full client record…')}</p>
               )}
 
               {detailTab === 'overview' && (
               <>
               <div className="mb-6">
-                <h3 className="text-lg font-medium mb-3 border-b pb-2">Client Information</h3>
+                <h3 className="text-lg font-medium mb-3 border-b pb-2">{tt('Client Information')}</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="flex items-center">
                     <User size={16} className="text-gray-400 mr-2" />
-                    <span className="text-gray-600 mr-2">Contact Person:</span>
+                    <span className="text-gray-600 mr-2">{tt('Contact Person:')}</span>
                     <span className="font-medium">{selectedClient.contactPerson || selectedClient.contact || '—'}</span>
                   </div>
                   <div className="flex items-center">
                     <Mail size={16} className="text-gray-400 mr-2" />
-                    <span className="text-gray-600 mr-2">Email:</span>
+                    <span className="text-gray-600 mr-2">{tt('Email:')}</span>
                     <span className="font-medium">{selectedClient.email || '—'}</span>
                   </div>
                   <div className="flex items-center">
                     <Phone size={16} className="text-gray-400 mr-2" />
-                    <span className="text-gray-600 mr-2">Phone:</span>
+                    <span className="text-gray-600 mr-2">{tt('Phone:')}</span>
                     <span className="font-medium">{selectedClient.phone || '—'}</span>
                   </div>
                   <div className="flex items-center">
                     <MapPin size={16} className="text-gray-400 mr-2" />
-                    <span className="text-gray-600 mr-2">Address:</span>
+                    <span className="text-gray-600 mr-2">{tt('Address:')}</span>
                     <span className="font-medium">{selectedClient.address || '—'}</span>
                   </div>
                   <div className="flex items-center">
                     <CheckCircle size={16} className="text-gray-400 mr-2" />
-                    <span className="text-gray-600 mr-2">Status:</span>
+                    <span className="text-gray-600 mr-2">{tt('Status:')}</span>
                     <span className="font-medium">{selectedClient.status || 'Active'}</span>
                   </div>
                   {selectedClient.additionalEmails && selectedClient.additionalEmails.length > 0 && (
@@ -1805,28 +1806,28 @@ const ClientManagement = () => {
               </div>
               
               <div className="mb-6">
-                <h3 className="text-lg font-medium mb-3 border-b pb-2">Financial Overview</h3>
+                <h3 className="text-lg font-medium mb-3 border-b pb-2">{tt('Financial Overview')}</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <span className="block text-sm text-gray-600 mb-1">Total Purchases</span>
+                    <span className="block text-sm text-gray-600 mb-1">{tt('Total Purchases')}</span>
                     <span className="block text-lg font-bold">
                       {formatCurrency(clientRecord?.totals?.totalPurchases ?? selectedClient.totalBilled)}
                     </span>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <span className="block text-sm text-gray-600 mb-1">Invoiced</span>
+                    <span className="block text-sm text-gray-600 mb-1">{tt('Invoiced')}</span>
                     <span className="block text-lg font-bold">
                       {formatCurrency(clientRecord?.totals?.totalInvoiced ?? selectedClient.totalBilled)}
                     </span>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <span className="block text-sm text-gray-600 mb-1">Paid</span>
+                    <span className="block text-sm text-gray-600 mb-1">{tt('Paid')}</span>
                     <span className="block text-lg font-bold text-green-700">
                       {formatCurrency(clientRecord?.totals?.totalPaid ?? 0)}
                     </span>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <span className="block text-sm text-gray-600 mb-1">Outstanding</span>
+                    <span className="block text-sm text-gray-600 mb-1">{tt('Outstanding')}</span>
                     <span className={`block text-lg font-bold ${
                       (clientRecord?.totals?.outstanding ?? selectedClient.outstandingAmount) > 0 ? "text-red-600" : "text-green-600"
                     }`}>
@@ -1834,7 +1835,7 @@ const ClientManagement = () => {
                     </span>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <span className="block text-sm text-gray-600 mb-1">POS Sales</span>
+                    <span className="block text-sm text-gray-600 mb-1">{tt('POS Sales')}</span>
                     <span className="block text-lg font-bold">
                       {formatCurrency(clientRecord?.totals?.totalSales ?? 0)}
                     </span>
@@ -1849,18 +1850,18 @@ const ClientManagement = () => {
                   <table className="min-w-full text-sm">
                     <thead className="bg-gray-50 text-left">
                       <tr>
-                        <th className="px-3 py-2 font-medium text-gray-600">Invoice</th>
-                        <th className="px-3 py-2 font-medium text-gray-600">Date</th>
-                        <th className="px-3 py-2 font-medium text-gray-600">Due</th>
-                        <th className="px-3 py-2 font-medium text-gray-600 text-right">Total</th>
-                        <th className="px-3 py-2 font-medium text-gray-600 text-right">Paid</th>
-                        <th className="px-3 py-2 font-medium text-gray-600 text-right">Outstanding</th>
-                        <th className="px-3 py-2 font-medium text-gray-600">Status</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">{tt('Invoice')}</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">{tt('Date')}</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">{tt('Due')}</th>
+                        <th className="px-3 py-2 font-medium text-gray-600 text-right">{tt('Total')}</th>
+                        <th className="px-3 py-2 font-medium text-gray-600 text-right">{tt('Paid')}</th>
+                        <th className="px-3 py-2 font-medium text-gray-600 text-right">{tt('Outstanding')}</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">{tt('Status')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {(clientRecord?.invoices || clientInvoices || []).length === 0 ? (
-                        <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-500">No invoices for this client</td></tr>
+                        <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-500">{tt('No invoices for this client')}</td></tr>
                       ) : (
                         (clientRecord?.invoices || clientInvoices).map((inv) => (
                           <tr key={inv.id}>
@@ -1884,16 +1885,16 @@ const ClientManagement = () => {
                   <table className="min-w-full text-sm">
                     <thead className="bg-gray-50 text-left">
                       <tr>
-                        <th className="px-3 py-2 font-medium text-gray-600">Date</th>
-                        <th className="px-3 py-2 font-medium text-gray-600">Amount</th>
-                        <th className="px-3 py-2 font-medium text-gray-600">Method</th>
-                        <th className="px-3 py-2 font-medium text-gray-600">Reference</th>
-                        <th className="px-3 py-2 font-medium text-gray-600">Applied to</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">{tt('Date')}</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">{tt('Amount')}</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">{tt('Method')}</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">{tt('Reference')}</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">{tt('Applied to')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {(clientRecord?.payments || []).length === 0 ? (
-                        <tr><td colSpan={5} className="px-3 py-8 text-center text-gray-500">No payment records</td></tr>
+                        <tr><td colSpan={5} className="px-3 py-8 text-center text-gray-500">{tt('No payment records')}</td></tr>
                       ) : (
                         clientRecord.payments.map((p) => (
                           <tr key={p.id}>
@@ -1915,15 +1916,15 @@ const ClientManagement = () => {
                   <table className="min-w-full text-sm">
                     <thead className="bg-gray-50 text-left">
                       <tr>
-                        <th className="px-3 py-2 font-medium text-gray-600">Reference</th>
-                        <th className="px-3 py-2 font-medium text-gray-600">Date</th>
-                        <th className="px-3 py-2 font-medium text-gray-600 text-right">Total</th>
-                        <th className="px-3 py-2 font-medium text-gray-600">Status</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">{tt('Reference')}</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">{tt('Date')}</th>
+                        <th className="px-3 py-2 font-medium text-gray-600 text-right">{tt('Total')}</th>
+                        <th className="px-3 py-2 font-medium text-gray-600">{tt('Status')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {(clientRecord?.sales || []).length === 0 ? (
-                        <tr><td colSpan={4} className="px-3 py-8 text-center text-gray-500">No POS sales for this client</td></tr>
+                        <tr><td colSpan={4} className="px-3 py-8 text-center text-gray-500">{tt('No POS sales for this client')}</td></tr>
                       ) : (
                         clientRecord.sales.map((sale) => (
                           <tr key={sale.id}>
@@ -1943,7 +1944,7 @@ const ClientManagement = () => {
               <>
               
               <div className="mb-6">
-                  <h3 className="text-lg font-medium mb-4 border-b pb-2">Quick Actions</h3>
+                  <h3 className="text-lg font-medium mb-4 border-b pb-2">{tt('Quick Actions')}</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {pagePermissions.canCreateInvoices && (
                       <button
@@ -1953,7 +1954,7 @@ const ClientManagement = () => {
                         <div className="p-2 bg-blue-100 rounded-full group-hover:bg-blue-200 transition-colors">
                           <FileText size={16} className="text-blue-600" />
                         </div>
-                        <span className="font-medium text-gray-900">Create Invoice</span>
+                        <span className="font-medium text-gray-900">{tt('Create Invoice')}</span>
                       </button>
                     )}
                     {pagePermissions.canCreatePayments && (
@@ -1964,7 +1965,7 @@ const ClientManagement = () => {
                         <div className="p-2 bg-green-100 rounded-full group-hover:bg-green-200 transition-colors">
                           <DollarSign size={16} className="text-green-600" />
                         </div>
-                        <span className="font-medium text-gray-900">Record Payment</span>
+                        <span className="font-medium text-gray-900">{tt('Record Payment')}</span>
                       </button>
                     )}
                     {pagePermissions.canUpdateClients && (
@@ -1978,7 +1979,7 @@ const ClientManagement = () => {
                       <div className="p-2 bg-blue-100 rounded-full group-hover:bg-blue-200 transition-colors">
                         <Edit size={16} className="text-blue-600" />
                       </div>
-                      <span className="font-medium text-gray-900">Edit Profile</span>
+                      <span className="font-medium text-gray-900">{tt('Edit Profile')}</span>
                     </button>
                     )}
                     <button
@@ -1996,7 +1997,7 @@ const ClientManagement = () => {
                       <div className="p-2 bg-orange-100 rounded-full group-hover:bg-orange-200 transition-colors">
                         <Mail size={16} className="text-orange-600" />
                       </div>
-                      <span className="font-medium text-gray-900">Send Email</span>
+                      <span className="font-medium text-gray-900">{tt('Send Email')}</span>
                     </button>
                     <button
                       onClick={handleSendBalanceReminder}
@@ -2021,7 +2022,7 @@ const ClientManagement = () => {
                       <span className="font-medium text-gray-900">{downloadingReminderPdf ? 'Downloading…' : 'Download reminder (PDF)'}</span>
                     </button>
                     <div className="flex flex-col gap-2 sm:col-span-2">
-                      <span className="text-xs font-medium text-gray-500 px-1">Export full record</span>
+                      <span className="text-xs font-medium text-gray-500 px-1">{tt('Export full record')}</span>
                       <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => handleDownloadAccountSummary('pdf')}
@@ -2039,7 +2040,7 @@ const ClientManagement = () => {
                           title="Download client record as Excel"
                         >
                           <Download size={14} className="text-teal-600" />
-                          <span>Excel</span>
+                          <span>{tt('Excel')}</span>
                         </button>
                         <button
                           onClick={() => handleDownloadAccountSummary('csv')}
@@ -2063,7 +2064,7 @@ const ClientManagement = () => {
                 className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
                 onClick={() => setIsDetailOpen(false)}
               >
-                Close
+                {tt('Close')}
               </button>
               {pagePermissions.canUpdateClients &&(<button
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -2072,7 +2073,7 @@ const ClientManagement = () => {
                   handleEditClient(selectedClient, { stopPropagation: () => {} });
                 }}
               >
-                Edit Client
+                {tt('Edit Client')}
               </button>)}
             </div>
           </div>
@@ -2108,50 +2109,50 @@ const ClientManagement = () => {
             </div>
             <div className="p-5 space-y-4 flex-1 overflow-y-auto">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('From')}</label>
                 <input
                   type="email"
                   value={"insightinnovationsltd@gmail.com"}
                   readOnly
                   className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-700"
                 />
-                <p className="mt-1 text-xs text-gray-500">Organisation sender address</p>
+                <p className="mt-1 text-xs text-gray-500">{tt('Organisation sender address')}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('To')}</label>
                 <input
                   type="email"
                   value={emailForm.to}
                   onChange={(e) => setEmailForm({ ...emailForm, to: e.target.value })}
-                  placeholder="client@example.com"
+                  placeholder={tt('client@example.com')}
                   className="w-full border border-gray-300 rounded-md px-3 py-2"
                 />
                 {!emailForm.to && (
-                  <p className="mt-1 text-xs text-amber-600">Client has no email on profile. You can enter it here.</p>
+                  <p className="mt-1 text-xs text-amber-600">{tt('Client has no email on profile. You can enter it here.')}</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Subject')}</label>
                 <input
                   type="text"
                   value={emailForm.subject}
                   onChange={(e) => setEmailForm({ ...emailForm, subject: e.target.value })}
-                  placeholder="Subject"
+                  placeholder={tt('Subject')}
                   className="w-full border border-gray-300 rounded-md px-3 py-2"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Message')}</label>
                 <textarea
                   value={emailForm.body}
                   onChange={(e) => setEmailForm({ ...emailForm, body: e.target.value })}
-                  placeholder="Write your message..."
+                  placeholder={tt('Write your message...')}
                   rows={8}
                   className="w-full border border-gray-300 rounded-md px-3 py-2"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Attachments</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Attachments')}</label>
                 <input
                   type="file"
                   multiple
@@ -2174,7 +2175,7 @@ const ClientManagement = () => {
                 disabled={isSendingEmail}
                 onClick={() => setShowSendEmailModal(false)}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 className={`px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 ${isSendingEmail ? 'opacity-70 cursor-not-allowed' : ''}`}
@@ -2221,7 +2222,7 @@ const ClientManagement = () => {
         <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !balanceReminderTemplateSaving && setShowBalanceReminderTemplateModal(false)}>
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-gray-200">
-              <h3 className="text-lg font-semibold">Balance reminder email template</h3>
+              <h3 className="text-lg font-semibold">{tt('Balance reminder email template')}</h3>
               <button className="p-2 hover:bg-gray-100 rounded" onClick={() => !balanceReminderTemplateSaving && setShowBalanceReminderTemplateModal(false)}>
                 <X size={18} className="text-gray-600" />
               </button>
@@ -2229,17 +2230,17 @@ const ClientManagement = () => {
             <div className="p-5 space-y-4 flex-1 overflow-y-auto">
               <p className="text-sm text-gray-600">This template is used when you send a balance reminder to a client. Use {'{{clientName}}'} and {'{{balance}}'} as placeholders.</p>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Subject')}</label>
                 <input
                   type="text"
                   value={balanceReminderTemplate.subject}
                   onChange={(e) => setBalanceReminderTemplate(prev => ({ ...prev, subject: e.target.value }))}
-                  placeholder="Outstanding balance reminder"
+                  placeholder={tt('Outstanding balance reminder')}
                   className="w-full border border-gray-300 rounded-md px-3 py-2"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email body</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Email body')}</label>
                 <textarea
                   value={balanceReminderTemplate.body}
                   onChange={(e) => setBalanceReminderTemplate(prev => ({ ...prev, body: e.target.value }))}
@@ -2255,7 +2256,7 @@ const ClientManagement = () => {
                 disabled={balanceReminderTemplateSaving}
                 onClick={() => setShowBalanceReminderTemplateModal(false)}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"

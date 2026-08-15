@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from "next/link";
 import PageHeader from "@/components/shell/PageHeader";
@@ -19,21 +20,21 @@ export default function TaxManagementComingSoon({
             href="/tax-management"
             className="text-[var(--brand-primary)] underline-offset-2 hover:underline"
           >
-            Dashboard
+            {tt('Dashboard')}
           </Link>
           ,{" "}
           <Link
             href="/tax-management/accounts"
             className="text-[var(--brand-primary)] underline-offset-2 hover:underline"
           >
-            Tax codes
+            {tt('Tax codes')}
           </Link>
           , or{" "}
           <Link
             href="/tax-management/accounts"
             className="text-[var(--brand-primary)] underline-offset-2 hover:underline"
           >
-            Accounts
+            {tt('Accounts')}
           </Link>{" "}
           for live operations today.
         </p>

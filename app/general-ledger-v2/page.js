@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * General Ledger (Phase 5) — canonical ledger UI.
@@ -59,25 +60,25 @@ function JournalModal({ journalId, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between">
-          <h2 className="text-lg font-bold">Journal detail</h2>
+          <h2 className="text-lg font-bold">{tt('Journal detail')}</h2>
           <button className="text-slate-500 hover:text-slate-800" onClick={onClose}>
             ✕
           </button>
         </div>
         {error && <p className="text-red-600">{error}</p>}
-        {!journal && !error && <p className="text-slate-500">Loading…</p>}
+        {!journal && !error && <p className="text-slate-500">{tt('Loading…')}</p>}
         {journal && (
           <div className="space-y-4 text-sm">
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              <div><span className="text-slate-500">Number:</span> {journal.journalNumber ?? journal.reference ?? journal.journalId}</div>
-              <div><span className="text-slate-500">Status:</span> <Badge tone={journal.status === 'POSTED' ? 'ok' : 'muted'}>{journal.status}</Badge></div>
-              <div><span className="text-slate-500">Kind:</span> {journal.journalKind}</div>
-              <div><span className="text-slate-500">Posting date:</span> {String(journal.postingDate).slice(0, 10)}</div>
-              <div><span className="text-slate-500">Type:</span> {journal.entryType}</div>
-              <div><span className="text-slate-500">Source:</span> {journal.sourceType ? `${journal.sourceType} ${journal.sourceId ?? ''}` : '—'}</div>
+              <div><span className="text-slate-500">{tt('Number:')}</span> {journal.journalNumber ?? journal.reference ?? journal.journalId}</div>
+              <div><span className="text-slate-500">{tt('Status:')}</span> <Badge tone={journal.status === 'POSTED' ? 'ok' : 'muted'}>{journal.status}</Badge></div>
+              <div><span className="text-slate-500">{tt('Kind:')}</span> {journal.journalKind}</div>
+              <div><span className="text-slate-500">{tt('Posting date:')}</span> {String(journal.postingDate).slice(0, 10)}</div>
+              <div><span className="text-slate-500">{tt('Type:')}</span> {journal.entryType}</div>
+              <div><span className="text-slate-500">{tt('Source:')}</span> {journal.sourceType ? `${journal.sourceType} ${journal.sourceId ?? ''}` : '—'}</div>
             </div>
             <p className="text-slate-700">{journal.description}</p>
-            {journal.isReversal && <Badge tone="warn">Reversal journal</Badge>}
+            {journal.isReversal && <Badge tone="warn">{tt('Reversal journal')}</Badge>}
             {journal.lineage?.reversedBy && (
               <p className="text-amber-700">Reversed by journal {journal.lineage.reversedBy.journalNumber ?? journal.lineage.reversedBy.id}</p>
             )}
@@ -85,10 +86,10 @@ function JournalModal({ journalId, onClose }) {
               <thead>
                 <tr className="text-xs uppercase text-slate-500">
                   <th className="py-2">#</th>
-                  <th>Account</th>
-                  <th>Description</th>
-                  <th className="text-right">Debit</th>
-                  <th className="text-right">Credit</th>
+                  <th>{tt('Account')}</th>
+                  <th>{tt('Description')}</th>
+                  <th className="text-right">{tt('Debit')}</th>
+                  <th className="text-right">{tt('Credit')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -104,7 +105,7 @@ function JournalModal({ journalId, onClose }) {
               </tbody>
               <tfoot>
                 <tr className="border-t font-semibold">
-                  <td colSpan={3} className="py-1.5">Totals</td>
+                  <td colSpan={3} className="py-1.5">{tt('Totals')}</td>
                   <td className="text-right tabular-nums">{journal.totalDebit}</td>
                   <td className="text-right tabular-nums">{journal.totalCredit}</td>
                 </tr>
@@ -144,7 +145,7 @@ function AccountDrilldown({ accountId, filters, onBack, onOpenJournal }) {
   }, [accountId, filters.startDate, filters.endDate, page]);
 
   if (error) return <p className="text-red-600">{error}</p>;
-  if (!data) return <p className="text-slate-500">Loading account activity…</p>;
+  if (!data) return <p className="text-slate-500">{tt('Loading account activity…')}</p>;
 
   const { account, opening, period, closing, lines, pagination } = data;
   const totalPages = Math.max(1, Math.ceil(pagination.totalLines / pagination.pageSize));
@@ -164,45 +165,45 @@ function AccountDrilldown({ accountId, filters, onBack, onOpenJournal }) {
           </h2>
           <p className="text-sm text-slate-500">
             {account.accountType} · normal balance {account.normalBalance}{' '}
-            {account.isHeader && <Badge tone="warn">header account</Badge>}
+            {account.isHeader && <Badge tone="warn">{tt('header account')}</Badge>}
           </p>
         </div>
         <a className="rounded border px-3 py-1.5 text-sm hover:bg-slate-50" href={exportUrl}>
-          Export CSV
+          {tt('Export CSV')}
         </a>
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <PosStylePanel className="p-3">
-          <div className="text-xs uppercase text-slate-500">Opening</div>
+          <div className="text-xs uppercase text-slate-500">{tt('Opening')}</div>
           <div className="text-lg font-semibold tabular-nums">{opening.display}</div>
-          {opening.abnormal && <Badge tone="warn">abnormal</Badge>}
+          {opening.abnormal && <Badge tone="warn">{tt('abnormal')}</Badge>}
         </PosStylePanel>
         <PosStylePanel className="p-3">
-          <div className="text-xs uppercase text-slate-500">Period debits</div>
+          <div className="text-xs uppercase text-slate-500">{tt('Period debits')}</div>
           <div className="text-lg font-semibold tabular-nums">{period.debit}</div>
         </PosStylePanel>
         <PosStylePanel className="p-3">
-          <div className="text-xs uppercase text-slate-500">Period credits</div>
+          <div className="text-xs uppercase text-slate-500">{tt('Period credits')}</div>
           <div className="text-lg font-semibold tabular-nums">{period.credit}</div>
         </PosStylePanel>
         <PosStylePanel className="p-3">
-          <div className="text-xs uppercase text-slate-500">Closing</div>
+          <div className="text-xs uppercase text-slate-500">{tt('Closing')}</div>
           <div className="text-lg font-semibold tabular-nums">{closing.display}</div>
-          {closing.abnormal && <Badge tone="warn">abnormal</Badge>}
+          {closing.abnormal && <Badge tone="warn">{tt('abnormal')}</Badge>}
         </PosStylePanel>
       </div>
 
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b text-xs uppercase text-slate-500">
-            <th className="py-2">Date</th>
-            <th>Journal</th>
-            <th>Description</th>
-            <th>Source</th>
-            <th className="text-right">Debit</th>
-            <th className="text-right">Credit</th>
-            <th className="text-right">Balance</th>
+            <th className="py-2">{tt('Date')}</th>
+            <th>{tt('Journal')}</th>
+            <th>{tt('Description')}</th>
+            <th>{tt('Source')}</th>
+            <th className="text-right">{tt('Debit')}</th>
+            <th className="text-right">{tt('Credit')}</th>
+            <th className="text-right">{tt('Balance')}</th>
           </tr>
         </thead>
         <tbody>
@@ -216,7 +217,7 @@ function AccountDrilldown({ accountId, filters, onBack, onOpenJournal }) {
                 >
                   {line.journalNumber ?? line.reference ?? line.journalId.slice(0, 8)}
                 </button>{' '}
-                {line.isReversal && <Badge tone="warn">rev</Badge>}
+                {line.isReversal && <Badge tone="warn">{tt('rev')}</Badge>}
               </td>
               <td>{line.lineDescription ?? line.description ?? '—'}</td>
               <td className="text-slate-500">{line.sourceType ?? line.journalKind}</td>
@@ -228,7 +229,7 @@ function AccountDrilldown({ accountId, filters, onBack, onOpenJournal }) {
           {lines.length === 0 && (
             <tr>
               <td colSpan={7} className="py-4 text-center text-slate-500">
-                No posted activity in this window.
+                {tt('No posted activity in this window.')}
               </td>
             </tr>
           )}
@@ -242,7 +243,7 @@ function AccountDrilldown({ accountId, filters, onBack, onOpenJournal }) {
             disabled={page <= 1}
             onClick={() => setPage((p) => p - 1)}
           >
-            Previous
+            {tt('Previous')}
           </button>
           <span>
             Page {page} of {totalPages} ({pagination.totalLines} lines)
@@ -252,7 +253,7 @@ function AccountDrilldown({ accountId, filters, onBack, onOpenJournal }) {
             disabled={page >= totalPages}
             onClick={() => setPage((p) => p + 1)}
           >
-            Next
+            {tt('Next')}
           </button>
         </div>
       )}
@@ -309,7 +310,7 @@ export default function GeneralLedgerV2Page() {
         actions={
           !selectedAccount ? (
             <PosStyleHeaderButton as="a" href={exportUrl}>
-              Export CSV
+              {tt('Export CSV')}
             </PosStyleHeaderButton>
           ) : null
         }
@@ -318,7 +319,7 @@ export default function GeneralLedgerV2Page() {
       {!selectedAccount && (
         <PosStylePanel className="flex flex-wrap items-end gap-3 p-4" as="section">
           <label className="text-sm">
-            <span className="mb-1 block text-xs uppercase text-slate-500">From</span>
+            <span className="mb-1 block text-xs uppercase text-slate-500">{tt('From')}</span>
             <input
               type="date"
               className="rounded border px-2 py-1"
@@ -327,7 +328,7 @@ export default function GeneralLedgerV2Page() {
             />
           </label>
           <label className="text-sm">
-            <span className="mb-1 block text-xs uppercase text-slate-500">To</span>
+            <span className="mb-1 block text-xs uppercase text-slate-500">{tt('To')}</span>
             <input
               type="date"
               className="rounded border px-2 py-1"
@@ -341,19 +342,19 @@ export default function GeneralLedgerV2Page() {
               checked={includeZero}
               onChange={(e) => setIncludeZero(e.target.checked)}
             />
-            Include zero-activity accounts
+            {tt('Include zero-activity accounts')}
           </label>
           <button
             className="rounded bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-800"
             onClick={() => setFilters(draft)}
           >
-            Apply
+            {tt('Apply')}
           </button>
         </PosStylePanel>
       )}
 
       {error && <p className="text-red-600">{error}</p>}
-      {loading && !selectedAccount && <p className="text-slate-500">Loading ledger…</p>}
+      {loading && !selectedAccount && <p className="text-slate-500">{tt('Loading ledger…')}</p>}
 
       {selectedAccount ? (
         <AccountDrilldown
@@ -367,7 +368,7 @@ export default function GeneralLedgerV2Page() {
           <>
             {summary.anomalies?.length > 0 && (
               <PosStylePanel className="border border-amber-300 bg-amber-50 p-4 text-sm" as="section" accent={false}>
-                <h2 className="mb-1 font-semibold text-amber-800">Integrity anomalies</h2>
+                <h2 className="mb-1 font-semibold text-amber-800">{tt('Integrity anomalies')}</h2>
                 <ul className="list-inside list-disc text-amber-800">
                   {summary.anomalies.map((a, i) => (
                     <li key={i}>
@@ -380,17 +381,17 @@ export default function GeneralLedgerV2Page() {
 
             <section className="grid grid-cols-2 gap-4 md:grid-cols-3">
               <PosStylePanel className="p-4">
-                <div className="text-xs uppercase text-slate-500">Period debits</div>
+                <div className="text-xs uppercase text-slate-500">{tt('Period debits')}</div>
                 <div className="text-xl font-bold tabular-nums">{summary.totals.periodDebit}</div>
               </PosStylePanel>
               <PosStylePanel className="p-4">
-                <div className="text-xs uppercase text-slate-500">Period credits</div>
+                <div className="text-xs uppercase text-slate-500">{tt('Period credits')}</div>
                 <div className="text-xl font-bold tabular-nums">{summary.totals.periodCredit}</div>
               </PosStylePanel>
               <PosStylePanel className="p-4">
-                <div className="text-xs uppercase text-slate-500">Double entry</div>
+                <div className="text-xs uppercase text-slate-500">{tt('Double entry')}</div>
                 <div className="text-xl font-bold">
-                  {summary.totals.balanced ? <Badge tone="ok">Balanced</Badge> : <Badge tone="bad">UNBALANCED</Badge>}
+                  {summary.totals.balanced ? <Badge tone="ok">{tt('Balanced')}</Badge> : <Badge tone="bad">UNBALANCED</Badge>}
                 </div>
               </PosStylePanel>
             </section>
@@ -399,13 +400,13 @@ export default function GeneralLedgerV2Page() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b text-xs uppercase text-slate-500">
-                  <th className="py-2">Code</th>
-                  <th>Account</th>
-                  <th>Type</th>
-                  <th className="text-right">Opening</th>
-                  <th className="text-right">Debits</th>
-                  <th className="text-right">Credits</th>
-                  <th className="text-right">Closing</th>
+                  <th className="py-2">{tt('Code')}</th>
+                  <th>{tt('Account')}</th>
+                  <th>{tt('Type')}</th>
+                  <th className="text-right">{tt('Opening')}</th>
+                  <th className="text-right">{tt('Debits')}</th>
+                  <th className="text-right">{tt('Credits')}</th>
+                  <th className="text-right">{tt('Closing')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -419,8 +420,8 @@ export default function GeneralLedgerV2Page() {
                       >
                         {account.accountName}
                       </button>{' '}
-                      {account.isHeader && <Badge>header</Badge>}
-                      {account.closing.abnormal && <Badge tone="warn">abnormal</Badge>}
+                      {account.isHeader && <Badge>{tt('header')}</Badge>}
+                      {account.closing.abnormal && <Badge tone="warn">{tt('abnormal')}</Badge>}
                     </td>
                     <td className="text-slate-500">{account.accountType}</td>
                     <td className="text-right tabular-nums">{account.opening.display}</td>

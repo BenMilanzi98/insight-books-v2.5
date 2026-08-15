@@ -882,13 +882,15 @@ describe('report cache', () => {
 /* ── Exports ───────────────────────────────────────────────────────────────── */
 
 describe('report exports', () => {
-  it('CSV totals equal the on-screen envelope and text is injection-safe', async () => {
+  it('CSV totals equal the on-screen envelope and uses clean headers', async () => {
     const { client } = seedBooks();
     const tb = await generateTrialBalance(client, ctx(), req('TRIAL_BALANCE', JULY));
-    const csv = exportReportToCsv(tb);
-    expect(csv).toContain(tb.totals.periodDebit.decimal);
-    expect(csv).toContain(tb.totals.closingCredit.decimal);
-    expect(csv).toContain('Integrity status');
+    const csv = exportReportToCsv(tb, { businessName: 'Test Business', reportDisplayName: 'Trial Balance' });
+    expect(csv).toContain('290,500.00');
+    expect(csv).toContain('1,380,000.00');
+    expect(csv).toContain('Test Business');
+    expect(csv).not.toContain('Integrity status');
+    expect(csv).not.toContain(tb.businessId);
     expect(sanitizeCell('=SUM(A1:A9)')).toBe("'=SUM(A1:A9)");
     expect(sanitizeCell('+1234')).toBe("'+1234");
     expect(sanitizeCell('@cmd')).toBe("'@cmd");
@@ -896,38 +898,55 @@ describe('report exports', () => {
   });
 
   it(
-    'Excel export uses numeric cells with totals identical to the screen',
+    'Excel export includes period columns for P&L and human-readable labels',
     async () => {
       const { client } = seedBooks();
       const is = await generateIncomeStatement(client, ctx(), req('INCOME_STATEMENT', JULY));
-      const buffer = await exportReportToExcel(is);
+      const buffer = await exportReportToExcel(is, {
+        businessName: 'Test Business',
+        reportDisplayName: 'Profit & Loss',
+      });
       const { default: ExcelJS } = await import('exceljs');
       const wb = new ExcelJS.Workbook();
       await wb.xlsx.load(buffer);
+      const info = wb.getWorksheet('Report info');
+      expect(info).toBeTruthy();
+      expect(wb.getWorksheet('Integrity')).toBeFalsy();
       const sheet = wb.getWorksheet('Report');
       expect(sheet).toBeTruthy();
-      let foundNetProfit = false;
+      const headers = sheet.getRow(1).values.filter(Boolean).map(String);
+      expect(headers).toContain('Line item');
+      expect(headers).toContain('Amount');
+      let foundRevenue = false;
       sheet.eachRow((row) => {
-        if (row.getCell(2).value === 'netProfit') {
-          expect(typeof row.getCell(4).value).toBe('number');
-          expect(row.getCell(4).value).toBeCloseTo(Number(is.totals.netProfit.decimal), 2);
-          foundNetProfit = true;
-        }
+        if (String(row.getCell(1).value).includes('Revenue')) foundRevenue = true;
       });
-      expect(foundNetProfit).toBe(true);
-      expect(wb.getWorksheet('Integrity')).toBeTruthy();
-      expect(wb.getWorksheet('Account breakdown')).toBeTruthy();
+      expect(foundRevenue).toBe(true);
+      expect(wb.getWorksheet('Account detail')).toBeTruthy();
     },
     20000
   );
 
-  it('PDF export renders the completed envelope without recalculating', async () => {
+  it('PDF export renders the completed envelope without integrity footer noise', async () => {
     const { client } = seedBooks();
     const bs = await generateBalanceSheet(client, ctx(), req('BALANCE_SHEET', FY_TO_JULY));
-    const buffer = await exportReportToPdf(bs);
+    const buffer = await exportReportToPdf(bs, { businessName: 'Test Business' });
     expect(Buffer.isBuffer(buffer)).toBe(true);
     expect(buffer.length).toBeGreaterThan(1000);
     expect(buffer.subarray(0, 5).toString()).toContain('%PDF');
+  });
+
+  it('P&L CSV includes period column headers when periods are present', async () => {
+    const { client } = seedBooks();
+    const is = await generateIncomeStatement(client, ctx(), {
+      ...req('INCOME_STATEMENT', JULY),
+      groupBy: 'MONTH',
+    });
+    if (is.periods?.length) {
+      const csv = exportReportToCsv(is, { businessName: 'Test Business', reportDisplayName: 'Profit & Loss' });
+      expect(csv).toContain(is.periods[0].label);
+      expect(csv).toContain('Total');
+    }
   });
 });
 

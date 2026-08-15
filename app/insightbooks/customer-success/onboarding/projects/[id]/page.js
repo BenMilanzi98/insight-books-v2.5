@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -37,9 +38,9 @@ export default function OnboardingProjectDetailPage() {
         <Link href="/insightbooks/customer-success/onboarding/projects">← Projects</Link>
       </p>
       <OnboardingContextBar population={`onboarding-project:${id}`} />
-      <h1 style={{ fontSize: '1.35rem', margin: '0.5rem 0' }}>Onboarding Project</h1>
+      <h1 style={{ fontSize: '1.35rem', margin: '0.5rem 0' }}>{tt('Onboarding Project')}</h1>
       <p style={{ color: '#555', marginBottom: '1rem' }}>
-        Project <code>{id}</code> — Wave 4 detail. Progress ≠ completion. Gate fail →
+        {tt('Project')} <code>{id}</code> — Wave 4 detail. Progress ≠ completion. Gate fail →
         UNAVAILABLE. No Tenant GL from onboarding.
       </p>
       <nav
@@ -57,7 +58,7 @@ export default function OnboardingProjectDetailPage() {
         ))}
       </nav>
       <p style={{ fontSize: '0.875rem', color: '#777' }}>
-        Lineage: commercial → handoff → request → project → evidence → certificate.
+        {tt('Lineage: commercial → handoff → request → project → evidence → certificate.')}
       </p>
     </div>
   );

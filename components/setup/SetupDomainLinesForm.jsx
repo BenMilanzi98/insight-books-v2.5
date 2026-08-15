@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * Generic opening-balance line editor for setup domain steps.
@@ -41,8 +42,7 @@ export default function SetupDomainLinesForm({
       <div className="space-y-3">
         {lines.length === 0 ? (
           <p className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-            No lines yet. Add account lines for this opening domain. Debits and credits across all
-            domains must balance before posting.
+            {tt('No lines yet. Add account lines for this opening domain. Debits and credits across all domains must balance before posting.')}
           </p>
         ) : null}
         {lines.map((row, index) => (
@@ -51,16 +51,16 @@ export default function SetupDomainLinesForm({
             className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-2 lg:grid-cols-6"
           >
             <label className="text-xs sm:col-span-2 lg:col-span-2">
-              <span className="mb-1 block font-medium text-slate-700">Account ID</span>
+              <span className="mb-1 block font-medium text-slate-700">{tt('Account ID')}</span>
               <input
                 className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
                 value={row.accountId || ""}
                 onChange={(e) => updateLine(index, { accountId: e.target.value })}
-                placeholder="Chart of Accounts account id"
+                placeholder={tt('Chart of Accounts account id')}
               />
             </label>
             <label className="text-xs">
-              <span className="mb-1 block font-medium text-slate-700">Debit</span>
+              <span className="mb-1 block font-medium text-slate-700">{tt('Debit')}</span>
               <input
                 className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
                 value={row.debit || ""}
@@ -69,7 +69,7 @@ export default function SetupDomainLinesForm({
               />
             </label>
             <label className="text-xs">
-              <span className="mb-1 block font-medium text-slate-700">Credit</span>
+              <span className="mb-1 block font-medium text-slate-700">{tt('Credit')}</span>
               <input
                 className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
                 value={row.credit || ""}
@@ -78,7 +78,7 @@ export default function SetupDomainLinesForm({
               />
             </label>
             <label className="text-xs sm:col-span-2 lg:col-span-2">
-              <span className="mb-1 block font-medium text-slate-700">Description</span>
+              <span className="mb-1 block font-medium text-slate-700">{tt('Description')}</span>
               <input
                 className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
                 value={row.description || ""}
@@ -87,7 +87,7 @@ export default function SetupDomainLinesForm({
             </label>
             {showCustomer ? (
               <label className="text-xs sm:col-span-2">
-                <span className="mb-1 block font-medium text-slate-700">Customer ID</span>
+                <span className="mb-1 block font-medium text-slate-700">{tt('Customer ID')}</span>
                 <input
                   className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
                   value={row.customerId || ""}
@@ -97,7 +97,7 @@ export default function SetupDomainLinesForm({
             ) : null}
             {showSupplier ? (
               <label className="text-xs sm:col-span-2">
-                <span className="mb-1 block font-medium text-slate-700">Supplier ID</span>
+                <span className="mb-1 block font-medium text-slate-700">{tt('Supplier ID')}</span>
                 <input
                   className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
                   value={row.supplierId || ""}
@@ -111,7 +111,7 @@ export default function SetupDomainLinesForm({
                 onClick={() => removeLine(index)}
                 className="text-xs text-red-600 hover:underline"
               >
-                Remove line
+                {tt('Remove line')}
               </button>
             </div>
           </div>
@@ -122,7 +122,7 @@ export default function SetupDomainLinesForm({
         onClick={addLine}
         className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
       >
-        Add line
+        {tt('Add line')}
       </button>
     </div>
   );

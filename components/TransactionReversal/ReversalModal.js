@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 /**
  * Transaction Reversal Modal
  * 
@@ -162,28 +163,28 @@ export default function ReversalModal({
             <div>
               {/* Transaction Summary */}
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h3 className="font-medium text-gray-900 mb-3">Transaction Summary</h3>
+                <h3 className="font-medium text-gray-900 mb-3">{tt('Transaction Summary')}</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-500">Reference:</span>
+                    <span className="text-gray-500">{tt('Reference:')}</span>
                     <span className="ml-2 font-medium">
                       {transaction?.invoiceNumber || transaction?.saleNumber || transaction?.reference || transaction?.id}
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Date:</span>
+                    <span className="text-gray-500">{tt('Date:')}</span>
                     <span className="ml-2 font-medium">
                       {formatDate(transaction?.date || transaction?.issueDate || transaction?.paymentDate || transaction?.saleDate)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Amount:</span>
+                    <span className="text-gray-500">{tt('Amount:')}</span>
                     <span className="ml-2 font-medium text-red-600">
                       {formatCurrency(transaction?.total || transaction?.amount)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Status:</span>
+                    <span className="text-gray-500">{tt('Status:')}</span>
                     <span className="ml-2 font-medium capitalize">
                       {transaction?.status}
                     </span>
@@ -198,14 +199,14 @@ export default function ReversalModal({
                 </div>
               ) : impact && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-                  <h3 className="font-medium text-amber-900 mb-3">Reversal Amount Preview</h3>
+                  <h3 className="font-medium text-amber-900 mb-3">{tt('Reversal Amount Preview')}</h3>
                   
                   {/* Amount Comparison Card */}
                   <div className="bg-white rounded-lg border border-amber-200 p-4 mb-3">
                     <div className="grid grid-cols-2 gap-6">
                       {/* Original Amount */}
                       <div className="text-center">
-                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Original Amount</p>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{tt('Original Amount')}</p>
                         <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-gray-700 sm:text-2xl">
                           {formatCurrency(impact.originalAmount)}
                         </p>
@@ -221,7 +222,7 @@ export default function ReversalModal({
                       
                       {/* Reversal Amount */}
                       <div className="text-center">
-                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Reversal Amount</p>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{tt('Reversal Amount')}</p>
                         <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-red-600 sm:text-2xl">
                           {formatCurrency(impact.reversalAmount)}
                         </p>
@@ -232,12 +233,12 @@ export default function ReversalModal({
                     {/* Net Effect */}
                     <div className="mt-4 pt-3 border-t border-amber-200">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-amber-700">Net Effect on Accounts:</span>
+                        <span className="text-sm text-amber-700">{tt('Net Effect on Accounts:')}</span>
                         <span className={`text-lg font-bold ${impact.netEffect === 0 ? 'text-green-600' : 'text-gray-700'}`}>
                           {formatCurrency(impact.netEffect)}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">All accounts will balance to zero</p>
+                      <p className="text-xs text-gray-500 mt-1">{tt('All accounts will balance to zero')}</p>
                     </div>
                   </div>
                   
@@ -248,7 +249,7 @@ export default function ReversalModal({
                         <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <p className="text-sm font-semibold text-orange-800">Tax Reversals:</p>
+                        <p className="text-sm font-semibold text-orange-800">{tt('Tax Reversals:')}</p>
                       </div>
                       <div className="space-y-2">
                         {impact.affectedTaxes.map((tax, idx) => (
@@ -263,16 +264,16 @@ export default function ReversalModal({
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
                               <div>
-                                <span>Original:</span>
+                                <span>{tt('Original:')}</span>
                                 <span className="ml-1 font-medium">{formatCurrency(tax.original)}</span>
                               </div>
                               <div>
-                                <span>Reversal:</span>
+                                <span>{tt('Reversal:')}</span>
                                 <span className="ml-1 font-medium text-red-600">{formatCurrency(tax.reversal)}</span>
                               </div>
                             </div>
                             <div className="mt-1 text-xs text-gray-500">
-                              Net Effect: <span className="font-medium text-green-600">{formatCurrency(tax.net)}</span>
+                              {tt('Net Effect:')} <span className="font-medium text-green-600">{formatCurrency(tax.net)}</span>
                             </div>
                           </div>
                         ))}
@@ -318,12 +319,12 @@ export default function ReversalModal({
                     <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                   </svg>
                   <div className="text-sm text-yellow-800">
-                    <p className="font-medium">Important Accounting Notes:</p>
+                    <p className="font-medium">{tt('Important Accounting Notes:')}</p>
                     <ul className="list-disc list-inside mt-1 space-y-1">
-                      <li>This action cannot be undone</li>
-                      <li>A reversal transaction will be created with opposite entries</li>
-                      <li>All related journal entries will be reversed</li>
-                      <li>The original transaction remains for audit purposes</li>
+                      <li>{tt('This action cannot be undone')}</li>
+                      <li>{tt('A reversal transaction will be created with opposite entries')}</li>
+                      <li>{tt('All related journal entries will be reversed')}</li>
+                      <li>{tt('The original transaction remains for audit purposes')}</li>
                     </ul>
                   </div>
                 </div>
@@ -335,14 +336,14 @@ export default function ReversalModal({
                   onClick={handleClose}
                   className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   onClick={goToReasonStep}
                   disabled={!isEligible}
                   className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Continue
+                  {tt('Continue')}
                 </button>
               </div>
             </div>
@@ -352,16 +353,16 @@ export default function ReversalModal({
           {step === 'reason' && (
             <div>
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h3 className="font-medium text-gray-900 mb-3">Transaction to Reverse</h3>
+                <h3 className="font-medium text-gray-900 mb-3">{tt('Transaction to Reverse')}</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-500">Reference:</span>
+                    <span className="text-gray-500">{tt('Reference:')}</span>
                     <span className="ml-2 font-medium">
                       {transaction?.invoiceNumber || transaction?.saleNumber || transaction?.reference || transaction?.id}
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Amount:</span>
+                    <span className="text-gray-500">{tt('Amount:')}</span>
                     <span className="ml-2 font-medium text-red-600">
                       {formatCurrency(transaction?.total || transaction?.amount)}
                     </span>
@@ -371,7 +372,7 @@ export default function ReversalModal({
 
               <div className="mb-4">
                 <label htmlFor="reversalReason" className="block text-sm font-medium text-gray-700 mb-2">
-                  Reversal Reason <span className="text-red-500">*</span>
+                  {tt('Reversal Reason')} <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   id="reversalReason"
@@ -398,7 +399,7 @@ export default function ReversalModal({
                   disabled={executing}
                   className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   onClick={handleConfirmReversal}
@@ -411,7 +412,7 @@ export default function ReversalModal({
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Processing...
+                      {tt('Processing...')}
                     </>
                   ) : (
                     'Confirm Reversal'
@@ -458,25 +459,25 @@ export default function ReversalModal({
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left max-w-2xl mx-auto space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">Reversal Reference</p>
+                      <p className="text-xs text-gray-500 uppercase">{tt('Reversal Reference')}</p>
                       <p className="font-medium text-gray-900">
                         {result.reversal.invoiceNumber || result.reversal.saleNumber || result.reversal.reference || result.reversal.id}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">Reversal Amount</p>
+                      <p className="text-xs text-gray-500 uppercase">{tt('Reversal Amount')}</p>
                       <p className="text-xl font-bold text-red-600">
                         {formatCurrency(-(result.reversal.total || result.reversal.amount || 0))}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">Date</p>
+                      <p className="text-xs text-gray-500 uppercase">{tt('Date')}</p>
                       <p className="font-medium text-gray-900">
                         {formatDate(result.reversal.reversedAt || result.reversal.date)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">Original Amount</p>
+                      <p className="text-xs text-gray-500 uppercase">{tt('Original Amount')}</p>
                       <p className="font-medium text-gray-700">
                         {formatCurrency(result.originalTransaction?.total || result.originalTransaction?.amount || 0)}
                       </p>
@@ -490,31 +491,31 @@ export default function ReversalModal({
                         <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <p className="text-sm font-semibold text-orange-800 uppercase tracking-wide">Tax Reversals Completed</p>
+                        <p className="text-sm font-semibold text-orange-800 uppercase tracking-wide">{tt('Tax Reversals Completed')}</p>
                       </div>
                       <div className="space-y-2">
                         {result.taxReversals.map((taxRev, idx) => (
                           <div key={idx} className="bg-orange-50 border border-orange-200 rounded-lg p-3">
                             <div className="grid grid-cols-2 gap-3 text-sm">
                               <div>
-                                <span className="text-gray-600">Tax Account:</span>
+                                <span className="text-gray-600">{tt('Tax Account:')}</span>
                                 <span className="ml-2 font-medium text-orange-900">
                                   {taxRev.taxAccountName || 'Tax Account'}
                                 </span>
                               </div>
                               <div>
-                                <span className="text-gray-600">Tax Amount Reversed:</span>
+                                <span className="text-gray-600">{tt('Tax Amount Reversed:')}</span>
                                 <span className="ml-2 font-bold text-red-600">
                                   {formatCurrency(-taxRev.taxAmount)}
                                 </span>
                               </div>
                               <div className="col-span-2 text-xs text-gray-500 mt-1">
                                 <div className="flex justify-between">
-                                  <span>Original Tax Transaction:</span>
+                                  <span>{tt('Original Tax Transaction:')}</span>
                                   <span className="font-mono">{taxRev.originalTaxTransactionId?.substring(0, 12)}...</span>
                                 </div>
                                 <div className="flex justify-between mt-1">
-                                  <span>Reversal Tax Transaction:</span>
+                                  <span>{tt('Reversal Tax Transaction:')}</span>
                                   <span className="font-mono">{taxRev.reversalTaxTransactionId?.substring(0, 12)}...</span>
                                 </div>
                               </div>
@@ -531,7 +532,7 @@ export default function ReversalModal({
                   {/* Reason */}
                   {result.reversal.reversalReason && (
                     <div className="mt-3 pt-3 border-t border-red-200">
-                      <p className="text-xs text-gray-500 uppercase">Reason</p>
+                      <p className="text-xs text-gray-500 uppercase">{tt('Reason')}</p>
                       <p className="text-sm text-gray-700 mt-1">{result.reversal.reversalReason}</p>
                     </div>
                   )}
@@ -542,7 +543,7 @@ export default function ReversalModal({
                 onClick={handleClose}
                 className="mt-6 px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
               >
-                Close
+                {tt('Close')}
               </button>
             </div>
           )}

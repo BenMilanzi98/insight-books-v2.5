@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect, useRef } from "react";
 import { Menu, Bell, User, Search, X, Shield, LogOut } from "lucide-react";
 
@@ -101,7 +102,7 @@ const AdminAppBar = ({ toggleSidebar, sidebarOpen, isMobile, adminInfo, onLogout
       }}>
         <button 
           onClick={toggleSidebar} 
-          aria-label="Toggle menu"
+          aria-label={tt('Toggle menu')}
           style={{
             background: "none",
             border: "none",
@@ -134,12 +135,12 @@ const AdminAppBar = ({ toggleSidebar, sidebarOpen, isMobile, adminInfo, onLogout
               fontWeight: 600, 
               margin: 0, 
               color: "#111827"
-            }}>Admin Portal</h1>
+            }}>{tt('Admin Portal')}</h1>
             <p style={{ 
               fontSize: "14px", 
               color: "#6B7280", 
               margin: 0 
-            }}>System Administration</p>
+            }}>{tt('System Administration')}</p>
           </div>
         </div>
       </div>
@@ -159,7 +160,7 @@ const AdminAppBar = ({ toggleSidebar, sidebarOpen, isMobile, adminInfo, onLogout
           </div>
           <input
             type="text"
-            placeholder="Search tenants, users, invoices..."
+            placeholder={tt('Search tenants, users, invoices...')}
             style={{
               display: "block",
               width: "100%",
@@ -235,7 +236,7 @@ const AdminAppBar = ({ toggleSidebar, sidebarOpen, isMobile, adminInfo, onLogout
                   fontWeight: "600",
                   color: "#111827",
                   margin: 0
-                }}>Notifications</h3>
+                }}>{tt('Notifications')}</h3>
               </div>
               <div style={{ maxHeight: "256px", overflowY: "auto" }}>
                 {notifications.map((notification) => (
@@ -290,7 +291,7 @@ const AdminAppBar = ({ toggleSidebar, sidebarOpen, isMobile, adminInfo, onLogout
                   border: "none",
                   cursor: "pointer"
                 }}>
-                  View all notifications
+                  {tt('View all notifications')}
                 </button>
               </div>
             </div>
@@ -381,7 +382,7 @@ const AdminAppBar = ({ toggleSidebar, sidebarOpen, isMobile, adminInfo, onLogout
                   border: "none",
                   cursor: "pointer"
                 }}>
-                  Profile Settings
+                  {tt('Profile Settings')}
                 </button>
                 <button style={{
                   width: "100%",
@@ -393,7 +394,7 @@ const AdminAppBar = ({ toggleSidebar, sidebarOpen, isMobile, adminInfo, onLogout
                   border: "none",
                   cursor: "pointer"
                 }}>
-                  System Preferences
+                  {tt('System Preferences')}
                 </button>
                 <button style={{
                   width: "100%",
@@ -405,7 +406,7 @@ const AdminAppBar = ({ toggleSidebar, sidebarOpen, isMobile, adminInfo, onLogout
                   border: "none",
                   cursor: "pointer"
                 }}>
-                  Help & Support
+                  {tt('Help & Support')}
                 </button>
               </div>
               <div style={{
@@ -428,7 +429,7 @@ const AdminAppBar = ({ toggleSidebar, sidebarOpen, isMobile, adminInfo, onLogout
                   }}
                 >
                   <LogOut style={{ height: "16px", width: "16px", marginRight: "8px" }} />
-                  Sign Out
+                  {tt('Sign Out')}
                 </button>
               </div>
             </div>

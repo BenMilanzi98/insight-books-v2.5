@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Sidebar from '@/components/Sidebar/Sidebar';
@@ -55,7 +56,7 @@ function statusBadge(status, isProvisional) {
   if (isProvisional) {
     return (
       <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-800">
-        Provisional
+        {tt('Provisional')}
       </span>
     );
   }
@@ -288,7 +289,7 @@ export default function PayeSummaryClient() {
               />
               <PosStyleHeaderButton type="button" onClick={fetchReport} disabled={loading}>
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
+                {tt('Refresh')}
               </PosStyleHeaderButton>
               <button
                 type="button"
@@ -331,21 +332,21 @@ export default function PayeSummaryClient() {
         <PosStylePanel className="p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Period type</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">{tt('Period type')}</label>
               <select
                 value={periodType}
                 onChange={(e) => setPeriodType(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
               >
-                <option value="month">Specific month</option>
-                <option value="lastMonth">Last month</option>
-                <option value="year">Full year</option>
-                <option value="custom">Custom range</option>
+                <option value="month">{tt('Specific month')}</option>
+                <option value="lastMonth">{tt('Last month')}</option>
+                <option value="year">{tt('Full year')}</option>
+                <option value="custom">{tt('Custom range')}</option>
               </select>
             </div>
             {(periodType === 'month' || periodType === 'year') && (
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Year</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">{tt('Year')}</label>
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(e.target.value)}
@@ -364,7 +365,7 @@ export default function PayeSummaryClient() {
             )}
             {periodType === 'month' && (
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Month</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">{tt('Month')}</label>
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
@@ -381,7 +382,7 @@ export default function PayeSummaryClient() {
             {periodType === 'custom' && (
               <>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">{tt('From')}</label>
                   <input
                     type="date"
                     value={fromDate}
@@ -390,7 +391,7 @@ export default function PayeSummaryClient() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">{tt('To')}</label>
                   <input
                     type="date"
                     value={toDate}
@@ -401,33 +402,33 @@ export default function PayeSummaryClient() {
               </>
             )}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Department</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">{tt('Department')}</label>
               <input
                 type="text"
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
-                placeholder="Filter by department"
+                placeholder={tt('Filter by department')}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Branch / location</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">{tt('Branch / location')}</label>
               <input
                 type="text"
                 value={branch}
                 onChange={(e) => setBranch(e.target.value)}
-                placeholder="Filter by branch"
+                placeholder={tt('Filter by branch')}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Employee</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">{tt('Employee')}</label>
               <select
                 value={employeeId}
                 onChange={(e) => setEmployeeId(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
               >
-                <option value="">All employees</option>
+                <option value="">{tt('All employees')}</option>
                 {employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
                     {emp.name} ({emp.employeeId || emp.id.slice(0, 8)})
@@ -436,7 +437,7 @@ export default function PayeSummaryClient() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Payroll status</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">{tt('Payroll status')}</label>
               <select
                 value={payrollStatus}
                 onChange={(e) => setPayrollStatus(e.target.value)}
@@ -450,24 +451,24 @@ export default function PayeSummaryClient() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Journal status</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">{tt('Journal status')}</label>
               <select
                 value={journalPosted}
                 onChange={(e) => setJournalPosted(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
               >
-                <option value="all">All</option>
-                <option value="posted">Posted to GL</option>
-                <option value="unposted">Not posted</option>
+                <option value="all">{tt('All')}</option>
+                <option value="posted">{tt('Posted to GL')}</option>
+                <option value="unposted">{tt('Not posted')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Search</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">{tt('Search')}</label>
               <input
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Name, employee no., department…"
+                placeholder={tt('Name, employee no., department…')}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
               />
             </div>
@@ -500,7 +501,7 @@ export default function PayeSummaryClient() {
         {(summary.totalPayeRemitted != null || summary.totalPayeOutstanding != null) && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-              <p className="text-xs font-medium text-green-700">PAYE remitted to MRA</p>
+              <p className="text-xs font-medium text-green-700">{tt('PAYE remitted to MRA')}</p>
               <p className="min-w-0 break-words text-lg font-bold leading-tight tabular-nums text-green-900 sm:text-xl">{formatCurrency(summary.totalPayeRemitted)}</p>
             </div>
             <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
@@ -512,39 +513,39 @@ export default function PayeSummaryClient() {
 
         <PosStylePanel className="overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center">
-            <h2 className="font-semibold text-gray-900">Payroll detail</h2>
+            <h2 className="font-semibold text-gray-900">{tt('Payroll detail')}</h2>
             <span className="text-sm text-gray-500">{filteredRows.length} line(s)</span>
           </div>
           {loading ? (
             <div className="p-12 flex flex-col items-center text-gray-500">
               <Loader2 className="w-8 h-8 animate-spin mb-2" />
-              Loading payroll records…
+              {tt('Loading payroll records…')}
             </div>
           ) : filteredRows.length === 0 ? (
             <div className="p-12 text-center text-gray-500">
-              No payroll records match the selected filters.
+              {tt('No payroll records match the selected filters.')}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                   <tr>
-                    <th className="px-3 py-3 text-left">Emp #</th>
-                    <th className="px-3 py-3 text-left">Employee</th>
-                    <th className="px-3 py-3 text-left">Department</th>
-                    <th className="px-3 py-3 text-right">Basic</th>
-                    <th className="px-3 py-3 text-right">Taxable Allw.</th>
-                    <th className="px-3 py-3 text-right">Non-tax Allw.</th>
-                    <th className="px-3 py-3 text-right">Gross</th>
-                    <th className="px-3 py-3 text-right">Taxable Inc.</th>
+                    <th className="px-3 py-3 text-left">{tt('Emp #')}</th>
+                    <th className="px-3 py-3 text-left">{tt('Employee')}</th>
+                    <th className="px-3 py-3 text-left">{tt('Department')}</th>
+                    <th className="px-3 py-3 text-right">{tt('Basic')}</th>
+                    <th className="px-3 py-3 text-right">{tt('Taxable Allw.')}</th>
+                    <th className="px-3 py-3 text-right">{tt('Non-tax Allw.')}</th>
+                    <th className="px-3 py-3 text-right">{tt('Gross')}</th>
+                    <th className="px-3 py-3 text-right">{tt('Taxable Inc.')}</th>
                     <th className="px-3 py-3 text-right">PAYE</th>
                     <th className="px-3 py-3 text-right">NPS</th>
-                    <th className="px-3 py-3 text-right">Other Ded.</th>
-                    <th className="px-3 py-3 text-right">Net Pay</th>
-                    <th className="px-3 py-3 text-left">Period</th>
-                    <th className="px-3 py-3 text-left">Status</th>
-                    <th className="px-3 py-3 text-left">Journal</th>
-                    <th className="px-3 py-3 text-center">Payslip</th>
+                    <th className="px-3 py-3 text-right">{tt('Other Ded.')}</th>
+                    <th className="px-3 py-3 text-right">{tt('Net Pay')}</th>
+                    <th className="px-3 py-3 text-left">{tt('Period')}</th>
+                    <th className="px-3 py-3 text-left">{tt('Status')}</th>
+                    <th className="px-3 py-3 text-left">{tt('Journal')}</th>
+                    <th className="px-3 py-3 text-center">{tt('Payslip')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -601,18 +602,18 @@ export default function PayeSummaryClient() {
         {(report?.byEmployee?.length ?? 0) > 0 && (
           <PosStylePanel className="mt-6 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">PAYE by employee</h2>
+              <h2 className="font-semibold text-gray-900">{tt('PAYE by employee')}</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                   <tr>
-                    <th className="px-4 py-3 text-left">Employee</th>
-                    <th className="px-4 py-3 text-left">Department</th>
-                    <th className="px-4 py-3 text-right">Total PAYE</th>
-                    <th className="px-4 py-3 text-right">Total gross</th>
-                    <th className="px-4 py-3 text-right">Total net</th>
-                    <th className="px-4 py-3 text-center">Periods</th>
+                    <th className="px-4 py-3 text-left">{tt('Employee')}</th>
+                    <th className="px-4 py-3 text-left">{tt('Department')}</th>
+                    <th className="px-4 py-3 text-right">{tt('Total PAYE')}</th>
+                    <th className="px-4 py-3 text-right">{tt('Total gross')}</th>
+                    <th className="px-4 py-3 text-right">{tt('Total net')}</th>
+                    <th className="px-4 py-3 text-center">{tt('Periods')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">

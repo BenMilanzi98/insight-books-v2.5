@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -118,7 +119,7 @@ export default function SupplierDetailPage() {
       <div className="p-6 bg-gray-50 min-h-screen flex items-center justify-center">
         <div className="flex items-center gap-2 text-gray-600">
           <Loader2 size={24} className="animate-spin text-blue-600" />
-          Loading supplier details...
+          {tt('Loading supplier details...')}
         </div>
       </div>
     );
@@ -130,7 +131,7 @@ export default function SupplierDetailPage() {
         <div className="max-w-4xl mx-auto">
           <Link href="/suppliers" className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4">
             <ArrowLeft size={18} />
-            Back to Suppliers
+            {tt('Back to Suppliers')}
           </Link>
           <div className="p-4 border border-red-200 bg-red-50 rounded-md text-red-700 flex items-center gap-2">
             <AlertCircle size={18} />
@@ -147,10 +148,10 @@ export default function SupplierDetailPage() {
         <div className="max-w-4xl mx-auto">
           <Link href="/suppliers" className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4">
             <ArrowLeft size={18} />
-            Back to Suppliers
+            {tt('Back to Suppliers')}
           </Link>
           <div className="p-4 border border-yellow-200 bg-yellow-50 rounded-md text-yellow-700">
-            Supplier not found
+            {tt('Supplier not found')}
           </div>
         </div>
       </div>
@@ -165,7 +166,7 @@ export default function SupplierDetailPage() {
           <div className="mb-6">
             <Link href="/suppliers" className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4">
               <ArrowLeft size={18} />
-              Back to Suppliers
+              {tt('Back to Suppliers')}
             </Link>
             
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -189,7 +190,7 @@ export default function SupplierDetailPage() {
                 className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
               >
                 <RefreshCw size={16} />
-                Refresh
+                {tt('Refresh')}
               </button>
             </div>
           </div>
@@ -210,7 +211,7 @@ export default function SupplierDetailPage() {
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Outstanding Balance</p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">{tt('Outstanding Balance')}</p>
                     <p className={`text-xl font-bold mt-1 ${summary.summary?.outstandingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
                       {formatCurrency(summary.summary?.outstandingBalance || 0)}
                     </p>
@@ -224,7 +225,7 @@ export default function SupplierDetailPage() {
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Total Purchases</p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">{tt('Total Purchases')}</p>
                     <p className="text-xl font-bold mt-1 text-gray-900">
                       {formatCurrency(summary.summary?.totalBills || 0)}
                     </p>
@@ -238,7 +239,7 @@ export default function SupplierDetailPage() {
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Total Paid</p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">{tt('Total Paid')}</p>
                     <p className="text-xl font-bold mt-1 text-green-600">
                       {formatCurrency(summary.summary?.totalPayments || 0)}
                     </p>
@@ -252,7 +253,7 @@ export default function SupplierDetailPage() {
               <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Available Credit</p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">{tt('Available Credit')}</p>
                     <p className="text-xl font-bold mt-1 text-gray-900">
                       {formatCurrency(summary.summary?.availableCredit || 0)}
                     </p>
@@ -289,30 +290,30 @@ export default function SupplierDetailPage() {
             {/* Summary Tab */}
             {activeTab === 'summary' && summary && (
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Financial Summary</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">{tt('Financial Summary')}</h2>
                 
                 {/* Aging Analysis */}
                 <div className="mb-6">
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">Aging Analysis</h3>
+                  <h3 className="text-sm font-medium text-gray-700 mb-3">{tt('Aging Analysis')}</h3>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div className="bg-green-50 rounded-lg p-3 text-center">
-                      <p className="text-xs text-green-600 uppercase">Current</p>
+                      <p className="text-xs text-green-600 uppercase">{tt('Current')}</p>
                       <p className="text-lg font-bold text-green-700">{formatNumber(summary.aging?.current || 0)}</p>
                     </div>
                     <div className="bg-yellow-50 rounded-lg p-3 text-center">
-                      <p className="text-xs text-yellow-600 uppercase">31-60 Days</p>
+                      <p className="text-xs text-yellow-600 uppercase">{tt('31-60 Days')}</p>
                       <p className="text-lg font-bold text-yellow-700">{formatNumber(summary.aging?.days31to60 || 0)}</p>
                     </div>
                     <div className="bg-orange-50 rounded-lg p-3 text-center">
-                      <p className="text-xs text-orange-600 uppercase">61-90 Days</p>
+                      <p className="text-xs text-orange-600 uppercase">{tt('61-90 Days')}</p>
                       <p className="text-lg font-bold text-orange-700">{formatNumber(summary.aging?.days61to90 || 0)}</p>
                     </div>
                     <div className="bg-red-50 rounded-lg p-3 text-center">
-                      <p className="text-xs text-red-600 uppercase">Over 90 Days</p>
+                      <p className="text-xs text-red-600 uppercase">{tt('Over 90 Days')}</p>
                       <p className="text-lg font-bold text-red-700">{formatNumber(summary.aging?.over90 || 0)}</p>
                     </div>
                     <div className="bg-gray-100 rounded-lg p-3 text-center">
-                      <p className="text-xs text-gray-600 uppercase">Total Outstanding</p>
+                      <p className="text-xs text-gray-600 uppercase">{tt('Total Outstanding')}</p>
                       <p className="text-lg font-bold text-gray-900">{formatNumber(summary.aging?.totalOutstanding || 0)}</p>
                     </div>
                   </div>
@@ -321,18 +322,18 @@ export default function SupplierDetailPage() {
                 {/* Pending Bills */}
                 {summary.pendingBills && summary.pendingBills.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-3">Pending Bills</h3>
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">{tt('Pending Bills')}</h3>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 border-b border-gray-200">
                           <tr>
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Bill #</th>
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Date</th>
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Due Date</th>
-                            <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Total</th>
-                            <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Paid</th>
-                            <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Unpaid</th>
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Status</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">{tt('Bill #')}</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">{tt('Date')}</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">{tt('Due Date')}</th>
+                            <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">{tt('Total')}</th>
+                            <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">{tt('Paid')}</th>
+                            <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">{tt('Unpaid')}</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">{tt('Status')}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
@@ -368,11 +369,11 @@ export default function SupplierDetailPage() {
             {/* Aging Tab */}
             {activeTab === 'aging' && summary && (
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Aging Analysis</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">{tt('Aging Analysis')}</h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-3">Outstanding by Age</h3>
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">{tt('Outstanding by Age')}</h3>
                     <div className="space-y-3">
                       {[
                         { label: 'Current (Not Yet Due)', value: summary.aging?.current || 0, color: 'bg-green-500' },
@@ -404,11 +405,11 @@ export default function SupplierDetailPage() {
                   </div>
 
                   <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-3">Payment Risk Assessment</h3>
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">{tt('Payment Risk Assessment')}</h3>
                     <div className="bg-gray-50 rounded-lg p-4">
                       {getRiskBadge(summary.riskAssessment)}
                       <p className="text-sm text-gray-600 mt-3">
-                        Based on the aging analysis, this supplier's payment risk level has been assessed as 
+                        {tt("Based on the aging analysis, this supplier's payment risk level has been assessed as")} 
                         <strong> {summary.riskAssessment?.label || 'Low Risk'}</strong>.
                       </p>
                       <div className="mt-4 pt-4 border-t border-gray-200">
@@ -427,18 +428,18 @@ export default function SupplierDetailPage() {
             {/* Purchases Tab */}
             {activeTab === 'purchases' && (
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Purchase History</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">{tt('Purchase History')}</h2>
                 {summary?.pendingBills?.length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Bill #</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Date</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Due Date</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Total</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Paid</th>
-                          <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Balance</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">{tt('Bill #')}</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">{tt('Date')}</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">{tt('Due Date')}</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">{tt('Total')}</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">{tt('Paid')}</th>
+                          <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">{tt('Balance')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -460,7 +461,7 @@ export default function SupplierDetailPage() {
                 ) : (
                   <div className="text-center py-8 text-gray-500">
                     <FileText size={40} className="mx-auto mb-3 text-gray-300" />
-                    <p>No pending bills found</p>
+                    <p>{tt('No pending bills found')}</p>
                   </div>
                 )}
               </div>
@@ -469,19 +470,19 @@ export default function SupplierDetailPage() {
             {/* Details Tab */}
             {activeTab === 'details' && (
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Supplier Details</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">{tt('Supplier Details')}</h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Contact Information */}
                   <div>
                     <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                       <Phone size={16} />
-                      Contact Information
+                      {tt('Contact Information')}
                     </h3>
                     <div className="space-y-2 text-sm">
                       {supplier.contactPerson && (
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-500 w-24">Contact:</span>
+                          <span className="text-gray-500 w-24">{tt('Contact:')}</span>
                           <span className="text-gray-900">{supplier.contactPerson}</span>
                         </div>
                       )}
@@ -499,13 +500,13 @@ export default function SupplierDetailPage() {
                       )}
                       {supplier.mobile && (
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-500 w-24">Mobile:</span>
+                          <span className="text-gray-500 w-24">{tt('Mobile:')}</span>
                           <span className="text-gray-900">{supplier.mobile}</span>
                         </div>
                       )}
                       {supplier.website && (
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-500 w-24">Website:</span>
+                          <span className="text-gray-500 w-24">{tt('Website:')}</span>
                           <a href={supplier.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                             {supplier.website}
                           </a>
@@ -518,7 +519,7 @@ export default function SupplierDetailPage() {
                   <div>
                     <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                       <MapPin size={16} />
-                      Address
+                      {tt('Address')}
                     </h3>
                     <div className="space-y-2 text-sm">
                       {supplier.address && (
@@ -534,7 +535,7 @@ export default function SupplierDetailPage() {
                       )}
                       {supplier.taxId && (
                         <div className="mt-4 pt-4 border-t border-gray-200">
-                          <span className="text-gray-500">Tax ID / TIN:</span>
+                          <span className="text-gray-500">{tt('Tax ID / TIN:')}</span>
                           <span className="ml-2 text-gray-900">{supplier.taxId}</span>
                         </div>
                       )}
@@ -545,23 +546,23 @@ export default function SupplierDetailPage() {
                   <div>
                     <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                       <CreditCard size={16} />
-                      Financial Terms
+                      {tt('Financial Terms')}
                     </h3>
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-500">Payment Terms:</span>
+                        <span className="text-gray-500">{tt('Payment Terms:')}</span>
                         <span className="text-gray-900">{supplier.paymentTerms || 30} days</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-500">Currency:</span>
+                        <span className="text-gray-500">{tt('Currency:')}</span>
                         <span className="text-gray-900">{supplier.currency || 'MWK'}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-500">Credit Limit:</span>
+                        <span className="text-gray-500">{tt('Credit Limit:')}</span>
                         <span className="text-gray-900">{formatCurrency(supplier.creditLimit || 0)}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-500">Current Balance:</span>
+                        <span className="text-gray-500">{tt('Current Balance:')}</span>
                         <span className={`font-medium ${supplier.currentBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
                           {formatCurrency(supplier.currentBalance || 0)}
                         </span>
@@ -574,24 +575,24 @@ export default function SupplierDetailPage() {
                     <div>
                       <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                         <DollarSign size={16} />
-                        Banking Information
+                        {tt('Banking Information')}
                       </h3>
                       <div className="space-y-2 text-sm">
                         {supplier.bankName && (
                           <div className="flex items-center justify-between">
-                            <span className="text-gray-500">Bank:</span>
+                            <span className="text-gray-500">{tt('Bank:')}</span>
                             <span className="text-gray-900">{supplier.bankName}</span>
                           </div>
                         )}
                         {supplier.bankAccountNumber && (
                           <div className="flex items-center justify-between">
-                            <span className="text-gray-500">Account #:</span>
+                            <span className="text-gray-500">{tt('Account #:')}</span>
                             <span className="text-gray-900">{supplier.bankAccountNumber}</span>
                           </div>
                         )}
                         {supplier.bankBranch && (
                           <div className="flex items-center justify-between">
-                            <span className="text-gray-500">Branch:</span>
+                            <span className="text-gray-500">{tt('Branch:')}</span>
                             <span className="text-gray-900">{supplier.bankBranch}</span>
                           </div>
                         )}
@@ -604,7 +605,7 @@ export default function SupplierDetailPage() {
                     <div className="md:col-span-2">
                       <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                         <FileText size={16} />
-                        Notes
+                        {tt('Notes')}
                       </h3>
                       <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{supplier.notes}</p>
                     </div>

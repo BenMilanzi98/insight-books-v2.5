@@ -1,5 +1,6 @@
 'use client';
 
+import { tx } from '@/lib/i18n/runtime';
 import Dialog from './Dialog';
 import Button from './Button';
 
@@ -19,20 +20,20 @@ export default function ConfirmDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title={title}
-      description={description}
+      title={tx(title)}
+      description={tx(description)}
       size="sm"
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="secondary" onClick={onClose} disabled={loading}>
-            {cancelLabel}
+            {tx(cancelLabel)}
           </Button>
           <Button
             variant={destructive ? 'destructive' : 'primary'}
             loading={loading}
             onClick={onConfirm}
           >
-            {confirmLabel}
+            {tx(confirmLabel)}
           </Button>
         </div>
       }

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from 'react';
 import { Loader, Lock, Unlock, X } from 'lucide-react';
@@ -69,7 +70,7 @@ export default function PosTillGateModals({
       <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
         <div className="rounded-2xl bg-white px-6 py-5 shadow-xl flex items-center gap-3 text-slate-700">
           <Loader className="h-5 w-5 animate-spin text-blue-600" />
-          Checking till status…
+          {tt('Checking till status…')}
         </div>
       </div>
     );
@@ -89,7 +90,7 @@ export default function PosTillGateModals({
               <div className="flex items-center gap-2">
                 <Unlock className="h-5 w-5" />
                 <h2 id="pos-till-open-title" className="text-lg font-semibold">
-                  Open till to start selling
+                  {tt('Open till to start selling')}
                 </h2>
               </div>
               <p className="mt-1 text-sm text-blue-100">
@@ -151,34 +152,33 @@ export default function PosTillGateModals({
               <div className="flex items-center gap-2">
                 <Lock className="h-5 w-5" />
                 <h2 id="pos-till-close-title" className="text-lg font-semibold">
-                  Close till for the day
+                  {tt('Close till for the day')}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={onDismissClosePrompt}
                 className="rounded-full p-1 hover:bg-white/10"
-                aria-label="Dismiss"
+                aria-label={tt('Dismiss')}
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="px-5 py-5 space-y-3 text-sm text-slate-700">
               <p>
-                Closing sweeps the Till Float balance back to Cash and records the day.
-                If you leave the till open, it will <strong>auto-close after midnight</strong> (Africa/Blantyre).
+                {tt('Closing sweeps the Till Float balance back to Cash and records the day. If you leave the till open, it will')} <strong>{tt('auto-close after midnight')}</strong> (Africa/Blantyre).
               </p>
               <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <p className="text-slate-500">Opening</p>
+                  <p className="text-slate-500">{tt('Opening')}</p>
                   <p className="font-semibold">{formatMoney(cashDayState?.metrics?.openingBalance)}</p>
                 </div>
                 <div>
-                  <p className="text-slate-500">Total sales</p>
+                  <p className="text-slate-500">{tt('Total sales')}</p>
                   <p className="font-semibold">{formatMoney(cashDayState?.metrics?.totalSales)}</p>
                 </div>
                 <div>
-                  <p className="text-slate-500">Cash sales</p>
+                  <p className="text-slate-500">{tt('Cash sales')}</p>
                   <p className="font-semibold">{formatMoney(cashDayState?.metrics?.totalCashSales)}</p>
                 </div>
                 <div>
@@ -192,7 +192,7 @@ export default function PosTillGateModals({
                   onClick={onDismissClosePrompt}
                   className="flex-1 rounded-lg border border-slate-300 py-2.5 font-medium hover:bg-slate-50"
                 >
-                  Keep open
+                  {tt('Keep open')}
                 </button>
                 <button
                   type="button"

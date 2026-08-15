@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -66,7 +67,7 @@ function Flash({ tone = 'danger', children, onDismiss }) {
     <div className={`mb-4 flex items-start gap-3 rounded-[var(--admin-radius)] border px-4 py-3 text-sm ${cls}`} role="status">
       <p className="min-w-0 flex-1 break-words">{children}</p>
       {onDismiss ? (
-        <button type="button" onClick={onDismiss} className="rounded p-1 opacity-70 hover:opacity-100" aria-label="Dismiss">
+        <button type="button" onClick={onDismiss} className="rounded p-1 opacity-70 hover:opacity-100" aria-label={tt('Dismiss')}>
           <X className="h-4 w-4" />
         </button>
       ) : null}
@@ -352,10 +353,10 @@ export default function UserManagementPage() {
         actions={
           <>
             <button type="button" onClick={refresh} className={btnGhost}>
-              <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+              <RefreshCw className="h-4 w-4" aria-hidden /> {tt('Refresh')}
             </button>
             <button type="button" onClick={() => setShowCreate(true)} className={btnPrimary}>
-              <UserPlus className="h-4 w-4" aria-hidden /> Add user
+              <UserPlus className="h-4 w-4" aria-hidden /> {tt('Add user')}
             </button>
           </>
         }
@@ -374,18 +375,18 @@ export default function UserManagementPage() {
       <AdminFilterBar search={searchTerm} onSearchChange={setSearchTerm} searchPlaceholder="Search name or email…">
         <AdminField label="Role" htmlFor="filter-role">
           <AdminField.Select id="filter-role" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}>
-            <option value="all">All roles</option>
-            <option value="admin">Admin</option>
-            <option value="manager">Manager</option>
-            <option value="user">User</option>
+            <option value="all">{tt('All roles')}</option>
+            <option value="admin">{tt('Admin')}</option>
+            <option value="manager">{tt('Manager')}</option>
+            <option value="user">{tt('User')}</option>
           </AdminField.Select>
         </AdminField>
         <AdminField label="Status" htmlFor="filter-status">
           <AdminField.Select id="filter-status" value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}>
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="pending">Pending</option>
+            <option value="all">{tt('All statuses')}</option>
+            <option value="active">{tt('Active')}</option>
+            <option value="inactive">{tt('Inactive')}</option>
+            <option value="pending">{tt('Pending')}</option>
           </AdminField.Select>
         </AdminField>
       </AdminFilterBar>
@@ -401,7 +402,7 @@ export default function UserManagementPage() {
           icon={Users}
           action={
             <button type="button" onClick={() => setShowCreate(true)} className={btnPrimary}>
-              <Plus className="h-4 w-4" aria-hidden /> Add user
+              <Plus className="h-4 w-4" aria-hidden /> {tt('Add user')}
             </button>
           }
         />
@@ -420,9 +421,9 @@ export default function UserManagementPage() {
               {' '}of <span className="font-medium text-[var(--admin-text)]">{totalUsers}</span>
             </p>
             <div className="flex items-center gap-2">
-              <button type="button" disabled={currentPage <= 1} onClick={() => fetchUsers(currentPage - 1, searchTerm, selectedRole, selectedStatus)} className={btnGhost}>Previous</button>
+              <button type="button" disabled={currentPage <= 1} onClick={() => fetchUsers(currentPage - 1, searchTerm, selectedRole, selectedStatus)} className={btnGhost}>{tt('Previous')}</button>
               <span className="text-sm text-[var(--admin-text-muted)]">Page {currentPage} / {totalPages}</span>
-              <button type="button" disabled={currentPage >= totalPages} onClick={() => fetchUsers(currentPage + 1, searchTerm, selectedRole, selectedStatus)} className={btnGhost}>Next</button>
+              <button type="button" disabled={currentPage >= totalPages} onClick={() => fetchUsers(currentPage + 1, searchTerm, selectedRole, selectedStatus)} className={btnGhost}>{tt('Next')}</button>
             </div>
           </div>
         </>
@@ -449,17 +450,17 @@ function MembershipEditor({ rows, setRows, primaryIndex, setPrimaryIndex, tenant
   return (
     <div className="space-y-3 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface-muted)] p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-[var(--admin-text)]">Business access</p>
+        <p className="text-sm font-medium text-[var(--admin-text)]">{tt('Business access')}</p>
         <button type="button" className="text-sm font-medium text-[var(--action-primary)]" onClick={() => setRows((p) => [...p, { tenantId: '', roleId: '' }])}>
           + Add business
         </button>
       </div>
-      <p className="text-xs text-[var(--admin-text-muted)]">Roles load per business. Mark one primary login business.</p>
+      <p className="text-xs text-[var(--admin-text-muted)]">{tt('Roles load per business. Mark one primary login business.')}</p>
       {rows.map((row, idx) => (
         <div key={idx} className="space-y-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-3">
           <label className="inline-flex items-center gap-2 text-xs text-[var(--admin-text)]">
             <input type="radio" name="primaryBiz" checked={primaryIndex === idx} onChange={() => setPrimaryIndex(idx)} />
-            Primary login business
+            {tt('Primary login business')}
           </label>
           <AdminField.Select
             value={row.tenantId} required={idx === 0}
@@ -469,7 +470,7 @@ function MembershipEditor({ rows, setRows, primaryIndex, setPrimaryIndex, tenant
               if (tid) ensureRolesLoaded(tid);
             }}
           >
-            <option value="">Select business</option>
+            <option value="">{tt('Select business')}</option>
             {tenants.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.subdomain})</option>)}
           </AdminField.Select>
           <AdminField.Select
@@ -487,7 +488,7 @@ function MembershipEditor({ rows, setRows, primaryIndex, setPrimaryIndex, tenant
                 setPrimaryIndex((p) => (p === idx ? Math.max(0, idx - 1) : p > idx ? p - 1 : p));
               }}
             >
-              Remove row
+              {tt('Remove row')}
             </button>
           ) : null}
         </div>
@@ -638,7 +639,7 @@ function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, 
       size="lg"
       footer={
         <>
-          <button type="button" onClick={onClose} disabled={loading} className={btnGhost}>Cancel</button>
+          <button type="button" onClick={onClose} disabled={loading} className={btnGhost}>{tt('Cancel')}</button>
           <button type="submit" form="user-form" disabled={loading || detailLoading} className={btnPrimary}>
             {loading ? (isEdit ? 'Updating…' : 'Creating…') : isEdit ? 'Update user' : 'Create user'}
           </button>
@@ -660,14 +661,14 @@ function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, 
           </AdminField>
           {!isEdit ? (
             <AdminField label="Password" htmlFor="user-password" hint="Leave blank to auto-generate a 6-character temporary password.">
-              <AdminField.Input id="user-password" type="password" value={formData.password} onChange={(e) => setFormData((p) => ({ ...p, password: e.target.value }))} placeholder="Optional" />
+              <AdminField.Input id="user-password" type="password" value={formData.password} onChange={(e) => setFormData((p) => ({ ...p, password: e.target.value }))} placeholder={tt('Optional')} />
             </AdminField>
           ) : null}
           <AdminField label="Status" htmlFor="user-status">
             <AdminField.Select id="user-status" value={formData.status} onChange={(e) => setFormData((p) => ({ ...p, status: e.target.value }))}>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="pending">Pending</option>
+              <option value="active">{tt('Active')}</option>
+              <option value="inactive">{tt('Inactive')}</option>
+              <option value="pending">{tt('Pending')}</option>
             </AdminField.Select>
           </AdminField>
 
@@ -675,8 +676,8 @@ function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, 
             <div className="space-y-3 rounded-[var(--admin-radius)] border border-[var(--admin-border)] p-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-[var(--admin-text)]">Email verification</p>
-                  <p className="mt-0.5 text-xs text-[var(--admin-text-muted)]">For when verification email was not received.</p>
+                  <p className="text-sm font-medium text-[var(--admin-text)]">{tt('Email verification')}</p>
+                  <p className="mt-0.5 text-xs text-[var(--admin-text-muted)]">{tt('For when verification email was not received.')}</p>
                 </div>
                 <AdminStatusBadge tone={verification.isEmailVerified ? 'success' : 'warning'}>
                   {verification.isEmailVerified ? 'Verified' : 'Not verified'}
@@ -684,7 +685,7 @@ function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, 
               </div>
               <div className="flex items-center justify-between gap-3 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface-muted)] p-3">
                 <div>
-                  <p className="text-xs font-medium uppercase text-[var(--admin-text-muted)]">Current OTP</p>
+                  <p className="text-xs font-medium uppercase text-[var(--admin-text-muted)]">{tt('Current OTP')}</p>
                   <p className="mt-1 font-mono text-lg tracking-widest text-[var(--admin-text)]">{verification.otpCode || 'No active OTP'}</p>
                   <p className={`mt-1 text-xs ${otpExpired ? 'text-[var(--admin-danger)]' : 'text-[var(--admin-text-muted)]'}`}>
                     {verification.otpExpiry ? `${otpExpired ? 'Expired' : 'Expires'}: ${fmtDateTime(verification.otpExpiry)}` : 'No OTP expiry recorded.'}
@@ -703,7 +704,7 @@ function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, 
                       }
                     }}
                   >
-                    <Copy className="h-4 w-4" /> Copy
+                    <Copy className="h-4 w-4" /> {tt('Copy')}
                   </button>
                 ) : null}
               </div>
@@ -734,7 +735,7 @@ function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, 
                 value={formData.department || ''}
                 onChange={(e) => setFormData((p) => ({ ...p, department: e.target.value }))}
               >
-                <option value="">No department</option>
+                <option value="">{tt('No department')}</option>
                 {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
               </AdminField.Select>
             </AdminField>

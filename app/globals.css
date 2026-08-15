@@ -235,6 +235,10 @@
 }
 
 .tenant-shell-canvas .app-bar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky, 100);
+  flex-shrink: 0;
   background-color: var(--tenant-header-bg) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);

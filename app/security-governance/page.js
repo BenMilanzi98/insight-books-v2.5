@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Shield, RefreshCw, AlertCircle, KeyRound, FileSearch } from 'lucide-react';
@@ -98,7 +99,7 @@ export default function SecurityGovernancePage() {
           className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-300 text-sm"
         >
           <RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} />
-          Refresh
+          {tt('Refresh')}
         </button>
       </header>
 
@@ -126,20 +127,20 @@ export default function SecurityGovernancePage() {
       <section className="rounded-lg border border-slate-200 bg-white p-4 text-sm space-y-2">
         <h2 className="font-medium flex items-center gap-2">
           <KeyRound className="w-4 h-4" />
-          Actor context
+          {tt('Actor context')}
         </h2>
         {actor ? (
           <dl className="grid sm:grid-cols-2 gap-2 text-xs">
             <div>
-              <dt className="text-slate-500">Effective user</dt>
+              <dt className="text-slate-500">{tt('Effective user')}</dt>
               <dd className="font-mono">{actor.effectiveUserId}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Business</dt>
+              <dt className="text-slate-500">{tt('Business')}</dt>
               <dd className="font-mono">{actor.businessId}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Roles</dt>
+              <dt className="text-slate-500">{tt('Roles')}</dt>
               <dd>{(actor.roles || []).join(', ') || '—'}</dd>
             </div>
             <div>
@@ -147,16 +148,16 @@ export default function SecurityGovernancePage() {
               <dd>{actor.permissionsCount}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Session</dt>
+              <dt className="text-slate-500">{tt('Session')}</dt>
               <dd className="font-mono break-all">{actor.sessionId || 'legacy / untracked'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Impersonating</dt>
+              <dt className="text-slate-500">{tt('Impersonating')}</dt>
               <dd>{actor.isImpersonating ? 'Yes' : 'No'}</dd>
             </div>
           </dl>
         ) : (
-          <p className="text-slate-500">Not loaded</p>
+          <p className="text-slate-500">{tt('Not loaded')}</p>
         )}
         <div className="flex flex-wrap gap-2 pt-2">
           <button
@@ -164,7 +165,7 @@ export default function SecurityGovernancePage() {
             onClick={revokeOthers}
             className="px-3 py-1.5 text-xs rounded border border-slate-300"
           >
-            Revoke other sessions
+            {tt('Revoke other sessions')}
           </button>
           <button
             type="button"
@@ -172,16 +173,16 @@ export default function SecurityGovernancePage() {
             className="px-3 py-1.5 text-xs rounded border border-slate-300 inline-flex items-center gap-1"
           >
             <FileSearch className="w-3.5 h-3.5" />
-            Verify audit integrity
+            {tt('Verify audit integrity')}
           </button>
         </div>
       </section>
 
       <section className="grid lg:grid-cols-2 gap-4">
         <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h2 className="font-medium mb-2">Recent audit events</h2>
+          <h2 className="font-medium mb-2">{tt('Recent audit events')}</h2>
           {(events || []).length === 0 ? (
-            <p className="text-sm text-slate-500">No SecV2 audit events yet.</p>
+            <p className="text-sm text-slate-500">{tt('No SecV2 audit events yet.')}</p>
           ) : (
             <ul className="text-xs space-y-2 max-h-80 overflow-auto">
               {events.map((e) => (
@@ -199,9 +200,9 @@ export default function SecurityGovernancePage() {
           )}
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h2 className="font-medium mb-2">Security alerts</h2>
+          <h2 className="font-medium mb-2">{tt('Security alerts')}</h2>
           {(alerts || []).length === 0 ? (
-            <p className="text-sm text-slate-500">No open alerts.</p>
+            <p className="text-sm text-slate-500">{tt('No open alerts.')}</p>
           ) : (
             <ul className="text-xs space-y-2 max-h-80 overflow-auto">
               {alerts.map((a) => (
@@ -214,9 +215,9 @@ export default function SecurityGovernancePage() {
               ))}
             </ul>
           )}
-          <h2 className="font-medium mb-2 mt-4">Your active sessions</h2>
+          <h2 className="font-medium mb-2 mt-4">{tt('Your active sessions')}</h2>
           {(sessions || []).length === 0 ? (
-            <p className="text-sm text-slate-500">No tracked sessions.</p>
+            <p className="text-sm text-slate-500">{tt('No tracked sessions.')}</p>
           ) : (
             <ul className="text-xs space-y-1">
               {sessions.map((s) => (

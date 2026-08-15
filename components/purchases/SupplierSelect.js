@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef, useCallback } from "react";
 
@@ -16,7 +17,7 @@ export default function SupplierSelect({
   value,
   onChange,
   onAddNew,
-  placeholder = "Select or search supplier...",
+  placeholder = tt('Select or search supplier...'),
   required = false,
   disabled = false,
   className = "",
@@ -210,7 +211,7 @@ export default function SupplierSelect({
           className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg"
         >
           {loading ? (
-            <div className="px-4 py-2 text-sm text-gray-500">Loading suppliers...</div>
+            <div className="px-4 py-2 text-sm text-gray-500">{tt('Loading suppliers...')}</div>
           ) : filteredSuppliers.length === 0 ? (
             <div className="px-4 py-2 text-sm text-gray-500">
               No suppliers found
@@ -251,11 +252,11 @@ export default function SupplierSelect({
                       </div>
                       {!isActive && (
                         <span className="ml-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
-                          Inactive
+                          {tt('Inactive')}
                         </span>
                       )}
                       {isRecent && index < 3 && (
-                        <span className="ml-2 text-xs text-indigo-600">Recent</span>
+                        <span className="ml-2 text-xs text-indigo-600">{tt('Recent')}</span>
                       )}
                     </div>
                   </div>

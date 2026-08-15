@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from 'react';
 import { MessageCircle, X } from 'lucide-react';
@@ -82,7 +83,7 @@ const FloatingWhatsApp = () => {
                 <WhatsAppIcon size={24} className="text-green-600" />
               </div>
               <h3 className="font-semibold text-gray-900">Need Help?</h3>
-              <p className="text-sm text-gray-600">Get instant support via WhatsApp</p>
+              <p className="text-sm text-gray-600">{tt('Get instant support via WhatsApp')}</p>
             </div>
 
             {/* Support Options */}
@@ -92,11 +93,11 @@ const FloatingWhatsApp = () => {
                 className="w-full bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2"
               >
                 <WhatsAppIcon size={18} />
-                Chat with Support
+                {tt('Chat with Support')}
               </button>
 
               <div className="text-xs text-gray-500 text-center">
-                <p>Response time: 2-4 hours</p>
+                <p>{tt('Response time: 2-4 hours')}</p>
                 <p>Business hours: Mon-Fri 8AM-6PM (CAT)</p>
               </div>
             </div>
@@ -104,8 +105,8 @@ const FloatingWhatsApp = () => {
             {/* Contact Info */}
             <div className="mt-4 pt-3 border-t border-gray-100">
               <div className="text-xs text-gray-600">
-                <p><strong>Email:</strong> support@insightbooks.com</p>
-                <p><strong>WhatsApp:</strong> +265 894 09 24 94</p>
+                <p><strong>{tt('Email:')}</strong> {tt('support@insightbooks.com')}</p>
+                <p><strong>{tt('WhatsApp:')}</strong> +265 894 09 24 94</p>
               </div>
             </div>
           </div>

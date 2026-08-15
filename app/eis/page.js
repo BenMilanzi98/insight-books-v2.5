@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from 'react';
 import {
   FileText, CheckCircle, XCircle, Clock, AlertCircle,
@@ -50,8 +51,8 @@ export default function EISDashboardPage() {
     <div className="max-w-7xl mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">MRA EIS Dashboard</h1>
-          <p className="text-gray-500 mt-1">Electronic Invoice System integration overview</p>
+          <h1 className="text-2xl font-bold text-gray-900">{tt('MRA EIS Dashboard')}</h1>
+          <p className="text-gray-500 mt-1">{tt('Electronic Invoice System integration overview')}</p>
         </div>
         <div className="flex items-center gap-3">
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
@@ -74,12 +75,12 @@ export default function EISDashboardPage() {
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
             <div>
-              <h3 className="text-sm font-semibold text-amber-800">EIS Not Configured</h3>
+              <h3 className="text-sm font-semibold text-amber-800">{tt('EIS Not Configured')}</h3>
               <p className="text-sm text-amber-700 mt-0.5">
-                Configure your MRA API credentials to start submitting electronic invoices.
+                {tt('Configure your MRA API credentials to start submitting electronic invoices.')}
               </p>
               <Link href="/eis/config" className="inline-flex items-center gap-1 text-sm font-medium text-amber-800 hover:text-amber-900 mt-2">
-                Configure Now <ArrowRight className="h-4 w-4" />
+                {tt('Configure Now')} <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>
@@ -96,23 +97,23 @@ export default function EISDashboardPage() {
 
       {data?.monthlyUsage && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Current Month Usage</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">{tt('Current Month Usage')}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="text-center p-3 bg-gray-50 rounded-lg">
               <p className="text-2xl font-bold text-gray-900">{data.monthlyUsage.invoiceCount}</p>
-              <p className="text-xs text-gray-500">Invoices</p>
+              <p className="text-xs text-gray-500">{tt('Invoices')}</p>
             </div>
             <div className="text-center p-3 bg-gray-50 rounded-lg">
               <p className="text-2xl font-bold text-green-600">{data.monthlyUsage.approvedCount}</p>
-              <p className="text-xs text-gray-500">Approved</p>
+              <p className="text-xs text-gray-500">{tt('Approved')}</p>
             </div>
             <div className="text-center p-3 bg-gray-50 rounded-lg">
               <p className="text-2xl font-bold text-red-600">{data.monthlyUsage.rejectedCount}</p>
-              <p className="text-xs text-gray-500">Rejected</p>
+              <p className="text-xs text-gray-500">{tt('Rejected')}</p>
             </div>
             <div className="text-center p-3 bg-gray-50 rounded-lg">
               <p className="text-2xl font-bold text-gray-900">MK {(data.monthlyUsage.totalAmount || 0).toLocaleString()}</p>
-              <p className="text-xs text-gray-500">Total Amount</p>
+              <p className="text-xs text-gray-500">{tt('Total Amount')}</p>
             </div>
           </div>
         </div>
@@ -120,26 +121,26 @@ export default function EISDashboardPage() {
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Recent Submissions</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{tt('Recent Submissions')}</h2>
           <Link href="/eis/invoices" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1">
-            View All <ArrowRight className="h-4 w-4" />
+            {tt('View All')} <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
         {(!data?.recentInvoices || data.recentInvoices.length === 0) ? (
           <div className="text-center py-12">
             <FileText className="mx-auto h-12 w-12 text-gray-300" />
-            <p className="mt-2 text-sm text-gray-500">No submissions yet</p>
+            <p className="mt-2 text-sm text-gray-500">{tt('No submissions yet')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">MRA ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Invoice #')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Date')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Amount')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('MRA ID')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Status')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -162,10 +163,10 @@ export default function EISDashboardPage() {
 
       <div className="flex gap-4">
         <Link href="/eis/config" className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm">
-          <Settings className="h-4 w-4" /> EIS Configuration
+          <Settings className="h-4 w-4" /> {tt('EIS Configuration')}
         </Link>
         <Link href="/eis/invoices" className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm">
-          <FileText className="h-4 w-4" /> All Invoices
+          <FileText className="h-4 w-4" /> {tt('All Invoices')}
         </Link>
       </div>
     </div>

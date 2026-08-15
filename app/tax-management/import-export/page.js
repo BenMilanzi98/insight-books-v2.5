@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/shell/PageHeader";
@@ -54,12 +55,12 @@ export default function TaxImportExportPage() {
       />
       {!canUpdate ? (
         <p className="text-sm text-[var(--text-secondary)]">
-          tax.update is required to import mappings.
+          {tt('tax.update is required to import mappings.')}
         </p>
       ) : (
         <>
           <p className="mb-2 text-sm text-[var(--text-secondary)]">
-            Paste JSON for purpose → account mapping rows. Always dry-run first.
+            {tt('Paste JSON for purpose → account mapping rows. Always dry-run first.')}
           </p>
           <textarea
             className="mb-3 h-56 w-full rounded border border-[var(--border-default)] bg-white p-3 font-mono text-xs"
@@ -73,7 +74,7 @@ export default function TaxImportExportPage() {
               onClick={() => run(true)}
               className="rounded bg-[var(--surface-muted)] px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
-              Dry run
+              {tt('Dry run')}
             </button>
             <button
               type="button"
@@ -81,7 +82,7 @@ export default function TaxImportExportPage() {
               onClick={() => run(false)}
               className="rounded bg-[var(--brand-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              Commit import
+              {tt('Commit import')}
             </button>
           </div>
         </>

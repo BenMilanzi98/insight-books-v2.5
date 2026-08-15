@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from 'react';
 import {
   Settings, Save, Eye, EyeOff, CheckCircle, AlertCircle, Loader2, Shield, Wifi, WifiOff,
@@ -127,9 +128,9 @@ export default function EISConfigPage() {
         <div className="flex items-center">
           <Shield className="h-8 w-8 text-indigo-600 mr-3" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">MRA EIS Configuration</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{tt('MRA EIS Configuration')}</h1>
             <p className="text-gray-600 mt-1">
-              Configure your Malawi Revenue Authority Electronic Invoice System integration
+              {tt('Configure your Malawi Revenue Authority Electronic Invoice System integration')}
             </p>
           </div>
         </div>
@@ -148,19 +149,19 @@ export default function EISConfigPage() {
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
           <div className="flex items-center gap-2 mb-6">
             <Settings className="h-5 w-5 text-indigo-600" />
-            <h2 className="text-lg font-semibold text-gray-900">API Credentials</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{tt('API Credentials')}</h2>
           </div>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Client ID</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Client ID')}</label>
               <input
                 type="text"
                 value={config.clientId}
                 onChange={(e) => setConfig({ ...config, clientId: e.target.value })}
                 className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 required
-                placeholder="Your MRA Client ID"
+                placeholder={tt('Your MRA Client ID')}
               />
             </div>
 
@@ -196,7 +197,7 @@ export default function EISConfigPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Environment</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Environment')}</label>
               <select
                 value={config.environment}
                 onChange={(e) => setConfig({ ...config, environment: e.target.value })}
@@ -215,7 +216,7 @@ export default function EISConfigPage() {
                 onChange={(e) => setConfig({ ...config, isActive: e.target.checked })}
                 className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
               />
-              <label htmlFor="isActive" className="text-sm text-gray-900">Enable EIS Integration</label>
+              <label htmlFor="isActive" className="text-sm text-gray-900">{tt('Enable EIS Integration')}</label>
             </div>
           </div>
         </div>
@@ -238,10 +239,10 @@ export default function EISConfigPage() {
         <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-xl">
           <div className="flex items-center gap-2">
             <CheckCircle className="h-5 w-5 text-green-600" />
-            <span className="text-green-800 font-medium text-sm">EIS Configuration Active</span>
+            <span className="text-green-800 font-medium text-sm">{tt('EIS Configuration Active')}</span>
           </div>
           <p className="text-green-700 text-sm mt-1">
-            Your MRA EIS integration is configured. Sales and invoices for this tenant will be automatically submitted to MRA.
+            {tt('Your MRA EIS integration is configured. Sales and invoices for this tenant will be automatically submitted to MRA.')}
           </p>
         </div>
       )}
@@ -251,26 +252,26 @@ export default function EISConfigPage() {
         <div className="mt-8 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <Monitor className="h-5 w-5 text-indigo-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Terminal Activation</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{tt('Terminal Activation')}</h2>
           </div>
 
           {terminalInfo ? (
             <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-              <p className="text-sm font-medium text-green-800">Terminal Activated</p>
+              <p className="text-sm font-medium text-green-800">{tt('Terminal Activated')}</p>
               <p className="text-xs text-green-700 mt-1">Terminal ID: {terminalInfo.terminalId || 'N/A'}</p>
               <p className="text-xs text-green-700">Site ID: {terminalInfo.siteId || 'N/A'}</p>
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-sm text-gray-600">Register this terminal with MRA EIS to enable transaction processing.</p>
+              <p className="text-sm text-gray-600">{tt('Register this terminal with MRA EIS to enable transaction processing.')}</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <input type="text" placeholder="Username" value={activationCredentials.username}
+                <input type="text" placeholder={tt('Username')} value={activationCredentials.username}
                   onChange={(e) => setActivationCredentials({ ...activationCredentials, username: e.target.value })}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-                <input type="password" placeholder="Password" value={activationCredentials.password}
+                <input type="password" placeholder={tt('Password')} value={activationCredentials.password}
                   onChange={(e) => setActivationCredentials({ ...activationCredentials, password: e.target.value })}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-                <input type="text" placeholder="Terminal Serial No." value={activationCredentials.terminalSerialNumber}
+                <input type="text" placeholder={tt('Terminal Serial No.')} value={activationCredentials.terminalSerialNumber}
                   onChange={(e) => setActivationCredentials({ ...activationCredentials, terminalSerialNumber: e.target.value })}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
               </div>
@@ -316,7 +317,7 @@ export default function EISConfigPage() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Package className="h-5 w-5 text-indigo-600" />
-              <h2 className="text-lg font-semibold text-gray-900">MRA Product Sync</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{tt('MRA Product Sync')}</h2>
             </div>
             <button
               disabled={isSyncingProducts}
@@ -342,7 +343,7 @@ export default function EISConfigPage() {
               Sync Products
             </button>
           </div>
-          <p className="text-sm text-gray-600">Download the product catalog from MRA to ensure your inventory matches the registered products.</p>
+          <p className="text-sm text-gray-600">{tt('Download the product catalog from MRA to ensure your inventory matches the registered products.')}</p>
           {productSyncResult && (
             <div className={`mt-3 p-3 rounded-lg text-sm ${productSyncResult.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
               {productSyncResult.text}
@@ -357,7 +358,7 @@ export default function EISConfigPage() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <RefreshCw className="h-5 w-5 text-indigo-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Configuration Sync</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{tt('Configuration Sync')}</h2>
             </div>
             <button
               disabled={isSyncingConfig}
@@ -382,7 +383,7 @@ export default function EISConfigPage() {
               Sync Config
             </button>
           </div>
-          <p className="text-sm text-gray-600">Download latest global tax rates, taxpayer info, and terminal configuration from MRA portal.</p>
+          <p className="text-sm text-gray-600">{tt('Download latest global tax rates, taxpayer info, and terminal configuration from MRA portal.')}</p>
           {configSyncResult && (
             <div className={`mt-3 p-3 rounded-lg text-sm ${configSyncResult.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
               {configSyncResult.text}

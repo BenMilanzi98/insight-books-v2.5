@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -28,7 +29,7 @@ async function fetchReport(type) {
 function StatusBreakdown({ byStatus }) {
   if (!byStatus || typeof byStatus !== 'object') return null;
   const entries = Object.entries(byStatus);
-  if (!entries.length) return <p className="text-sm text-[var(--admin-text-muted)]">No status breakdown</p>;
+  if (!entries.length) return <p className="text-sm text-[var(--admin-text-muted)]">{tt('No status breakdown')}</p>;
   return (
     <ul className="mt-2 space-y-1 text-sm text-[var(--admin-text-muted)]">
       {entries.map(([status, count]) => (
@@ -107,7 +108,7 @@ export default function PlatformReportsPage() {
               className="inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)]"
             >
               <Upload className="h-4 w-4" aria-hidden />
-              Import dry-run
+              {tt('Import dry-run')}
             </Link>
             <button
               type="button"
@@ -115,7 +116,7 @@ export default function PlatformReportsPage() {
               className="inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white hover:opacity-90"
             >
               <RefreshCw className="h-4 w-4" aria-hidden />
-              Refresh
+              {tt('Refresh')}
             </button>
           </div>
         }
@@ -137,7 +138,7 @@ export default function PlatformReportsPage() {
             <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--admin-text)]">
                 <Building2 className="h-4 w-4" aria-hidden />
-                Tenants
+                {tt('Tenants')}
               </h2>
               <a
                 href="/api/admin/platform-reports?type=tenants&format=csv"
@@ -170,7 +171,7 @@ export default function PlatformReportsPage() {
             <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--admin-text)]">
                 <CreditCard className="h-4 w-4" aria-hidden />
-                Subscriptions
+                {tt('Subscriptions')}
               </h2>
               <a
                 href="/api/admin/platform-reports?type=subscriptions&format=csv"
@@ -213,7 +214,7 @@ export default function PlatformReportsPage() {
             <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--admin-text)]">
                 <Handshake className="h-4 w-4" aria-hidden />
-                Affiliates
+                {tt('Affiliates')}
               </h2>
               <a
                 href="/api/admin/platform-reports?type=affiliates&format=csv"

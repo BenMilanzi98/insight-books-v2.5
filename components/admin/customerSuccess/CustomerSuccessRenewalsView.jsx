@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -135,7 +136,7 @@ export default function CustomerSuccessRenewalsView() {
             className={inputCls}
             value={tenantId}
             onChange={(e) => setTenantId(e.target.value)}
-            placeholder="tenantId"
+            placeholder={tt('tenantId')}
           />
         </label>
         <label className="text-sm text-[var(--admin-text-muted)]">
@@ -144,7 +145,7 @@ export default function CustomerSuccessRenewalsView() {
             className={inputCls}
             value={periodKey}
             onChange={(e) => setPeriodKey(e.target.value)}
-            placeholder="YYYY-MM"
+            placeholder={tt('YYYY-MM')}
           />
         </label>
         <button type="button" className={btnPrimary} disabled={busy} onClick={openWorkspace}>

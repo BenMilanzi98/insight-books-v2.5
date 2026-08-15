@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useRef } from 'react';
 import { useReactToPrint } from 'react-to-print';
@@ -109,7 +110,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
   if (!sale) {
     return (
       <div className="bg-white p-8 rounded-lg shadow-lg">
-        <p className="text-center text-gray-500">No sale data available</p>
+        <p className="text-center text-gray-500">{tt('No sale data available')}</p>
       </div>
     );
   }
@@ -119,20 +120,20 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Modal Header */}
         <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
-          <h2 className="text-lg font-semibold text-gray-800">Sale Receipt</h2>
+          <h2 className="text-lg font-semibold text-gray-800">{tt('Sale Receipt')}</h2>
           <div className="flex space-x-2">
             <button
               onClick={handlePrint}
               className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center text-sm"
             >
               <Printer className="w-4 h-4 mr-1" />
-              Print
+              {tt('Print')}
             </button>
             <button
               onClick={onClose}
               className="px-3 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 text-sm"
             >
-              Close
+              {tt('Close')}
             </button>
           </div>
         </div>
@@ -159,7 +160,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
             {/* Enhanced Header with Full Business Information */}
             <div style={{ textAlign: 'center', marginBottom: '8px', borderBottom: '1px dashed #000', paddingBottom: '8px' }}>
               {company.logo && (
-                <img src={company.logo} alt="Logo" style={{ maxWidth: '50px', maxHeight: '50px', marginBottom: '4px' }} />
+                <img src={company.logo} alt={tt('Logo')} style={{ maxWidth: '50px', maxHeight: '50px', marginBottom: '4px' }} />
               )}
               <div style={{ fontSize: '14px', fontWeight: 'bold', margin: '2px 0', textTransform: 'uppercase' }}>
                 {company.name}
@@ -204,13 +205,13 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
               padding: '4px 0',
               textTransform: 'uppercase'
             }}>
-              SALES RECEIPT
+              {tt('SALES RECEIPT')}
             </div>
 
             {/* Sale Information */}
             <div style={{ margin: '6px 0', fontSize: '9px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                <span style={{ fontWeight: 'bold', minWidth: '30%' }}>Receipt #:</span>
+                <span style={{ fontWeight: 'bold', minWidth: '30%' }}>{tt('Receipt #:')}</span>
                 <span style={{ textAlign: 'right', maxWidth: '65%', fontWeight: 'bold' }}>{sale.saleNumber || sale.id}</span>
               </div>
               
@@ -230,13 +231,13 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
                       📅 HISTORICAL TRANSACTION
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-                      <span style={{ color: '#856404', fontWeight: 'bold', minWidth: '30%' }}>Sale Date:</span>
+                      <span style={{ color: '#856404', fontWeight: 'bold', minWidth: '30%' }}>{tt('Sale Date:')}</span>
                       <span style={{ color: '#856404', textAlign: 'right', maxWidth: '65%', fontWeight: 'bold' }}>
                         {formatDate(sale.historicalDate)} {formatTime(sale.historicalDate)}
                       </span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
-                      <span style={{ color: '#6c757d', fontWeight: 'bold', minWidth: '30%' }}>Receipt Generated:</span>
+                      <span style={{ color: '#6c757d', fontWeight: 'bold', minWidth: '30%' }}>{tt('Receipt Generated:')}</span>
                       <span style={{ color: '#6c757d', textAlign: 'right', maxWidth: '65%', fontWeight: 'bold' }}>
                         {formatDate(sale.saleDate || sale.createdAt)} {formatTime(sale.saleDate || sale.createdAt)}
                       </span>
@@ -246,11 +247,11 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
               ) : (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                    <span style={{ fontWeight: 'bold', minWidth: '30%' }}>Date:</span>
+                    <span style={{ fontWeight: 'bold', minWidth: '30%' }}>{tt('Date:')}</span>
                     <span style={{ textAlign: 'right', maxWidth: '65%', fontWeight: 'bold' }}>{formatDate(sale.saleDate || sale.createdAt)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                    <span style={{ fontWeight: 'bold', minWidth: '30%' }}>Time:</span>
+                    <span style={{ fontWeight: 'bold', minWidth: '30%' }}>{tt('Time:')}</span>
                     <span style={{ textAlign: 'right', maxWidth: '65%', fontWeight: 'bold' }}>{formatTime(sale.saleDate || sale.createdAt)}</span>
                   </div>
                 </>
@@ -258,7 +259,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
               
               {sale.client?.name && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                  <span style={{ fontWeight: 'bold', minWidth: '30%' }}>Customer:</span>
+                  <span style={{ fontWeight: 'bold', minWidth: '30%' }}>{tt('Customer:')}</span>
                   <span style={{ textAlign: 'right', maxWidth: '65%', fontWeight: 'bold' }}>{sale.client.name}</span>
                 </div>
               )}
@@ -275,13 +276,13 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
                     </div>
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', borderTop: '1px dashed #ccc', paddingTop: '2px', fontWeight: 'bold' }}>
-                    <span>Total:</span>
+                    <span>{tt('Total:')}</span>
                     <span style={{ textAlign: 'right' }}>MK {Number(sale.payments[0].amount || sale.total || 0).toFixed(2)}</span>
                   </div>
                 </div>
               ) : (
                 <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                  <span style={{ fontWeight: 'bold', minWidth: '30%' }}>Payment:</span>
+                  <span style={{ fontWeight: 'bold', minWidth: '30%' }}>{tt('Payment:')}</span>
                   <span style={{ textAlign: 'right', maxWidth: '65%', fontWeight: 'bold' }}>
                     {sale.payments && sale.payments.length > 0 && sale.payments[0].allocations && sale.payments[0].allocations.length > 0
                       ? sale.payments[0].allocations.map(alloc => alloc.paymentAccount?.name || 'N/A').join(', ')
@@ -314,7 +315,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
             {/* Totals */}
             <div style={{ marginTop: '8px', borderTop: '1px dashed #000', paddingTop: '4px', fontSize: '9px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                <span style={{ fontWeight: 'bold' }}>Subtotal:</span>
+                <span style={{ fontWeight: 'bold' }}>{tt('Subtotal:')}</span>
                 <span style={{ textAlign: 'right', fontWeight: 'bold' }}>MK {Number(sale.subtotal || 0).toFixed(2)}</span>
               </div>
               {(() => {
@@ -368,7 +369,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
                         paddingTop: '4px',
                         marginTop: '4px'
                       }}>
-                        <span style={{ fontWeight: 'bold' }}>Total Tax:</span>
+                        <span style={{ fontWeight: 'bold' }}>{tt('Total Tax:')}</span>
                         <span style={{ textAlign: 'right', fontWeight: 'bold' }}>MK {Number(totalTax).toFixed(2)}</span>
                       </div>
                     )}
@@ -377,7 +378,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
               })()}
               {sale.totalDiscountAmount && sale.totalDiscountAmount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                  <span style={{ fontWeight: 'bold' }}>Total Discount:</span>
+                  <span style={{ fontWeight: 'bold' }}>{tt('Total Discount:')}</span>
                   <span style={{ textAlign: 'right', fontWeight: 'bold' }}>-MK {Number(sale.totalDiscountAmount).toFixed(2)}</span>
                 </div>
               )}
@@ -393,7 +394,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
                 padding: '2px 0',
                 margin: '4px 0'
               }}>
-                <span>TOTAL:</span>
+                <span>{tt('TOTAL:')}</span>
                 <span>MK {Number(sale.total || 0).toFixed(2)}</span>
               </div>
             </div>
@@ -402,7 +403,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
             <div style={{ margin: '6px 0', fontSize: '9px', textAlign: 'center' }}>
               <div style={{ fontWeight: 'bold' }}>Payment Method: {sale.paymentMethod || sale.payments?.[0]?.allocations?.[0]?.paymentAccount?.name || 'N/A'}</div>
               <div style={{ fontWeight: 'bold' }}>Amount Paid: MK {Number(sale.total || 0).toFixed(2)}</div>
-              <div style={{ fontWeight: 'bold' }}>Change: MK 0.00</div>
+              <div style={{ fontWeight: 'bold' }}>{tt('Change: MK 0.00')}</div>
             </div>
 
             {/* Enhanced Footer */}
@@ -419,7 +420,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
                 Receipt generated on {formatDate(new Date())} at {formatTime(new Date())}
               </div>
               <div style={{ fontSize: '9px', marginTop: '2px', fontWeight: 'bold' }}>
-                insightbooksafrica.com
+                {tt('insightbooksafrica.com')}
               </div>
             </div>
           </div>

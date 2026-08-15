@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 export default function TaxOpsTable({ columns, rows, emptyLabel = "No records yet.", loading }) {
   return (
@@ -20,7 +21,7 @@ export default function TaxOpsTable({ columns, rows, emptyLabel = "No records ye
                 colSpan={columns.length}
                 className="px-4 py-6 text-[var(--text-secondary)]"
               >
-                Loading…
+                {tt('Loading…')}
               </td>
             </tr>
           ) : rows.length === 0 ? (

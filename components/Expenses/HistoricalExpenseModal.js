@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from 'react';
 import { X, Calendar, DollarSign, FileText, Building, CreditCard, Hash, StickyNote, History, Loader } from 'lucide-react';
@@ -204,8 +205,8 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
           <div className="flex items-center">
             <History className="h-6 w-6 text-blue-600 mr-3" />
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Add Historical Expense</h2>
-              <p className="text-sm text-gray-600 mt-1">Record an expense that occurred in the past</p>
+              <h2 className="text-xl font-semibold text-gray-900">{tt('Add Historical Expense')}</h2>
+              <p className="text-sm text-gray-600 mt-1">{tt('Record an expense that occurred in the past')}</p>
             </div>
           </div>
           <button
@@ -222,9 +223,9 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
           <div className="flex">
             <Calendar className="h-5 w-5 text-amber-400 flex-shrink-0" />
             <div className="ml-3">
-              <h4 className="text-sm font-medium text-amber-800">Historical Entry</h4>
+              <h4 className="text-sm font-medium text-amber-800">{tt('Historical Entry')}</h4>
               <p className="text-sm text-amber-700 mt-1">
-                This expense will be recorded with the historical date you specify and will affect account balances.
+                {tt('This expense will be recorded with the historical date you specify and will affect account balances.')}
               </p>
             </div>
           </div>
@@ -237,7 +238,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Calendar className="h-4 w-4 inline mr-1" />
-                Historical Date *
+                {tt('Historical Date *')}
               </label>
               <input
                 type="date"
@@ -257,7 +258,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <FileText className="h-4 w-4 inline mr-1" />
-                Description *
+                {tt('Description *')}
               </label>
               <input
                 type="text"
@@ -266,7 +267,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
                 className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                   errors.description ? 'border-red-500' : 'border-gray-300'
                 }`}
-                placeholder="Enter expense description"
+                placeholder={tt('Enter expense description')}
                 disabled={isSubmitting}
               />
               {errors.description && (
@@ -278,7 +279,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <DollarSign className="h-4 w-4 inline mr-1" />
-                Amount *
+                {tt('Amount *')}
               </label>
               <input
                 type="number"
@@ -303,7 +304,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
                 value={formData.expenseAccountId}
                 onChange={(value) => handleInputChange('expenseAccountId', value)}
                 options={availableCategories}
-                placeholder="Select expense account"
+                placeholder={tt('Select expense account')}
                 label="Expense Category"
                 required={true}
                 disabled={isSubmitting}
@@ -312,7 +313,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
               <p className="mt-1 text-xs text-gray-500">
                 Only predefined SYSTEM expense accounts appear here. Adjust the chart in{" "}
                 <a href="/chart-of-accounts" className="text-blue-600 hover:text-blue-800 underline">
-                  Chart of Accounts
+                  {tt('Chart of Accounts')}
                 </a>{" "}
                 if an account is missing.
               </p>
@@ -325,14 +326,14 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Building className="h-4 w-4 inline mr-1" />
-                Merchant
+                {tt('Merchant')}
               </label>
               <input
                 type="text"
                 value={formData.merchant}
                 onChange={(e) => handleInputChange('merchant', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter merchant name"
+                placeholder={tt('Enter merchant name')}
                 disabled={isSubmitting}
               />
             </div>
@@ -342,7 +343,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   <CreditCard className="h-4 w-4 inline mr-1" />
-                  Payment Method *
+                  {tt('Payment Method *')}
                 </label>
                 <select
                   value={formData.paymentMethod}
@@ -388,7 +389,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <CreditCard className="h-4 w-4 inline mr-1" />
-                Payment Status
+                {tt('Payment Status')}
               </label>
               <select
                 value={formData.paymentStatus}
@@ -396,9 +397,9 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 disabled={isSubmitting}
               >
-                <option value="Fully paid">Fully paid</option>
-                <option value="Partially">Partially</option>
-                <option value="Pending">Pending</option>
+                <option value="Fully paid">{tt('Fully paid')}</option>
+                <option value="Partially">{tt('Partially')}</option>
+                <option value="Pending">{tt('Pending')}</option>
               </select>
             </div>
 
@@ -408,7 +409,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <DollarSign className="h-4 w-4 inline mr-1" />
-                    Amount Paid
+                    {tt('Amount Paid')}
                   </label>
                   <input
                     type="number"
@@ -417,7 +418,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
                     className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       errors.paidAmount ? 'border-red-500' : 'border-gray-300'
                     }`}
-                    placeholder="Enter amount paid"
+                    placeholder={tt('Enter amount paid')}
                     step="0.01"
                     min="0"
                     disabled={isSubmitting}
@@ -430,7 +431,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Hash className="h-4 w-4 inline mr-1" />
-                    Payment Reference
+                    {tt('Payment Reference')}
                   </label>
                   <input
                     type="text"
@@ -453,18 +454,18 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Hash className="h-4 w-4 inline mr-1" />
-                Original Reference
+                {tt('Original Reference')}
               </label>
               <input
                 type="text"
                 value={formData.originalReference}
                 onChange={(e) => handleInputChange('originalReference', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Original invoice/receipt number"
+                placeholder={tt('Original invoice/receipt number')}
                 disabled={isSubmitting}
               />
               <p className="text-xs text-gray-500 mt-1">
-                Reference number from the original receipt or invoice
+                {tt('Reference number from the original receipt or invoice')}
               </p>
             </div>
 
@@ -472,14 +473,14 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <StickyNote className="h-4 w-4 inline mr-1" />
-                Notes
+                {tt('Notes')}
               </label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => handleInputChange('notes', e.target.value)}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Additional notes about this expense"
+                placeholder={tt('Additional notes about this expense')}
                 disabled={isSubmitting}
               />
             </div>
@@ -493,7 +494,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
               className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
               disabled={isSubmitting}
             >
-              Cancel
+              {tt('Cancel')}
             </button>
             <button
               type="submit"
@@ -507,12 +508,12 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
               {isSubmitting ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Creating...
+                  {tt('Creating...')}
                 </>
               ) : (
                 <>
                   <History className="h-4 w-4 mr-2" />
-                  Create Historical Expense
+                  {tt('Create Historical Expense')}
                 </>
               )}
             </button>

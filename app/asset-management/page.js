@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect, useMemo } from "react";
 import {
   Plus,
@@ -1537,39 +1538,39 @@ const AssetManagement = () => {
         )}
         
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Assets & Liabilities Management</h1>
+          <h1 className="text-2xl font-bold">{tt('Assets & Liabilities Management')}</h1>
         </div>
         
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
           <TabsList>
-            <TabsTrigger value="assets">Assets</TabsTrigger>
-            <TabsTrigger value="liabilities">Liabilities</TabsTrigger>
+            <TabsTrigger value="assets">{tt('Assets')}</TabsTrigger>
+            <TabsTrigger value="liabilities">{tt('Liabilities')}</TabsTrigger>
           </TabsList>
           
           <TabsContent value="assets">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold">Asset Management</h2>
+              <h2 className="text-xl font-semibold">{tt('Asset Management')}</h2>
               <div className="flex space-x-2">
                 <button 
                   className="btn-secondary flex items-center gap-2 px-4 py-2 rounded border border-gray-300 bg-white hover:bg-gray-50"
                   onClick={() => setShowAssetCategoryModal(true)}
                 >
                   <Plus size={16} />
-                  New Category
+                  {tt('New Category')}
                 </button>
                 <button 
                   className="btn-secondary flex items-center gap-2 px-4 py-2 rounded border border-gray-300 bg-white hover:bg-gray-50"
                   onClick={() => setShowDepreciationModal(true)}
                 >
                   <TrendingDown size={16} />
-                  Calculate Depreciation
+                  {tt('Calculate Depreciation')}
                 </button>
                 <button 
                   className="btn-secondary flex items-center gap-2 px-4 py-2 rounded border border-gray-300 bg-white hover:bg-gray-50"
                   onClick={handleExport}
                 >
                   <Download size={16} />
-                  Export
+                  {tt('Export')}
                 </button>
                 <button 
                   className="btn-primary flex items-center gap-2 px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
@@ -1579,7 +1580,7 @@ const AssetManagement = () => {
                   }}
                 >
                   <Plus size={16} />
-                  New Asset
+                  {tt('New Asset')}
                 </button>
               </div>
             </div>
@@ -1591,8 +1592,7 @@ const AssetManagement = () => {
                 ) : (
                   <>{assetUnallocatedGlCount} assets have no GL account linked (legacy data).</>
                 )}{' '}
-                Edit each asset and select an account under <strong>1500</strong> so purchases and the chart stay
-                aligned.
+                Edit each asset and select an account under <strong>1500</strong> {tt('so purchases and the chart stay aligned.')}
               </div>
             )}
 
@@ -1602,7 +1602,7 @@ const AssetManagement = () => {
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="Search assets..."
+                      placeholder={tt('Search assets...')}
                       className="input-search pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md"
                       value={assetSearchTerm}
                       onChange={handleAssetSearchChange}
@@ -1617,7 +1617,7 @@ const AssetManagement = () => {
                       value={assetCategoryFilter}
                       onChange={handleAssetCategoryFilterChange}
                     >
-                      <option value="all">All Categories</option>
+                      <option value="all">{tt('All Categories')}</option>
                       {assetCategories.map(cat => (
                         <option key={cat.id} value={cat.id}>{cat.name}</option>
                       ))}
@@ -1644,9 +1644,9 @@ const AssetManagement = () => {
                       value={assetSourceFilter}
                       onChange={handleAssetSourceFilterChange}
                     >
-                      <option value="all">All Sources</option>
-                      <option value="po">From PO</option>
-                      <option value="capital">From Capital Account</option>
+                      <option value="all">{tt('All Sources')}</option>
+                      <option value="po">{tt('From PO')}</option>
+                      <option value="capital">{tt('From Capital Account')}</option>
                     </select>
                     <Filter className="absolute left-3 top-2.5 text-gray-400" size={18} />
                   </div>
@@ -1666,22 +1666,22 @@ const AssetManagement = () => {
                 </div>
               ) : assets.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-gray-500">No assets found. Create your first asset!</p>
+                  <p className="text-gray-500">{tt('No assets found. Create your first asset!')}</p>
                 </div>
               ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 text-left">
-                    <th className="p-3 font-medium">Asset Name</th>
-                    <th className="p-3 font-medium">Category</th>
-                    <th className="p-3 font-medium">GL account</th>
-                    <th className="p-3 font-medium">Purchase Date</th>
-                    <th className="p-3 font-medium text-right">Original Cost</th>
-                    <th className="p-3 font-medium text-right">Accumulated Depreciation</th>
-                    <th className="p-3 font-medium text-right">Net Book Value</th>
-                    <th className="p-3 font-medium">Status</th>
-                    <th className="p-3 font-medium text-center">Actions</th>
+                    <th className="p-3 font-medium">{tt('Asset Name')}</th>
+                    <th className="p-3 font-medium">{tt('Category')}</th>
+                    <th className="p-3 font-medium">{tt('GL account')}</th>
+                    <th className="p-3 font-medium">{tt('Purchase Date')}</th>
+                    <th className="p-3 font-medium text-right">{tt('Original Cost')}</th>
+                    <th className="p-3 font-medium text-right">{tt('Accumulated Depreciation')}</th>
+                    <th className="p-3 font-medium text-right">{tt('Net Book Value')}</th>
+                    <th className="p-3 font-medium">{tt('Status')}</th>
+                    <th className="p-3 font-medium text-center">{tt('Actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1693,12 +1693,12 @@ const AssetManagement = () => {
                           {(String(asset.notes || "").toUpperCase().includes("AUTO_ASSET_FROM_GR:") ||
                             String(asset.notes || "").toUpperCase().includes("[PO_ASSET:")) && (
                             <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                              From PO
+                              {tt('From PO')}
                             </span>
                           )}
                           {String(asset.notes || "").includes("CAPITAL_CONTRIBUTION:") && (
                             <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
-                              Capital
+                              {tt('Capital')}
                             </span>
                           )}
                         </div>
@@ -1777,7 +1777,7 @@ const AssetManagement = () => {
                       onClick={() => handleAssetPageChange(assetPage - 1)}
                       disabled={assetPage === 1}
                     >
-                      Previous
+                      {tt('Previous')}
                     </button>
                     {Array.from({ length: Math.min(5, assetTotalPages) }).map((_, index) => {
                       const pageNumber = assetPage > 2 ? assetPage - 2 + index : index + 1;
@@ -1803,7 +1803,7 @@ const AssetManagement = () => {
                       onClick={() => handleAssetPageChange(assetPage + 1)}
                       disabled={assetPage === assetTotalPages}
                     >
-                      Next
+                      {tt('Next')}
                     </button>
                   </div>
                 </div>
@@ -1813,14 +1813,14 @@ const AssetManagement = () => {
           
           <TabsContent value="liabilities">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold">Liability Management</h2>
+              <h2 className="text-xl font-semibold">{tt('Liability Management')}</h2>
               <div className="flex space-x-2">
                 <button 
                   className="btn-secondary flex items-center gap-2 px-4 py-2 rounded border border-gray-300 bg-white hover:bg-gray-50"
                   onClick={() => setShowLiabilityCategoryModal(true)}
                 >
                   <Plus size={16} />
-                  New Category
+                  {tt('New Category')}
                 </button>
                 <button 
                   className="btn-primary flex items-center gap-2 px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
@@ -1830,7 +1830,7 @@ const AssetManagement = () => {
                   }}
                 >
                   <Plus size={16} />
-                  New Liability
+                  {tt('New Liability')}
                 </button>
               </div>
             </div>
@@ -1841,7 +1841,7 @@ const AssetManagement = () => {
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="Search liabilities..."
+                      placeholder={tt('Search liabilities...')}
                       className="input-search pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md"
                       value={liabilitySearchTerm}
                       onChange={handleLiabilitySearchChange}
@@ -1856,7 +1856,7 @@ const AssetManagement = () => {
                       value={liabilityCategoryFilter}
                       onChange={handleLiabilityCategoryFilterChange}
                     >
-                      <option value="all">All Categories</option>
+                      <option value="all">{tt('All Categories')}</option>
                       {liabilityCategories.map(cat => (
                         <option key={cat.id} value={cat.id}>{cat.name}</option>
                       ))}
@@ -1869,9 +1869,9 @@ const AssetManagement = () => {
                       value={liabilityTypeFilter}
                       onChange={handleLiabilityTypeFilterChange}
                     >
-                      <option value="all">All Types</option>
+                      <option value="all">{tt('All Types')}</option>
                       {liabilityTypes.map(type => (
-                        <option key={type.value} value={type.value}>{type.label}</option>
+                        <option key={type.value} value={type.value}>{tt(type.label)}</option>
                       ))}
                     </select>
                     <Filter className="absolute left-3 top-2.5 text-gray-400" size={18} />
@@ -1906,25 +1906,25 @@ const AssetManagement = () => {
                 </div>
               ) : liabilities.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-gray-500">No liabilities found. Create your first liability!</p>
+                  <p className="text-gray-500">{tt('No liabilities found. Create your first liability!')}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 text-left">
-                        <th className="p-3 font-medium">Liability Name</th>
-                        <th className="p-3 font-medium">Type</th>
-                        <th className="p-3 font-medium">Category</th>
-                        <th className="p-3 font-medium">GL account</th>
-                        <th className="p-3 font-medium">Lender</th>
-                        <th className="p-3 font-medium">Interest Method</th>
-                        <th className="p-3 font-medium text-right">Principal Amount</th>
+                        <th className="p-3 font-medium">{tt('Liability Name')}</th>
+                        <th className="p-3 font-medium">{tt('Type')}</th>
+                        <th className="p-3 font-medium">{tt('Category')}</th>
+                        <th className="p-3 font-medium">{tt('GL account')}</th>
+                        <th className="p-3 font-medium">{tt('Lender')}</th>
+                        <th className="p-3 font-medium">{tt('Interest Method')}</th>
+                        <th className="p-3 font-medium text-right">{tt('Principal Amount')}</th>
                         <th className="p-3 font-medium text-right">Projected Total (Schedule)</th>
-                        <th className="p-3 font-medium text-right">Current Balance</th>
-                        <th className="p-3 font-medium text-right">Total Paid</th>
-                        <th className="p-3 font-medium">Status</th>
-                        <th className="p-3 font-medium text-center">Actions</th>
+                        <th className="p-3 font-medium text-right">{tt('Current Balance')}</th>
+                        <th className="p-3 font-medium text-right">{tt('Total Paid')}</th>
+                        <th className="p-3 font-medium">{tt('Status')}</th>
+                        <th className="p-3 font-medium text-center">{tt('Actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2019,7 +2019,7 @@ const AssetManagement = () => {
                       onClick={() => handleLiabilityPageChange(liabilityPage - 1)}
                       disabled={liabilityPage === 1}
                     >
-                      Previous
+                      {tt('Previous')}
                     </button>
                     {Array.from({ length: Math.min(5, liabilityTotalPages) }).map((_, index) => {
                       const pageNumber = liabilityPage > 2 ? liabilityPage - 2 + index : index + 1;
@@ -2045,7 +2045,7 @@ const AssetManagement = () => {
                       onClick={() => handleLiabilityPageChange(liabilityPage + 1)}
                       disabled={liabilityPage === liabilityTotalPages}
                     >
-                      Next
+                      {tt('Next')}
                     </button>
                   </div>
                 </div>
@@ -2060,7 +2060,7 @@ const AssetManagement = () => {
             <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">New Category</h2>
+                  <h2 className="text-xl font-semibold">{tt('New Category')}</h2>
                   <button 
                     onClick={() => {
                       setShowAssetCategoryModal(false);
@@ -2075,7 +2075,7 @@ const AssetManagement = () => {
               <form onSubmit={handleAssetCategorySubmit}>
                 <div className="p-6">
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Category Name *</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Category Name *')}</label>
                     <input
                       type="text"
                       className="w-full p-2 border border-gray-200 rounded"
@@ -2085,7 +2085,7 @@ const AssetManagement = () => {
                     />
                   </div>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Description</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Description')}</label>
                     <textarea
                       className="w-full p-2 border border-gray-200 rounded"
                       rows="3"
@@ -2103,13 +2103,13 @@ const AssetManagement = () => {
                       setAssetCategoryFormData({ name: "", description: "" });
                     }}
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                   >
-                    Create Category
+                    {tt('Create Category')}
                   </button>
                 </div>
               </form>
@@ -2123,7 +2123,7 @@ const AssetManagement = () => {
             <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">New Category</h2>
+                  <h2 className="text-xl font-semibold">{tt('New Category')}</h2>
                   <button 
                     onClick={() => {
                       setShowLiabilityCategoryModal(false);
@@ -2138,7 +2138,7 @@ const AssetManagement = () => {
               <form onSubmit={handleLiabilityCategorySubmit}>
                 <div className="p-6">
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Category Name *</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Category Name *')}</label>
                     <input
                       type="text"
                       className="w-full p-2 border border-gray-200 rounded"
@@ -2148,7 +2148,7 @@ const AssetManagement = () => {
                     />
                   </div>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Description</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Description')}</label>
                     <textarea
                       className="w-full p-2 border border-gray-200 rounded"
                       rows="3"
@@ -2166,13 +2166,13 @@ const AssetManagement = () => {
                       setLiabilityCategoryFormData({ name: "", description: "" });
                     }}
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                   >
-                    Create Category
+                    {tt('Create Category')}
                   </button>
                 </div>
               </form>
@@ -2202,7 +2202,7 @@ const AssetManagement = () => {
                 <div className="p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Asset Name *</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Asset Name *')}</label>
                       <input
                         type="text"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -2213,7 +2213,7 @@ const AssetManagement = () => {
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm font-medium">Category *</label>
+                        <label className="block text-sm font-medium">{tt('Category *')}</label>
                         <button
                             type="button"
                             className="text-xs font-medium text-blue-600 hover:text-blue-800"
@@ -2233,7 +2233,7 @@ const AssetManagement = () => {
                           <input
                             type="text"
                             className="w-full p-2 border border-gray-200 rounded bg-white"
-                            placeholder="New category name"
+                            placeholder={tt('New category name')}
                             value={inlineAssetCategoryName}
                             onChange={(e) => setInlineAssetCategoryName(e.target.value)}
                             required
@@ -2253,7 +2253,7 @@ const AssetManagement = () => {
                           onChange={(e) => setAssetFormData({...assetFormData, categoryId: e.target.value})}
                           required={!assetCategoryInlineMode}
                         >
-                          <option value="">Select Category</option>
+                          <option value="">{tt('Select Category')}</option>
                           {assetCategories.map(cat => (
                             <option key={cat.id} value={cat.id}>{cat.name}</option>
                           ))}
@@ -2283,12 +2283,12 @@ const AssetManagement = () => {
                       ))}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      Purchase journals debit this balance-sheet account.
+                      {tt('Purchase journals debit this balance-sheet account.')}
                     </p>
                   </div>
                   
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Description</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Description')}</label>
                     <textarea
                       className="w-full p-2 border border-gray-200 rounded"
                       rows="2"
@@ -2299,7 +2299,7 @@ const AssetManagement = () => {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Purchase Date *</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Purchase Date *')}</label>
                       <input
                         type="date"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -2309,7 +2309,7 @@ const AssetManagement = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Original Cost *</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Original Cost *')}</label>
                       <input
                         type="number"
                         step="0.01"
@@ -2333,13 +2333,13 @@ const AssetManagement = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Depreciation Method</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Depreciation Method')}</label>
                       <select
                         className="w-full p-2 border border-gray-200 rounded"
                         value={assetFormData.depreciationMethod}
                         onChange={(e) => setAssetFormData({...assetFormData, depreciationMethod: e.target.value})}
                       >
-                        <option value="straight_line">Straight Line</option>
+                        <option value="straight_line">{tt('Straight Line')}</option>
                       </select>
                     </div>
                   </div>
@@ -2358,7 +2358,7 @@ const AssetManagement = () => {
                   
                   {assetFormData.isExistingAsset && (
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Accumulated Depreciation</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Accumulated Depreciation')}</label>
                       <input
                         type="number"
                         step="0.01"
@@ -2366,13 +2366,13 @@ const AssetManagement = () => {
                         value={assetFormData.accumulatedDepreciation}
                         onChange={(e) => setAssetFormData({...assetFormData, accumulatedDepreciation: e.target.value})}
                       />
-                      <p className="text-xs text-gray-500 mt-1">Enter the depreciation already accumulated on this asset</p>
+                      <p className="text-xs text-gray-500 mt-1">{tt('Enter the depreciation already accumulated on this asset')}</p>
                     </div>
                   )}
                   
                   {!assetFormData.isExistingAsset && (
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Payment Account *</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Payment Account *')}</label>
                       <select
                         className="w-full p-2 border border-gray-200 rounded"
                         value={assetFormData.paymentMethod}
@@ -2380,21 +2380,21 @@ const AssetManagement = () => {
                         required
                         disabled={!paymentAccounts.length}
                       >
-                        <option value="">Select a payment account</option>
-                        {!paymentAccounts.length && <option value="">No payment accounts found</option>}
+                        <option value="">{tt('Select a payment account')}</option>
+                        {!paymentAccounts.length && <option value="">{tt('No payment accounts found')}</option>}
                         {paymentAccounts.map((account) => (
                           <option key={account.key} value={account.key}>
                             {account.name} · Balance {formatCurrency(account.balance || 0)}
                           </option>
                         ))}
                       </select>
-                      <p className="text-xs text-gray-500 mt-1">Select the payment account from which the asset purchase will be deducted. Uses the same payment accounts configured under Payment Accounts.</p>
+                      <p className="text-xs text-gray-500 mt-1">{tt('Select the payment account from which the asset purchase will be deducted. Uses the same payment accounts configured under Payment Accounts.')}</p>
                     </div>
                   )}
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Location</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Location')}</label>
                       <input
                         type="text"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -2403,7 +2403,7 @@ const AssetManagement = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Serial Number</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Serial Number')}</label>
                       <input
                         type="text"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -2415,7 +2415,7 @@ const AssetManagement = () => {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Supplier</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Supplier')}</label>
                       <input
                         type="text"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -2424,7 +2424,7 @@ const AssetManagement = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Warranty Expiry</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Warranty Expiry')}</label>
                       <input
                         type="date"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -2435,7 +2435,7 @@ const AssetManagement = () => {
                   </div>
                   
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Notes</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Notes')}</label>
                     <textarea
                       className="w-full p-2 border border-gray-200 rounded"
                       rows="3"
@@ -2454,7 +2454,7 @@ const AssetManagement = () => {
                       resetAssetForm();
                     }}
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
@@ -2475,7 +2475,7 @@ const AssetManagement = () => {
             <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">Calculate Depreciation</h2>
+                  <h2 className="text-xl font-semibold">{tt('Calculate Depreciation')}</h2>
                   <button 
                     onClick={() => setShowDepreciationModal(false)}
                     className="text-gray-500 hover:text-gray-700"
@@ -2487,7 +2487,7 @@ const AssetManagement = () => {
               <form onSubmit={handleDepreciationSubmit}>
                 <div className="p-6">
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Period Start *</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Period Start *')}</label>
                     <input
                       type="date"
                       className="w-full p-2 border border-gray-200 rounded"
@@ -2498,7 +2498,7 @@ const AssetManagement = () => {
                   </div>
                   
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Period End *</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Period End *')}</label>
                     <input
                       type="date"
                       className="w-full p-2 border border-gray-200 rounded"
@@ -2509,7 +2509,7 @@ const AssetManagement = () => {
                   </div>
                   
                   <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
-                    <p>This will calculate depreciation for all active assets for the specified period and post journal entries automatically.</p>
+                    <p>{tt('This will calculate depreciation for all active assets for the specified period and post journal entries automatically.')}</p>
                   </div>
                 </div>
                 
@@ -2519,13 +2519,13 @@ const AssetManagement = () => {
                     className="px-4 py-2 border border-gray-200 rounded"
                     onClick={() => setShowDepreciationModal(false)}
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
                   >
-                    Calculate & Post
+                    {tt('Calculate & Post')}
                   </button>
                 </div>
               </form>
@@ -2539,7 +2539,7 @@ const AssetManagement = () => {
             <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">Asset Details</h2>
+                  <h2 className="text-xl font-semibold">{tt('Asset Details')}</h2>
                   <button 
                     onClick={() => setShowViewModal(false)}
                     className="text-gray-500 hover:text-gray-700"
@@ -2551,11 +2551,11 @@ const AssetManagement = () => {
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Asset Name</p>
+                    <p className="text-sm text-gray-500 mb-1">{tt('Asset Name')}</p>
                     <p className="font-medium">{viewAsset.name}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Category</p>
+                    <p className="text-sm text-gray-500 mb-1">{tt('Category')}</p>
                     <p className="font-medium">{viewAsset.category.name}</p>
                   </div>
                   <div>
@@ -2568,36 +2568,36 @@ const AssetManagement = () => {
                   </div>
                   {viewAsset.description && (
                     <div className="md:col-span-2">
-                      <p className="text-sm text-gray-500 mb-1">Description</p>
+                      <p className="text-sm text-gray-500 mb-1">{tt('Description')}</p>
                       <p className="font-medium">{viewAsset.description}</p>
                     </div>
                   )}
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Purchase Date</p>
+                    <p className="text-sm text-gray-500 mb-1">{tt('Purchase Date')}</p>
                     <p className="font-medium">{new Date(viewAsset.purchaseDate).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Original Cost</p>
+                    <p className="text-sm text-gray-500 mb-1">{tt('Original Cost')}</p>
                     <p className="font-medium">{formatCurrency(viewAsset.originalCost)}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Useful Life</p>
+                    <p className="text-sm text-gray-500 mb-1">{tt('Useful Life')}</p>
                     <p className="font-medium">{viewAsset.usefulLifeYears} years</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Depreciation Method</p>
+                    <p className="text-sm text-gray-500 mb-1">{tt('Depreciation Method')}</p>
                     <p className="font-medium">{viewAsset.depreciationMethod.replace('_', ' ').toUpperCase()}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Accumulated Depreciation</p>
+                    <p className="text-sm text-gray-500 mb-1">{tt('Accumulated Depreciation')}</p>
                     <p className="font-medium text-red-600">{formatCurrency(viewAsset.currentAccumulatedDepreciation)}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Net Book Value</p>
+                    <p className="text-sm text-gray-500 mb-1">{tt('Net Book Value')}</p>
                     <p className="font-medium text-green-600">{formatCurrency(viewAsset.currentNetBookValue)}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">Status</p>
+                    <p className="text-sm text-gray-500 mb-1">{tt('Status')}</p>
                     <span className={`px-2 py-1 rounded-full text-xs ${
                       viewAsset.status === "active" 
                         ? "bg-green-100 text-green-800" 
@@ -2608,25 +2608,25 @@ const AssetManagement = () => {
                   </div>
                   {viewAsset.location && (
                     <div>
-                      <p className="text-sm text-gray-500 mb-1">Location</p>
+                      <p className="text-sm text-gray-500 mb-1">{tt('Location')}</p>
                       <p className="font-medium">{viewAsset.location}</p>
                     </div>
                   )}
                   {viewAsset.serialNumber && (
                     <div>
-                      <p className="text-sm text-gray-500 mb-1">Serial Number</p>
+                      <p className="text-sm text-gray-500 mb-1">{tt('Serial Number')}</p>
                       <p className="font-medium">{viewAsset.serialNumber}</p>
                     </div>
                   )}
                   {viewAsset.supplier && (
                     <div>
-                      <p className="text-sm text-gray-500 mb-1">Supplier</p>
+                      <p className="text-sm text-gray-500 mb-1">{tt('Supplier')}</p>
                       <p className="font-medium">{viewAsset.supplier}</p>
                     </div>
                   )}
                   {viewAsset.warrantyExpiry && (
                     <div>
-                      <p className="text-sm text-gray-500 mb-1">Warranty Expiry</p>
+                      <p className="text-sm text-gray-500 mb-1">{tt('Warranty Expiry')}</p>
                       <p className="font-medium">{new Date(viewAsset.warrantyExpiry).toLocaleDateString()}</p>
                     </div>
                   )}
@@ -2639,12 +2639,12 @@ const AssetManagement = () => {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-gray-50 text-left">
-                            <th className="p-3 font-medium">Date</th>
-                            <th className="p-3 font-medium">From</th>
-                            <th className="p-3 font-medium">To</th>
-                            <th className="p-3 font-medium">Category change</th>
-                            <th className="p-3 font-medium">By</th>
-                            <th className="p-3 font-medium">Notes</th>
+                            <th className="p-3 font-medium">{tt('Date')}</th>
+                            <th className="p-3 font-medium">{tt('From')}</th>
+                            <th className="p-3 font-medium">{tt('To')}</th>
+                            <th className="p-3 font-medium">{tt('Category change')}</th>
+                            <th className="p-3 font-medium">{tt('By')}</th>
+                            <th className="p-3 font-medium">{tt('Notes')}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2670,22 +2670,22 @@ const AssetManagement = () => {
                       </table>
                     </div>
                     <p className="text-xs text-gray-500 mt-2">
-                      Each transfer is also recorded in audit logs for both businesses. Financial snapshot at transfer is stored on the server.
+                      {tt('Each transfer is also recorded in audit logs for both businesses. Financial snapshot at transfer is stored on the server.')}
                     </p>
                   </div>
                 )}
 
                 {viewAsset.depreciationSchedules && viewAsset.depreciationSchedules.length > 0 && (
                   <div className="mt-6">
-                    <h3 className="text-sm font-semibold mb-3">Depreciation History</h3>
+                    <h3 className="text-sm font-semibold mb-3">{tt('Depreciation History')}</h3>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-gray-50 text-left">
-                            <th className="p-3 font-medium">Period</th>
-                            <th className="p-3 font-medium text-right">Depreciation</th>
-                            <th className="p-3 font-medium text-right">Accumulated</th>
-                            <th className="p-3 font-medium text-right">Net Book Value</th>
+                            <th className="p-3 font-medium">{tt('Period')}</th>
+                            <th className="p-3 font-medium text-right">{tt('Depreciation')}</th>
+                            <th className="p-3 font-medium text-right">{tt('Accumulated')}</th>
+                            <th className="p-3 font-medium text-right">{tt('Net Book Value')}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2711,7 +2711,7 @@ const AssetManagement = () => {
                   className="px-4 py-2 border border-gray-200 rounded"
                   onClick={() => setShowViewModal(false)}
                 >
-                  Close
+                  {tt('Close')}
                 </button>
               </div>
             </div>
@@ -2722,7 +2722,7 @@ const AssetManagement = () => {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl">
               <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Transfer asset to another business</h2>
+                <h2 className="text-xl font-semibold">{tt('Transfer asset to another business')}</h2>
                 <button
                   type="button"
                   onClick={() => {
@@ -2730,7 +2730,7 @@ const AssetManagement = () => {
                     setTransferAsset(null);
                   }}
                   className="text-gray-500 hover:text-gray-700"
-                  aria-label="Close"
+                  aria-label={tt('Close')}
                 >
                   <X size={20} />
                 </button>
@@ -2748,7 +2748,7 @@ const AssetManagement = () => {
                   </div>
                   <div>
                     <label htmlFor="transfer-target-tenant" className="block text-sm font-medium mb-1">
-                      Destination business <span className="text-red-500">*</span>
+                      {tt('Destination business')} <span className="text-red-500">*</span>
                     </label>
                     <select
                       id="transfer-target-tenant"
@@ -2760,7 +2760,7 @@ const AssetManagement = () => {
                         setTransferCategoryId("");
                       }}
                     >
-                      <option value="">Select business…</option>
+                      <option value="">{tt('Select business…')}</option>
                       {userTenants
                         .filter((t) => t.id !== (currentTenantId ?? ""))
                         .map((t) => (
@@ -2781,7 +2781,7 @@ const AssetManagement = () => {
                       onChange={(e) => setTransferCategoryId(e.target.value)}
                       disabled={!transferTargetTenantId}
                     >
-                      <option value="">Match by name or create automatically</option>
+                      <option value="">{tt('Match by name or create automatically')}</option>
                       {transferTargetCategories.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
@@ -2799,7 +2799,7 @@ const AssetManagement = () => {
                       className="w-full p-2 border border-gray-200 rounded text-sm"
                       value={transferNotes}
                       onChange={(e) => setTransferNotes(e.target.value)}
-                      placeholder="Reason or reference"
+                      placeholder={tt('Reason or reference')}
                     />
                   </div>
                 </div>
@@ -2812,7 +2812,7 @@ const AssetManagement = () => {
                       setTransferAsset(null);
                     }}
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
@@ -2833,7 +2833,7 @@ const AssetManagement = () => {
             <div className="bg-white rounded-lg w-full max-w-md">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">Dispose Asset</h2>
+                  <h2 className="text-xl font-semibold">{tt('Dispose Asset')}</h2>
                   <button 
                     onClick={() => setShowDisposalModal(false)}
                     className="text-gray-500 hover:text-gray-700"
@@ -2855,7 +2855,7 @@ const AssetManagement = () => {
                 <div className="p-6">
                   <div className="mb-4">
                     <p className="text-sm text-gray-600 mb-2">
-                      Asset: <span className="font-medium">{disposalAsset.name}</span>
+                      {tt('Asset:')} <span className="font-medium">{disposalAsset.name}</span>
                     </p>
                     <p className="text-xs text-gray-500">
                       This asset has depreciation history and cannot be deleted. 
@@ -2864,7 +2864,7 @@ const AssetManagement = () => {
                   </div>
                   
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Disposal Date *</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Disposal Date *')}</label>
                     <input
                       type="date"
                       name="disposalDate"
@@ -2875,7 +2875,7 @@ const AssetManagement = () => {
                   </div>
                   
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Disposal Amount</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Disposal Amount')}</label>
                     <input
                       type="number"
                       name="disposalAmount"
@@ -2887,27 +2887,27 @@ const AssetManagement = () => {
                   </div>
                   
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Disposal Method *</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Disposal Method *')}</label>
                     <select
                       name="disposalMethod"
                       className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       required
                     >
-                      <option value="">Select method</option>
-                      <option value="sold">Sold</option>
-                      <option value="scrapped">Scrapped</option>
-                      <option value="donated">Donated</option>
-                      <option value="lost">Lost/Stolen</option>
-                      <option value="other">Other</option>
+                      <option value="">{tt('Select method')}</option>
+                      <option value="sold">{tt('Sold')}</option>
+                      <option value="scrapped">{tt('Scrapped')}</option>
+                      <option value="donated">{tt('Donated')}</option>
+                      <option value="lost">{tt('Lost/Stolen')}</option>
+                      <option value="other">{tt('Other')}</option>
                     </select>
                   </div>
                   
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Notes</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Notes')}</label>
                     <textarea
                       name="disposalNotes"
                       rows={3}
-                      placeholder="Additional disposal details..."
+                      placeholder={tt('Additional disposal details...')}
                       className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -2919,13 +2919,13 @@ const AssetManagement = () => {
                     className="px-4 py-2 border border-gray-200 rounded"
                     onClick={() => setShowDisposalModal(false)}
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
                   >
-                    Dispose Asset
+                    {tt('Dispose Asset')}
                   </button>
                 </div>
               </form>
@@ -2955,7 +2955,7 @@ const AssetManagement = () => {
                 <div className="p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Liability Name *</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Liability Name *')}</label>
                       <input
                         type="text"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -2966,7 +2966,7 @@ const AssetManagement = () => {
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm font-medium">Category *</label>
+                        <label className="block text-sm font-medium">{tt('Category *')}</label>
                         {!liabilityEditId && (
                           <button
                             type="button"
@@ -2988,7 +2988,7 @@ const AssetManagement = () => {
                           <input
                             type="text"
                             className="w-full p-2 border border-gray-200 rounded bg-white"
-                            placeholder="New category name"
+                            placeholder={tt('New category name')}
                             value={inlineLiabilityCategoryName}
                             onChange={(e) => setInlineLiabilityCategoryName(e.target.value)}
                             required
@@ -3008,7 +3008,7 @@ const AssetManagement = () => {
                           onChange={(e) => setLiabilityFormData({...liabilityFormData, categoryId: e.target.value})}
                           required={!liabilityCategoryInlineMode}
                         >
-                          <option value="">Select Category</option>
+                          <option value="">{tt('Select Category')}</option>
                           {liabilityCategories.map(cat => (
                             <option key={cat.id} value={cat.id}>{cat.name}</option>
                           ))}
@@ -3050,7 +3050,7 @@ const AssetManagement = () => {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Liability Type *</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Liability Type *')}</label>
                       <select
                         className="w-full p-2 border border-gray-200 rounded"
                         value={liabilityFormData.liabilityType}
@@ -3058,26 +3058,26 @@ const AssetManagement = () => {
                         required
                       >
                         {liabilityTypes.map(type => (
-                          <option key={type.value} value={type.value}>{type.label}</option>
+                          <option key={type.value} value={type.value}>{tt(type.label)}</option>
                         ))}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Status</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Status')}</label>
                       <select
                         className="w-full p-2 border border-gray-200 rounded"
                         value={liabilityFormData.status}
                         onChange={(e) => setLiabilityFormData({...liabilityFormData, status: e.target.value})}
                       >
-                        <option value="active">Active</option>
-                        <option value="paid_off">Paid Off</option>
-                        <option value="defaulted">Defaulted</option>
+                        <option value="active">{tt('Active')}</option>
+                        <option value="paid_off">{tt('Paid Off')}</option>
+                        <option value="defaulted">{tt('Defaulted')}</option>
                       </select>
                     </div>
                   </div>
                   
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Description</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Description')}</label>
                     <textarea
                       className="w-full p-2 border border-gray-200 rounded"
                       rows="2"
@@ -3088,7 +3088,7 @@ const AssetManagement = () => {
                   
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Principal Amount *</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Principal Amount *')}</label>
                         <input
                           type="number"
                           step="0.01"
@@ -3099,18 +3099,18 @@ const AssetManagement = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-1">Interest Method</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Interest Method')}</label>
                         <select
                           className="w-full p-2 border border-gray-200 rounded"
                           value={liabilityFormData.interestType}
                           onChange={(e) => setLiabilityFormData({...liabilityFormData, interestType: e.target.value})}
                         >
                           {interestTypeOptions.map(option => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
+                            <option key={option.value} value={option.value}>{tt(option.label)}</option>
                           ))}
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
-                          Reducing balance recalculates interest each installment. One-time charges a single upfront amount.
+                          {tt('Reducing balance recalculates interest each installment. One-time charges a single upfront amount.')}
                         </p>
                       </div>
                     </div>
@@ -3120,7 +3120,7 @@ const AssetManagement = () => {
                         {liabilityFormData.interestType === 'one_time' ? (
                           <div className="space-y-2">
                             <div>
-                              <label className="block text-sm font-medium mb-1">One-time Interest Input</label>
+                              <label className="block text-sm font-medium mb-1">{tt('One-time Interest Input')}</label>
                               <select
                                 className="w-full p-2 border border-gray-200 rounded"
                                 value={liabilityFormData.oneTimeInterestMode || "amount"}
@@ -3135,8 +3135,8 @@ const AssetManagement = () => {
                                   }));
                                 }}
                               >
-                                <option value="amount">Enter amount</option>
-                                <option value="percentage">Enter percentage</option>
+                                <option value="amount">{tt('Enter amount')}</option>
+                                <option value="percentage">{tt('Enter percentage')}</option>
                               </select>
                             </div>
                             {liabilityFormData.oneTimeInterestMode === 'percentage' ? (
@@ -3148,22 +3148,22 @@ const AssetManagement = () => {
                                   className="w-full p-2 border border-gray-200 rounded"
                                   value={liabilityFormData.oneTimeInterestPercent || ""}
                                   onChange={(e) => setLiabilityFormData({...liabilityFormData, oneTimeInterestPercent: e.target.value})}
-                                  placeholder="e.g. 5"
+                                  placeholder={tt('e.g. 5')}
                                 />
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Converted to MWK automatically based on principal.
+                                  {tt('Converted to MWK automatically based on principal.')}
                                 </p>
                               </div>
                             ) : (
                               <div>
-                                <label className="block text-sm font-medium mb-1">One-time Interest Amount</label>
+                                <label className="block text-sm font-medium mb-1">{tt('One-time Interest Amount')}</label>
                                 <input
                                   type="number"
                                   step="0.01"
                                   className="w-full p-2 border border-gray-200 rounded"
                                   value={liabilityFormData.oneTimeInterestAmount}
                                   onChange={(e) => setLiabilityFormData({...liabilityFormData, oneTimeInterestAmount: e.target.value})}
-                                  placeholder="Enter agreed interest amount"
+                                  placeholder={tt('Enter agreed interest amount')}
                                 />
                               </div>
                             )}
@@ -3176,14 +3176,14 @@ const AssetManagement = () => {
                         ) : (
                           <div className="space-y-2">
                             <div>
-                              <label className="block text-sm font-medium mb-1">Interest Rate Input</label>
+                              <label className="block text-sm font-medium mb-1">{tt('Interest Rate Input')}</label>
                               <select
                                 className="w-full p-2 border border-gray-200 rounded"
                                 value={liabilityFormData.interestRateMode || "annual"}
                                 onChange={(e) => setLiabilityFormData({...liabilityFormData, interestRateMode: e.target.value})}
                               >
-                                <option value="annual">Annual percentage rate</option>
-                                <option value="monthly">Monthly percentage rate</option>
+                                <option value="annual">{tt('Annual percentage rate')}</option>
+                                <option value="monthly">{tt('Monthly percentage rate')}</option>
                               </select>
                             </div>
                             <div>
@@ -3201,7 +3201,7 @@ const AssetManagement = () => {
                                 placeholder={liabilityFormData.interestRateMode === 'monthly' ? 'Monthly percentage rate' : 'Annual percentage rate'}
                               />
                               <p className="text-xs text-gray-500 mt-1">
-                                Monthly rates are converted to an annual APR when calculating the schedule.
+                                {tt('Monthly rates are converted to an annual APR when calculating the schedule.')}
                               </p>
                             </div>
                           </div>
@@ -3222,7 +3222,7 @@ const AssetManagement = () => {
                               return next;
                             });
                           }}
-                          placeholder="Optional"
+                          placeholder={tt('Optional')}
                         />
                         <p className="text-xs text-gray-500 mt-1">
                           With a start date set, changing the term updates maturity; change maturity to back-calculate
@@ -3233,7 +3233,7 @@ const AssetManagement = () => {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Start Date *</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Start Date *')}</label>
                       <input
                         type="date"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -3257,7 +3257,7 @@ const AssetManagement = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Maturity Date</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Maturity Date')}</label>
                       <input
                         type="date"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -3277,7 +3277,7 @@ const AssetManagement = () => {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Payment Frequency</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Payment Frequency')}</label>
                       <select
                         className="w-full p-2 border border-gray-200 rounded"
                         value={liabilityFormData.paymentFrequency}
@@ -3289,7 +3289,7 @@ const AssetManagement = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Lender/Creditor</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Lender/Creditor')}</label>
                       <input
                         type="text"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -3300,7 +3300,7 @@ const AssetManagement = () => {
                   </div>
                   
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Account Number</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Account Number')}</label>
                     <input
                       type="text"
                       className="w-full p-2 border border-gray-200 rounded"
@@ -3310,7 +3310,7 @@ const AssetManagement = () => {
                   </div>
                   
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Notes</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Notes')}</label>
                     <textarea
                       className="w-full p-2 border border-gray-200 rounded"
                       rows="3"
@@ -3329,7 +3329,7 @@ const AssetManagement = () => {
                       resetLiabilityForm();
                     }}
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
@@ -3349,7 +3349,7 @@ const AssetManagement = () => {
             <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">Liability Details</h2>
+                  <h2 className="text-xl font-semibold">{tt('Liability Details')}</h2>
                   <button 
                     onClick={() => {
                       setShowLiabilityViewModal(false);
@@ -3364,20 +3364,20 @@ const AssetManagement = () => {
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <h3 className="font-semibold mb-2">Basic Information</h3>
+                    <h3 className="font-semibold mb-2">{tt('Basic Information')}</h3>
                     <div className="space-y-2 text-sm">
-                      <div><span className="font-medium">Name:</span> {viewLiability.name}</div>
-                      <div><span className="font-medium">Type:</span> {liabilityTypes.find(t => t.value === viewLiability.liabilityType)?.label || viewLiability.liabilityType}</div>
-                      <div><span className="font-medium">Category:</span> {viewLiability.category.name}</div>
+                      <div><span className="font-medium">{tt('Name:')}</span> {viewLiability.name}</div>
+                      <div><span className="font-medium">{tt('Type:')}</span> {liabilityTypes.find(t => t.value === viewLiability.liabilityType)?.label || viewLiability.liabilityType}</div>
+                      <div><span className="font-medium">{tt('Category:')}</span> {viewLiability.category.name}</div>
                       <div>
-                        <span className="font-medium">GL account:</span>{' '}
+                        <span className="font-medium">{tt('GL account:')}</span>{' '}
                         <span className="font-mono text-sm">
                           {viewLiability.glAccount
                             ? `${viewLiability.glAccount.accountCode} — ${viewLiability.glAccount.accountName}`
                             : 'Not assigned'}
                         </span>
                       </div>
-                      <div><span className="font-medium">Status:</span> 
+                      <div><span className="font-medium">{tt('Status:')}</span> 
                         <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
                           viewLiability.status === "active" 
                             ? "bg-green-100 text-green-800" 
@@ -3389,46 +3389,46 @@ const AssetManagement = () => {
                         </span>
                       </div>
                       {viewLiability.description && (
-                        <div><span className="font-medium">Description:</span> {viewLiability.description}</div>
+                        <div><span className="font-medium">{tt('Description:')}</span> {viewLiability.description}</div>
                       )}
                     </div>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-2">Financial Information</h3>
+                    <h3 className="font-semibold mb-2">{tt('Financial Information')}</h3>
                     <div className="space-y-2 text-sm">
-                      <div><span className="font-medium">Principal Amount:</span> {formatCurrency(viewLiability.principalAmount)}</div>
-                      <div><span className="font-medium">Current Balance:</span> {formatCurrency(viewLiability.currentBalance)}</div>
-                      <div><span className="font-medium">Total Paid:</span> {formatCurrency(viewLiability.totalPaid)}</div>
-                      <div><span className="font-medium">Interest Method:</span> {interestTypeOptions.find(opt => opt.value === viewLiability.interestType)?.label || 'Reducing Balance'}</div>
+                      <div><span className="font-medium">{tt('Principal Amount:')}</span> {formatCurrency(viewLiability.principalAmount)}</div>
+                      <div><span className="font-medium">{tt('Current Balance:')}</span> {formatCurrency(viewLiability.currentBalance)}</div>
+                      <div><span className="font-medium">{tt('Total Paid:')}</span> {formatCurrency(viewLiability.totalPaid)}</div>
+                      <div><span className="font-medium">{tt('Interest Method:')}</span> {interestTypeOptions.find(opt => opt.value === viewLiability.interestType)?.label || 'Reducing Balance'}</div>
                       {viewLiability.interestType === 'one_time' ? (
-                        <div><span className="font-medium">One-time Interest:</span> {formatCurrency(viewLiability.oneTimeInterestAmount || 0)}</div>
+                        <div><span className="font-medium">{tt('One-time Interest:')}</span> {formatCurrency(viewLiability.oneTimeInterestAmount || 0)}</div>
                       ) : (
-                        <div><span className="font-medium">Interest Rate:</span> {viewLiability.interestRate ? `${viewLiability.interestRate}%` : 'N/A'}</div>
+                        <div><span className="font-medium">{tt('Interest Rate:')}</span> {viewLiability.interestRate ? `${viewLiability.interestRate}%` : 'N/A'}</div>
                       )}
-                      <div><span className="font-medium">Term Length:</span> {viewLiability.termMonths ? `${viewLiability.termMonths} months` : 'N/A'}</div>
+                      <div><span className="font-medium">{tt('Term Length:')}</span> {viewLiability.termMonths ? `${viewLiability.termMonths} months` : 'N/A'}</div>
                     </div>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-2">Dates</h3>
+                    <h3 className="font-semibold mb-2">{tt('Dates')}</h3>
                     <div className="space-y-2 text-sm">
-                      <div><span className="font-medium">Start Date:</span> {new Date(viewLiability.startDate).toLocaleDateString()}</div>
+                      <div><span className="font-medium">{tt('Start Date:')}</span> {new Date(viewLiability.startDate).toLocaleDateString()}</div>
                       {viewLiability.maturityDate && (
-                        <div><span className="font-medium">Maturity Date:</span> {new Date(viewLiability.maturityDate).toLocaleDateString()}</div>
+                        <div><span className="font-medium">{tt('Maturity Date:')}</span> {new Date(viewLiability.maturityDate).toLocaleDateString()}</div>
                       )}
-                      <div><span className="font-medium">Payment Frequency:</span> {paymentFrequencies.find(f => f.value === viewLiability.paymentFrequency)?.label || viewLiability.paymentFrequency || 'N/A'}</div>
+                      <div><span className="font-medium">{tt('Payment Frequency:')}</span> {paymentFrequencies.find(f => f.value === viewLiability.paymentFrequency)?.label || viewLiability.paymentFrequency || 'N/A'}</div>
                     </div>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-2">Additional Information</h3>
+                    <h3 className="font-semibold mb-2">{tt('Additional Information')}</h3>
                     <div className="space-y-2 text-sm">
                       {viewLiability.lender && (
-                        <div><span className="font-medium">Lender:</span> {viewLiability.lender}</div>
+                        <div><span className="font-medium">{tt('Lender:')}</span> {viewLiability.lender}</div>
                       )}
                       {viewLiability.accountNumber && (
-                        <div><span className="font-medium">Account Number:</span> {viewLiability.accountNumber}</div>
+                        <div><span className="font-medium">{tt('Account Number:')}</span> {viewLiability.accountNumber}</div>
                       )}
                       {viewLiability.notes && (
-                        <div><span className="font-medium">Notes:</span> {viewLiability.notes}</div>
+                        <div><span className="font-medium">{tt('Notes:')}</span> {viewLiability.notes}</div>
                       )}
                     </div>
                   </div>
@@ -3437,7 +3437,7 @@ const AssetManagement = () => {
                 {paymentSchedule && paymentSchedule.length > 0 && (
                   <div className="mt-6">
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold">Projected Payment Schedule</h3>
+                      <h3 className="font-semibold">{tt('Projected Payment Schedule')}</h3>
                       {paymentScheduleTotals && (
                         <div className="text-xs text-gray-500">
                           Principal {formatCurrency(paymentScheduleTotals.principal)} · Interest {formatCurrency(paymentScheduleTotals.interest)} · Total {formatCurrency(paymentScheduleTotals.payment)}
@@ -3449,11 +3449,11 @@ const AssetManagement = () => {
                         <thead>
                           <tr className="bg-gray-50 text-left">
                             <th className="p-2 font-medium">#</th>
-                            <th className="p-2 font-medium">Due Date</th>
-                            <th className="p-2 font-medium text-right">Principal</th>
-                            <th className="p-2 font-medium text-right">Interest</th>
-                            <th className="p-2 font-medium text-right">Payment</th>
-                            <th className="p-2 font-medium text-right">Balance</th>
+                            <th className="p-2 font-medium">{tt('Due Date')}</th>
+                            <th className="p-2 font-medium text-right">{tt('Principal')}</th>
+                            <th className="p-2 font-medium text-right">{tt('Interest')}</th>
+                            <th className="p-2 font-medium text-right">{tt('Payment')}</th>
+                            <th className="p-2 font-medium text-right">{tt('Balance')}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3475,16 +3475,16 @@ const AssetManagement = () => {
 
                 {viewLiability.payments && viewLiability.payments.length > 0 && (
                   <div className="mt-6">
-                    <h3 className="font-semibold mb-3">Payment History</h3>
+                    <h3 className="font-semibold mb-3">{tt('Payment History')}</h3>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-gray-50 text-left">
-                            <th className="p-2 font-medium">Date</th>
-                            <th className="p-2 font-medium text-right">Amount</th>
-                            <th className="p-2 font-medium text-right">Principal</th>
-                            <th className="p-2 font-medium text-right">Interest</th>
-                            <th className="p-2 font-medium">Reference</th>
+                            <th className="p-2 font-medium">{tt('Date')}</th>
+                            <th className="p-2 font-medium text-right">{tt('Amount')}</th>
+                            <th className="p-2 font-medium text-right">{tt('Principal')}</th>
+                            <th className="p-2 font-medium text-right">{tt('Interest')}</th>
+                            <th className="p-2 font-medium">{tt('Reference')}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3511,7 +3511,7 @@ const AssetManagement = () => {
                     setViewLiability(null);
                   }}
                 >
-                  Close
+                  {tt('Close')}
                 </button>
                 <button
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -3520,7 +3520,7 @@ const AssetManagement = () => {
                     handleEditLiability(viewLiability);
                   }}
                 >
-                  Edit
+                  {tt('Edit')}
                 </button>
               </div>
             </div>
@@ -3534,7 +3534,7 @@ const AssetManagement = () => {
 
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">Record Payment</h2>
+                  <h2 className="text-xl font-semibold">{tt('Record Payment')}</h2>
                   <button 
                     onClick={() => {
                       setShowPaymentModal(false);
@@ -3550,12 +3550,12 @@ const AssetManagement = () => {
                 <div className="p-6">
                   <div className="mb-4 p-3 bg-gray-50 rounded">
                     <div className="text-sm">
-                      <div><span className="font-medium">Liability:</span> {paymentLiability.name}</div>
-                      <div><span className="font-medium">Current Balance:</span> {formatCurrency(paymentLiability.currentBalance)}</div>
+                      <div><span className="font-medium">{tt('Liability:')}</span> {paymentLiability.name}</div>
+                      <div><span className="font-medium">{tt('Current Balance:')}</span> {formatCurrency(paymentLiability.currentBalance)}</div>
                     </div>
                   </div>
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Deduct From Account</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Deduct From Account')}</label>
                       <select
                         className="w-full p-2 border border-gray-200 rounded"
                         value={paymentFormData.paymentMethod || ''}
@@ -3563,7 +3563,7 @@ const AssetManagement = () => {
                         disabled={!paymentAccounts.length}
                         required
                       >
-                        {!paymentAccounts.length && <option value="">No payment accounts found</option>}
+                        {!paymentAccounts.length && <option value="">{tt('No payment accounts found')}</option>}
                         {paymentAccounts.map((account) => (
                           <option key={account.key} value={account.key}>
                             {account.name} · Balance {formatCurrency(account.balance || 0)}
@@ -3571,11 +3571,11 @@ const AssetManagement = () => {
                         ))}
                       </select>
                       <p className="text-xs text-gray-500 mt-1">
-                        Uses the same payment accounts configured under Payment Accounts.
+                        {tt('Uses the same payment accounts configured under Payment Accounts.')}
                       </p>
                     </div>
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Payment Entry</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Payment Entry')}</label>
                       <select
                         className="w-full p-2 border border-gray-200 rounded"
                         value={paymentEntryMode}
@@ -3587,21 +3587,21 @@ const AssetManagement = () => {
                           }
                         }}
                       >
-                        <option value="custom">Custom amount</option>
+                        <option value="custom">{tt('Custom amount')}</option>
                         <option value="schedule" disabled={paymentScheduleOptions.length === 0}>
-                          Scheduled installment
+                          {tt('Scheduled installment')}
                         </option>
                       </select>
                     </div>
                     {paymentEntryMode === "schedule" && paymentScheduleOptions.length > 0 && (
                       <div className="mb-4">
-                        <label className="block text-sm font-medium mb-1">Select Scheduled Installment</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Select Scheduled Installment')}</label>
                         <select
                           className="w-full p-2 border border-gray-200 rounded"
                           value={selectedScheduleIndex}
                           onChange={(e) => handleScheduledPaymentSelection(e.target.value)}
                         >
-                          <option value="">Choose installment</option>
+                          <option value="">{tt('Choose installment')}</option>
                           {paymentScheduleOptions.map((entry, idx) => (
                             <option key={idx} value={idx}>
                               {`#${entry.period} – ${entry.dueDate ? new Date(entry.dueDate).toLocaleDateString() : 'No date'} – ${formatCurrency(entry.payment || 0)}`}
@@ -3609,12 +3609,12 @@ const AssetManagement = () => {
                           ))}
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
-                          Amount, principal, and interest auto-fill from the selected schedule.
+                          {tt('Amount, principal, and interest auto-fill from the selected schedule.')}
                         </p>
                       </div>
                     )}
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Payment Amount *</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Payment Amount *')}</label>
                     <input
                       type="number"
                       step="0.01"
@@ -3625,7 +3625,7 @@ const AssetManagement = () => {
                     />
                   </div>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Payment Date *</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Payment Date *')}</label>
                     <input
                       type="date"
                       className="w-full p-2 border border-gray-200 rounded"
@@ -3635,21 +3635,21 @@ const AssetManagement = () => {
                     />
                   </div>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Payment Type</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Payment Type')}</label>
                     <select
                       className="w-full p-2 border border-gray-200 rounded"
                       value={paymentFormData.paymentType}
                       onChange={(e) => setPaymentFormData({...paymentFormData, paymentType: e.target.value})}
                     >
-                      <option value="both">Principal + Interest</option>
-                      <option value="principal">Principal Only</option>
-                      <option value="interest">Interest Only</option>
+                      <option value="both">{tt('Principal + Interest')}</option>
+                      <option value="principal">{tt('Principal Only')}</option>
+                      <option value="interest">{tt('Interest Only')}</option>
                     </select>
                   </div>
                   {paymentFormData.paymentType === 'both' && (
                     <>
                       <div className="mb-4">
-                        <label className="block text-sm font-medium mb-1">Principal Paid</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Principal Paid')}</label>
                         <input
                           type="number"
                           step="0.01"
@@ -3659,7 +3659,7 @@ const AssetManagement = () => {
                         />
                       </div>
                       <div className="mb-4">
-                        <label className="block text-sm font-medium mb-1">Interest Paid</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Interest Paid')}</label>
                         <input
                           type="number"
                           step="0.01"
@@ -3671,7 +3671,7 @@ const AssetManagement = () => {
                     </>
                   )}
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Reference</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Reference')}</label>
                     <input
                       type="text"
                       className="w-full p-2 border border-gray-200 rounded"
@@ -3680,7 +3680,7 @@ const AssetManagement = () => {
                     />
                   </div>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Notes</label>
+                    <label className="block text-sm font-medium mb-1">{tt('Notes')}</label>
                     <textarea
                       className="w-full p-2 border border-gray-200 rounded"
                       rows="2"
@@ -3698,13 +3698,13 @@ const AssetManagement = () => {
                       setPaymentLiability(null);
                     }}
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                   >
-                    Record Payment
+                    {tt('Record Payment')}
                   </button>
                 </div>
               </form>

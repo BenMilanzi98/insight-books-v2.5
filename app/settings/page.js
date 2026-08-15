@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from 'react';
 import { 
@@ -275,7 +276,7 @@ const SettingsPage = () => {
       <div className="flex w-full items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Loading settings...</p>
+          <p className="text-gray-600">{tt('Loading settings...')}</p>
         </div>
       </div>
     );
@@ -339,13 +340,13 @@ const SettingsPage = () => {
               <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                 <Building className="h-5 w-5" />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900">Business Information</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{tt('Business Information')}</h2>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Business Name *
+                  {tt('Business Name *')}
                 </label>
                 <input
                   type="text"
@@ -354,7 +355,7 @@ const SettingsPage = () => {
                   className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.name ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="Your Business Name"
+                  placeholder={tt('Your Business Name')}
                 />
                 {errors.name && (
                   <p className="mt-1 text-sm text-red-600">{errors.name}</p>
@@ -363,7 +364,7 @@ const SettingsPage = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Logo URL
+                  {tt('Logo URL')}
                 </label>
                 <input
                   type="url"
@@ -388,7 +389,7 @@ const SettingsPage = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Secondary Color
+                  {tt('Secondary Color')}
                 </label>
                 <input
                   type="color"
@@ -406,55 +407,55 @@ const SettingsPage = () => {
               <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
                 <MapPin className="h-5 w-5" />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900">Receipt Business Address</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{tt('Receipt Business Address')}</h2>
             </div>
             <p className="text-sm text-gray-600 mb-6">
-              This information will appear on your receipts and invoices.
+              {tt('This information will appear on your receipts and invoices.')}
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Building/Location Name
+                  {tt('Building/Location Name')}
                 </label>
                 <input
                   type="text"
                   value={settings.buildingName}
                   onChange={(e) => handleChange('buildingName', e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="e.g., Main Office, Downtown Branch"
+                  placeholder={tt('e.g., Main Office, Downtown Branch')}
                 />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Street Address
+                  {tt('Street Address')}
                 </label>
                 <input
                   type="text"
                   value={settings.businessAddress}
                   onChange={(e) => handleChange('businessAddress', e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="123 Main Street"
+                  placeholder={tt('123 Main Street')}
                 />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  City/Town
+                  {tt('City/Town')}
                 </label>
                 <input
                   type="text"
                   value={settings.businessCity}
                   onChange={(e) => handleChange('businessCity', e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Lilongwe, Malawi"
+                  placeholder={tt('Lilongwe, Malawi')}
                 />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Contact Numbers
+                  {tt('Contact Numbers')}
                 </label>
                 <input
                   type="tel"
@@ -467,7 +468,7 @@ const SettingsPage = () => {
               
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address
+                  {tt('Email Address')}
                 </label>
                 <input
                   type="email"
@@ -476,7 +477,7 @@ const SettingsPage = () => {
                   className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.businessEmail ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="info@yourbusiness.com"
+                  placeholder={tt('info@yourbusiness.com')}
                 />
                 {errors.businessEmail && (
                   <p className="mt-1 text-sm text-red-600">{errors.businessEmail}</p>
@@ -491,16 +492,16 @@ const SettingsPage = () => {
               <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                 <FileText className="h-5 w-5" />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900">Receipt Customization</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{tt('Receipt Customization')}</h2>
             </div>
             <p className="text-sm text-gray-600 mb-6">
-              Customize receipt footer text and preferred thermal paper width for POS printing.
+              {tt('Customize receipt footer text and preferred thermal paper width for POS printing.')}
             </p>
             
             <div className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Thermal paper width
+                  {tt('Thermal paper width')}
                 </label>
                 <select
                   value={settings.receiptPaperWidthMm ?? 80}
@@ -521,17 +522,17 @@ const SettingsPage = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Receipt Footer Message
+                  {tt('Receipt Footer Message')}
                 </label>
                 <textarea
                   value={settings.receiptFooter}
                   onChange={(e) => handleChange('receiptFooter', e.target.value)}
                   rows={3}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Thank you for your business! We appreciate your support."
+                  placeholder={tt('Thank you for your business! We appreciate your support.')}
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  This message will appear at the bottom of all receipts. Leave empty to use the default message.
+                  {tt('This message will appear at the bottom of all receipts. Leave empty to use the default message.')}
                 </p>
               </div>
             </div>
@@ -543,30 +544,30 @@ const SettingsPage = () => {
               <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
                 <Settings className="h-5 w-5" />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900">Other Settings</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{tt('Other Settings')}</h2>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Currency Code
+                  {tt('Currency Code')}
                 </label>
                 <select
                   value={settings.currencyCode}
                   onChange={(e) => handleChange('currencyCode', e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="MWK">MWK - Malawian Kwacha</option>
-                  <option value="USD">USD - US Dollar</option>
-                  <option value="EUR">EUR - Euro</option>
-                  <option value="GBP">GBP - British Pound</option>
-                  <option value="ZAR">ZAR - South African Rand</option>
+                  <option value="MWK">{tt('MWK - Malawian Kwacha')}</option>
+                  <option value="USD">{tt('USD - US Dollar')}</option>
+                  <option value="EUR">{tt('EUR - Euro')}</option>
+                  <option value="GBP">{tt('GBP - British Pound')}</option>
+                  <option value="ZAR">{tt('ZAR - South African Rand')}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Financial year starts
+                  {tt('Financial year starts')}
                 </label>
                 <select
                   value={settings.fiscalYearStartMonth || 1}
@@ -574,20 +575,20 @@ const SettingsPage = () => {
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value={1}>January (calendar year)</option>
-                  <option value={2}>February</option>
-                  <option value={3}>March</option>
-                  <option value={4}>April</option>
-                  <option value={5}>May</option>
-                  <option value={6}>June</option>
-                  <option value={7}>July</option>
-                  <option value={8}>August</option>
-                  <option value={9}>September</option>
-                  <option value={10}>October</option>
-                  <option value={11}>November</option>
-                  <option value={12}>December</option>
+                  <option value={2}>{tt('February')}</option>
+                  <option value={3}>{tt('March')}</option>
+                  <option value={4}>{tt('April')}</option>
+                  <option value={5}>{tt('May')}</option>
+                  <option value={6}>{tt('June')}</option>
+                  <option value={7}>{tt('July')}</option>
+                  <option value={8}>{tt('August')}</option>
+                  <option value={9}>{tt('September')}</option>
+                  <option value={10}>{tt('October')}</option>
+                  <option value={11}>{tt('November')}</option>
+                  <option value={12}>{tt('December')}</option>
                 </select>
                 <p className="mt-1 text-xs text-gray-500">
-                  Default is January–December. Change this if your business uses a different financial year. Existing years are not rewritten automatically.
+                  {tt('Default is January–December. Change this if your business uses a different financial year. Existing years are not rewritten automatically.')}
                 </p>
               </div>
               
@@ -613,14 +614,14 @@ const SettingsPage = () => {
               
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Footer
+                  {tt('Email Footer')}
                 </label>
                 <textarea
                   value={settings.emailFooter}
                   onChange={(e) => handleChange('emailFooter', e.target.value)}
                   rows={3}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Custom footer for email communications..."
+                  placeholder={tt('Custom footer for email communications...')}
                 />
               </div>
             </div>
@@ -632,7 +633,7 @@ const SettingsPage = () => {
               <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                 <Download className="h-5 w-5" />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900">Data Export</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{tt('Data Export')}</h2>
             </div>
             <p className="text-sm text-gray-600 mb-4">
               Download a ZIP archive containing CSV files for your key modules (clients, products, inventory, sales, invoices, liabilities, assets, expenses, payments, and accounting). Purchase module data is excluded.
@@ -650,7 +651,7 @@ const SettingsPage = () => {
               {isExporting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Preparing export...
+                  {tt('Preparing export...')}
                 </>
               ) : (
                 <>
@@ -667,7 +668,7 @@ const SettingsPage = () => {
               <div className="mr-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
                 <Hash className="h-5 w-5" />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900">Document numbers</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{tt('Document numbers')}</h2>
             </div>
             <p className="text-sm text-gray-600 mb-4">
               Purchase orders, goods receipts, invoices, and quotations each use a sequential number for this business only. Use reset only if you understand duplicate risks with existing documents.
@@ -724,7 +725,7 @@ const SettingsPage = () => {
               {docSeqResetting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Resetting…
+                  {tt('Resetting…')}
                 </>
               ) : (
                 'Reset selected counters (next = 00001)'
@@ -742,12 +743,12 @@ const SettingsPage = () => {
               {isSaving ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Saving...
+                  {tt('Saving...')}
                 </>
               ) : (
                 <>
                   <Save className="w-5 h-5 mr-2" />
-                  Save Settings
+                  {tt('Save Settings')}
                 </>
               )}
             </button>

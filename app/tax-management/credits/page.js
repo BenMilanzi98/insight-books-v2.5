@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/shell/PageHeader";
@@ -100,7 +101,7 @@ export default function TaxCreditsPage() {
             onClick={() => voidCredit(r.id)}
             className="text-sm text-red-600 hover:underline"
           >
-            Void
+            {tt('Void')}
           </button>
         ) : null,
     },
@@ -127,14 +128,14 @@ export default function TaxCreditsPage() {
             step="0.01"
             min="0"
             required
-            placeholder="Amount"
+            placeholder={tt('Amount')}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             className="rounded border border-[var(--border-default)] bg-white px-3 py-2 text-sm"
           />
           <input
             type="text"
-            placeholder="Reference"
+            placeholder={tt('Reference')}
             value={reference}
             onChange={(e) => setReference(e.target.value)}
             className="rounded border border-[var(--border-default)] bg-white px-3 py-2 text-sm"
@@ -144,7 +145,7 @@ export default function TaxCreditsPage() {
             disabled={busy}
             className="rounded bg-[var(--brand-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
-            Add credit
+            {tt('Add credit')}
           </button>
         </form>
       ) : null}

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useCallback } from "react";
 import DynamicSelect from "@/components/DynamicSelect";
@@ -761,10 +762,10 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
         <div className="rounded-lg border border-gray-200 p-4">
           {currentStep === 0 && (
             <>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Personal Information</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">{tt('Personal Information')}</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Full Name *')}</label>
                   <input
                     type="text"
                     name="name"
@@ -772,24 +773,24 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                     onChange={handleChange}
                     required
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="John Doe"
+                    placeholder={tt('John Doe')}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email Address <span className="text-gray-400 text-xs">(Optional)</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Email Address')} <span className="text-gray-400 text-xs">(Optional)</span></label>
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="john@example.com"
+                    placeholder={tt('john@example.com')}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Phone Number')}</label>
                   <input
                     type="tel"
                     name="phone"
@@ -801,19 +802,19 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ID/Passport Number</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('ID/Passport Number')}</label>
                   <input
                     type="text"
                     name="idNumber"
                     value={formData.idNumber}
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="ID Number"
+                    placeholder={tt('ID Number')}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Date of Birth')}</label>
                   <input
                     type="date"
                     name="dateOfBirth"
@@ -824,57 +825,57 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Gender')}</label>
                   <select
                     name="gender"
                     value={formData.gender}
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                   >
-                    <option value="">Select Gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
+                    <option value="">{tt('Select Gender')}</option>
+                    <option value="Male">{tt('Male')}</option>
+                    <option value="Female">{tt('Female')}</option>
+                    <option value="Other">{tt('Other')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Marital Status</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Marital Status')}</label>
                   <select
                     name="maritalStatus"
                     value={formData.maritalStatus}
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                   >
-                    <option value="">Select Status</option>
-                    <option value="Single">Single</option>
-                    <option value="Married">Married</option>
-                    <option value="Divorced">Divorced</option>
-                    <option value="Widowed">Widowed</option>
+                    <option value="">{tt('Select Status')}</option>
+                    <option value="Single">{tt('Single')}</option>
+                    <option value="Married">{tt('Married')}</option>
+                    <option value="Divorced">{tt('Divorced')}</option>
+                    <option value="Widowed">{tt('Widowed')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nationality</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Nationality')}</label>
                   <input
                     type="text"
                     name="nationality"
                     value={formData.nationality}
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Malawian"
+                    placeholder={tt('Malawian')}
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Address')}</label>
                   <input
                     type="text"
                     name="address"
                     value={formData.address}
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="123 Main Street, Lilongwe"
+                    placeholder={tt('123 Main Street, Lilongwe')}
                   />
                 </div>
               </div>
@@ -883,10 +884,10 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
           {currentStep === 1 && (
             <>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Employment Details</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">{tt('Employment Details')}</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Job Title *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Job Title *')}</label>
                   <input
                     type="text"
                     name="jobTitle"
@@ -894,7 +895,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                     onChange={handleChange}
                     required
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Software Engineer"
+                    placeholder={tt('Software Engineer')}
                   />
                 </div>
 
@@ -903,7 +904,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                     value={formData.department}
                     onChange={(value) => setFormData(prev => ({ ...prev, department: value }))}
                     options={departments}
-                    placeholder="Select or add department"
+                    placeholder={tt('Select or add department')}
                     searchPlaceholder="Search departments..."
                     addNewPlaceholder="Enter new department..."
                     onAddOption={onAddDepartment}
@@ -913,21 +914,21 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Employment Type')}</label>
                   <select
                     name="employmentType"
                     value={formData.employmentType}
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                   >
-                    <option value="Permanent">Permanent</option>
-                    <option value="Contract">Contract</option>
-                    <option value="Casual">Casual</option>
+                    <option value="Permanent">{tt('Permanent')}</option>
+                    <option value="Contract">{tt('Contract')}</option>
+                    <option value="Casual">{tt('Casual')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Start Date *')}</label>
                   <input
                     type="date"
                     name="startDate"
@@ -939,14 +940,14 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Work Location</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Work Location')}</label>
                   <input
                     type="text"
                     name="workLocation"
                     value={formData.workLocation}
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Lilongwe"
+                    placeholder={tt('Lilongwe')}
                   />
                 </div>
 
@@ -959,7 +960,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                       onChange={handleChange}
                       className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
                     />
-                    <span className="ml-2 text-sm text-gray-600">Employee is Active</span>
+                    <span className="ml-2 text-sm text-gray-600">{tt('Employee is Active')}</span>
                   </label>
                 </div>
               </div>
@@ -985,9 +986,9 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
               </div>
 
               <div className="mb-6">
-                <h4 className="text-md font-medium text-gray-800 mb-3">Salary Deductions</h4>
+                <h4 className="text-md font-medium text-gray-800 mb-3">{tt('Salary Deductions')}</h4>
                 <p className="text-xs text-gray-500 mb-2">
-                  Select deductions to apply to this employee. <strong>PAYE (Malawi Income Tax 2025/26) is optional</strong> and can be enabled/disabled per employee.
+                  {tt('Select deductions to apply to this employee.')} <strong>PAYE (Malawi Income Tax 2025/26) is optional</strong> {tt('and can be enabled/disabled per employee.')}
                 </p>
                 {deductions.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
@@ -1006,7 +1007,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                             <div className="font-medium text-sm truncate">{deduction.name}</div>
                             <div className="text-xs text-gray-600">
                               {deduction.name && deduction.name.toLowerCase().includes('paye') ? (
-                                <span className="text-blue-600 font-medium">Auto-calculated</span>
+                                <span className="text-blue-600 font-medium">{tt('Auto-calculated')}</span>
                               ) : deduction.name && (deduction.name.toLowerCase().includes('nps') || deduction.name.toLowerCase().includes('pension')) ? (
                                 <span className="text-blue-600 font-medium">
                                   Auto-calculated ({formatNpsPercentLabel(pensionNpsRates.npsEmployeeRatePercent)} emp. +{" "}
@@ -1023,7 +1024,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                           <div className="flex items-center space-x-1 flex-shrink-0">
                             {deduction.isStatutory && (
                               <span className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 rounded">
-                                Statutory
+                                {tt('Statutory')}
                               </span>
                             )}
                             {selectedDeductions.some(d => d.id === deduction.id) && (
@@ -1052,7 +1053,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                   onChange={(e) => setSelectedGratuityAccount(e.target.value)}
                   className="w-full p-2.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="">No Gratuity Account</option>
+                  <option value="">{tt('No Gratuity Account')}</option>
                   {gratuityAccounts
                     .filter(account => !employee || account.employeeId === employee.id)
                     .map((account) => (
@@ -1063,7 +1064,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 </select>
                 {!employee && gratuityAccounts.length === 0 && (
                   <p className="text-xs text-gray-500 mt-2">
-                    No gratuity accounts available. Create a gratuity account in the Gratuity Management section first.
+                    {tt('No gratuity accounts available. Create a gratuity account in the Gratuity Management section first.')}
                   </p>
                 )}
                 {selectedGratuityAccount && (
@@ -1075,7 +1076,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
               {/* Benefits & allowances (house allowance, airtime, other perks) */}
               <div className="mb-6">
-                <h4 className="text-md font-medium text-gray-800 mb-3">Benefits & Allowances</h4>
+                <h4 className="text-md font-medium text-gray-800 mb-3">{tt('Benefits & Allowances')}</h4>
                 <p className="text-sm text-gray-600 mb-3">
                   Optional perks paid in addition to basic salary (e.g. house allowance, airtime). These are added to net pay after deductions.
                 </p>
@@ -1101,7 +1102,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                   </div>
                 ) : (
                   <p className="text-xs text-gray-500">
-                    No benefits defined. Add benefit types under HR → Benefits & Allowances, then assign amounts here.
+                    {tt('No benefits defined. Add benefit types under HR → Benefits & Allowances, then assign amounts here.')}
                   </p>
                 )}
               </div>
@@ -1109,7 +1110,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
               {formData.grossSalary && (
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-md font-medium text-gray-800">Salary Calculation</h4>
+                    <h4 className="text-md font-medium text-gray-800">{tt('Salary Calculation')}</h4>
                     <button
                       type="button"
                       onClick={calculateSalary}
@@ -1132,19 +1133,19 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                       )}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div className="bg-white p-3 rounded">
-                          <div className="text-sm text-gray-600">Gross Salary</div>
+                          <div className="text-sm text-gray-600">{tt('Gross Salary')}</div>
                           <div className="text-lg font-semibold text-green-600">
                             MWK {(salaryCalculation.grossSalary || 0).toLocaleString()}
                           </div>
                         </div>
                         <div className="bg-white p-3 rounded">
-                          <div className="text-sm text-gray-600">Total Deductions</div>
+                          <div className="text-sm text-gray-600">{tt('Total Deductions')}</div>
                           <div className="text-lg font-semibold text-red-600">
                             MWK {(salaryCalculation.totalDeductions || 0).toLocaleString()}
                           </div>
                         </div>
                         <div className="bg-white p-3 rounded">
-                          <div className="text-sm text-gray-600">Net Salary</div>
+                          <div className="text-sm text-gray-600">{tt('Net Salary')}</div>
                           <div className="text-lg font-semibold text-blue-600">
                             MWK {(salaryCalculation.netPay || 0).toLocaleString()}
                           </div>
@@ -1153,7 +1154,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
                       {salaryCalculation.paye.payeAmount > 0 && (
                         <div className="mb-3">
-                          <div className="text-sm font-medium text-gray-700 mb-2">PAYE Tax Breakdown</div>
+                          <div className="text-sm font-medium text-gray-700 mb-2">{tt('PAYE Tax Breakdown')}</div>
                           <div className="space-y-1">
                             {salaryCalculation.paye.breakdown.map((item, index) => (
                               <div key={index} className="flex justify-between text-sm">
@@ -1167,7 +1168,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
                       {salaryCalculation.nps.totalAmount > 0 && (
                         <div className="mb-3">
-                          <div className="text-sm font-medium text-gray-700 mb-2">NPS Contributions</div>
+                          <div className="text-sm font-medium text-gray-700 mb-2">{tt('NPS Contributions')}</div>
                           <div className="space-y-1">
                             <div className="flex justify-between text-sm">
                               <span>Employee ({formatNpsPercentLabel(salaryCalculation.nps.employeeRatePercent)})</span>
@@ -1183,7 +1184,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
                       {salaryCalculation.customDeductions.breakdown.length > 0 && (
                         <div>
-                          <div className="text-sm font-medium text-gray-700 mb-2">Other Deductions</div>
+                          <div className="text-sm font-medium text-gray-700 mb-2">{tt('Other Deductions')}</div>
                           <div className="space-y-1">
                             {salaryCalculation.customDeductions.breakdown.map((item, index) => (
                               <div key={index} className="flex justify-between text-sm">
@@ -1203,17 +1204,17 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
           {currentStep === 3 && (
             <>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Next of Kin Information</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">{tt('Next of Kin Information')}</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Full Name')}</label>
                   <input
                     type="text"
                     name="nextOfKinName"
                     value={formData.nextOfKinName}
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Jane Doe"
+                    placeholder={tt('Jane Doe')}
                   />
                 </div>
 
@@ -1222,7 +1223,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                     value={formData.nextOfKinRelationship}
                     onChange={(value) => setFormData(prev => ({ ...prev, nextOfKinRelationship: value }))}
                     options={relationships}
-                    placeholder="Select or add relationship"
+                    placeholder={tt('Select or add relationship')}
                     searchPlaceholder="Search relationships..."
                     addNewPlaceholder="Enter new relationship..."
                     onAddOption={onAddRelationship}
@@ -1232,7 +1233,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Phone Number')}</label>
                   <input
                     type="tel"
                     name="nextOfKinPhone"
@@ -1244,14 +1245,14 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Physical Address</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Physical Address')}</label>
                   <input
                     type="text"
                     name="nextOfKinAddress"
                     value={formData.nextOfKinAddress}
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus-border-transparent"
-                    placeholder="456 Lakeside Drive, Blantyre"
+                    placeholder={tt('456 Lakeside Drive, Blantyre')}
                   />
                 </div>
               </div>
@@ -1260,13 +1261,13 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
           {currentStep === 4 && (
             <>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Employee Documents</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">{tt('Employee Documents')}</h3>
               <p className="text-sm text-gray-600 mb-6">Upload employment contract and national ID documents (PDF, JPG, PNG - Max 20MB each)</p>
               
               <div className="space-y-6">
                 {/* Employment Contract Upload */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Employment Contract</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{tt('Employment Contract')}</label>
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors">
                     {contractUrl ? (
                       <div className="flex items-center justify-between">
@@ -1275,14 +1276,14 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                             <FileText className="text-blue-600" size={20} />
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-gray-900">Contract uploaded</p>
+                            <p className="text-sm font-medium text-gray-900">{tt('Contract uploaded')}</p>
                             <a 
                               href={normalizeDocumentUrl(contractUrl, 'contract')} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="text-xs text-blue-600 hover:underline"
                             >
-                              View document
+                              {tt('View document')}
                             </a>
                           </div>
                         </div>
@@ -1294,7 +1295,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                           }}
                           className="text-red-600 hover:text-red-800 text-sm"
                         >
-                          Remove
+                          {tt('Remove')}
                         </button>
                       </div>
                     ) : (
@@ -1323,7 +1324,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                             <FileText className="text-gray-400" size={24} />
                           </div>
                           <p className="text-sm text-gray-600 mb-1">
-                            <span className="text-blue-600 font-medium">Click to upload</span> or drag and drop
+                            <span className="text-blue-600 font-medium">{tt('Click to upload')}</span> {tt('or drag and drop')}
                           </p>
                           <p className="text-xs text-gray-500">PDF, JPG, PNG (MAX. 20MB)</p>
                         </label>
@@ -1337,7 +1338,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
                 {/* National ID Upload */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">National ID / Identification Document</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{tt('National ID / Identification Document')}</label>
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors">
                     {idUrl ? (
                       <div className="flex items-center justify-between">
@@ -1346,14 +1347,14 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                             <FileText className="text-green-600" size={20} />
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-gray-900">ID document uploaded</p>
+                            <p className="text-sm font-medium text-gray-900">{tt('ID document uploaded')}</p>
                             <a 
                               href={normalizeDocumentUrl(idUrl, 'nationalId')} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="text-xs text-blue-600 hover:underline"
                             >
-                              View document
+                              {tt('View document')}
                             </a>
                           </div>
                         </div>
@@ -1365,7 +1366,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                           }}
                           className="text-red-600 hover:text-red-800 text-sm"
                         >
-                          Remove
+                          {tt('Remove')}
                         </button>
                       </div>
                     ) : (
@@ -1394,7 +1395,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                             <FileText className="text-gray-400" size={24} />
                           </div>
                           <p className="text-sm text-gray-600 mb-1">
-                            <span className="text-blue-600 font-medium">Click to upload</span> or drag and drop
+                            <span className="text-blue-600 font-medium">{tt('Click to upload')}</span> {tt('or drag and drop')}
                           </p>
                           <p className="text-xs text-gray-500">PDF, JPG, PNG (MAX. 20MB)</p>
                         </label>
@@ -1407,7 +1408,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 </div>
               </div>
               
-              <p className="mt-4 text-xs text-gray-500 italic">Note: Documents are optional but recommended for record keeping.</p>
+              <p className="mt-4 text-xs text-gray-500 italic">{tt('Note: Documents are optional but recommended for record keeping.')}</p>
               
               {/* Email Notification Option - Only show when creating new employee */}
               {!employee && (
@@ -1421,7 +1422,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                       className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <label htmlFor="send-welcome-email" className={`ml-3 block text-sm ${!formData.email || formData.email.trim() === '' ? 'text-gray-500' : 'text-gray-700'}`}>
-                      <span className="font-medium">Send welcome email to employee</span>
+                      <span className="font-medium">{tt('Send welcome email to employee')}</span>
                       <p className="text-xs text-gray-600 mt-1">
                         {formData.email && formData.email.trim() !== ''
                           ? `Email will be sent to: ${formData.email}`
@@ -1441,7 +1442,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
             onClick={onCancel}
             className="order-2 sm:order-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <div className="flex w-full justify-end gap-3 order-1 sm:order-2">
             {currentStep > 0 && (
@@ -1450,7 +1451,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 onClick={handleBack}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
               >
-                Back
+                {tt('Back')}
               </button>
             )}
 
@@ -1476,7 +1477,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 onClick={handleNext}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
-                Next
+                {tt('Next')}
               </button>
             )}
             
@@ -1584,7 +1585,7 @@ const DeductionModal = ({ deduction, deductionType, setDeductionType, onClose, o
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Name <span className="text-red-500">*</span>
+              {tt('Name')} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -1592,34 +1593,34 @@ const DeductionModal = ({ deduction, deductionType, setDeductionType, onClose, o
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-              placeholder="e.g., Health Insurance"
+              placeholder={tt('e.g., Health Insurance')}
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description
+              {tt('Description')}
             </label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
               rows={3}
-              placeholder="Optional description"
+              placeholder={tt('Optional description')}
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Type <span className="text-red-500">*</span>
+              {tt('Type')} <span className="text-red-500">*</span>
             </label>
             <select
               value={formData.type}
               onChange={(e) => setFormData({ ...formData, type: e.target.value, value: '' })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
             >
-              <option value="fixed">Fixed Amount</option>
-              <option value="percentage">Percentage</option>
+              <option value="fixed">{tt('Fixed Amount')}</option>
+              <option value="percentage">{tt('Percentage')}</option>
             </select>
           </div>
 
@@ -1669,7 +1670,7 @@ const DeductionModal = ({ deduction, deductionType, setDeductionType, onClose, o
                 onChange={(e) => setFormData({ ...formData, isStatutory: e.target.checked })}
                 className="w-4 h-4 text-gray-600 border-gray-300 rounded focus:ring-gray-500"
               />
-              <span className="ml-2 text-sm text-gray-700">Statutory Deduction</span>
+              <span className="ml-2 text-sm text-gray-700">{tt('Statutory Deduction')}</span>
             </label>
 
             <label className="flex items-center">
@@ -1679,7 +1680,7 @@ const DeductionModal = ({ deduction, deductionType, setDeductionType, onClose, o
                 onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                 className="w-4 h-4 text-gray-600 border-gray-300 rounded focus:ring-gray-500"
               />
-              <span className="ml-2 text-sm text-gray-700">Active</span>
+              <span className="ml-2 text-sm text-gray-700">{tt('Active')}</span>
             </label>
           </div>
 
@@ -1689,7 +1690,7 @@ const DeductionModal = ({ deduction, deductionType, setDeductionType, onClose, o
               onClick={onClose}
               className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
-              Cancel
+              {tt('Cancel')}
             </button>
             <button
               type="submit"
@@ -2607,7 +2608,7 @@ const EmployeeManagement = () => {
         <>
           <label className="inline-flex items-center rounded-lg border border-gray-300 bg-white/80 px-4 py-2.5 text-sm font-medium backdrop-blur-sm transition-all hover:bg-white hover:shadow-md cursor-pointer">
             <Download size={16} className="mr-2" />
-            <span>Export</span>
+            <span>{tt('Export')}</span>
             <select
               className="bg-transparent border-0 text-sm font-medium text-gray-800 focus:ring-0 cursor-pointer min-w-[10rem] ml-1"
               defaultValue=""
@@ -2616,17 +2617,17 @@ const EmployeeManagement = () => {
                 e.target.value = '';
                 if (v === 'xlsx' || v === 'csv' || v === 'pdf') handleExportEmployees(v);
               }}
-              aria-label="Export employees"
+              aria-label={tt('Export employees')}
             >
-              <option value="">Choose format…</option>
+              <option value="">{tt('Choose format…')}</option>
               <option value="xlsx">Excel (.xlsx) — same columns as import</option>
-              <option value="csv">CSV — same columns as import</option>
+              <option value="csv">{tt('CSV — same columns as import')}</option>
               <option value="pdf">PDF (print / archive)</option>
             </select>
           </label>
           <PosStyleHeaderButton type="button" onClick={handleDownloadTemplate} title="Download Excel import template">
             <Download size={16} className="mr-2" />
-            Download Template
+            {tt('Download Template')}
           </PosStyleHeaderButton>
           <PosStyleHeaderButton
             type="button"
@@ -2637,11 +2638,11 @@ const EmployeeManagement = () => {
             }}
           >
             <Upload size={16} className="mr-2" />
-            Import Employees
+            {tt('Import Employees')}
           </PosStyleHeaderButton>
           <PosStyleHeaderButton type="button" onClick={() => setShowIDCardGenerator(true)} title="Generate Employee ID Cards">
             <CreditCard size={16} className="mr-2" />
-            Generate ID Cards
+            {tt('Generate ID Cards')}
           </PosStyleHeaderButton>
           <PosStyleHeaderButton
             type="button"
@@ -2649,7 +2650,7 @@ const EmployeeManagement = () => {
             title="Apply or remove PAYE (Malawi income tax) for multiple employees"
           >
             <Percent size={16} className="mr-2" />
-            Apply PAYE…
+            {tt('Apply PAYE…')}
           </PosStyleHeaderButton>
           {selectedEmployeeIds.size > 0 && (
             <button
@@ -2666,7 +2667,7 @@ const EmployeeManagement = () => {
             onClick={handleAddEmployee}
           >
             <Plus size={16} className="mr-2" />
-            Add Employee
+            {tt('Add Employee')}
           </button>
         </>
         }
@@ -2726,7 +2727,7 @@ const EmployeeManagement = () => {
           <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search employees..."
+            placeholder={tt('Search employees...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -2741,7 +2742,7 @@ const EmployeeManagement = () => {
               onChange={(e) => setFilterDepartment(e.target.value)}
               className="bg-transparent border-none focus:outline-none"
             >
-              <option value="All">All Departments</option>
+              <option value="All">{tt('All Departments')}</option>
               {departmentFilterOptions.map(dept => (
                 <option key={dept} value={dept}>{dept}</option>
               ))}
@@ -2754,10 +2755,10 @@ const EmployeeManagement = () => {
               onChange={(e) => setFilterEmploymentType(e.target.value)}
               className="bg-transparent border-none focus:outline-none"
             >
-              <option value="All">All Types</option>
-              <option value="Permanent">Permanent</option>
-              <option value="Contract">Contract</option>
-              <option value="Casual">Casual</option>
+              <option value="All">{tt('All Types')}</option>
+              <option value="Permanent">{tt('Permanent')}</option>
+              <option value="Contract">{tt('Contract')}</option>
+              <option value="Casual">{tt('Casual')}</option>
             </select>
           </div>
           
@@ -2767,9 +2768,9 @@ const EmployeeManagement = () => {
               onChange={(e) => setFilterStatus(e.target.value)}
               className="bg-transparent border-none focus:outline-none"
             >
-              <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
+              <option value="All">{tt('All Status')}</option>
+              <option value="Active">{tt('Active')}</option>
+              <option value="Inactive">{tt('Inactive')}</option>
             </select>
           </div>
         </div>
@@ -2778,25 +2779,25 @@ const EmployeeManagement = () => {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-12">
           <div className="h-10 w-10 border-4 border-t-blue-600 border-r-transparent border-l-transparent border-b-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-600">Loading employees...</p>
+          <p className="text-gray-600">{tt('Loading employees...')}</p>
         </div>
       ) : error ? (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
           <AlertCircle size={24} className="text-red-500 mr-3 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h3 className="text-red-800 font-medium mb-1">Error Loading Employees</h3>
+            <h3 className="text-red-800 font-medium mb-1">{tt('Error Loading Employees')}</h3>
             <p className="text-red-600 mb-3">{error}</p>
             
             {error.includes("Authentication required") ? (
               <div className="space-y-2">
                 <p className="text-sm text-red-700">
-                  Please make sure you are logged in to access the HR module.
+                  {tt('Please make sure you are logged in to access the HR module.')}
                 </p>
                 <button 
                   className="px-4 py-2 bg-red-100 text-red-800 rounded-md hover:bg-red-200 text-sm"
                   onClick={() => window.location.href = '/auth/login'}
                 >
-                  Go to Login
+                  {tt('Go to Login')}
                 </button>
               </div>
             ) : (
@@ -2804,7 +2805,7 @@ const EmployeeManagement = () => {
                 className="px-4 py-2 bg-red-100 text-red-800 rounded-md hover:bg-red-200"
                 onClick={loadEmployees}
               >
-                Try Again
+                {tt('Try Again')}
               </button>
             )}
           </div>
@@ -2824,14 +2825,14 @@ const EmployeeManagement = () => {
                       title="Select all"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee ID</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job Title</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employment Type</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Salary</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee ID')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Job Title')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Department')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employment Type')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Salary')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
@@ -2954,7 +2955,7 @@ const EmployeeManagement = () => {
           {employees.length === 0 && !isLoading && (
             <div className="py-12 text-center">
               <div className="text-4xl mb-2">👥</div>
-              <h3 className="text-lg font-medium text-gray-900 mb-1">No employees found</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-1">{tt('No employees found')}</h3>
               <p className="text-gray-600 mb-4">
                 {searchTerm || filterDepartment !== 'All' || filterEmploymentType !== 'All' || filterStatus !== 'All'
                   ? 'Try adjusting your search or filter criteria'
@@ -2965,7 +2966,7 @@ const EmployeeManagement = () => {
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 onClick={handleAddEmployee}
               >
-                Add Your First Employee
+                {tt('Add Your First Employee')}
               </button>
             </div>
           )}
@@ -2979,28 +2980,28 @@ const EmployeeManagement = () => {
                   disabled={currentPage === 1}
                   className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Previous
+                  {tt('Previous')}
                 </button>
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
                   className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Next
+                  {tt('Next')}
                 </button>
               </div>
               <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm text-gray-700">
-                    Showing <span className="font-medium">{(currentPage - 1) * 15 + 1}</span> to{' '}
+                    {tt('Showing')} <span className="font-medium">{(currentPage - 1) * 15 + 1}</span> to{' '}
                     <span className="font-medium">
                       {Math.min(currentPage * 15, paginationInfo.totalCount)}
                     </span> of{' '}
-                    <span className="font-medium">{paginationInfo.totalCount}</span> results
+                    <span className="font-medium">{paginationInfo.totalCount}</span> {tt('results')}
                   </p>
                 </div>
                 <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label={tt('Pagination')}>
                     <button
                       onClick={() => handlePageChange(currentPage - 1)}
                       disabled={currentPage === 1}
@@ -3060,8 +3061,8 @@ const EmployeeManagement = () => {
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="p-4">
               <div className="mb-4">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Deductions</h3>
-                <p className="text-sm text-gray-600">Manage salary deductions</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">{tt('Deductions')}</h3>
+                <p className="text-sm text-gray-600">{tt('Manage salary deductions')}</p>
               </div>
               
               <div className="grid grid-cols-1 gap-2 max-h-80 overflow-y-auto pr-1 mb-4">
@@ -3092,7 +3093,7 @@ const EmployeeManagement = () => {
                     
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-gray-600">Value:</span>
+                        <span className="text-[11px] text-gray-600">{tt('Value:')}</span>
                         <span className="text-[11px] font-semibold text-gray-900">
                           {deduction.percentage !== null && deduction.percentage !== undefined
                             ? `${deduction.percentage}%` 
@@ -3104,18 +3105,18 @@ const EmployeeManagement = () => {
                       </div>
                       
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-gray-600">Applies to:</span>
+                        <span className="text-[11px] text-gray-600">{tt('Applies to:')}</span>
                         <span className="text-[11px] font-medium text-gray-700 capitalize">
                           {deduction.appliesTo === 'all' ? 'All' : deduction.appliesTo}
                         </span>
                       </div>
                       
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-gray-600">Status:</span>
+                        <span className="text-[11px] text-gray-600">{tt('Status:')}</span>
                         <div className="flex gap-1">
                           {deduction.isStatutory && (
                             <span className="px-1 py-0.5 text-[10px] bg-red-100 text-red-800 rounded font-medium">
-                              Statutory
+                              {tt('Statutory')}
                             </span>
                           )}
                           <span className={`px-1 py-0.5 text-[10px] rounded font-medium ${
@@ -3136,8 +3137,8 @@ const EmployeeManagement = () => {
                     <div className="text-gray-400 mb-3">
                       <DollarSign size={32} className="mx-auto" />
                     </div>
-                    <h3 className="text-sm font-medium text-gray-900 mb-1">No deductions</h3>
-                    <p className="text-xs text-gray-600 mb-3">Create your first deduction</p>
+                    <h3 className="text-sm font-medium text-gray-900 mb-1">{tt('No deductions')}</h3>
+                    <p className="text-xs text-gray-600 mb-3">{tt('Create your first deduction')}</p>
                     <button
                       onClick={() => {
                         setEditingDeduction(null);
@@ -3146,7 +3147,7 @@ const EmployeeManagement = () => {
                       }}
                       className="px-3 py-1 bg-gray-700 text-white rounded text-xs hover:bg-gray-800 transition-colors"
                     >
-                      Add Deduction
+                      {tt('Add Deduction')}
                     </button>
                   </div>
                 )}
@@ -3162,7 +3163,7 @@ const EmployeeManagement = () => {
                   className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
                 >
                   <Plus size={14} className="inline mr-2" />
-                  Add Deduction
+                  {tt('Add Deduction')}
                 </button>
               </div>
               
@@ -3213,7 +3214,7 @@ const EmployeeManagement = () => {
           >
             {/* Print Header - Only visible when printing */}
             <div className="hidden print:block print:mb-6 print:border-b print:pb-4">
-              <h1 className="text-2xl font-bold">Employee Details</h1>
+              <h1 className="text-2xl font-bold">{tt('Employee Details')}</h1>
               <p className="text-gray-600">Generated on {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
             </div>
 
@@ -3236,7 +3237,7 @@ const EmployeeManagement = () => {
                     title="Print Employee Details"
                   >
                     <Printer size={18} />
-                    Print
+                    {tt('Print')}
                   </button>
                   <button
                     onClick={() => setShowViewModal(false)}
@@ -3252,23 +3253,23 @@ const EmployeeManagement = () => {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <User size={20} />
-                    Personal Information
+                    {tt('Personal Information')}
                   </h3>
                   <div className="space-y-3">
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Full Name:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Full Name:')}</span>
                       <p className="text-gray-900">{viewingEmployee.name}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Email:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Email:')}</span>
                       <p className="text-gray-900">{viewingEmployee.email || 'N/A'}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Phone:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Phone:')}</span>
                       <p className="text-gray-900">{viewingEmployee.phone || 'N/A'}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Date of Birth:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Date of Birth:')}</span>
                       <p className="text-gray-900">
                         {viewingEmployee.dateOfBirth 
                           ? new Date(viewingEmployee.dateOfBirth).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -3276,23 +3277,23 @@ const EmployeeManagement = () => {
                       </p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Gender:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Gender:')}</span>
                       <p className="text-gray-900">{viewingEmployee.gender || 'N/A'}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Marital Status:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Marital Status:')}</span>
                       <p className="text-gray-900">{viewingEmployee.maritalStatus || 'N/A'}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Nationality:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Nationality:')}</span>
                       <p className="text-gray-900">{viewingEmployee.nationality || 'N/A'}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">National ID:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('National ID:')}</span>
                       <p className="text-gray-900">{viewingEmployee.idNumber || 'N/A'}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Address:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Address:')}</span>
                       <p className="text-gray-900">{viewingEmployee.address || 'N/A'}</p>
                     </div>
                   </div>
@@ -3302,27 +3303,27 @@ const EmployeeManagement = () => {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <Briefcase size={20} />
-                    Employment Information
+                    {tt('Employment Information')}
                   </h3>
                   <div className="space-y-3">
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Employee ID:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Employee ID:')}</span>
                       <p className="text-gray-900">{viewingEmployee.employeeId || 'N/A'}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Job Title:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Job Title:')}</span>
                       <p className="text-gray-900">{viewingEmployee.jobTitle || viewingEmployee.position || 'N/A'}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Department:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Department:')}</span>
                       <p className="text-gray-900">{viewingEmployee.department || 'N/A'}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Employment Type:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Employment Type:')}</span>
                       <p className="text-gray-900">{viewingEmployee.employmentType || 'N/A'}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Start Date:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Start Date:')}</span>
                       <p className="text-gray-900">
                         {viewingEmployee.startDate 
                           ? new Date(viewingEmployee.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -3330,11 +3331,11 @@ const EmployeeManagement = () => {
                       </p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Work Location:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Work Location:')}</span>
                       <p className="text-gray-900">{viewingEmployee.workLocation || 'N/A'}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Status:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Status:')}</span>
                       <span className={`ml-2 px-2.5 py-1 rounded-full text-xs ${
                         viewingEmployee.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                       }`}>
@@ -3348,23 +3349,23 @@ const EmployeeManagement = () => {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <DollarSign size={20} />
-                    Compensation
+                    {tt('Compensation')}
                   </h3>
                   <div className="space-y-3">
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Gross Salary:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Gross Salary:')}</span>
                       <p className="text-gray-900 font-semibold">
                         {viewingEmployee.grossSalary ? formatCurrency(viewingEmployee.grossSalary) : 'N/A'}
                       </p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Net Salary:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Net Salary:')}</span>
                       <p className="text-gray-900 font-semibold">
                         {viewingEmployee.salary ? formatCurrency(viewingEmployee.salary) : 'N/A'}
                       </p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-gray-600">Hourly Rate:</span>
+                      <span className="text-sm font-medium text-gray-600">{tt('Hourly Rate:')}</span>
                       <p className="text-gray-900">
                         {viewingEmployee.hourlyRate ? formatCurrency(viewingEmployee.hourlyRate) : 'N/A'}
                       </p>
@@ -3382,23 +3383,23 @@ const EmployeeManagement = () => {
                   <div className="bg-gray-50 rounded-lg p-4">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <Phone size={20} />
-                      Emergency Contact
+                      {tt('Emergency Contact')}
                     </h3>
                     <div className="space-y-3">
                       <div>
-                        <span className="text-sm font-medium text-gray-600">Name:</span>
+                        <span className="text-sm font-medium text-gray-600">{tt('Name:')}</span>
                         <p className="text-gray-900">{viewingEmployee.emergencyContact.name || viewingEmployee.emergencyContact.fullName || 'N/A'}</p>
                       </div>
                       <div>
-                        <span className="text-sm font-medium text-gray-600">Relationship:</span>
+                        <span className="text-sm font-medium text-gray-600">{tt('Relationship:')}</span>
                         <p className="text-gray-900">{viewingEmployee.emergencyContact.relationship || 'N/A'}</p>
                       </div>
                       <div>
-                        <span className="text-sm font-medium text-gray-600">Phone:</span>
+                        <span className="text-sm font-medium text-gray-600">{tt('Phone:')}</span>
                         <p className="text-gray-900">{viewingEmployee.emergencyContact.phone || 'N/A'}</p>
                       </div>
                       <div>
-                        <span className="text-sm font-medium text-gray-600">Address:</span>
+                        <span className="text-sm font-medium text-gray-600">{tt('Address:')}</span>
                         <p className="text-gray-900">{viewingEmployee.emergencyContact.address || 'N/A'}</p>
                       </div>
                     </div>
@@ -3417,12 +3418,12 @@ const EmployeeManagement = () => {
                       <div className="bg-gray-50 rounded-lg p-4 md:col-span-2">
                         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                           <FileText size={20} />
-                          Documents
+                          {tt('Documents')}
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {documents.contract && (
                             <div className="bg-white p-3 rounded border border-gray-200">
-                              <span className="text-sm font-medium text-gray-600 block mb-1">Employment Contract</span>
+                              <span className="text-sm font-medium text-gray-600 block mb-1">{tt('Employment Contract')}</span>
                               <a 
                                 href={normalizeDocumentUrl(documents.contract, 'contract')} 
                                 target="_blank" 
@@ -3430,13 +3431,13 @@ const EmployeeManagement = () => {
                                 className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
                               >
                                 <FileText size={14} />
-                                View Document
+                                {tt('View Document')}
                               </a>
                             </div>
                           )}
                           {documents.nationalId && (
                             <div className="bg-white p-3 rounded border border-gray-200">
-                              <span className="text-sm font-medium text-gray-600 block mb-1">National ID</span>
+                              <span className="text-sm font-medium text-gray-600 block mb-1">{tt('National ID')}</span>
                               <a 
                                 href={normalizeDocumentUrl(documents.nationalId, 'nationalId')} 
                                 target="_blank" 
@@ -3444,7 +3445,7 @@ const EmployeeManagement = () => {
                                 className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
                               >
                                 <FileText size={14} />
-                                View Document
+                                {tt('View Document')}
                               </a>
                             </div>
                           )}
@@ -3507,7 +3508,7 @@ const EmployeeManagement = () => {
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">Terminate Employee</h2>
+                <h2 className="text-xl font-semibold text-gray-900">{tt('Terminate Employee')}</h2>
                 <button className="text-gray-500 hover:text-gray-700" onClick={() => {
                   setShowTerminateModal(false);
                   setEmployeeToAction(null);
@@ -3517,7 +3518,7 @@ const EmployeeManagement = () => {
               </div>
               
               <div className="mb-4">
-                <p className="text-gray-600">Are you sure you want to terminate <strong>{employeeToAction.name}</strong>?</p>
+                <p className="text-gray-600">{tt('Are you sure you want to terminate')} <strong>{employeeToAction.name}</strong>?</p>
               </div>
 
               <form onSubmit={(e) => {
@@ -3532,7 +3533,7 @@ const EmployeeManagement = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Termination Date *
+                      {tt('Termination Date *')}
                     </label>
                     <input
                       type="date"
@@ -3545,12 +3546,12 @@ const EmployeeManagement = () => {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Termination Reason
+                      {tt('Termination Reason')}
                     </label>
                     <textarea
                       name="terminationReason"
                       rows={4}
-                      placeholder="Enter reason for termination..."
+                      placeholder={tt('Enter reason for termination...')}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -3563,7 +3564,7 @@ const EmployeeManagement = () => {
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
                     <label htmlFor="terminate-send-email" className="ml-2 block text-sm text-gray-700">
-                      Send email notification to employee
+                      {tt('Send email notification to employee')}
                     </label>
                   </div>
                   {employeeToAction?.email && (
@@ -3582,13 +3583,13 @@ const EmployeeManagement = () => {
                     }}
                     className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
                   >
-                    Terminate Employee
+                    {tt('Terminate Employee')}
                   </button>
                 </div>
               </form>
@@ -3603,7 +3604,7 @@ const EmployeeManagement = () => {
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">Suspend Employee</h2>
+                <h2 className="text-xl font-semibold text-gray-900">{tt('Suspend Employee')}</h2>
                 <button className="text-gray-500 hover:text-gray-700" onClick={() => {
                   setShowSuspendModal(false);
                   setEmployeeToAction(null);
@@ -3613,7 +3614,7 @@ const EmployeeManagement = () => {
               </div>
               
               <div className="mb-4">
-                <p className="text-gray-600">Suspend <strong>{employeeToAction.name}</strong> from work?</p>
+                <p className="text-gray-600">{tt('Suspend')} <strong>{employeeToAction.name}</strong> from work?</p>
               </div>
 
               <form onSubmit={(e) => {
@@ -3629,7 +3630,7 @@ const EmployeeManagement = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Suspension Start Date *
+                      {tt('Suspension Start Date *')}
                     </label>
                     <input
                       type="date"
@@ -3649,17 +3650,17 @@ const EmployeeManagement = () => {
                       name="suspendedTo"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Leave empty for indefinite suspension</p>
+                    <p className="text-xs text-gray-500 mt-1">{tt('Leave empty for indefinite suspension')}</p>
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Suspension Reason
+                      {tt('Suspension Reason')}
                     </label>
                     <textarea
                       name="suspensionReason"
                       rows={4}
-                      placeholder="Enter reason for suspension..."
+                      placeholder={tt('Enter reason for suspension...')}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -3672,7 +3673,7 @@ const EmployeeManagement = () => {
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
                     <label htmlFor="suspend-send-email" className="ml-2 block text-sm text-gray-700">
-                      Send email notification to employee
+                      {tt('Send email notification to employee')}
                     </label>
                   </div>
                   {employeeToAction?.email && (
@@ -3691,13 +3692,13 @@ const EmployeeManagement = () => {
                     }}
                     className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
                   >
-                    Suspend Employee
+                    {tt('Suspend Employee')}
                   </button>
                 </div>
               </form>
@@ -3717,7 +3718,7 @@ const EmployeeManagement = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Apply PAYE to employees</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{tt('Apply PAYE to employees')}</h2>
               <button
                 type="button"
                 className="text-gray-500 hover:text-gray-700"
@@ -3745,7 +3746,7 @@ const EmployeeManagement = () => {
                       onChange={() => setPayeBulkScope("selected")}
                     />
                     <span>
-                      <span className="font-medium text-gray-900">Selected employees only</span>
+                      <span className="font-medium text-gray-900">{tt('Selected employees only')}</span>
                       <span className="block text-xs text-gray-500">
                         {selectedEmployeeIds.size > 0
                           ? `${selectedEmployeeIds.size} selected on this page`
@@ -3762,7 +3763,7 @@ const EmployeeManagement = () => {
                       onChange={() => setPayeBulkScope("all")}
                     />
                     <span>
-                      <span className="font-medium text-gray-900">All employees</span>
+                      <span className="font-medium text-gray-900">{tt('All employees')}</span>
                       <span className="block text-xs text-gray-500">
                         Everyone in your business ({paginationInfo.totalCount ?? "—"} in directory)
                       </span>
@@ -3772,7 +3773,7 @@ const EmployeeManagement = () => {
               </div>
 
               <div>
-                <p className="text-sm font-medium text-gray-800 mb-2">Action</p>
+                <p className="text-sm font-medium text-gray-800 mb-2">{tt('Action')}</p>
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -3790,7 +3791,7 @@ const EmployeeManagement = () => {
                       checked={payeBulkAction === "disable"}
                       onChange={() => setPayeBulkAction("disable")}
                     />
-                    <span className="text-sm text-gray-900">Remove PAYE from deductions</span>
+                    <span className="text-sm text-gray-900">{tt('Remove PAYE from deductions')}</span>
                   </label>
                 </div>
               </div>
@@ -3808,7 +3809,7 @@ const EmployeeManagement = () => {
                 disabled={payeBulkSubmitting}
                 onClick={() => setShowPayeBulkModal(false)}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="button"
@@ -3828,7 +3829,7 @@ const EmployeeManagement = () => {
         <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Import Employees</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{tt('Import Employees')}</h2>
               <button
                 className="text-gray-500 hover:text-gray-700"
                 onClick={() => {
@@ -3843,11 +3844,11 @@ const EmployeeManagement = () => {
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-700">
-                Use the Excel template to upload up to 500+ employees at once. Required fields are highlighted in the template.
+                {tt('Use the Excel template to upload up to 500+ employees at once. Required fields are highlighted in the template.')}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Upload completed template
+                  {tt('Upload completed template')}
                 </label>
                 <input
                   type="file"
@@ -3856,12 +3857,12 @@ const EmployeeManagement = () => {
                   className="w-full border border-gray-300 rounded-md p-2"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Supported: .xlsx, .xls, .csv
+                  {tt('Supported: .xlsx, .xls, .csv')}
                 </p>
               </div>
               {importResults && (
                 <div className="bg-gray-50 border border-gray-200 rounded-md p-3 text-sm">
-                  <p className="font-medium text-gray-800">Import Summary</p>
+                  <p className="font-medium text-gray-800">{tt('Import Summary')}</p>
                   <p>Created: {importResults.createdCount || 0}</p>
                   <p>Skipped: {importResults.skippedCount || 0}</p>
                   {importResults.errors?.length > 0 && (
@@ -3888,7 +3889,7 @@ const EmployeeManagement = () => {
                 }}
                 disabled={isImporting}
               >
-                Close
+                {tt('Close')}
               </button>
               <button
                 type="button"

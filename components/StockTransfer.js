@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { X, Package, ArrowRight, Check, RefreshCw, Building2, Plus, Trash2 } from "lucide-react";
@@ -211,7 +212,7 @@ export const StockTransferModal = ({
           <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-medium text-gray-900">Transfer stock between businesses</h3>
+                <h3 className="text-lg font-medium text-gray-900">{tt('Transfer stock between businesses')}</h3>
                 <p className="text-sm text-gray-500 mt-1">
                   Move inventory from one business to another. Stock is deducted from the source using FIFO costing and added at the destination at the transferred cost.
                 </p>
@@ -226,7 +227,7 @@ export const StockTransferModal = ({
 
             {tenants.length > 0 && tenants.length < 2 && (
               <div className="mb-4 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
-                Add another business (from <a href="/switch-tenant" className="underline font-medium">Switch business</a>) to transfer stock between businesses.
+                Add another business (from <a href="/switch-tenant" className="underline font-medium">{tt('Switch business')}</a>) to transfer stock between businesses.
               </div>
             )}
 
@@ -235,7 +236,7 @@ export const StockTransferModal = ({
                 {/* From business */}
                 <div className="w-full">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    From business *
+                    {tt('From business *')}
                   </label>
                   <select
                     value={fromTenantId}
@@ -252,7 +253,7 @@ export const StockTransferModal = ({
                     disabled={loadingTenants}
                     className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${errors.fromTenant ? 'border-red-500' : 'border-gray-300'}`}
                   >
-                    <option value="">Select source business</option>
+                    <option value="">{tt('Select source business')}</option>
                     {tenants.length > 0 ? (
                       tenants.map((t) => (
                         <option key={t.id} value={t.id}>
@@ -276,7 +277,7 @@ export const StockTransferModal = ({
                 {/* To business */}
                 <div className="w-full">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    To business *
+                    {tt('To business *')}
                   </label>
                   <select
                     value={toTenantId}
@@ -312,7 +313,7 @@ export const StockTransferModal = ({
                   <div className="border-t pt-4">
                     <div className="flex items-center justify-between mb-3">
                       <label className="block text-sm font-medium text-gray-700">
-                        Products to Transfer *
+                        {tt('Products to Transfer *')}
                       </label>
                       {!loadingSourceProducts && availableProducts.length > 0 && (
                         <button
@@ -321,13 +322,13 @@ export const StockTransferModal = ({
                           className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md"
                         >
                           <Plus className="w-4 h-4" />
-                          Add Product
+                          {tt('Add Product')}
                         </button>
                       )}
                       {loadingSourceProducts && (
                         <span className="text-xs text-gray-500 flex items-center gap-1">
                           <RefreshCw className="w-3 h-3 animate-spin" />
-                          Loading inventory…
+                          {tt('Loading inventory…')}
                         </span>
                       )}
                     </div>
@@ -339,8 +340,8 @@ export const StockTransferModal = ({
                     {selectedProducts.length === 0 && (
                       <div className="text-center py-6 border-2 border-dashed border-gray-300 rounded-lg">
                         <Package className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                        <p className="text-sm text-gray-500">No products selected</p>
-                        <p className="text-xs text-gray-400 mt-1">Click "Add Product" to start</p>
+                        <p className="text-sm text-gray-500">{tt('No products selected')}</p>
+                        <p className="text-xs text-gray-400 mt-1">{tt('Click "Add Product" to start')}</p>
                       </div>
                     )}
 
@@ -357,7 +358,7 @@ export const StockTransferModal = ({
                                 onChange={(e) => handleProductChange(index, e.target.value)}
                                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               >
-                                <option value="">Select product</option>
+                                <option value="">{tt('Select product')}</option>
                                 {products
                                   .filter(p =>
                                     parseFloat(p.stockLevel || 0) > 0 &&
@@ -388,7 +389,7 @@ export const StockTransferModal = ({
                           {sp.productId && (
                             <div>
                               <label className="block text-xs font-medium text-gray-700 mb-1">
-                                Quantity *
+                                {tt('Quantity *')}
                               </label>
                               <div className="flex items-center gap-2">
                                 <input
@@ -399,7 +400,7 @@ export const StockTransferModal = ({
                                   step="0.01"
                                   max={sp.availableStock}
                                   className={`flex-1 px-3 py-2 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors[`quantity_${index}`] ? 'border-red-500' : 'border-gray-300'}`}
-                                  placeholder="Enter quantity"
+                                  placeholder={tt('Enter quantity')}
                                 />
                                 <span className="text-xs text-gray-500 whitespace-nowrap">
                                   Max: {sp.availableStock}
@@ -425,15 +426,15 @@ export const StockTransferModal = ({
                 {!fromTenantId && (
                   <div className="text-center py-4 text-sm text-gray-500 border-t pt-4">
                     <Package className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                    <p>Select source and destination businesses first</p>
-                    <p className="text-xs text-gray-400 mt-1">Then you can add products to transfer</p>
+                    <p>{tt('Select source and destination businesses first')}</p>
+                    <p className="text-xs text-gray-400 mt-1">{tt('Then you can add products to transfer')}</p>
                   </div>
                 )}
                 
                 {fromTenantId && !toTenantId && (
                   <div className="text-center py-4 text-sm text-gray-500 border-t pt-4">
                     <Package className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                    <p>Select destination business to continue</p>
+                    <p>{tt('Select destination business to continue')}</p>
                   </div>
                 )}
 
@@ -448,7 +449,7 @@ export const StockTransferModal = ({
                         className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
                       <span className="text-sm text-gray-700">
-                        <span className="font-medium text-gray-900">Complete immediately</span>
+                        <span className="font-medium text-gray-900">{tt('Complete immediately')}</span>
                         <span className="block text-xs text-gray-500 mt-0.5">
                           {completeImmediately
                             ? "Stock moves now — both businesses update right away."
@@ -470,7 +471,7 @@ export const StockTransferModal = ({
                       onChange={(e) => setNotes(e.target.value)}
                       rows={2}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Add any notes about this transfer..."
+                      placeholder={tt('Add any notes about this transfer...')}
                     />
                   </div>
                 )}
@@ -483,7 +484,7 @@ export const StockTransferModal = ({
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                   disabled={loading}
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   type="submit"
@@ -493,7 +494,7 @@ export const StockTransferModal = ({
                   {loading ? (
                     <>
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Transferring...
+                      {tt('Transferring...')}
                     </>
                   ) : (
                     <>
@@ -545,7 +546,7 @@ export const StockTransfersList = ({
     return (
       <div className="flex items-center justify-center py-8">
         <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
-        <span className="ml-2 text-gray-600">Loading transfers...</span>
+        <span className="ml-2 text-gray-600">{tt('Loading transfers...')}</span>
       </div>
     );
   }
@@ -554,21 +555,21 @@ export const StockTransfersList = ({
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Transfer history</h3>
-          <p className="text-sm text-gray-500">All stock moves between your businesses</p>
+          <h3 className="text-lg font-semibold text-gray-900">{tt('Transfer history')}</h3>
+          <p className="text-sm text-gray-500">{tt('All stock moves between your businesses')}</p>
         </div>
         <div className="flex items-center gap-2">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white"
-            aria-label="Filter by status"
+            aria-label={tt('Filter by status')}
           >
-            <option value="all">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="received">Received</option>
-            <option value="rejected">Rejected</option>
+            <option value="all">{tt('All statuses')}</option>
+            <option value="pending">{tt('Pending')}</option>
+            <option value="approved">{tt('Approved')}</option>
+            <option value="received">{tt('Received')}</option>
+            <option value="rejected">{tt('Rejected')}</option>
           </select>
           {onRefresh && (
             <button
@@ -577,7 +578,7 @@ export const StockTransfersList = ({
               className="flex items-center px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
             >
               <RefreshCw className="w-4 h-4 mr-1" />
-              Refresh
+              {tt('Refresh')}
             </button>
           )}
         </div>
@@ -645,7 +646,7 @@ export const StockTransfersList = ({
                         onClick={() => onApprove(transfer.id)}
                         className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700"
                       >
-                        Approve
+                        {tt('Approve')}
                       </button>
                     )}
                     {status === "approved" && onReceive && (
@@ -654,7 +655,7 @@ export const StockTransfersList = ({
                         onClick={() => onReceive(transfer.id)}
                         className="px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-700"
                       >
-                        Receive
+                        {tt('Receive')}
                       </button>
                     )}
                     {status === "pending" && onReject && (
@@ -663,7 +664,7 @@ export const StockTransfersList = ({
                         onClick={() => handleReject(transfer.id)}
                         className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-200 text-red-700 hover:bg-red-50"
                       >
-                        Reject
+                        {tt('Reject')}
                       </button>
                     )}
                   </div>
@@ -687,7 +688,7 @@ export const StockPerBusiness = ({
     return (
       <div className="flex items-center justify-center py-8">
         <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
-        <span className="ml-2 text-gray-600">Loading stock data...</span>
+        <span className="ml-2 text-gray-600">{tt('Loading stock data...')}</span>
       </div>
     );
   }
@@ -696,15 +697,15 @@ export const StockPerBusiness = ({
     return (
       <div className="text-center py-8 text-gray-500">
         <Building2 className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-        <p>No business stock data available</p>
+        <p>{tt('No business stock data available')}</p>
       </div>
     );
   }
 
   return (
     <div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-1">Stock by business</h3>
-      <p className="text-sm text-gray-500 mb-4">Totals for each business you can access</p>
+      <h3 className="text-lg font-semibold text-gray-900 mb-1">{tt('Stock by business')}</h3>
+      <p className="text-sm text-gray-500 mb-4">{tt('Totals for each business you can access')}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {rows.map((biz) => {
           const totalValue = biz.totalValue !== undefined
@@ -724,19 +725,19 @@ export const StockPerBusiness = ({
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Products</span>
+                  <span className="text-gray-600">{tt('Products')}</span>
                   <span className="font-medium text-gray-900">
                     {biz.productCount || biz.products?.length || 0}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Total units</span>
+                  <span className="text-gray-600">{tt('Total units')}</span>
                   <span className="font-medium text-gray-900">
                     {biz.totalQuantity || biz.quantity || 0}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Stock value</span>
+                  <span className="text-gray-600">{tt('Stock value')}</span>
                   <span className="font-medium text-gray-900">
                     {formatCurrency(totalValue)}
                   </span>

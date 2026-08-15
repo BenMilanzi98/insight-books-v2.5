@@ -1,222 +1,136 @@
-### Task 2: Reverse orchestrator (availability + restock + invoice unwind)
+### Task 2: Pure outbox push rules
 
 **Files:**
-- Create: `lib/rentalReverseService.js`
-- Create: `test/rentalReverseService.test.js`
-- Modify: `app/api/rentals/cancel/route.js`
-- Modify: `app/rentals/RentalsClient.js` (button label / paid error UX)
+- Create: `lib/desktop/outboxState.js`
+- Create: `test/desktop/outboxState.test.js`
 
 **Interfaces:**
-- Consumes: Prisma tx client; invoice payment totals; void semantics matching `/api/invoices/void`
-- Produces: `reverseRentalBooking({ prisma, tenantId, userId, transactionId, reason })` →
-  ```ts
-  {
-    ok: true,
-    transactionId: string,
-    alreadyReversed?: boolean,
-    invoiceAction: 'deleted_draft' | 'voided' | 'none' | 'already_cancelled',
-    invoiceId?: string | null,
-  }
-  // or throws / returns { ok:false, code:'NEED_CREDIT_REFUND'|'NOT_FOUND'|'CLOSED', error:string }
-  ```
+- Consumes: none
+- Produces:
+  - `OUTBOX_STATUS = { pending: 'pending', syncing: 'syncing', failed: 'failed', synced: 'synced' }`
+  - `sortOutboxForPush(rows) → rows` ordered by `seq` ascending
+  - `nextPushItem(rows) → row \| null` first `pending` or `syncing` (treat `syncing` as retry), **unless** any earlier `failed` exists (then `null`)
+  - `canPullSnapshot(rows) → boolean` true only when no `pending`, `syncing`, or `failed`
+  - `markPushFailure(rows, id, errorMessage) → rows` sets that id `failed`, leaves later items `pending`
+  - `markPushSuccess(rows, id, serverId) → rows`
 
-- [ ] **Step 1: Write failing unit tests**
-
-Create `test/rentalReverseService.test.js` with a mock Prisma capturing calls:
+- [ ] **Step 1: Write failing tests**
 
 ```js
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { reverseRentalBooking } from '../lib/rentalReverseService.js';
+import { describe, expect, it } from 'vitest';
+import {
+  sortOutboxForPush,
+  nextPushItem,
+  canPullSnapshot,
+  markPushFailure,
+  markPushSuccess,
+} from '../../lib/desktop/outboxState.js';
 
-function buildPrisma({
-  status = 'booked',
-  kind = 'hiring',
-  invoiceStatus = 'Pending',
-  totalPaid = 0,
-  invoiceId = 'inv-1',
-  items = [{ id: 'ri-1', rentalAssetId: 'asset-1', quantity: 2, rentalAsset: { id: 'asset-1', kind: 'hiring', status: 'available' } }],
-} = {}) {
-  const rt = {
-    id: 'rt-1',
-    tenantId: 't1',
-    status,
-    kind,
-    invoiceId,
-    items,
-    invoice: invoiceId
-      ? {
-          id: invoiceId,
-          status: invoiceStatus,
-          payments: totalPaid > 0 ? [{ status: 'Completed', amount: totalPaid }] : [],
-        }
-      : null,
-  };
+const rows = [
+  { id: 'a', seq: 1, status: 'pending' },
+  { id: 'b', seq: 2, status: 'pending' },
+  { id: 'c', seq: 3, status: 'pending' },
+];
 
-  const tx = {
-    rentalTransaction: {
-      findFirst: vi.fn().mockResolvedValue(rt),
-      update: vi.fn().mockResolvedValue({ ...rt, status: 'cancelled' }),
-    },
-    rentalAssetAvailability: {
-      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
-    },
-    rentalAsset: {
-      update: vi.fn().mockResolvedValue({}),
-    },
-    invoice: {
-      delete: vi.fn().mockResolvedValue({}),
-      update: vi.fn().mockResolvedValue({}),
-      findFirst: vi.fn().mockResolvedValue(rt.invoice),
-    },
-    auditLog: {
-      create: vi.fn().mockResolvedValue({}),
-    },
-  };
-
-  return {
-    prisma: {
-      $transaction: async (fn) => fn(tx),
-      rentalTransaction: tx.rentalTransaction,
-    },
-    tx,
-    rt,
-  };
-}
-
-describe('reverseRentalBooking', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('idempotent when already cancelled', async () => {
-    const { prisma } = buildPrisma({ status: 'cancelled' });
-    const res = await reverseRentalBooking({
-      prisma,
-      tenantId: 't1',
-      userId: 'u1',
-      transactionId: 'rt-1',
-      reason: 'test reverse',
-    });
-    expect(res.ok).toBe(true);
-    expect(res.alreadyReversed).toBe(true);
+describe('outbox push order', () => {
+  it('pushes lowest seq first', () => {
+    expect(nextPushItem(rows).id).toBe('a');
   });
 
-  it('blocks when invoice has payments', async () => {
-    const { prisma } = buildPrisma({ totalPaid: 100, invoiceStatus: 'Paid' });
-    const res = await reverseRentalBooking({
-      prisma,
-      tenantId: 't1',
-      userId: 'u1',
-      transactionId: 'rt-1',
-      reason: 'customer cancelled',
-    });
-    expect(res.ok).toBe(false);
-    expect(res.code).toBe('NEED_CREDIT_REFUND');
+  it('retries syncing before later pending', () => {
+    const r = [
+      { id: 'a', seq: 1, status: 'syncing' },
+      { id: 'b', seq: 2, status: 'pending' },
+    ];
+    expect(nextPushItem(r).id).toBe('a');
   });
 
-  it('deletes draft invoice, frees availability, restocks space asset', async () => {
-    const { prisma, tx } = buildPrisma({
-      kind: 'rental',
-      invoiceStatus: 'draft',
-      items: [
-        {
-          id: 'ri-1',
-          rentalAssetId: 'asset-1',
-          quantity: 1,
-          rentalAsset: { id: 'asset-1', kind: 'rental', status: 'booked' },
-        },
-      ],
-    });
-    const res = await reverseRentalBooking({
-      prisma,
-      tenantId: 't1',
-      userId: 'u1',
-      transactionId: 'rt-1',
-      reason: 'draft cancel',
-    });
-    expect(res.ok).toBe(true);
-    expect(tx.rentalAssetAvailability.deleteMany).toHaveBeenCalledWith({
-      where: { rentalTransactionId: 'rt-1' },
-    });
-    expect(tx.rentalAsset.update).toHaveBeenCalledWith({
-      where: { id: 'asset-1' },
-      data: { status: 'available' },
-    });
-    expect(tx.rentalTransaction.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'rt-1' },
-        data: expect.objectContaining({ status: 'cancelled', invoiceId: null }),
-      })
-    );
+  it('stops when an earlier item failed', () => {
+    const failed = markPushFailure(rows, 'b', 'stock 0');
+    expect(failed.find((x) => x.id === 'b').status).toBe('failed');
+    expect(failed.find((x) => x.id === 'c').status).toBe('pending');
+    expect(nextPushItem(failed)).toBeNull();
+    expect(canPullSnapshot(failed)).toBe(false);
   });
 
-  it('voids posted unpaid invoice then frees slots (calls voidHook)', async () => {
-    const voidHook = vi.fn().mockResolvedValue({ ok: true });
-    const { prisma, tx } = buildPrisma({ invoiceStatus: 'Pending', totalPaid: 0 });
-    const res = await reverseRentalBooking({
-      prisma,
-      tenantId: 't1',
-      userId: 'u1',
-      transactionId: 'rt-1',
-      reason: 'cancel booking',
-      voidPostedInvoice: voidHook,
-    });
-    expect(res.ok).toBe(true);
-    expect(voidHook).toHaveBeenCalledWith(
-      expect.objectContaining({ invoiceId: 'inv-1', tenantId: 't1', userId: 'u1' })
-    );
-    expect(tx.rentalAssetAvailability.deleteMany).toHaveBeenCalled();
+  it('allows snapshot pull only when drained', () => {
+    let r = markPushSuccess(rows, 'a', 'srv-a');
+    r = markPushSuccess(r, 'b', 'srv-b');
+    r = markPushSuccess(r, 'c', 'srv-c');
+    expect(canPullSnapshot(r)).toBe(true);
+  });
+
+  it('sorts by seq even if inserted out of order', () => {
+    const mixed = [
+      { id: 'c', seq: 3, status: 'pending' },
+      { id: 'a', seq: 1, status: 'pending' },
+    ];
+    expect(sortOutboxForPush(mixed).map((x) => x.id)).toEqual(['a', 'c']);
   });
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**
+- [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run test/rentalReverseService.test.js`  
-Expected: FAIL — module missing.
+Run: `npx vitest run test/desktop/outboxState.test.js`
 
-- [ ] **Step 3: Implement `lib/rentalReverseService.js`**
+Expected: FAIL (module not found)
 
-Core algorithm (exact behaviour):
+- [ ] **Step 3: Write minimal implementation**
 
-1. `findFirst` RT by `id` + `tenantId` with `items.rentalAsset`, `invoice.payments` (Completed only).
-2. If missing → `{ ok:false, code:'NOT_FOUND', error:'Transaction not found' }`.
-3. If `status` in `cancelled` → `{ ok:true, alreadyReversed:true, invoiceAction:'already_cancelled' }` (do not delete availability again if already gone — safe no-op deleteMany is fine).
-4. If `status === 'completed'` → `{ ok:false, code:'CLOSED', error:'Completed bookings cannot be reversed here' }` (use return/credit flows).
-5. Sum completed payments on invoice; if `> 0` → `{ ok:false, code:'NEED_CREDIT_REFUND', error:'...' }` **before** any stock release.
-6. Inside `$transaction`:
-   - Draft / missing invoice / lowercase `draft`: unlink `invoiceId`, delete draft invoice if present, `invoiceAction='deleted_draft'`.
-   - Else posted unpaid: call injected `voidPostedInvoice({ db: tx, invoiceId, tenantId, userId, reason })` which wraps the same GL reverse as `/api/invoices/void` (extract shared helper from void route if needed into `lib/invoiceVoidService.js`; if extraction is large, call void logic inline and keep route thin). Prefer extract: `voidInvoiceInTransaction({ tx, invoice, userId, reason })`.
-   - `rentalAssetAvailability.deleteMany({ where: { rentalTransactionId } })`.
-   - For each item where `rentalAsset.kind === 'rental'`: set asset `status: 'available'`.
-   - Quantity pools: availability delete is the restock (capacity is computed from open availability rows — verify against `lib/rentalAvailability.js`). Do **not** invent a separate stock ledger unless one already exists.
-   - Update RT: `{ status: 'cancelled', invoiceId: null }` (or keep invoiceId if voided for audit — prefer **keep** voided `invoiceId` link for Reports; only null when draft deleted). Spec: draft deleted; voided stay linked. Adjust tests accordingly:
-     - Draft: delete invoice, set `invoiceId: null`.
-     - Voided: keep `invoiceId`, status cancelled.
-   - `auditLog.create` with `RENTAL_BOOKING_REVERSED` and `source` from `resolveOutboundInvoiceSource(rt.kind)`.
+```js
+export const OUTBOX_STATUS = {
+  pending: 'pending',
+  syncing: 'syncing',
+  failed: 'failed',
+  synced: 'synced',
+};
 
-Default `voidPostedInvoice`: import shared void helper.
+export function sortOutboxForPush(rows) {
+  return [...rows].sort((a, b) => a.seq - b.seq);
+}
 
-- [ ] **Step 4: Wire cancel route**
+export function nextPushItem(rows) {
+  const sorted = sortOutboxForPush(rows);
+  for (const row of sorted) {
+    if (row.status === 'failed') return null;
+    if (row.status === 'pending' || row.status === 'syncing') return row;
+  }
+  return null;
+}
 
-Replace body of `app/api/rentals/cancel/route.js` to call `reverseRentalBooking` and map codes to HTTP:
+export function canPullSnapshot(rows) {
+  return rows.every((r) => r.status === 'synced');
+}
 
-| code | status |
-|------|--------|
-| NOT_FOUND | 404 |
-| NEED_CREDIT_REFUND | 409 |
-| CLOSED | 400 |
-| ok | 200 |
+export function markPushFailure(rows, id, errorMessage) {
+  return rows.map((r) =>
+    r.id === id ? { ...r, status: 'failed', errorMessage } : r
+  );
+}
 
-- [ ] **Step 5: UI — RentalsClient**
+export function markPushSuccess(rows, id, serverId) {
+  return rows.map((r) =>
+    r.id === id ? { ...r, status: 'synced', serverId } : r
+  );
+}
+```
 
-Rename cancel button to **Reverse** where appropriate; on 409 show message: “Invoice has payments — refund/credit on /invoices first, then reverse.”
+Empty outbox: `canPullSnapshot([])` must be `true` (every() on [] is true). Add this assertion to the test file:
 
-- [ ] **Step 6: Run tests — expect PASS**
+```js
+  it('allows snapshot pull when outbox is empty', () => {
+    expect(canPullSnapshot([])).toBe(true);
+  });
+```
 
-Run: `npx vitest run test/rentalReverseService.test.js`
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `npx vitest run test/desktop/outboxState.test.js`
 
 Expected: PASS
 
-- [ ] **Step 7: Commit only if user asked**
+- [ ] **Step 5: Commit** (skip unless asked)
 
 ---
 

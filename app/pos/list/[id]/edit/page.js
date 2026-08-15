@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter , useParams } from "next/navigation";
@@ -755,7 +756,7 @@ const loadSale = async (productList) => {
       <div className="flex justify-center items-center h-screen">
         <div className="text-center">
           <Loader className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-500">Loading sale details...</p>
+          <p className="text-gray-500">{tt('Loading sale details...')}</p>
         </div>
       </div>
     );
@@ -766,7 +767,7 @@ const loadSale = async (productList) => {
       <div className="flex justify-center items-center h-screen">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Error</h2>
+          <h2 className="text-xl font-bold mb-2">{tt('Error')}</h2>
           <p className="text-red-500 mb-4">{error}</p>
           <div className="flex justify-center space-x-4">
             <button 
@@ -774,7 +775,7 @@ const loadSale = async (productList) => {
               onClick={() => router.push('/sales')}
             >
               <ArrowLeft className="w-4 h-4 mr-2 inline-block" />
-              Back to Sales
+              {tt('Back to Sales')}
             </button>
           </div>
         </div>
@@ -786,14 +787,14 @@ const loadSale = async (productList) => {
       <div className="flex justify-center items-center h-screen">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Sale Not Found</h2>
-          <p className="text-gray-500 mb-4">The requested sale could not be found</p>
+          <h2 className="text-xl font-bold mb-2">{tt('Sale Not Found')}</h2>
+          <p className="text-gray-500 mb-4">{tt('The requested sale could not be found')}</p>
           <button 
             className="px-4 py-2 bg-blue-600 text-white rounded-md"
             onClick={() => router.push('/sales')}
           >
             <ArrowLeft className="w-4 h-4 mr-2 inline-block" />
-            Back to Sales
+            {tt('Back to Sales')}
           </button>
         </div>
       </div>
@@ -804,14 +805,14 @@ const loadSale = async (productList) => {
       <div className="flex justify-center items-center h-screen">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Sale Completed</h2>
-          <p className="text-gray-500 mb-4">The requested sale can not be updated!</p>
+          <h2 className="text-xl font-bold mb-2">{tt('Sale Completed')}</h2>
+          <p className="text-gray-500 mb-4">{tt('The requested sale can not be updated!')}</p>
           <button 
             className="px-4 py-2 bg-blue-600 text-white rounded-md"
             onClick={() => router.push('/sales')}
           >
             <ArrowLeft className="w-4 h-4 mr-2 inline-block" />
-            Back to Sales
+            {tt('Back to Sales')}
           </button>
         </div>
       </div>
@@ -821,21 +822,21 @@ const loadSale = async (productList) => {
     <PermissionGuard permission="sales.view">   
     <div className="p-4 sm:p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Sales</h1>
+        <h1 className="text-2xl font-bold">{tt('Sales')}</h1>
         <div className="flex space-x-2">
           <button 
             className="px-4 py-2 border border-gray-300 bg-white rounded-md flex items-center"
             onClick={() => router.push('/pos/list')}
           >
             <Calendar className="w-4 h-4 mr-2" />
-            <span>Sales History</span>
+            <span>{tt('Sales History')}</span>
           </button>
           {pagePermissions.canCreateSales &&( <button 
             className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center"
             onClick={() => router.push('/sales')}
           >
             <PlusCircle className="w-4 h-4 mr-2" />
-            <span>New Sale</span>
+            <span>{tt('New Sale')}</span>
           </button>)}
         </div>
       </div>
@@ -848,7 +849,7 @@ const loadSale = async (productList) => {
               <CheckCircle className="h-5 w-5 text-green-500" />
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium">Sale completed successfully!</p>
+              <p className="text-sm font-medium">{tt('Sale completed successfully!')}</p>
             </div>
           </div>
         </div>
@@ -872,7 +873,7 @@ const loadSale = async (productList) => {
         {/* Left Column - New Sale Form */}
         {pagePermissions.canCreateSales &&( <div className="lg:col-span-2 bg-white rounded-lg shadow p-4">
           <div>
-            <h2 className="text-lg font-semibold mb-2">Edit Sale</h2>
+            <h2 className="text-lg font-semibold mb-2">{tt('Edit Sale')}</h2>
             <div className="flex mb-4">
               <button
                 className={`px-4 py-2 ${activeTab === "walkIn" ? "bg-blue-100 text-blue-600" : "bg-gray-100"} rounded-l-md`}
@@ -881,20 +882,20 @@ const loadSale = async (productList) => {
                   setSelectedCustomer("");
                 }}
               >
-                Walk-in Customer
+                {tt('Walk-in Customer')}
               </button>
               <button 
                 className={`px-4 py-2 ${activeTab === "registered" ? "bg-blue-100 text-blue-600" : "bg-gray-100"} rounded-r-md flex items-center`}
                 onClick={() => setActiveTab("registered")}
               >
                 <UserPlus className="w-4 h-4 mr-2" />
-                Registered Customer
+                {tt('Registered Customer')}
               </button>
             </div>
 
             {activeTab === "registered" && (
               <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Select Customer</label>
+                <label className="block text-sm font-medium mb-1">{tt('Select Customer')}</label>
                 <div className="relative">
                   <select 
                     className="w-full p-2 border border-gray-200 rounded-md appearance-none pr-10"
@@ -908,7 +909,7 @@ const loadSale = async (productList) => {
                     }}
                     disabled={isLoadingClients}
                   >
-                    <option value="">Select customer...</option>
+                    <option value="">{tt('Select customer...')}</option>
                     {filteredClients.map((client) => (
                       <option key={client.id} value={client.id}>{client.name}</option>
                     ))}
@@ -930,7 +931,7 @@ const loadSale = async (productList) => {
                 <div className="mt-2">
                   <input
                     type="text"
-                    placeholder="Search clients..."
+                    placeholder={tt('Search clients...')}
                     className="w-full p-2 border border-gray-200 rounded-md"
                     value={clientSearchQuery}
                     onChange={(e) => setClientSearchQuery(e.target.value)}
@@ -940,12 +941,12 @@ const loadSale = async (productList) => {
             )}
 
             <div className="mb-4 relative">
-              <label className="block text-sm font-medium mb-1">Add Products</label>
+              <label className="block text-sm font-medium mb-1">{tt('Add Products')}</label>
               <div className="flex gap-2">
                 <div className="relative flex-grow" ref={productSearchRef}>
                   <input
                     type="text"
-                    placeholder="Search products by name or SKU..."
+                    placeholder={tt('Search products by name or SKU...')}
                     className="w-full p-2 border border-gray-200 rounded-md"
                     value={productSearchQuery}
                     onChange={(e) => setProductSearchQuery(e.target.value)}
@@ -970,11 +971,11 @@ const loadSale = async (productList) => {
                       {isLoadingProducts ? (
                         <div className="p-4 text-center">
                           <Loader className="w-5 h-5 text-blue-500 animate-spin mx-auto mb-2" />
-                          <p className="text-gray-500 text-sm">Loading products...</p>
+                          <p className="text-gray-500 text-sm">{tt('Loading products...')}</p>
                         </div>
                       ) : filteredProducts.length === 0 ? (
                         <div className="p-4 text-center">
-                          <p className="text-gray-500">No products found</p>
+                          <p className="text-gray-500">{tt('No products found')}</p>
                         </div>
                       ) : (
                         filteredProducts.map(product => (
@@ -993,7 +994,7 @@ const loadSale = async (productList) => {
                             <div className="text-right">
                               <p className="font-medium">{formatCurrency(product.price)}</p>
                               {product.stockLevel <= 0 ? (
-                                <span className="text-xs text-red-500">Out of stock</span>
+                                <span className="text-xs text-red-500">{tt('Out of stock')}</span>
                               ) : (
                                 <button 
                                   className="text-xs text-blue-600 hover:text-blue-800"
@@ -1032,11 +1033,11 @@ const loadSale = async (productList) => {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
-                    <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Product')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Price')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Qty')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Subtotal')}</th>
+                    <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Action')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -1068,7 +1069,7 @@ const loadSale = async (productList) => {
                   ) : (
                     <tr>
                       <td colSpan="5" className="px-4 py-3 text-sm text-gray-500 text-center">
-                        No products added yet. Search and select products to add to the sale.
+                        {tt('No products added yet. Search and select products to add to the sale.')}
                       </td>
                     </tr>
                   )}
@@ -1078,7 +1079,7 @@ const loadSale = async (productList) => {
 
             <div className="bg-gray-50 p-4 rounded-md mb-4">
               <div className="flex justify-between mb-2">
-                <span className="font-medium">Discount:</span>
+                <span className="font-medium">{tt('Discount:')}</span>
                 <span><input
                   type="number"
                   className="w-16 p-1 text-right border border-gray-200 rounded-md"
@@ -1089,14 +1090,14 @@ const loadSale = async (productList) => {
                 /></span>
               </div>
               <div className="flex justify-between mb-2">
-                <span className="font-medium">Subtotal:</span>
+                <span className="font-medium">{tt('Subtotal:')}</span>
                 <span>{formatCurrency(calculateSubtotal())}</span>
               </div>
               <div className="flex justify-between mb-2">
                 <span className="font-medium flex items-center">
                   {isEditingTax ? (
                     <div className="flex items-center">
-                      <span className="mr-2">Tax</span>
+                      <span className="mr-2">{tt('Tax')}</span>
                       <input
                         type="number"
                         className="w-16 p-1 border border-gray-300 rounded-md"
@@ -1139,13 +1140,13 @@ const loadSale = async (productList) => {
                 <span>{formatCurrency(calculateTaxAmount())}</span>
               </div>
               <div className="flex justify-between text-lg font-bold">
-                <span>Total:</span>
+                <span>{tt('Total:')}</span>
                 <span>{formatCurrency(calculateTotal())}</span>
               </div>
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Payment account</label>
+              <label className="block text-sm font-medium mb-1">{tt('Payment account')}</label>
               <p className="text-xs text-gray-500 mb-2">From Payment Accounts (/payments/management).</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {(paymentAccountsForEdit.length
@@ -1174,7 +1175,7 @@ const loadSale = async (productList) => {
               <textarea
                 className="w-full p-2 border border-gray-200 rounded-md"
                 rows="2"
-                placeholder="Add notes about this sale..."
+                placeholder={tt('Add notes about this sale...')}
                 value={saleNotes}
                 onChange={(e) => setSaleNotes(e.target.value)}
               ></textarea>
@@ -1186,7 +1187,7 @@ const loadSale = async (productList) => {
                 onClick={clearSale}
               >
                 <X className="w-4 h-4 mr-2" />
-                Clear
+                {tt('Clear')}
               </button>
               <button 
                 className={`px-4 py-2 bg-gray-200 text-gray-700 rounded-md flex-1 flex items-center justify-center ${
@@ -1196,7 +1197,7 @@ const loadSale = async (productList) => {
                 disabled={isSubmitting || selectedProducts.length === 0}
               >
                 <Save className="w-4 h-4 mr-2" />
-                Save Draft
+                {tt('Save Draft')}
               </button>
               <button 
                 className={`px-4 py-2 bg-green-600 text-white rounded-md flex-1 flex items-center justify-center ${
@@ -1208,12 +1209,12 @@ const loadSale = async (productList) => {
                 {isSubmitting ? (
                   <>
                     <Loader className="animate-spin h-4 w-4 mr-2" />
-                    Processing...
+                    {tt('Processing...')}
                   </>
                 ) : (
                   <>
                     <ShoppingCart className="w-4 h-4 mr-2" />
-                    Complete Sale
+                    {tt('Complete Sale')}
                   </>
                 )}
               </button>
@@ -1223,12 +1224,12 @@ const loadSale = async (productList) => {
 
         {/* Right Column - Recent Sales */}
         <div className="bg-white rounded-lg shadow p-4">
-          <h2 className="text-lg font-semibold mb-4">Recent Sales</h2>
+          <h2 className="text-lg font-semibold mb-4">{tt('Recent Sales')}</h2>
           <div className="mb-4">
             <div className="relative">
               <input 
                 type="text" 
-                placeholder="Search sales..." 
+                placeholder={tt('Search sales...')} 
                 className="w-full p-2 pl-10 border border-gray-200 rounded-md"
                 // Note: This would ideally be connected to an actual search function
               />
@@ -1251,13 +1252,13 @@ const loadSale = async (productList) => {
                 onClick={loadRecentSales}
               >
                 <RefreshCw className="w-4 h-4 mr-2 inline-block" />
-                Try Again
+                {tt('Try Again')}
               </button>
             </div>
           ) : recentSales.length === 0 ? (
             <div className="text-center py-16 text-gray-500">
               <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>No sales recorded yet</p>
+              <p>{tt('No sales recorded yet')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1265,9 +1266,9 @@ const loadSale = async (productList) => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">ID</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Customer</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Amount</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Date')}</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Customer')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Amount')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -1290,7 +1291,7 @@ const loadSale = async (productList) => {
           
           <div className="mt-4 flex justify-center">
             <a href="/pos/list" className="text-blue-600 text-sm hover:underline flex items-center">
-              View All Sales
+              {tt('View All Sales')}
               <ArrowRight className="w-4 h-4 ml-1" />
             </a>
           </div>
@@ -1305,7 +1306,7 @@ const loadSale = async (productList) => {
             ref={receiptModalRef}
           >
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Sale Completed</h3>
+              <h3 className="text-lg font-semibold">{tt('Sale Completed')}</h3>
               <button 
                 className="text-gray-500 hover:text-gray-700"
                 onClick={() => setShowReceiptModal(false)}
@@ -1318,14 +1319,14 @@ const loadSale = async (productList) => {
               <div className="bg-green-100 text-green-600 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                 <CheckCircle className="w-8 h-8" />
               </div>
-              <h4 className="text-xl font-bold mb-2">Success!</h4>
+              <h4 className="text-xl font-bold mb-2">{tt('Success!')}</h4>
               <p className="text-gray-600">
                 Sale {receiptNumber} has been completed successfully.
               </p>
             </div>
             
             <div className="bg-gray-50 rounded-md p-4 mb-6">
-              <p className="text-sm text-gray-600 mb-2">Sale Details:</p>
+              <p className="text-sm text-gray-600 mb-2">{tt('Sale Details:')}</p>
               <p className="text-lg font-bold mb-1">Total: {formatCurrency(calculateTotal())}</p>
               <p className="text-sm text-gray-600">
                 Payment account:{" "}
@@ -1337,7 +1338,7 @@ const loadSale = async (productList) => {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Thermal paper width
+                  {tt('Thermal paper width')}
                 </label>
                 <select
                   value={receiptPaperWidthMm}
@@ -1358,14 +1359,14 @@ const loadSale = async (productList) => {
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 flex items-center justify-center hover:bg-gray-50"
                   onClick={() => setShowReceiptModal(false)}
                 >
-                  Close
+                  {tt('Close')}
                 </button>
                 <button 
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center hover:bg-blue-700"
                   onClick={() => handlePrintReceipt(receiptPaperWidthMm)}
                 >
                   <Printer className="w-4 h-4 mr-2" />
-                  Print Receipt
+                  {tt('Print Receipt')}
                 </button>
               </div>
             </div>

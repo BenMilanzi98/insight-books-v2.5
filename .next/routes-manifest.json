@@ -778,6 +778,14 @@
       "namedRegex": "^/api/branches/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/budget-forecast/assumptions/[id]",
+      "regex": "^/api/budget\\-forecast/assumptions/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/budget\\-forecast/assumptions/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/budget-forecast/budgets/[id]",
       "regex": "^/api/budget\\-forecast/budgets/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -816,6 +824,22 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/budget\\-forecast/forecasts/(?<nxtPid>[^/]+?)/actions(?:/)?$"
+    },
+    {
+      "page": "/api/budget-forecast/forecasts/[id]/demand",
+      "regex": "^/api/budget\\-forecast/forecasts/([^/]+?)/demand(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/budget\\-forecast/forecasts/(?<nxtPid>[^/]+?)/demand(?:/)?$"
+    },
+    {
+      "page": "/api/budget-forecast/forecasts/[id]/lines",
+      "regex": "^/api/budget\\-forecast/forecasts/([^/]+?)/lines(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/budget\\-forecast/forecasts/(?<nxtPid>[^/]+?)/lines(?:/)?$"
     },
     {
       "page": "/api/budgets/[id]",
@@ -976,6 +1000,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/departments/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/desktop-local/[...path]",
+      "regex": "^/api/desktop\\-local/(.+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPpath": "nxtPpath"
+      },
+      "namedRegex": "^/api/desktop\\-local/(?<nxtPpath>.+?)(?:/)?$"
     },
     {
       "page": "/api/disciplinary/penalties/[id]/approve",
@@ -4696,6 +4728,18 @@
       "namedRegex": "^/api/branches/switch(?:/)?$"
     },
     {
+      "page": "/api/budget-forecast/ai/suggestions",
+      "regex": "^/api/budget\\-forecast/ai/suggestions(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/budget\\-forecast/ai/suggestions(?:/)?$"
+    },
+    {
+      "page": "/api/budget-forecast/assumptions",
+      "regex": "^/api/budget\\-forecast/assumptions(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/budget\\-forecast/assumptions(?:/)?$"
+    },
+    {
       "page": "/api/budget-forecast/budgets",
       "regex": "^/api/budget\\-forecast/budgets(?:/)?$",
       "routeKeys": {},
@@ -5126,6 +5170,36 @@
       "regex": "^/api/departments(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/departments(?:/)?$"
+    },
+    {
+      "page": "/api/desktop/bind",
+      "regex": "^/api/desktop/bind(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/desktop/bind(?:/)?$"
+    },
+    {
+      "page": "/api/desktop/heartbeat",
+      "regex": "^/api/desktop/heartbeat(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/desktop/heartbeat(?:/)?$"
+    },
+    {
+      "page": "/api/desktop/outbox",
+      "regex": "^/api/desktop/outbox(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/desktop/outbox(?:/)?$"
+    },
+    {
+      "page": "/api/desktop/snapshot",
+      "regex": "^/api/desktop/snapshot(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/desktop/snapshot(?:/)?$"
+    },
+    {
+      "page": "/api/desktop/unbind",
+      "regex": "^/api/desktop/unbind(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/desktop/unbind(?:/)?$"
     },
     {
       "page": "/api/diagnostics/inventory-reconciliation",
@@ -7592,6 +7666,18 @@
       "regex": "^/dashboard(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/dashboard(?:/)?$"
+    },
+    {
+      "page": "/desktop/setup",
+      "regex": "^/desktop/setup(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/desktop/setup(?:/)?$"
+    },
+    {
+      "page": "/desktop/sync-issues",
+      "regex": "^/desktop/sync\\-issues(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/desktop/sync\\-issues(?:/)?$"
     },
     {
       "page": "/download-app",

@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/charts/FinancialRatiosChart.jsx
 import React from 'react';
 import {
@@ -18,7 +19,7 @@ export const FinancialRatiosRadarChart = ({ data }) => {
   if (!data) {
     return (
       <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
-        <p className="text-gray-500">No ratio data available for visualization</p>
+        <p className="text-gray-500">{tt('No ratio data available for visualization')}</p>
       </div>
     );
   }
@@ -73,7 +74,7 @@ export const FinancialRatiosRadarChart = ({ data }) => {
 
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-      <h3 className="text-lg font-medium text-gray-800 mb-4">Financial Ratios Visualization</h3>
+      <h3 className="text-lg font-medium text-gray-800 mb-4">{tt('Financial Ratios Visualization')}</h3>
       <ResponsiveContainer width="100%" height={400}>
         <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
           <PolarGrid />
@@ -91,8 +92,7 @@ export const FinancialRatiosRadarChart = ({ data }) => {
       </ResponsiveContainer>
       <div className="mt-4">
         <p className="text-sm text-gray-500 text-center">
-          This radar chart visualizes how your financial ratios compare to each other.
-          Higher values generally indicate better financial health.
+          {tt('This radar chart visualizes how your financial ratios compare to each other. Higher values generally indicate better financial health.')}
         </p>
       </div>
     </div>

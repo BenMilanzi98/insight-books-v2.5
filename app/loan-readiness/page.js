@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * Loan Readiness Centre — advisory financing preparation.
@@ -273,7 +274,7 @@ export default function LoanReadinessPage() {
         actions={
           <PosStyleHeaderButton type="button" onClick={load} disabled={busy}>
             <RefreshCw className={`mr-2 h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
-            Refresh
+            {tt('Refresh')}
           </PosStyleHeaderButton>
         }
       />
@@ -292,14 +293,14 @@ export default function LoanReadinessPage() {
         >
           <div className="mt-2 flex gap-2">
             <button type="button" onClick={saveConfig} className="px-2 py-1 text-xs rounded border">
-              Save draft
+              {tt('Save draft')}
             </button>
             <button
               type="button"
               onClick={approveConfig}
               className="px-2 py-1 text-xs rounded bg-teal-700 text-white"
             >
-              Approve
+              {tt('Approve')}
             </button>
           </div>
         </StatCard>
@@ -309,7 +310,7 @@ export default function LoanReadinessPage() {
           helper={score?.band || 'Not calculated'}
           icon={Landmark}
         >
-          <p className="mt-1 text-xs text-amber-700">Not a lender approval or credit bureau score.</p>
+          <p className="mt-1 text-xs text-amber-700">{tt('Not a lender approval or credit bureau score.')}</p>
         </StatCard>
         <StatCard
           label="Integrity / confidence"
@@ -323,7 +324,7 @@ export default function LoanReadinessPage() {
         <h2 className="font-medium">Loan request (proposed — not actual)</h2>
         <div className="flex flex-wrap gap-3 items-end">
           <label className="text-sm">
-            Amount
+            {tt('Amount')}
             <input
               className="block mt-1 border rounded px-2 py-1"
               value={form.requestedAmount}
@@ -358,17 +359,17 @@ export default function LoanReadinessPage() {
             />
           </label>
           <label className="text-sm">
-            Purpose
+            {tt('Purpose')}
             <select
               className="block mt-1 border rounded px-2 py-1"
               value={form.purpose}
               onChange={(e) => setForm({ ...form, purpose: e.target.value })}
             >
-              <option value="WORKING_CAPITAL">Working capital</option>
-              <option value="ASSET_FINANCE">Asset finance</option>
-              <option value="BUSINESS_EXPANSION">Business expansion</option>
-              <option value="OVERDRAFT">Overdraft</option>
-              <option value="REFINANCING">Refinancing</option>
+              <option value="WORKING_CAPITAL">{tt('Working capital')}</option>
+              <option value="ASSET_FINANCE">{tt('Asset finance')}</option>
+              <option value="BUSINESS_EXPANSION">{tt('Business expansion')}</option>
+              <option value="OVERDRAFT">{tt('Overdraft')}</option>
+              <option value="REFINANCING">{tt('Refinancing')}</option>
             </select>
           </label>
           <button
@@ -377,7 +378,7 @@ export default function LoanReadinessPage() {
             disabled={busy}
             className="px-3 py-2 text-sm rounded bg-slate-800 text-white"
           >
-            Preview assessment
+            {tt('Preview assessment')}
           </button>
           <button
             type="button"
@@ -394,7 +395,7 @@ export default function LoanReadinessPage() {
             className="px-3 py-2 text-sm rounded border border-slate-400 text-slate-800"
             title="Must be a different user than the preparer"
           >
-            Mark reviewed
+            {tt('Mark reviewed')}
           </button>
           <button
             type="button"
@@ -403,7 +404,7 @@ export default function LoanReadinessPage() {
             className="px-3 py-2 text-sm rounded border border-teal-700 text-teal-800"
             title="Requires a different reviewer; preparer cannot approve"
           >
-            Approve assessment
+            {tt('Approve assessment')}
           </button>
           <a
             href={
@@ -415,7 +416,7 @@ export default function LoanReadinessPage() {
               activeVersion?.id ? '' : 'pointer-events-none opacity-40'
             }`}
           >
-            Export lender pack
+            {tt('Export lender pack')}
           </a>
           <a
             href={
@@ -427,12 +428,11 @@ export default function LoanReadinessPage() {
               activeVersion?.id ? '' : 'pointer-events-none opacity-40'
             }`}
           >
-            Export board pack
+            {tt('Export board pack')}
           </a>
         </div>
         <p className="text-xs text-slate-500">
-          Separation of duties: the preparer cannot review or approve. A different user must mark
-          reviewed before approval.
+          {tt('Separation of duties: the preparer cannot review or approve. A different user must mark reviewed before approval.')}
         </p>
       </PosStylePanel>
 
@@ -482,10 +482,10 @@ export default function LoanReadinessPage() {
           <table className="min-w-full text-xs">
             <thead>
               <tr className="text-left text-slate-500 border-b">
-                <th className="py-1 pr-2">Dimension</th>
-                <th className="py-1 pr-2">Weight %</th>
-                <th className="py-1 pr-2">Score</th>
-                <th className="py-1">Contribution</th>
+                <th className="py-1 pr-2">{tt('Dimension')}</th>
+                <th className="py-1 pr-2">{tt('Weight %')}</th>
+                <th className="py-1 pr-2">{tt('Score')}</th>
+                <th className="py-1">{tt('Contribution')}</th>
               </tr>
             </thead>
             <tbody>
@@ -504,7 +504,7 @@ export default function LoanReadinessPage() {
 
       {preview?.risks?.length ? (
         <PosStylePanel className="p-4" as="section">
-          <h2 className="font-medium mb-2">Risk findings</h2>
+          <h2 className="font-medium mb-2">{tt('Risk findings')}</h2>
           <ul className="space-y-2 text-sm">
             {preview.risks.map((r, i) => (
               <li key={i} className="flex gap-2">
@@ -526,9 +526,9 @@ export default function LoanReadinessPage() {
       ) : null}
 
       <PosStylePanel className="p-4" as="section">
-        <h2 className="font-medium mb-2">Assessment cycles</h2>
+        <h2 className="font-medium mb-2">{tt('Assessment cycles')}</h2>
         {(cycles || []).length === 0 ? (
-          <p className="text-sm text-slate-500">No assessments yet.</p>
+          <p className="text-sm text-slate-500">{tt('No assessments yet.')}</p>
         ) : (
           <ul className="text-sm space-y-2">
             {cycles.map((c) => (

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { Info } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
@@ -30,7 +31,7 @@ export default function ConsolidationDisclosure({ consolidation, className = '' 
     <div
       className={`rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm text-blue-950 ${className}`}
       role="note"
-      aria-label="Group consolidation disclosure"
+      aria-label={tt('Group consolidation disclosure')}
     >
       <div className="flex gap-2">
         <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-600" aria-hidden />

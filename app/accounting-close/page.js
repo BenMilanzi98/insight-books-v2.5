@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * Phase 12 — Year-End Close Workspace.
@@ -173,7 +174,7 @@ export default function AccountingClosePage() {
           actions={
             <PosStyleHeaderButton type="button" onClick={load} disabled={busy}>
               <RefreshCw className={`mr-2 h-4 w-4 ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
-              Refresh
+              {tt('Refresh')}
             </PosStyleHeaderButton>
           }
         />
@@ -186,13 +187,13 @@ export default function AccountingClosePage() {
         )}
 
         <PosStylePanel className="space-y-3 p-4" as="section">
-          <h2 className="font-medium text-slate-900">1. Financial year</h2>
+          <h2 className="font-medium text-slate-900">{tt('1. Financial year')}</h2>
           <select
             className="w-full max-w-md rounded border border-slate-300 px-3 py-2 text-sm"
             value={financialYearId}
             onChange={(e) => setFinancialYearId(e.target.value)}
           >
-            <option value="">Select financial year…</option>
+            <option value="">{tt('Select financial year…')}</option>
             {years.map((y) => (
               <option key={y.id} value={y.id}>
                 {y.code || y.name} ({y.status})
@@ -201,39 +202,39 @@ export default function AccountingClosePage() {
           </select>
           {!years.length && (
             <p className="text-xs text-slate-500">
-              Paste a financial year id if calendar API is unavailable, or open Financial Calendar first.
+              {tt('Paste a financial year id if calendar API is unavailable, or open Financial Calendar first.')}
             </p>
           )}
           <input
             className="w-full max-w-md rounded border border-slate-300 px-3 py-2 text-sm"
-            placeholder="Or paste financialYearId"
+            placeholder={tt('Or paste financialYearId')}
             value={financialYearId}
             onChange={(e) => setFinancialYearId(e.target.value)}
           />
         </PosStylePanel>
 
         <PosStylePanel className="space-y-3 p-4" as="section">
-          <h2 className="font-medium text-slate-900">2. Closing configuration</h2>
+          <h2 className="font-medium text-slate-900">{tt('2. Closing configuration')}</h2>
           <p className="text-xs text-slate-500">
             CYE model: calculated reporting line (MODEL A). Profit transfers once via Closing Journals.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm">
-              Close method
+              {tt('Close method')}
               <select
                 className="mt-1 w-full rounded border px-2 py-1.5"
                 value={cfgForm.closeMethod}
                 onChange={(e) => setCfgForm({ ...cfgForm, closeMethod: e.target.value })}
               >
-                <option value="INCOME_SUMMARY_TO_RETAINED_EARNINGS">Income Summary → Retained Earnings</option>
-                <option value="DIRECT_TO_RETAINED_EARNINGS">Direct → Retained Earnings</option>
-                <option value="OWNER_CAPITAL_CLOSE">Owner Capital close</option>
-                <option value="PARTNER_CAPITAL_ALLOCATION">Partner capital allocation</option>
-                <option value="FUND_BALANCE_CLOSE">Fund balance close</option>
+                <option value="INCOME_SUMMARY_TO_RETAINED_EARNINGS">{tt('Income Summary → Retained Earnings')}</option>
+                <option value="DIRECT_TO_RETAINED_EARNINGS">{tt('Direct → Retained Earnings')}</option>
+                <option value="OWNER_CAPITAL_CLOSE">{tt('Owner Capital close')}</option>
+                <option value="PARTNER_CAPITAL_ALLOCATION">{tt('Partner capital allocation')}</option>
+                <option value="FUND_BALANCE_CLOSE">{tt('Fund balance close')}</option>
               </select>
             </label>
             <label className="text-sm">
-              Income Summary account id
+              {tt('Income Summary account id')}
               <input
                 className="mt-1 w-full rounded border px-2 py-1.5"
                 value={cfgForm.incomeSummaryAccountId}
@@ -241,7 +242,7 @@ export default function AccountingClosePage() {
               />
             </label>
             <label className="text-sm">
-              Retained Earnings account id
+              {tt('Retained Earnings account id')}
               <input
                 className="mt-1 w-full rounded border px-2 py-1.5"
                 value={cfgForm.retainedEarningsAccountId}
@@ -249,7 +250,7 @@ export default function AccountingClosePage() {
               />
             </label>
             <label className="text-sm">
-              Owner Capital account id
+              {tt('Owner Capital account id')}
               <input
                 className="mt-1 w-full rounded border px-2 py-1.5"
                 value={cfgForm.ownerCapitalAccountId}
@@ -259,10 +260,10 @@ export default function AccountingClosePage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={saveConfig} className="rounded bg-slate-800 px-3 py-1.5 text-sm text-white">
-              Save draft
+              {tt('Save draft')}
             </button>
             <button type="button" onClick={approveConfig} className="rounded bg-teal-700 px-3 py-1.5 text-sm text-white">
-              Approve configuration
+              {tt('Approve configuration')}
             </button>
             {config && (
               <span className="text-sm text-slate-600 self-center">Status: {config.status}</span>
@@ -271,7 +272,7 @@ export default function AccountingClosePage() {
         </PosStylePanel>
 
         <PosStylePanel className="space-y-3 p-4" as="section">
-          <h2 className="font-medium text-slate-900">3. Close readiness</h2>
+          <h2 className="font-medium text-slate-900">{tt('3. Close readiness')}</h2>
           {readiness ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm">
@@ -296,20 +297,20 @@ export default function AccountingClosePage() {
               </ul>
             </div>
           ) : (
-            <p className="text-sm text-slate-500">Select a financial year to assess readiness.</p>
+            <p className="text-sm text-slate-500">{tt('Select a financial year to assess readiness.')}</p>
           )}
         </PosStylePanel>
 
         <PosStylePanel className="space-y-3 p-4" as="section">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-medium text-slate-900">4. Year-end close run</h2>
+            <h2 className="font-medium text-slate-900">{tt('4. Year-end close run')}</h2>
             <button
               type="button"
               onClick={createRun}
               disabled={!financialYearId || busy}
               className="rounded bg-teal-700 px-3 py-1.5 text-sm text-white disabled:opacity-50"
             >
-              Create close run
+              {tt('Create close run')}
             </button>
           </div>
           {run ? (
@@ -319,13 +320,13 @@ export default function AccountingClosePage() {
               </p>
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="rounded border px-2 py-1" onClick={() => act('run-checklist')}>
-                  Run checklist
+                  {tt('Run checklist')}
                 </button>
                 <button type="button" className="rounded border px-2 py-1" onClick={() => act('approve-closing')}>
-                  Approve for closing
+                  {tt('Approve for closing')}
                 </button>
                 <button type="button" className="rounded border px-2 py-1" onClick={() => act('generate-closing-preview')}>
-                  Preview closing journals
+                  {tt('Preview closing journals')}
                 </button>
                 <button
                   type="button"
@@ -333,7 +334,7 @@ export default function AccountingClosePage() {
                   onClick={() => act('approve-closing-batch', { batchId: run.batches?.[0]?.id })}
                   disabled={!run.batches?.[0]?.id}
                 >
-                  Approve batch
+                  {tt('Approve batch')}
                 </button>
                 <button
                   type="button"
@@ -341,20 +342,20 @@ export default function AccountingClosePage() {
                   onClick={() => act('post-closing-batch', { batchId: run.batches?.[0]?.id })}
                   disabled={!run.batches?.[0]?.id}
                 >
-                  Post via Posting Engine
+                  {tt('Post via Posting Engine')}
                 </button>
                 <button type="button" className="rounded border px-2 py-1" onClick={() => act('generate-pctb')}>
-                  Post-closing TB
+                  {tt('Post-closing TB')}
                 </button>
                 <button type="button" className="rounded border px-2 py-1" onClick={() => act('generate-snapshots')}>
-                  Annual snapshots
+                  {tt('Annual snapshots')}
                 </button>
                 <button
                   type="button"
                   className="rounded bg-slate-900 px-2 py-1 text-white"
                   onClick={() => act('close-year', { reason: 'Year-end close approved' })}
                 >
-                  Close financial year
+                  {tt('Close financial year')}
                 </button>
                 <a
                   className="rounded border px-2 py-1 text-teal-800"
@@ -378,7 +379,7 @@ export default function AccountingClosePage() {
                     <span className="flex-1">{t.name}</span>
                     {t.kind === 'MANUAL' && t.status === 'NOT_STARTED' && (
                       <button type="button" className="text-teal-700 underline" onClick={() => completeTask(t.taskKey)}>
-                        Complete
+                        {tt('Complete')}
                       </button>
                     )}
                   </li>
@@ -386,13 +387,13 @@ export default function AccountingClosePage() {
               </ul>
             </div>
           ) : (
-            <p className="text-sm text-slate-500">No close run yet for this year.</p>
+            <p className="text-sm text-slate-500">{tt('No close run yet for this year.')}</p>
           )}
         </PosStylePanel>
 
         {preview && (
           <PosStylePanel className="space-y-2 p-4" as="section">
-            <h2 className="font-medium text-slate-900">Closing journal preview</h2>
+            <h2 className="font-medium text-slate-900">{tt('Closing journal preview')}</h2>
             <p className="text-sm">
               Profit/(loss): {preview.calculatedProfitOrLoss} · Dr {preview.totalDebitMinor} / Cr{' '}
               {preview.totalCreditMinor} (minor) · checksum {String(preview.previewChecksum || '').slice(0, 12)}…

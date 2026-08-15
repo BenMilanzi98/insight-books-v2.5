@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/charts/TaxChart.jsx
 import React from 'react';
 import {
@@ -23,7 +24,7 @@ export const TaxCollectionChart = ({ data }) => {
   if (!data || !data.byRate || data.byRate.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
-        <p className="text-gray-500">No tax data available for visualization</p>
+        <p className="text-gray-500">{tt('No tax data available for visualization')}</p>
       </div>
     );
   }
@@ -40,7 +41,7 @@ export const TaxCollectionChart = ({ data }) => {
 
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-      <h3 className="text-lg font-medium text-gray-800 mb-4">Tax Collected by Rate</h3>
+      <h3 className="text-lg font-medium text-gray-800 mb-4">{tt('Tax Collected by Rate')}</h3>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart
           data={chartData}
@@ -91,7 +92,7 @@ export const TaxSummaryPieChart = ({ data }) => {
   if (!data || !data.collectedTaxes || !data.paidTaxes) {
     return (
       <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
-        <p className="text-gray-500">No tax summary data available for visualization</p>
+        <p className="text-gray-500">{tt('No tax summary data available for visualization')}</p>
       </div>
     );
   }
@@ -121,7 +122,7 @@ export const TaxSummaryPieChart = ({ data }) => {
 
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-      <h3 className="text-lg font-medium text-gray-800 mb-4">Tax Overview</h3>
+      <h3 className="text-lg font-medium text-gray-800 mb-4">{tt('Tax Overview')}</h3>
       <div className="flex flex-col items-center">
         <ResponsiveContainer width="100%" height={300}>
           <PieChart>
@@ -147,20 +148,20 @@ export const TaxSummaryPieChart = ({ data }) => {
         <div className="flex flex-col items-center mt-4">
           <div className="grid grid-cols-2 gap-8">
             <div className="text-center">
-              <p className="text-sm text-gray-600">Tax Collected</p>
+              <p className="text-sm text-gray-600">{tt('Tax Collected')}</p>
               <p className="text-lg font-semibold text-blue-600">
                 {formatCurrency(data.collectedTaxes.totalCollectedTax)}
               </p>
             </div>
             <div className="text-center">
-              <p className="text-sm text-gray-600">Tax Paid</p>
+              <p className="text-sm text-gray-600">{tt('Tax Paid')}</p>
               <p className="text-lg font-semibold text-red-500">
                 {formatCurrency(data.paidTaxes.totalTaxPaid)}
               </p>
             </div>
           </div>
           <div className="mt-4 text-center">
-            <p className="text-sm text-gray-600">Net Tax Position</p>
+            <p className="text-sm text-gray-600">{tt('Net Tax Position')}</p>
             <p className={`text-lg font-semibold ${data.netTaxLiability >= 0 ? 'text-red-600' : 'text-green-600'}`}>
               {data.netTaxLiability >= 0 
                 ? `Liability: ${formatCurrency(data.netTaxLiability)}`

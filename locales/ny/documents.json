@@ -1,9 +1,9 @@
 {
-  "invoice": "Invoice",
+  "invoice": "Inivoisi",
   "receipt": "Risiti",
-  "quotation": "Quotation",
+  "quotation": "Koteshoni",
   "total": "Zonse",
-  "subtotal": "Pang'ono",
+  "subtotal": "Zophatikizira",
   "tax": "Msonkho",
   "date": "Tsiku",
   "preparedBy": "Zopangidwa ndi"

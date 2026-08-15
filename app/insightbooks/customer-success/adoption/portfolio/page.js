@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import AdoptionContextBar from '@/components/admin/customerSuccess/AdoptionContextBar';
@@ -8,9 +9,9 @@ export default function AdoptionPortfolioPage() {
   return (
     <div style={{ padding: '1.5rem', maxWidth: 960 }}>
       <AdoptionContextBar population="adoption-portfolio" />
-      <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Portfolio</h1>
+      <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{tt('Portfolio')}</h1>
       <p style={{ color: '#555', marginBottom: '1.25rem' }}>
-        Tenant portfolio scope for Adoption lists, search, export, DQ, and metrics.
+        {tt('Tenant portfolio scope for Adoption lists, search, export, DQ, and metrics.')}
       </p>
       <p style={{ marginTop: '1rem' }}>
         <Link href="/insightbooks/customer-success/adoption">← Overview</Link>

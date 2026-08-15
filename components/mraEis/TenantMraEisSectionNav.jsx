@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -50,12 +51,12 @@ export default function TenantMraEisSectionNav() {
     <div className="mb-6">
       {!unlocked ? (
         <p className="mb-2 text-xs text-amber-800">
-          Full MRA EIS management unlocks with an active EIS subscription or entitled status.
+          {tt('Full MRA EIS management unlocks with an active EIS subscription or entitled status.')}
         </p>
       ) : null}
       <nav
         className="flex flex-wrap gap-2 border-b border-slate-200 pb-3"
-        aria-label="MRA EIS sections"
+        aria-label={tt('MRA EIS sections')}
       >
         {items.map((item) => {
           const active = isActive(pathname, item.href);

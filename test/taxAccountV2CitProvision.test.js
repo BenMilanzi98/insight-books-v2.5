@@ -5,6 +5,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   applyV2TaxProvisionJournalsOnAccount,
+  isCanonicalOwnerOfLinkedTaxAccount,
+  isCorporateIncomeTaxType,
   V2_TAX_ASSESSMENT_SOURCE_TYPES,
 } from '../lib/taxAccountPostedJournalAggregation.js';
 import { CIT_SOURCE_TYPE } from '../lib/accountingV2/reporting/citProvisionService.js';
@@ -12,6 +14,34 @@ import { CIT_SOURCE_TYPE } from '../lib/accountingV2/reporting/citProvisionServi
 describe('V2 tax provision journal sweep', () => {
   it('includes CitProvision in assessment source types', () => {
     expect(V2_TAX_ASSESSMENT_SOURCE_TYPES).toContain(CIT_SOURCE_TYPE);
+  });
+
+  it('recognises versioned MW-CIT tax ids as corporate income tax', () => {
+    expect(isCorporateIncomeTaxType({ taxId: 'MW-CIT-vmssc731p', taxName: 'Corporate Income Tax' })).toBe(
+      true
+    );
+    expect(isCorporateIncomeTaxType({ taxId: 'MW-VAT', taxName: 'VAT' })).toBe(false);
+  });
+
+  it('prefers Active versioned MW-CIT as canonical owner of 2045-03', () => {
+    const active = {
+      id: 'active-1',
+      taxId: 'MW-CIT-vmssc731p',
+      taxCode: 'MW-CIT-vmssc731p',
+      status: 'Active',
+      accountId: 'acc-cit',
+      account: { accountCode: '2045-03' },
+    };
+    const replaced = {
+      id: 'old-1',
+      taxId: 'MW-CIT',
+      taxCode: 'MW-CIT',
+      status: 'Inactive',
+      accountId: 'acc-cit',
+      account: { accountCode: '2045-03' },
+    };
+    expect(isCanonicalOwnerOfLinkedTaxAccount(active, [active, replaced])).toBe(true);
+    expect(isCanonicalOwnerOfLinkedTaxAccount(replaced, [active, replaced])).toBe(false);
   });
 
   it('adds CitProvision liability credits to totalCollected', async () => {
@@ -33,7 +63,8 @@ describe('V2 tax provision journal sweep', () => {
               description: 'Corporate Income Tax provision',
               sourceType: 'CitProvision',
               sourceId: 'cit:2026-01-01_2026-08-14',
-              isReversal: false,
+              entryType: 'Regular',
+              reversalStatus: null,
             },
           },
         ]),
@@ -42,9 +73,10 @@ describe('V2 tax provision journal sweep', () => {
 
     const taxType = {
       id: 'cit-1',
-      taxId: 'MW-CIT',
-      taxCode: 'MW-CIT',
+      taxId: 'MW-CIT-vmssc731p',
+      taxCode: 'MW-CIT-vmssc731p',
       taxName: 'Corporate Income Tax',
+      status: 'Active',
       accountId: 'acc-cit',
       account: { accountType: 'Liability', accountCode: '2045-03' },
     };
@@ -60,6 +92,9 @@ describe('V2 tax provision journal sweep', () => {
     expect(totals.totalCollected).toBe(3000);
     expect(totals.totalRefunded).toBe(0);
     expect(prisma.journalEntryLine.findMany).toHaveBeenCalled();
+    const select = prisma.journalEntryLine.findMany.mock.calls[0][0].select.journalEntry.select;
+    expect(select).not.toHaveProperty('isReversal');
+    expect(select).toHaveProperty('reversalStatus');
   });
 
   it('does not attribute CitProvision to non-CIT tax types on a shared GL', async () => {
@@ -76,7 +111,8 @@ describe('V2 tax provision journal sweep', () => {
               postingDate: new Date('2026-08-14'),
               entryDate: new Date('2026-08-14'),
               sourceType: 'CitProvision',
-              isReversal: false,
+              entryType: 'Regular',
+              reversalStatus: null,
             },
           },
         ]),
@@ -119,7 +155,8 @@ describe('V2 tax provision journal sweep', () => {
               entryDate: new Date('2026-08-14'),
               sourceType: 'CitProvision',
               sourceId: 'cit:x',
-              isReversal: true,
+              entryType: 'Reversal',
+              reversalStatus: 'REVERSAL',
             },
           },
         ]),
@@ -131,6 +168,7 @@ describe('V2 tax provision journal sweep', () => {
       taxId: 'MW-CIT',
       taxCode: 'MW-CIT',
       taxName: 'Corporate Income Tax',
+      status: 'Active',
       accountId: 'acc-cit',
       account: { accountType: 'Liability', accountCode: '2045-03' },
     };

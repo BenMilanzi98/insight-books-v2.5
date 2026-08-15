@@ -8,7 +8,7 @@
     "static/build/_ssgManifest.js"
   ],
   "rootMainFiles": [
-    "static/chunks/webpack-52e0ecb5fdba1816.js",
+    "static/chunks/webpack-0abf77bac68b575d.js",
     "static/chunks/4bd1b696-7281820e82fc5615.js",
     "static/chunks/93794-3614adc9dcdff69c.js",
     "static/chunks/main-app-ad8e8a6ca76b90be.js"
@@ -16,13 +16,13 @@
   "rootMainFilesTree": {},
   "pages": {
     "/_app": [
-      "static/chunks/webpack-52e0ecb5fdba1816.js",
+      "static/chunks/webpack-0abf77bac68b575d.js",
       "static/chunks/framework-fa93dc501de73ac3.js",
       "static/chunks/main-afb80caeb681a781.js",
       "static/chunks/pages/_app-dceeba8ff6716cdc.js"
     ],
     "/_error": [
-      "static/chunks/webpack-52e0ecb5fdba1816.js",
+      "static/chunks/webpack-0abf77bac68b575d.js",
       "static/chunks/framework-fa93dc501de73ac3.js",
       "static/chunks/main-afb80caeb681a781.js",
       "static/chunks/pages/_error-498dd67e9f865047.js"

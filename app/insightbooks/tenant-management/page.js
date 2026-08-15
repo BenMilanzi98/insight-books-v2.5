@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { adminFetch } from '@/lib/admin/adminApi';
 
@@ -191,7 +192,7 @@ export default function TenantManagementPage() {
               className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-default)] px-3 py-2 text-sm"
             >
               <RefreshCw className="h-4 w-4" aria-hidden />
-              Refresh
+              {tt('Refresh')}
             </button>
             <button
               type="button"
@@ -199,7 +200,7 @@ export default function TenantManagementPage() {
               className="admin-btn-primary inline-flex items-center gap-2 rounded-[var(--admin-radius)] px-3.5 py-2.5 text-sm font-semibold"
             >
               <Plus className="h-4 w-4" aria-hidden />
-              Create tenant
+              {tt('Create tenant')}
             </button>
           </>
         }
@@ -222,13 +223,13 @@ export default function TenantManagementPage() {
             id="tenant-status-filter"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            aria-label="Filter by status"
+            aria-label={tt('Filter by status')}
           >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="trial">Trial</option>
-            <option value="suspended">Suspended</option>
-            <option value="archived">Archived</option>
+            <option value="all">{tt('All statuses')}</option>
+            <option value="active">{tt('Active')}</option>
+            <option value="trial">{tt('Trial')}</option>
+            <option value="suspended">{tt('Suspended')}</option>
+            <option value="archived">{tt('Archived')}</option>
           </AdminField.Select>
         </AdminField>
       </AdminFilterBar>
@@ -247,7 +248,7 @@ export default function TenantManagementPage() {
               onClick={() => setShowCreate(true)}
               className="rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 py-2 text-sm text-white"
             >
-              Create tenant
+              {tt('Create tenant')}
             </button>
           }
         />
@@ -392,7 +393,7 @@ export default function TenantManagementPage() {
               onClick={() => setShowCreate(false)}
               className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 py-2 text-sm"
             >
-              Cancel
+              {tt('Cancel')}
             </button>
             <button
               type="submit"
@@ -481,7 +482,7 @@ function LifecycleConfirm({ confirm, loading, onCancel, onConfirm }) {
             disabled={loading}
             className="rounded border px-3 py-2 text-sm"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="button"

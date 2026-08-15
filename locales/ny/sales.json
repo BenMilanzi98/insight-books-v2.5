@@ -1,9 +1,9 @@
 {
   "title": "Kugulitsa",
-  "invoices": "Mainvoice",
-  "quotations": "Ma quotation",
+  "invoices": "Mainivoisi",
+  "quotations": "Ma koteshoni",
   "customers": "Makasitomala",
-  "pos": "POS",
+  "pos": "Malo ogulitsira (POS)",
   "receipt": "Risiti",
   "payment": "Malipiro"
 }

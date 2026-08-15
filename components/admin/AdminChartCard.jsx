@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { cn } from '@/lib/utils';
 import AdminLoadingState from './AdminLoadingState';
@@ -63,7 +64,7 @@ export default function AdminChartCard({
                 onClick={onRetry}
                 className="text-sm font-medium text-[var(--admin-accent-strong)] underline"
               >
-                Retry
+                {tt('Retry')}
               </button>
             ) : null}
           </div>

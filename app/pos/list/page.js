@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -410,7 +411,7 @@ const SalesListPage = () => {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-2xl font-bold">Sales History</h1>
+          <h1 className="text-2xl font-bold">{tt('Sales History')}</h1>
         </div>
         
         <div className="flex space-x-2">
@@ -419,7 +420,7 @@ const SalesListPage = () => {
             onClick={() => setShowFilters(!showFilters)}
           >
             <Filter className="w-4 h-4 mr-2" />
-            <span className="hidden sm:inline">Filters</span>
+            <span className="hidden sm:inline">{tt('Filters')}</span>
           </button>
           
           {pagePermissions.canExportSales && (
@@ -431,12 +432,12 @@ const SalesListPage = () => {
               {isExporting ? (
                 <>
                   <Loader className="w-4 h-4 mr-2 animate-spin" />
-                  <span className="hidden sm:inline">Exporting...</span>
+                  <span className="hidden sm:inline">{tt('Exporting...')}</span>
                 </>
               ) : (
                 <>
                   <Download className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Export CSV</span>
+                  <span className="hidden sm:inline">{tt('Export CSV')}</span>
                 </>
               )}
             </button>
@@ -452,12 +453,12 @@ const SalesListPage = () => {
               {isExportingReceiptsPdf ? (
                 <>
                   <Loader className="w-4 h-4 mr-2 animate-spin" />
-                  <span className="hidden sm:inline">Receipts PDF…</span>
+                  <span className="hidden sm:inline">{tt('Receipts PDF…')}</span>
                 </>
               ) : (
                 <>
                   <FileText className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Receipts PDF</span>
+                  <span className="hidden sm:inline">{tt('Receipts PDF')}</span>
                 </>
               )}
             </button>
@@ -468,7 +469,7 @@ const SalesListPage = () => {
             onClick={() => router.push('/pos')}
           >
             <PlusCircle className="w-4 h-4 mr-2" />
-            <span className="hidden sm:inline">New Sale</span>
+            <span className="hidden sm:inline">{tt('New Sale')}</span>
           </button>)}
           
           {pagePermissions.canClearHistory && (
@@ -477,7 +478,7 @@ const SalesListPage = () => {
               onClick={() => setShowClearConfirmModal(true)}
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Clear History</span>
+              <span className="hidden sm:inline">{tt('Clear History')}</span>
             </button>
           )}
         </div>
@@ -489,7 +490,7 @@ const SalesListPage = () => {
           <div className="flex-grow relative">
             <input 
               type="text" 
-              placeholder="Search sales..." 
+              placeholder={tt('Search sales...')} 
               className="w-full p-2 pl-10 border border-gray-200 rounded-md"
               defaultValue={filters.search}
               onKeyDown={handleSearch}
@@ -506,11 +507,11 @@ const SalesListPage = () => {
                 value={filters.status}
                 onChange={(e) => handleFilterChange('status', e.target.value)}
               >
-                <option value="all">All Statuses</option>
-                <option value="completed">Completed</option>
-                <option value="draft">Draft</option>
-                <option value="void">Void</option>
-                <option value="refunded">Refunded</option>
+                <option value="all">{tt('All Statuses')}</option>
+                <option value="completed">{tt('Completed')}</option>
+                <option value="draft">{tt('Draft')}</option>
+                <option value="void">{tt('Void')}</option>
+                <option value="refunded">{tt('Refunded')}</option>
               </select>
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                 <ChevronDown className="w-4 h-4 text-gray-500" />
@@ -524,7 +525,7 @@ const SalesListPage = () => {
                 onChange={(e) => handleFilterChange('paymentMethod', e.target.value)}
                 disabled={isLoadingPaymentAccounts}
               >
-                <option value="all">All Payment Methods</option>
+                <option value="all">{tt('All Payment Methods')}</option>
                 {paymentAccounts.map(account => (
                   <option key={account.id} value={account.id}>{account.name}</option>
                 ))}
@@ -540,7 +541,7 @@ const SalesListPage = () => {
         {showFilters && (
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="mb-4 pb-4 border-b border-gray-100">
-              <label className="block text-sm font-medium mb-1">Filter by single day</label>
+              <label className="block text-sm font-medium mb-1">{tt('Filter by single day')}</label>
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   type="date"
@@ -553,7 +554,7 @@ const SalesListPage = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">From Date</label>
+                <label className="block text-sm font-medium mb-1">{tt('From Date')}</label>
                 <input 
                   type="date" 
                   className="w-full p-2 border border-gray-200 rounded-md"
@@ -572,7 +573,7 @@ const SalesListPage = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-1">To Date</label>
+                <label className="block text-sm font-medium mb-1">{tt('To Date')}</label>
                 <input 
                   type="date" 
                   className="w-full p-2 border border-gray-200 rounded-md"
@@ -595,7 +596,7 @@ const SalesListPage = () => {
                   className="px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50"
                   onClick={resetFilters}
                 >
-                  Reset Filters
+                  {tt('Reset Filters')}
                 </button>
               </div>
             </div>
@@ -618,17 +619,17 @@ const SalesListPage = () => {
               onClick={loadSales}
             >
               <RefreshCw className="w-4 h-4 mr-2 inline-block" />
-              Try Again
+              {tt('Try Again')}
             </button>
           </div>
         ) : sales.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-gray-500 mb-4">No sales found matching your filters</p>
+            <p className="text-gray-500 mb-4">{tt('No sales found matching your filters')}</p>
             <button 
               className="px-4 py-2 bg-blue-600 text-white rounded-md"
               onClick={resetFilters}
             >
-              Reset Filters
+              {tt('Reset Filters')}
             </button>
           </div>
         ) : (
@@ -664,16 +665,16 @@ const SalesListPage = () => {
                       </div>
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Customer
+                      {tt('Customer')}
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Products
+                      {tt('Products')}
                     </th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Payment
+                      {tt('Payment')}
                     </th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
+                      {tt('Status')}
                     </th>
                     <th 
                       className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -689,7 +690,7 @@ const SalesListPage = () => {
                       </div>
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
+                      {tt('Actions')}
                     </th>
                   </tr>
                 </thead>
@@ -707,7 +708,7 @@ const SalesListPage = () => {
                           {sale.isHistorical && (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
                               <Calendar className="w-3 h-3 mr-1" />
-                              Historical
+                              {tt('Historical')}
                             </span>
                           )}
                         </div>
@@ -724,7 +725,7 @@ const SalesListPage = () => {
                             {sale.date}
                             {sale.isHistorical && (
                               <div className="text-xs text-amber-600 font-medium">
-                                Historical Date
+                                {tt('Historical Date')}
                               </div>
                             )}
                           </div>
@@ -792,30 +793,30 @@ const SalesListPage = () => {
                     onClick={() => handlePageChange(pagination.page - 1)}
                     disabled={pagination.page === 1}
                   >
-                    Previous
+                    {tt('Previous')}
                   </button>
                   <button
                     className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                     onClick={() => handlePageChange(pagination.page + 1)}
                     disabled={pagination.page === pagination.totalPages}
                   >
-                    Next
+                    {tt('Next')}
                   </button>
                 </div>
                 <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm text-gray-700">
-                      Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.totalCount)}</span> of <span className="font-medium">{pagination.totalCount}</span> results
+                      {tt('Showing')} <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> {tt('to')} <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.totalCount)}</span> {tt('of')} <span className="font-medium">{pagination.totalCount}</span> {tt('results')}
                     </p>
                   </div>
                   <div>
-                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label={tt('Pagination')}>
                       <button
                         className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
                         onClick={() => handlePageChange(pagination.page - 1)}
                         disabled={pagination.page === 1}
                       >
-                        <span className="sr-only">Previous</span>
+                        <span className="sr-only">{tt('Previous')}</span>
                         <ChevronLeft className="h-5 w-5" aria-hidden="true" />
                       </button>
                       
@@ -860,7 +861,7 @@ const SalesListPage = () => {
                         onClick={() => handlePageChange(pagination.page + 1)}
                         disabled={pagination.page === pagination.totalPages}
                       >
-                        <span className="sr-only">Next</span>
+                        <span className="sr-only">{tt('Next')}</span>
                         <ChevronRight className="h-5 w-5" aria-hidden="true" />
                       </button>
                     </nav>
@@ -895,10 +896,10 @@ const SalesListPage = () => {
                 </div>
               </div>
               <h3 className="text-lg font-medium text-gray-900 text-center mb-2">
-                Clear Sales History
+                {tt('Clear Sales History')}
               </h3>
               <p className="text-sm text-gray-500 text-center mb-4">
-                For audit and general-ledger integrity, bulk clear is only allowed when all sales are still in <strong>draft</strong> and no posted sale journals exist. Completed sales must be reversed properly first.
+                {tt('For audit and general-ledger integrity, bulk clear is only allowed when all sales are still in')} <strong>{tt('draft')}</strong> {tt('and no posted sale journals exist. Completed sales must be reversed properly first.')}
               </p>
               <label className="block text-sm font-medium text-gray-700 mb-1">Reason (required, min 10 characters)</label>
               <textarea
@@ -919,7 +920,7 @@ const SalesListPage = () => {
                   }}
                   disabled={isClearingHistory}
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   type="button"
@@ -930,7 +931,7 @@ const SalesListPage = () => {
                   {isClearingHistory ? (
                     <>
                       <Loader className="w-4 h-4 mr-2 inline-block animate-spin" />
-                      Clearing...
+                      {tt('Clearing...')}
                     </>
                   ) : (
                     'Clear History'

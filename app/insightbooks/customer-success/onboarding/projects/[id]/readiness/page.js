@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -13,11 +14,11 @@ export default function OnboardingReadinessTabPage() {
       <p>
         <Link href={`/insightbooks/customer-success/onboarding/projects/${id}`}>← Project</Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>Readiness</h1>
+      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>{tt('Readiness')}</h1>
       <p style={{ color: '#555' }}>
         Server-side dimension evaluation (tenant / business-branch / users / configuration /
         accounting / migration / MRA / training / testing / defects).{' '}
-        <code>UNKNOWN</code> is never treated as <code>READY</code>. No Tenant journals from this
+        <code>UNKNOWN</code> {tt('is never treated as')} <code>READY</code>. No Tenant journals from this
         plane.
       </p>
     </div>

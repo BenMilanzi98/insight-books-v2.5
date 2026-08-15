@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -12,9 +13,9 @@ export default function TrainingProgramEnvironmentTab() {
           ← Program
         </Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem' }}>Environment</h1>
+      <h1 style={{ fontSize: '1.25rem' }}>{tt('Environment')}</h1>
       <p style={{ color: '#555' }}>
-        Isolation assert — no Production Customer data in shared practice environments.
+        {tt('Isolation assert — no Production Customer data in shared practice environments.')}
       </p>
     </div>
   );

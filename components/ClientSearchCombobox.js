@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef } from "react";
 import { Search, ChevronDown, X, Plus, Loader } from "lucide-react";
@@ -8,7 +9,7 @@ const ClientSearchCombobox = ({
   value = "",
   onChange,
   onAddNew,
-  placeholder = "Search or select a client...",
+  placeholder = tt('Search or select a client...'),
   error = null,
   disabled = false,
   isLoading = false,
@@ -192,7 +193,7 @@ const ClientSearchCombobox = ({
                 className="px-4 py-2 cursor-pointer hover:bg-blue-50 text-blue-600 flex items-center"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                <span className="text-sm font-medium">Add New Client</span>
+                <span className="text-sm font-medium">{tt('Add New Client')}</span>
               </div>
             </>
           )}

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 
@@ -12,11 +13,11 @@ export default function CustomerSuccessAdoptionRequestsPage() {
         <Link href="/insightbooks/customer-success/adoption">← Adoption</Link>
       </p>
       <h1 style={{ fontSize: '1.35rem', marginBottom: '0.5rem' }}>
-        Adoption Requests
+        {tt('Adoption Requests')}
       </h1>
       <p style={{ color: '#555' }}>
         ADR-YYYY-###### spine. List is portfolio fail-closed via{' '}
-        <code>listAdoptionRequests</code>. Training COMPLETED → Request;
+        <code>{tt('listAdoptionRequests')}</code>. Training COMPLETED → Request;
         COMPLETED_WITH_GAPS does not auto-create.
       </p>
     </div>

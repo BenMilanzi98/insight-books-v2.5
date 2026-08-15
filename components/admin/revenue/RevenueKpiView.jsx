@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -347,7 +348,7 @@ export default function RevenueKpiView({
                       {t('admin-pages.revenue.contributor')}
                     </th>
                     <th className="px-3 py-2 font-medium">MRR</th>
-                    <th className="px-3 py-2 font-medium">Share</th>
+                    <th className="px-3 py-2 font-medium">{tt('Share')}</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { X, Plus, Trash2, ChevronDown, Info, Search, Loader, Package, Tag, Edit2, Check, XCircle } from "lucide-react";
@@ -952,7 +953,7 @@ const InvoiceModal = ({
         <div className="flex-1 overflow-y-auto p-4">
           {!revenueAccount && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
-              Loading income account… If this persists, add a detail Income account (e.g. 4100 Product Sales) in <strong>Chart of Accounts</strong>.
+              Loading income account… If this persists, add a detail Income account (e.g. 4100 Product Sales) in <strong>{tt('Chart of Accounts')}</strong>.
             </div>
           )}
           {errors.incomeAccount && (
@@ -964,14 +965,14 @@ const InvoiceModal = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="clientId">
-                  Client <span className="text-red-500">*</span>
+                  {tt('Client')} <span className="text-red-500">*</span>
                 </label>
                 <ClientSearchCombobox
                   clients={clients}
                   value={formData.clientId}
                   onChange={handleChange}
                   onAddNew={() => setShowClientModal(true)}
-                  placeholder="Search or select a client..."
+                  placeholder={tt('Search or select a client...')}
                   error={errors.clientId}
                   showAddNew={true}
                 />
@@ -979,7 +980,7 @@ const InvoiceModal = ({
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="status">
-                  Status
+                  {tt('Status')}
                 </label>
                 <select
                   id="status"
@@ -988,20 +989,20 @@ const InvoiceModal = ({
                   value={formData.status}
                   onChange={handleChange}
                 >
-                  <option value="Draft">Draft</option>
-                  <option value="Pending">Pending</option>
+                  <option value="Draft">{tt('Draft')}</option>
+                  <option value="Pending">{tt('Pending')}</option>
                 </select>
               </div>
 
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="title">
-                  Invoice title
+                  {tt('Invoice title')}
                 </label>
                 <input
                   type="text"
                   id="title"
                   name="title"
-                  placeholder="e.g. Consulting services, Project XYZ"
+                  placeholder={tt('e.g. Consulting services, Project XYZ')}
                   className="w-full p-2 border border-gray-300 rounded-md"
                   value={formData.title || ""}
                   onChange={handleChange}
@@ -1010,7 +1011,7 @@ const InvoiceModal = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="orderNumber">
-                  Order number
+                  {tt('Order number')}
                 </label>
                 <div className="flex gap-2 items-center">
                   <input
@@ -1037,14 +1038,14 @@ const InvoiceModal = ({
                       }}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
-                    Autogenerate
+                    {tt('Autogenerate')}
                   </label>
                 </div>
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="issueDate">
-                  Issue Date <span className="text-red-500">*</span>
+                  {tt('Issue Date')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -1061,7 +1062,7 @@ const InvoiceModal = ({
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="dueDate">
-                  Due Date <span className="text-red-500">*</span>
+                  {tt('Due Date')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -1079,7 +1080,7 @@ const InvoiceModal = ({
               {/* Template Selection */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="templateId">
-                  Invoice Template
+                  {tt('Invoice Template')}
                 </label>
                 <div className="flex items-start">
                   <select
@@ -1089,7 +1090,7 @@ const InvoiceModal = ({
                     value={formData.templateId}
                     onChange={handleChange}
                   >
-                    <option value="">Select a template</option>
+                    <option value="">{tt('Select a template')}</option>
                     {templates.map(template => (
                       <option key={template.id} value={template.id}>
                         {template.name} {template.isDefault ? '(Default)' : ''}
@@ -1099,7 +1100,7 @@ const InvoiceModal = ({
                   {templates.length === 0 && (
                     <div className="flex items-center ml-2 text-blue-500 text-sm">
                       <Info className="h-4 w-4 mr-1" />
-                      <span>No templates available. Create them in Account & business.</span>
+                      <span>{tt('No templates available. Create them in Account & business.')}</span>
                     </div>
                   )}
                 </div>
@@ -1132,7 +1133,7 @@ const InvoiceModal = ({
                   })}
                 </div>
                 <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
-                  Colour
+                  {tt('Colour')}
                   <input
                     type="color"
                     className="h-9 w-14 cursor-pointer rounded border border-gray-300"
@@ -1145,14 +1146,14 @@ const InvoiceModal = ({
             
             <div className="mb-6">
               <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-medium">Invoice Items</h3>
+                <h3 className="text-lg font-medium">{tt('Invoice Items')}</h3>
                 <button
                   type="button"
                   onClick={addItem}
                   className="flex items-center text-blue-600 hover:text-blue-800"
                 >
                   <Plus className="h-4 w-4 mr-1" />
-                  Add Item
+                  {tt('Add Item')}
                 </button>
               </div>
               
@@ -1161,27 +1162,27 @@ const InvoiceModal = ({
                   <thead className="bg-gray-50">
                     <tr>
                       <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/2">
-                        Item
+                        {tt('Item')}
                       </th>
                       <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                        Qty
+                        {tt('Qty')}
                       </th>
                       <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                        Price
+                        {tt('Price')}
                       </th>
                       <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
                         Discount (per item)
                       </th>
                       {taxesAvailable && (
                       <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                        Tax %
+                        {tt('Tax %')}
                       </th>
                       )}
                       <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                        Amount
+                        {tt('Amount')}
                       </th>
                       <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                        Actions
+                        {tt('Actions')}
                       </th>
                     </tr>
                   </thead>
@@ -1192,7 +1193,7 @@ const InvoiceModal = ({
                           <div className="relative w-full min-w-[300px]" ref={productSearchRef}>
                               <input
                                 type="text"
-                              placeholder="Search products by name or SKU..."
+                              placeholder={tt('Search products by name or SKU...')}
                               className={`w-full p-3 border rounded-md text-sm ${errors[`items.${index}.description`] ? 'border-red-500' : 'border-gray-300'}`}
                                 value={item.productId ? (products.find(p => p.id === item.productId)?.name || item.description) : (itemSearchQueries[index] || item.description)}
                                 onChange={(e) => {
@@ -1238,11 +1239,11 @@ const InvoiceModal = ({
                                 {isLoadingProducts ? (
                                   <div className="p-4 text-center">
                                     <Loader className="w-5 h-5 text-blue-500 animate-spin mx-auto mb-2" />
-                                    <p className="text-gray-500 text-sm">Loading products...</p>
+                                    <p className="text-gray-500 text-sm">{tt('Loading products...')}</p>
                                   </div>
                                 ) : filteredProducts.length === 0 ? (
                                   <div className="p-4 text-center">
-                                    <p className="text-gray-500">No products found</p>
+                                    <p className="text-gray-500">{tt('No products found')}</p>
                                   </div>
                                 ) : (
                                   <>
@@ -1269,7 +1270,7 @@ const InvoiceModal = ({
                                     <div className="text-right">
                                           <p className="font-medium">{formatCurrency(product.price)}</p>
                                           {!product.isService && product.stockLevel <= 0 ? (
-                                            <span className="text-xs text-red-500">Out of stock</span>
+                                            <span className="text-xs text-red-500">{tt('Out of stock')}</span>
                                           ) : (
                                             <button 
                                               className="text-xs text-blue-600 hover:text-blue-800"
@@ -1299,7 +1300,7 @@ const InvoiceModal = ({
                               <div className="text-sm text-blue-600 font-medium">
                                 {parseFloat(item.quantity || 0).toFixed(3)}
                               </div>
-                              <div className="text-xs text-blue-500">calculated</div>
+                              <div className="text-xs text-blue-500">{tt('calculated')}</div>
                             </div>
                           ) : (
                             <input
@@ -1321,7 +1322,7 @@ const InvoiceModal = ({
                               <div className="text-sm text-blue-600 font-medium">
                                 {formatCurrency(item.unitPrice || 0)}
                               </div>
-                              <div className="text-xs text-blue-500">per unit</div>
+                              <div className="text-xs text-blue-500">{tt('per unit')}</div>
                             </div>
                           ) : (
                             <input
@@ -1358,7 +1359,7 @@ const InvoiceModal = ({
                         <td className="px-2 py-2 align-top">
                           <div className="flex flex-col min-w-[11rem] max-w-[14rem]">
                             <div className="flex items-center justify-between gap-1 mb-1">
-                              <span className="text-[11px] font-medium text-slate-600">Taxes</span>
+                              <span className="text-[11px] font-medium text-slate-600">{tt('Taxes')}</span>
                               <button
                                 type="button"
                                 className="text-blue-600 hover:text-blue-800"
@@ -1374,9 +1375,9 @@ const InvoiceModal = ({
                               }`}
                             >
                               {isLoadingTaxTypes ? (
-                                <p className="text-xs text-slate-500">Loading...</p>
+                                <p className="text-xs text-slate-500">{tt('Loading...')}</p>
                               ) : pickerTaxTypes.length === 0 ? (
-                                <p className="text-xs text-slate-500">No taxes configured</p>
+                                <p className="text-xs text-slate-500">{tt('No taxes configured')}</p>
                               ) : (
                                 pickerTaxTypes.map((tax) => {
                                   const checked = lineTaxesOf(item).some(
@@ -1421,13 +1422,13 @@ const InvoiceModal = ({
                                 className="mt-1 text-left text-xs text-slate-500 hover:text-slate-700"
                                 onClick={() => handleTaxTypeToggle(index, '')}
                               >
-                                Clear taxes
+                                {tt('Clear taxes')}
                               </button>
                             )}
 
                             {showNewTaxForm && (
                               <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md text-xs">
-                                <div className="font-medium text-blue-900 mb-1">Add New Tax</div>
+                                <div className="font-medium text-blue-900 mb-1">{tt('Add New Tax')}</div>
                                 <div className="space-y-1">
                                   <input
                                     type="text"
@@ -1439,7 +1440,7 @@ const InvoiceModal = ({
                                   <div className="flex gap-1">
                                     <input
                                       type="number"
-                                      placeholder="Rate"
+                                      placeholder={tt('Rate')}
                                       className="w-16 p-1 border border-gray-300 rounded text-xs"
                                       value={newTaxData.taxRate}
                                       onChange={(e) => setNewTaxData({...newTaxData, taxRate: parseFloat(e.target.value) || 0})}
@@ -1450,7 +1451,7 @@ const InvoiceModal = ({
                                       onChange={(e) => setNewTaxData({...newTaxData, calculationType: e.target.value})}
                                     >
                                       <option value="Percentage">%</option>
-                                      <option value="Fixed">Fixed</option>
+                                      <option value="Fixed">{tt('Fixed')}</option>
                                     </select>
                                     <button
                                       type="button"
@@ -1501,7 +1502,7 @@ const InvoiceModal = ({
               {/* Unit-Based Products Section */}
               {formData.items.some(item => hasUnitManagement(item.product)) && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
-                  <h3 className="text-sm font-medium text-blue-900 mb-3">Unit-Based Products</h3>
+                  <h3 className="text-sm font-medium text-blue-900 mb-3">{tt('Unit-Based Products')}</h3>
                   <div className="space-y-4">
                     {formData.items
                       .map((item, index) => ({ item, index }))
@@ -1513,7 +1514,7 @@ const InvoiceModal = ({
                               <span className="font-medium text-gray-900">{item.description}</span>
                               <div className="flex items-center space-x-1">
                                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                <span className="text-xs text-blue-600 font-medium">Unit-Based</span>
+                                <span className="text-xs text-blue-600 font-medium">{tt('Unit-Based')}</span>
                               </div>
                             </div>
                             <span className="text-sm text-gray-500">MK {item.unitPrice}</span>
@@ -1542,17 +1543,17 @@ const InvoiceModal = ({
               <div className="flex justify-end mt-4">
                 <div className="w-64">
                   <div className="flex justify-between py-2 text-sm">
-                    <span className="text-gray-600">Subtotal:</span>
+                    <span className="text-gray-600">{tt('Subtotal:')}</span>
                     <span className="font-medium">MK {invoiceTotals.subtotal.toLocaleString()}</span>
                   </div>
                   {invoiceTotals.totalDiscountAmount > 0 && (
                     <div className="flex justify-between py-2 text-sm">
-                      <span className="text-gray-600">Line Item Discounts:</span>
+                      <span className="text-gray-600">{tt('Line Item Discounts:')}</span>
                       <span className="font-medium text-red-600">-MK {invoiceTotals.totalDiscountAmount.toLocaleString()}</span>
                     </div>
                   )}
                   <div className="flex justify-between py-2 text-sm">
-                    <span className="text-gray-600">Global Discount:</span>
+                    <span className="text-gray-600">{tt('Global Discount:')}</span>
                     <div className="flex items-center">
                       <span className="text-gray-500 text-sm mr-1">MK</span>
                       <input
@@ -1569,7 +1570,7 @@ const InvoiceModal = ({
                   </div>
                   {invoiceTotals.globalDiscount > 0 && (
                     <div className="flex justify-between py-2 text-sm">
-                      <span className="text-gray-600">Applied Global Discount:</span>
+                      <span className="text-gray-600">{tt('Applied Global Discount:')}</span>
                       <span className="font-medium text-red-600">-MK {invoiceTotals.globalDiscount.toLocaleString()}</span>
                     </div>
                   )}
@@ -1578,12 +1579,12 @@ const InvoiceModal = ({
                     taxLines: (formData.items || []).flatMap((item) => item.taxes || item.itemTaxes || []),
                   }) && (
                     <div className="flex justify-between py-2 text-sm">
-                      <span className="text-gray-600">Tax:</span>
+                      <span className="text-gray-600">{tt('Tax:')}</span>
                       <span className="font-medium">MK {invoiceTotals.taxAmount.toLocaleString()}</span>
                     </div>
                   )}
                   <div className="flex justify-between py-2 text-lg font-bold border-t border-gray-200 mt-2 pt-2">
-                    <span>Total:</span>
+                    <span>{tt('Total:')}</span>
                     <span>MK {invoiceTotals.total.toLocaleString()}</span>
                   </div>
                 </div>
@@ -1592,7 +1593,7 @@ const InvoiceModal = ({
             
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="notes">
-                Notes
+                {tt('Notes')}
               </label>
               <textarea
                 id="notes"
@@ -1601,34 +1602,34 @@ const InvoiceModal = ({
                 className="w-full p-2 border border-gray-300 rounded-md"
                 value={formData.notes}
                 onChange={handleChange}
-                placeholder="Add any additional notes or payment instructions"
+                placeholder={tt('Add any additional notes or payment instructions')}
               ></textarea>
             </div>
             
             <div className="mb-6 p-3 bg-gray-50 border border-gray-200 rounded-md">
               <p className="text-sm font-medium text-gray-700 mb-2">Footer overrides (optional)</p>
-              <p className="text-xs text-gray-500 mb-2">Override the default phone and bank details shown in the document footer. Leave blank to use settings defaults.</p>
+              <p className="text-xs text-gray-500 mb-2">{tt('Override the default phone and bank details shown in the document footer. Leave blank to use settings defaults.')}</p>
               <div className="space-y-2">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-0.5" htmlFor="footerPhoneOverride">Footer phone</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-0.5" htmlFor="footerPhoneOverride">{tt('Footer phone')}</label>
                   <input
                     id="footerPhoneOverride"
                     type="text"
                     className="w-full p-2 border border-gray-300 rounded-md text-sm"
                     value={formData.footerPhoneOverride || ""}
                     onChange={(e) => setFormData({ ...formData, footerPhoneOverride: e.target.value })}
-                    placeholder="e.g. +265 1 234 567"
+                    placeholder={tt('e.g. +265 1 234 567')}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-0.5" htmlFor="footerBankDetailsOverride">Footer bank details</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-0.5" htmlFor="footerBankDetailsOverride">{tt('Footer bank details')}</label>
                   <textarea
                     id="footerBankDetailsOverride"
                     rows={2}
                     className="w-full p-2 border border-gray-300 rounded-md text-sm"
                     value={formData.footerBankDetailsOverride || ""}
                     onChange={(e) => setFormData({ ...formData, footerBankDetailsOverride: e.target.value })}
-                    placeholder="Bank name, account name, number, branch..."
+                    placeholder={tt('Bank name, account name, number, branch...')}
                   />
                 </div>
               </div>
@@ -1640,7 +1641,7 @@ const InvoiceModal = ({
                 onClick={onClose}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="submit"
@@ -1651,7 +1652,7 @@ const InvoiceModal = ({
                 {loading ? (
                   <>
                     <span className="animate-spin mr-2">⌛</span>
-                    Saving...
+                    {tt('Saving...')}
                   </>
                 ) : (
                   mode === "create" ? "Create Invoice" : "Update Invoice"

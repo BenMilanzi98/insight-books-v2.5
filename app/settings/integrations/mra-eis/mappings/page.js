@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 
@@ -21,7 +22,7 @@ function StatusBadge({ status }) {
           : 'bg-slate-50 text-slate-800 border-slate-200';
   return (
     <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${tone}`}>
-      <span className="sr-only">Status: </span>
+      <span className="sr-only">{tt('Status:')} </span>
       {status}
     </span>
   );
@@ -116,7 +117,7 @@ export default function MraEisMappingsPage() {
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-slate-600" role="status">
-        Loading mapping workspace…
+        {tt('Loading mapping workspace…')}
       </div>
     );
   }
@@ -132,14 +133,13 @@ export default function MraEisMappingsPage() {
       <header className="mb-6">
         <p className="text-sm font-medium text-slate-500">
           <a href="/settings/integrations/mra-eis" className="underline-offset-2 hover:underline">
-            MRA EIS
+            {tt('MRA EIS')}
           </a>{' '}
           / Mappings
         </p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Site, Tax & Payment Mappings</h1>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight">{tt('Site, Tax & Payment Mappings')}</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Controlled, versioned compliance relationships. Suggestions never auto-activate. Product and Service
-          mapping remains Phase 10.
+          {tt('Controlled, versioned compliance relationships. Suggestions never auto-activate. Product and Service mapping remains Phase 10.')}
         </p>
       </header>
 
@@ -154,7 +154,7 @@ export default function MraEisMappingsPage() {
         </div>
       )}
 
-      <nav className="mb-6 flex flex-wrap gap-2" aria-label="Mapping sections">
+      <nav className="mb-6 flex flex-wrap gap-2" aria-label={tt('Mapping sections')}>
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -171,7 +171,7 @@ export default function MraEisMappingsPage() {
       {tab === 'overview' && (
         <section className="space-y-4" aria-labelledby="overview-heading">
           <h2 id="overview-heading" className="text-lg font-semibold">
-            Mapping readiness
+            {tt('Mapping readiness')}
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[
@@ -192,14 +192,14 @@ export default function MraEisMappingsPage() {
             ))}
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h3 className="font-medium">Blockers</h3>
+            <h3 className="font-medium">{tt('Blockers')}</h3>
             <ul className="mt-2 list-disc pl-5 text-sm">
               {(readiness?.blockers || []).map((b) => (
                 <li key={b}>{b}</li>
               ))}
-              {(readiness?.blockers || []).length === 0 && <li>None for Phase 9 view operations</li>}
+              {(readiness?.blockers || []).length === 0 && <li>{tt('None for Phase 9 view operations')}</li>}
             </ul>
-            <h3 className="mt-4 font-medium">Warnings</h3>
+            <h3 className="mt-4 font-medium">{tt('Warnings')}</h3>
             <ul className="mt-2 list-disc pl-5 text-sm text-amber-900">
               {(readiness?.warnings || []).map((w) => (
                 <li key={w}>{w}</li>
@@ -213,7 +213,7 @@ export default function MraEisMappingsPage() {
               className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
               onClick={() => suggest('SITE')}
             >
-              Generate site suggestions
+              {tt('Generate site suggestions')}
             </button>
             <button
               type="button"
@@ -221,7 +221,7 @@ export default function MraEisMappingsPage() {
               className="rounded bg-slate-800 px-3 py-2 text-sm text-white disabled:opacity-50"
               onClick={() => suggest('TAX')}
             >
-              Generate tax suggestions
+              {tt('Generate tax suggestions')}
             </button>
             <button
               type="button"
@@ -229,7 +229,7 @@ export default function MraEisMappingsPage() {
               className="rounded bg-slate-700 px-3 py-2 text-sm text-white disabled:opacity-50"
               onClick={() => suggest('PAYMENT')}
             >
-              Generate payment suggestions
+              {tt('Generate payment suggestions')}
             </button>
           </div>
         </section>
@@ -238,17 +238,17 @@ export default function MraEisMappingsPage() {
       {tab === 'sites' && (
         <section aria-labelledby="sites-heading" className="space-y-4">
           <h2 id="sites-heading" className="text-lg font-semibold">
-            Sites & branch mappings
+            {tt('Sites & branch mappings')}
           </h2>
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
             <table className="min-w-full text-left text-sm">
               <caption className="sr-only">MRA sites (read-only catalogue)</caption>
               <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">MRA Site</th>
-                  <th className="px-3 py-2">Name</th>
-                  <th className="px-3 py-2">Active</th>
-                  <th className="px-3 py-2">Mapped branches</th>
+                  <th className="px-3 py-2">{tt('MRA Site')}</th>
+                  <th className="px-3 py-2">{tt('Name')}</th>
+                  <th className="px-3 py-2">{tt('Active')}</th>
+                  <th className="px-3 py-2">{tt('Mapped branches')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -263,7 +263,7 @@ export default function MraEisMappingsPage() {
                 {sites.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-3 py-6 text-slate-500">
-                      No MRA sites in active configuration. Sync configuration first.
+                      {tt('No MRA sites in active configuration. Sync configuration first.')}
                     </td>
                   </tr>
                 )}
@@ -272,14 +272,14 @@ export default function MraEisMappingsPage() {
           </div>
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
             <table className="min-w-full text-left text-sm">
-              <caption className="sr-only">Branch to site mappings</caption>
+              <caption className="sr-only">{tt('Branch to site mappings')}</caption>
               <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">Branch</th>
-                  <th className="px-3 py-2">MRA Site</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Version</th>
-                  <th className="px-3 py-2">Actions</th>
+                  <th className="px-3 py-2">{tt('Branch')}</th>
+                  <th className="px-3 py-2">{tt('MRA Site')}</th>
+                  <th className="px-3 py-2">{tt('Status')}</th>
+                  <th className="px-3 py-2">{tt('Version')}</th>
+                  <th className="px-3 py-2">{tt('Actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -303,7 +303,7 @@ export default function MraEisMappingsPage() {
                             disabled={busy}
                             onClick={() => lifecycle('SITE', m.id, 'verify', { expectedVersion: m.version })}
                           >
-                            Verify
+                            {tt('Verify')}
                           </button>
                         )}
                         {m.status === 'VERIFIED' && !m.approvedBy && (
@@ -313,7 +313,7 @@ export default function MraEisMappingsPage() {
                             disabled={busy}
                             onClick={() => lifecycle('SITE', m.id, 'approve', { expectedVersion: m.version })}
                           >
-                            Approve
+                            {tt('Approve')}
                           </button>
                         )}
                         {m.status === 'VERIFIED' && (
@@ -323,7 +323,7 @@ export default function MraEisMappingsPage() {
                             disabled={busy}
                             onClick={() => lifecycle('SITE', m.id, 'activate', { expectedVersion: m.version })}
                           >
-                            Activate
+                            {tt('Activate')}
                           </button>
                         )}
                       </div>
@@ -339,21 +339,21 @@ export default function MraEisMappingsPage() {
       {tab === 'taxes' && (
         <section aria-labelledby="taxes-heading">
           <h2 id="taxes-heading" className="mb-3 text-lg font-semibold">
-            Tax mappings
+            {tt('Tax mappings')}
           </h2>
           <p className="mb-3 text-sm text-slate-600">
-            Zero-rated and exempt remain distinct. VAT5 is a separate workflow. Local rates are never modified.
+            {tt('Zero-rated and exempt remain distinct. VAT5 is a separate workflow. Local rates are never modified.')}
           </p>
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">Local tax</th>
-                  <th className="px-3 py-2">MRA tax</th>
-                  <th className="px-3 py-2">Treatment</th>
-                  <th className="px-3 py-2">Rates</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Actions</th>
+                  <th className="px-3 py-2">{tt('Local tax')}</th>
+                  <th className="px-3 py-2">{tt('MRA tax')}</th>
+                  <th className="px-3 py-2">{tt('Treatment')}</th>
+                  <th className="px-3 py-2">{tt('Rates')}</th>
+                  <th className="px-3 py-2">{tt('Status')}</th>
+                  <th className="px-3 py-2">{tt('Actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -376,7 +376,7 @@ export default function MraEisMappingsPage() {
                           disabled={busy}
                           onClick={() => lifecycle('TAX', m.id, 'verify', { expectedVersion: m.version })}
                         >
-                          Verify
+                          {tt('Verify')}
                         </button>
                       )}
                       {m.status === 'VERIFIED' && (
@@ -386,7 +386,7 @@ export default function MraEisMappingsPage() {
                           disabled={busy}
                           onClick={() => lifecycle('TAX', m.id, 'activate', { expectedVersion: m.version })}
                         >
-                          Activate
+                          {tt('Activate')}
                         </button>
                       )}
                     </td>
@@ -395,7 +395,7 @@ export default function MraEisMappingsPage() {
                 {taxMappings.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-3 py-6 text-slate-500">
-                      No tax mappings yet. Generate suggestions or create a verified mapping.
+                      {tt('No tax mappings yet. Generate suggestions or create a verified mapping.')}
                     </td>
                   </tr>
                 )}
@@ -408,7 +408,7 @@ export default function MraEisMappingsPage() {
       {tab === 'payments' && (
         <section aria-labelledby="payments-heading">
           <h2 id="payments-heading" className="mb-3 text-lg font-semibold">
-            Payment method mappings
+            {tt('Payment method mappings')}
           </h2>
           <p className="mb-3 text-sm text-slate-600">
             Display names are not API codes. Split payments remain blocked until MRA clarifies representation.
@@ -418,11 +418,11 @@ export default function MraEisMappingsPage() {
             <table className="min-w-full text-left text-sm">
               <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">Local method</th>
-                  <th className="px-3 py-2">MRA code</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Version</th>
-                  <th className="px-3 py-2">Actions</th>
+                  <th className="px-3 py-2">{tt('Local method')}</th>
+                  <th className="px-3 py-2">{tt('MRA code')}</th>
+                  <th className="px-3 py-2">{tt('Status')}</th>
+                  <th className="px-3 py-2">{tt('Version')}</th>
+                  <th className="px-3 py-2">{tt('Actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -442,7 +442,7 @@ export default function MraEisMappingsPage() {
                           disabled={busy}
                           onClick={() => lifecycle('PAYMENT', m.id, 'verify', { expectedVersion: m.version })}
                         >
-                          Verify
+                          {tt('Verify')}
                         </button>
                       )}
                       {m.status === 'VERIFIED' && (
@@ -452,7 +452,7 @@ export default function MraEisMappingsPage() {
                           disabled={busy}
                           onClick={() => lifecycle('PAYMENT', m.id, 'activate', { expectedVersion: m.version })}
                         >
-                          Activate
+                          {tt('Activate')}
                         </button>
                       )}
                     </td>
@@ -467,7 +467,7 @@ export default function MraEisMappingsPage() {
       {tab === 'conflicts' && (
         <section aria-labelledby="conflicts-heading">
           <h2 id="conflicts-heading" className="mb-3 text-lg font-semibold">
-            Conflicts & stale mappings
+            {tt('Conflicts & stale mappings')}
           </h2>
           <ul className="space-y-2">
             {conflicts.map((m) => (
@@ -475,11 +475,11 @@ export default function MraEisMappingsPage() {
                 <StatusBadge status={m.status} />{' '}
                 <span className="font-mono text-xs">{m.id}</span>
                 <div className="mt-1 text-red-900">
-                  Conflicted or stale mappings cannot resolve future sales until revalidated or superseded.
+                  {tt('Conflicted or stale mappings cannot resolve future sales until revalidated or superseded.')}
                 </div>
               </li>
             ))}
-            {conflicts.length === 0 && <li className="text-sm text-slate-500">No conflicted or stale mappings.</li>}
+            {conflicts.length === 0 && <li className="text-sm text-slate-500">{tt('No conflicted or stale mappings.')}</li>}
           </ul>
         </section>
       )}

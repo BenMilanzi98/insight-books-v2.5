@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -13,10 +14,9 @@ export default function OnboardingProjectReconciliationPage() {
           ← Project
         </Link>
       </p>
-      <h1 style={{ fontSize: '1.2rem' }}>Reconciliation</h1>
+      <h1 style={{ fontSize: '1.2rem' }}>{tt('Reconciliation')}</h1>
       <p style={{ color: '#555' }}>
-        Handoff ↔ project ↔ tenant scope ↔ migration/training/MRA ↔ go-live ↔ completion.
-        Runner via <code>runOnboardingReconciliation</code>.
+        {tt('Handoff ↔ project ↔ tenant scope ↔ migration/training/MRA ↔ go-live ↔ completion. Runner via')} <code>{tt('runOnboardingReconciliation')}</code>.
       </p>
     </div>
   );

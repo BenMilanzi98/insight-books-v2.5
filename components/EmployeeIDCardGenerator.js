@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef } from 'react';
 import { 
@@ -249,7 +250,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
       const logoHtml = idCardDesign.showCompanyLogo && companyLogo ? `
         <img
           src="${companyLogo}"
-          alt="Company Logo"
+          alt={tt('Company Logo')}
           style="max-width: 120px; max-height: 60px; object-fit: contain; margin-bottom: 10px; display: block; margin-left: auto; margin-right: auto;"
         />
       ` : '';
@@ -403,12 +404,12 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                 ${idCardDesign.showCompanyLogo && companyLogo ? `
                   <img
                     src="${companyLogo}"
-                    alt="Company Logo"
+                    alt={tt('Company Logo')}
                     style="max-width: 120px; max-height: 60px; object-fit: contain; margin-bottom: 10px; display: block; margin-left: auto; margin-right: auto;"
                   />
                 ` : ''}
                 <h2 style="font-size: 20px; font-weight: bold; margin: 0;">${tenantInfo?.name || 'Company Name'}</h2>
-                <p style="font-size: 14px; opacity: 0.9; margin: 5px 0 0 0;">Employee Identification Card</p>
+                <p style="font-size: 14px; opacity: 0.9; margin: 5px 0 0 0;">{tt('Employee Identification Card')}</p>
               </div>
 
               <!-- Body -->
@@ -489,7 +490,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                       text-align: ${idCardDesign.layout === 'vertical' ? 'center' : 'left'};
                       width: ${idCardDesign.layout === 'vertical' ? '100%' : 'auto'};
                     ">
-                      <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">Employee ID: </span>
+                      <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">{tt('Employee ID:')} </span>
                       <span class="id-card-value" style="color: ${idCardDesign.textColor};">${selectedEmployee.employeeId || selectedEmployee.id.substring(0, 8).toUpperCase()}</span>
                     </div>
                     <div class="id-card-detail" style="
@@ -498,7 +499,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                       text-align: ${idCardDesign.layout === 'vertical' ? 'center' : 'left'};
                       width: ${idCardDesign.layout === 'vertical' ? '100%' : 'auto'};
                     ">
-                      <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">Position: </span>
+                      <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">{tt('Position:')} </span>
                       <span class="id-card-value" style="color: ${idCardDesign.textColor};">${selectedEmployee.jobTitle || selectedEmployee.position || 'N/A'}</span>
                     </div>
                     <div class="id-card-detail" style="
@@ -507,7 +508,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                       text-align: ${idCardDesign.layout === 'vertical' ? 'center' : 'left'};
                       width: ${idCardDesign.layout === 'vertical' ? '100%' : 'auto'};
                     ">
-                      <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">Department: </span>
+                      <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">{tt('Department:')} </span>
                       <span class="id-card-value" style="color: ${idCardDesign.textColor};">${selectedEmployee.department || 'N/A'}</span>
                     </div>
                     <div class="id-card-detail" style="
@@ -516,7 +517,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                       text-align: ${idCardDesign.layout === 'vertical' ? 'center' : 'left'};
                       width: ${idCardDesign.layout === 'vertical' ? '100%' : 'auto'};
                     ">
-                      <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">Start Date: </span>
+                      <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">{tt('Start Date:')} </span>
                       <span class="id-card-value" style="color: ${idCardDesign.textColor};">${formatDate(selectedEmployee.startDate)}</span>
                     </div>
                     ${selectedEmployee.email ? `
@@ -526,7 +527,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                         text-align: ${idCardDesign.layout === 'vertical' ? 'center' : 'left'};
                         width: ${idCardDesign.layout === 'vertical' ? '100%' : 'auto'};
                       ">
-                        <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">Email: </span>
+                        <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">{tt('Email:')} </span>
                         <span class="id-card-value" style="color: ${idCardDesign.textColor};">${selectedEmployee.email}</span>
                       </div>
                     ` : ''}
@@ -576,7 +577,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <User size={24} />
-            <h2 className="text-xl font-bold">Employee ID Card Generator</h2>
+            <h2 className="text-xl font-bold">{tt('Employee ID Card Generator')}</h2>
           </div>
           <button
             onClick={onClose}
@@ -594,7 +595,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
               <div className="bg-gray-50 rounded-lg p-4">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <User size={18} />
-                  Select Employee
+                  {tt('Select Employee')}
                 </h3>
                 <select
                   value={selectedEmployee?.id || ''}
@@ -604,7 +605,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Choose an employee...</option>
+                  <option value="">{tt('Choose an employee...')}</option>
                   {employees.map(emp => (
                     <option key={emp.id} value={emp.id}>
                       {emp.name} - {emp.employeeId || emp.id}
@@ -618,7 +619,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <ImageIcon size={18} />
-                    Employee Photo
+                    {tt('Employee Photo')}
                   </h3>
                   <div className="space-y-3">
                     {employeePhoto ? (
@@ -665,14 +666,14 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
               <div className="bg-gray-50 rounded-lg p-4">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <Building2 size={18} />
-                  Company Logo
+                  {tt('Company Logo')}
                 </h3>
                 <div className="space-y-3">
                   {companyLogo ? (
                     <div className="relative">
                       <img
                         src={companyLogo}
-                        alt="Company Logo"
+                        alt={tt('Company Logo')}
                         className="w-full max-h-32 object-contain rounded-md border-2 border-gray-300 bg-white p-2"
                       />
                       <button
@@ -711,12 +712,12 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
               <div className="bg-gray-50 rounded-lg p-4">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <Palette size={18} />
-                  Design Settings
+                  {tt('Design Settings')}
                 </h3>
                 <div className="space-y-4">
                   {/* Theme Selection */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Theme</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">{tt('Theme')}</label>
                     <div className="grid grid-cols-3 gap-2">
                       {Object.entries(themes).filter(([key]) => key !== 'custom').map(([key, theme]) => (
                         <button
@@ -740,7 +741,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                   {idCardDesign.theme === 'custom' && (
                     <div className="space-y-2">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Primary Color</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Primary Color')}</label>
                         <input
                           type="color"
                           value={idCardDesign.primaryColor}
@@ -749,7 +750,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Secondary Color</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Secondary Color')}</label>
                         <input
                           type="color"
                           value={idCardDesign.secondaryColor}
@@ -762,42 +763,42 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
 
                   {/* Layout */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Layout</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">{tt('Layout')}</label>
                     <select
                       value={idCardDesign.layout}
                       onChange={(e) => setIdCardDesign(prev => ({ ...prev, layout: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="horizontal">Horizontal</option>
-                      <option value="vertical">Vertical</option>
+                      <option value="horizontal">{tt('Horizontal')}</option>
+                      <option value="vertical">{tt('Vertical')}</option>
                     </select>
                   </div>
 
                   {/* Card Size */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Card Size</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">{tt('Card Size')}</label>
                     <select
                       value={idCardDesign.cardSize}
                       onChange={(e) => setIdCardDesign(prev => ({ ...prev, cardSize: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="standard">Standard</option>
-                      <option value="compact">Compact</option>
-                      <option value="large">Large</option>
+                      <option value="standard">{tt('Standard')}</option>
+                      <option value="compact">{tt('Compact')}</option>
+                      <option value="large">{tt('Large')}</option>
                     </select>
                   </div>
 
                   {/* Font Size */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Font Size</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">{tt('Font Size')}</label>
                     <select
                       value={idCardDesign.fontSize}
                       onChange={(e) => setIdCardDesign(prev => ({ ...prev, fontSize: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="small">Small</option>
-                      <option value="medium">Medium</option>
-                      <option value="large">Large</option>
+                      <option value="small">{tt('Small')}</option>
+                      <option value="medium">{tt('Medium')}</option>
+                      <option value="large">{tt('Large')}</option>
                     </select>
                   </div>
 
@@ -810,7 +811,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                         onChange={(e) => setIdCardDesign(prev => ({ ...prev, showEmployeePhoto: e.target.checked }))}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="text-sm text-gray-700">Show Employee Photo</span>
+                      <span className="text-sm text-gray-700">{tt('Show Employee Photo')}</span>
                     </label>
                     <label className="flex items-center gap-2">
                       <input
@@ -819,7 +820,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                         onChange={(e) => setIdCardDesign(prev => ({ ...prev, showCompanyLogo: e.target.checked }))}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="text-sm text-gray-700">Show Company Logo</span>
+                      <span className="text-sm text-gray-700">{tt('Show Company Logo')}</span>
                     </label>
                   </div>
                 </div>
@@ -832,7 +833,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                     <Eye size={18} />
-                    Preview
+                    {tt('Preview')}
                   </h3>
                   <div className="flex gap-2">
                     <button
@@ -841,7 +842,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                       className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
                       <Printer size={18} />
-                      Print
+                      {tt('Print')}
                     </button>
                   </div>
                 </div>
@@ -867,14 +868,14 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                       {idCardDesign.showCompanyLogo && companyLogo && (
                         <img
                           src={companyLogo}
-                          alt="Company Logo"
+                          alt={tt('Company Logo')}
                           className="company-logo mx-auto mb-2"
                         />
                       )}
                       <h2 className="text-xl font-bold">
                         {tenantInfo?.name || 'Company Name'}
                       </h2>
-                      <p className="text-sm opacity-90">Employee Identification Card</p>
+                      <p className="text-sm opacity-90">{tt('Employee Identification Card')}</p>
                     </div>
 
                     {/* Body */}
@@ -928,7 +929,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                         <div className="space-y-2">
                           <div className="id-card-detail">
                             <span className="id-card-label" style={{ color: idCardDesign.textColor, opacity: 0.7 }}>
-                              Employee ID: 
+                              {tt('Employee ID:')} 
                             </span>
                             <span className="id-card-value ml-2" style={{ color: idCardDesign.textColor }}>
                               {selectedEmployee.employeeId || selectedEmployee.id.substring(0, 8).toUpperCase()}
@@ -936,7 +937,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                           </div>
                           <div className="id-card-detail">
                             <span className="id-card-label" style={{ color: idCardDesign.textColor, opacity: 0.7 }}>
-                              Position: 
+                              {tt('Position:')} 
                             </span>
                             <span className="id-card-value ml-2" style={{ color: idCardDesign.textColor }}>
                               {selectedEmployee.jobTitle || selectedEmployee.position || 'N/A'}
@@ -944,7 +945,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                           </div>
                           <div className="id-card-detail">
                             <span className="id-card-label" style={{ color: idCardDesign.textColor, opacity: 0.7 }}>
-                              Department: 
+                              {tt('Department:')} 
                             </span>
                             <span className="id-card-value ml-2" style={{ color: idCardDesign.textColor }}>
                               {selectedEmployee.department || 'N/A'}
@@ -952,7 +953,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                           </div>
                           <div className="id-card-detail">
                             <span className="id-card-label" style={{ color: idCardDesign.textColor, opacity: 0.7 }}>
-                              Start Date: 
+                              {tt('Start Date:')} 
                             </span>
                             <span className="id-card-value ml-2" style={{ color: idCardDesign.textColor }}>
                               {formatDate(selectedEmployee.startDate)}
@@ -961,7 +962,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                           {selectedEmployee.email && (
                             <div className="id-card-detail">
                               <span className="id-card-label" style={{ color: idCardDesign.textColor, opacity: 0.7 }}>
-                                Email: 
+                                {tt('Email:')} 
                               </span>
                               <span className="id-card-value ml-2" style={{ color: idCardDesign.textColor }}>
                                 {selectedEmployee.email}
@@ -988,7 +989,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                 ) : (
                   <div className="bg-white rounded-lg p-12 text-center border-2 border-dashed border-gray-300">
                     <User size={64} className="mx-auto text-gray-400 mb-4" />
-                    <p className="text-gray-600">Please select an employee to generate an ID card</p>
+                    <p className="text-gray-600">{tt('Please select an employee to generate an ID card')}</p>
                   </div>
                 )}
               </div>

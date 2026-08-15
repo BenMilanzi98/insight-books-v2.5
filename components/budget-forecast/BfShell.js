@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -58,7 +59,7 @@ export default function BfShell({ title, subtitle, actions, children }) {
     <div className="w-full">
       <PosStylePageHeader title={title} description={subtitle} actions={actions} />
       <PosStylePanel className="mb-6 p-2" accent={false}>
-        <nav className="flex gap-1 overflow-x-auto" aria-label="Budget and Forecast sections">
+        <nav className="flex gap-1 overflow-x-auto" aria-label={tt('Budget and Forecast sections')}>
           {TABS.map((tab) => {
             const active = pathname === tab.href || pathname?.startsWith(`${tab.href}/`);
             return (

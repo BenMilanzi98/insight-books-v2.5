@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -147,7 +148,7 @@ export default function ProductAnalyticsWave4View({ kind }) {
                 className={inputCls}
                 value={tenantId}
                 onChange={(e) => setTenantId(e.target.value)}
-                placeholder="tenant_…"
+                placeholder={tt('tenant_…')}
               />
             </label>
           )}
@@ -158,7 +159,7 @@ export default function ProductAnalyticsWave4View({ kind }) {
                 className={inputCls}
                 value={funnelCode}
                 onChange={(e) => setFunnelCode(e.target.value)}
-                placeholder="commerce.invoice.value"
+                placeholder={tt('commerce.invoice.value')}
               />
             </label>
           )}
@@ -169,7 +170,7 @@ export default function ProductAnalyticsWave4View({ kind }) {
                 className={inputCls}
                 value={featureCode}
                 onChange={(e) => setFeatureCode(e.target.value)}
-                placeholder="invoices.post"
+                placeholder={tt('invoices.post')}
               />
             </label>
           )}
@@ -181,10 +182,10 @@ export default function ProductAnalyticsWave4View({ kind }) {
                 value={dataset}
                 onChange={(e) => setDataset(e.target.value)}
               >
-                <option value="overview">overview</option>
-                <option value="funnels">funnels</option>
-                <option value="signals">signals</option>
-                <option value="reconciliation">reconciliation</option>
+                <option value="overview">{tt('overview')}</option>
+                <option value="funnels">{tt('funnels')}</option>
+                <option value="signals">{tt('signals')}</option>
+                <option value="reconciliation">{tt('reconciliation')}</option>
               </select>
             </label>
           )}
@@ -261,10 +262,10 @@ export default function ProductAnalyticsWave4View({ kind }) {
                   <table className="w-full text-left text-sm">
                     <thead>
                       <tr className="text-[var(--admin-text-muted)]">
-                        <th className="py-2 pr-3">feature</th>
-                        <th className="py-2 pr-3">period</th>
-                        <th className="py-2 pr-3">tenants</th>
-                        <th className="py-2 pr-3">anchors</th>
+                        <th className="py-2 pr-3">{tt('feature')}</th>
+                        <th className="py-2 pr-3">{tt('period')}</th>
+                        <th className="py-2 pr-3">{tt('tenants')}</th>
+                        <th className="py-2 pr-3">{tt('anchors')}</th>
                       </tr>
                     </thead>
                     <tbody>

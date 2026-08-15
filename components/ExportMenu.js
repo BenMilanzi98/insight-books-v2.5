@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/ExportMenu.jsx
 import React, { useState } from 'react';
 import { Download, FileText, FileSpreadsheet, AlertCircle, Check } from 'lucide-react';
@@ -77,7 +78,7 @@ export const ExportMenu = ({ reportType, data, onExport }) => {
           disabled={exporting || !data}
         >
           <Download size={16} className="mr-2" />
-          Export
+          {tt('Export')}
         </button>
         
         <div className="dropdown-menu hidden group-hover:block absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-10">
@@ -88,7 +89,7 @@ export const ExportMenu = ({ reportType, data, onExport }) => {
               disabled={exporting}
             >
               <FileText size={16} className="mr-2 text-red-500" />
-              Export as PDF
+              {tt('Export as PDF')}
             </button>
             <button 
               className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
@@ -96,7 +97,7 @@ export const ExportMenu = ({ reportType, data, onExport }) => {
               disabled={exporting}
             >
               <FileText size={16} className="mr-2 text-green-500" />
-              Export as CSV
+              {tt('Export as CSV')}
             </button>
             <button 
               className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
@@ -104,7 +105,7 @@ export const ExportMenu = ({ reportType, data, onExport }) => {
               disabled={exporting}
             >
               <FileSpreadsheet size={16} className="mr-2 text-blue-500" />
-              Export as Excel
+              {tt('Export as Excel')}
             </button>
           </div>
         </div>
@@ -113,7 +114,7 @@ export const ExportMenu = ({ reportType, data, onExport }) => {
       {exportSuccess && (
         <div className="absolute top-full right-0 mt-2 p-2 bg-green-100 text-green-800 rounded-md text-sm flex items-center">
           <Check size={16} className="mr-1" />
-          Export successful!
+          {tt('Export successful!')}
         </div>
       )}
       
@@ -205,13 +206,13 @@ export const EnhancedFinancialReport = ({
                   onChange={(e) => onTimeframeChange(e.target.value)}
                   disabled={loading}
                 >
-                  <option value="thisMonth">This Month</option>
-                  <option value="lastMonth">Last Month</option>
-                  <option value="thisQuarter">This Quarter</option>
-                  <option value="lastQuarter">Last Quarter</option>
-                  <option value="thisYear">This Year</option>
-                  <option value="lastYear">Last Year</option>
-                  <option value="custom">Custom Range...</option>
+                  <option value="thisMonth">{tt('This Month')}</option>
+                  <option value="lastMonth">{tt('Last Month')}</option>
+                  <option value="thisQuarter">{tt('This Quarter')}</option>
+                  <option value="lastQuarter">{tt('Last Quarter')}</option>
+                  <option value="thisYear">{tt('This Year')}</option>
+                  <option value="lastYear">{tt('Last Year')}</option>
+                  <option value="custom">{tt('Custom Range...')}</option>
                 </select>
                 <div className="absolute right-2 top-2.5 pointer-events-none">
                   <ChevronDown size={15} className="text-gray-500" />
@@ -254,13 +255,13 @@ export const EnhancedFinancialReport = ({
             className="px-4 py-2 bg-blue-600 text-white rounded-md"
             onClick={onRefresh}
           >
-            Try Again
+            {tt('Try Again')}
           </button>
         </div>
       ) : loading ? (
         <div className="p-8 text-center">
           <Loader2 size={36} className="mx-auto animate-spin text-blue-600 mb-4" />
-          <p className="text-gray-500">Loading report data...</p>
+          <p className="text-gray-500">{tt('Loading report data...')}</p>
         </div>
       ) : (
         <div className="p-6">

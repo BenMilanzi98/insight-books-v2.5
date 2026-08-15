@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -184,14 +185,13 @@ export default function VerifyEmailClient() {
         <div>
           <img
             src="/logo.png"
-            alt="InsightBooks"
+            alt={tt('InsightBooks')}
             className="h-10 w-auto object-contain rounded-md"
           />
           <div className="mt-10 max-w-sm">
-            <h2 className="text-3xl font-bold mb-4">Almost there!</h2>
+            <h2 className="text-3xl font-bold mb-4">{tt('Almost there!')}</h2>
             <p className="text-indigo-200 mb-10">
-              We sent a 6-digit verification code to your email. Check your inbox and spam
-              folder, then enter the code to activate your 2-day free trial.
+              {tt('We sent a 6-digit verification code to your email. Check your inbox and spam folder, then enter the code to activate your 2-day free trial.')}
             </p>
             <div className="space-y-6">
               <div className="flex items-start gap-4">
@@ -199,9 +199,9 @@ export default function VerifyEmailClient() {
                   <ShieldCheck size={20} />
                 </div>
                 <div>
-                  <h3 className="font-semibold">Secure Verification</h3>
+                  <h3 className="font-semibold">{tt('Secure Verification')}</h3>
                   <p className="text-sm text-indigo-200">
-                    The code expires in 10 minutes and can only be used once
+                    {tt('The code expires in 10 minutes and can only be used once')}
                   </p>
                 </div>
               </div>
@@ -210,9 +210,9 @@ export default function VerifyEmailClient() {
                   <CheckCircle2 size={20} />
                 </div>
                 <div>
-                  <h3 className="font-semibold">Instant Access</h3>
+                  <h3 className="font-semibold">{tt('Instant Access')}</h3>
                   <p className="text-sm text-indigo-200">
-                    Once verified you'll be logged in immediately
+                    {tt("Once verified you'll be logged in immediately")}
                   </p>
                 </div>
               </div>
@@ -229,7 +229,7 @@ export default function VerifyEmailClient() {
             href="/auth/signup"
             className="inline-flex items-center text-sm text-gray-500 hover:text-indigo-600 mb-8"
           >
-            <ArrowLeft size={16} className="mr-1" /> Back to sign up
+            <ArrowLeft size={16} className="mr-1" /> {tt('Back to sign up')}
           </Link>
 
           <div className="bg-white rounded-2xl shadow-xl p-8">
@@ -237,9 +237,9 @@ export default function VerifyEmailClient() {
               <div className="mx-auto w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center mb-4">
                 <Mail className="w-8 h-8 text-indigo-600" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900">Check your email</h1>
+              <h1 className="text-2xl font-bold text-gray-900">{tt('Check your email')}</h1>
               <p className="text-gray-500 mt-2">
-                We sent a code to <span className="font-medium text-gray-700">{email}</span>.
+                {tt('We sent a code to')} <span className="font-medium text-gray-700">{email}</span>.
                 Check your inbox and spam folder.
               </p>
             </div>
@@ -247,23 +247,23 @@ export default function VerifyEmailClient() {
             {deliveryFailed && (
               <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-lg text-sm">
                 We could not deliver the first verification email (often SMTP config on the
-                server). Use <strong>Resend Code</strong> below to try again, and check spam.
+                server). Use <strong>{tt('Resend Code')}</strong> {tt('below to try again, and check spam.')}
               </div>
             )}
             {fromLogin && !deliveryFailed && (
               <div className="mb-4 bg-indigo-50 border border-indigo-100 text-indigo-900 px-4 py-3 rounded-lg text-sm">
-                If you never received a code when you signed up, use <strong>Resend Code</strong>{" "}
+                {tt('If you never received a code when you signed up, use')} <strong>{tt('Resend Code')}</strong>{" "}
                 to send a new one to this address.
               </div>
             )}
             {ambiguousHint && (
               <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-950 px-4 py-3 rounded-lg text-sm space-y-2">
-                <p className="font-medium">Same email on more than one business</p>
-                <label className="block text-xs font-medium text-amber-900">Company subdomain</label>
+                <p className="font-medium">{tt('Same email on more than one business')}</p>
+                <label className="block text-xs font-medium text-amber-900">{tt('Company subdomain')}</label>
                 <input
                   type="text"
                   className="w-full p-2 border border-amber-300 rounded-md text-sm"
-                  placeholder="e.g. acmecorp"
+                  placeholder={tt('e.g. acmecorp')}
                   value={localSubdomain}
                   onChange={(e) => setLocalSubdomain(e.target.value)}
                 />

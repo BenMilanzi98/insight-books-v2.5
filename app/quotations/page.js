@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef } from "react";
 import { Eye } from "lucide-react";
@@ -670,8 +671,8 @@ const QuotationsPage = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Quotations</h1>
-            <p className="text-gray-500 mt-1">Manage and track all your quotations</p>
+            <h1 className="text-3xl font-bold text-gray-900">{tt('Quotations')}</h1>
+            <p className="text-gray-500 mt-1">{tt('Manage and track all your quotations')}</p>
           </div>
           <div className="flex flex-wrap gap-3">
             {pagePermissions.canCreateQuotations && (
@@ -680,7 +681,7 @@ const QuotationsPage = () => {
                 onClick={handleCreateQuotation}
               >
                 <PlusCircle size={18} className="mr-2" />
-                New Quotation
+                {tt('New Quotation')}
               </button>
             )}
           </div>
@@ -722,7 +723,7 @@ const QuotationsPage = () => {
             <div className="w-full md:w-96 relative">
               <input 
                 type="text" 
-                placeholder="Search by quotation number or client..." 
+                placeholder={tt('Search by quotation number or client...')} 
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 value={searchQuery}
                 onChange={handleSearchChange}
@@ -739,7 +740,7 @@ const QuotationsPage = () => {
                   onClick={() => { setFilterOpen(!filterOpen); setSortOpen(false); }}
                 >
                   <Filter size={16} className="mr-2 text-gray-500" />
-                  Filter
+                  {tt('Filter')}
                   <ChevronDown size={16} className="ml-2 text-gray-500" />
                 </button>
                 
@@ -754,7 +755,7 @@ const QuotationsPage = () => {
                   className="w-80"
                 >
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-semibold text-gray-900">Filter Quotations</h3>
+                    <h3 className="font-semibold text-gray-900">{tt('Filter Quotations')}</h3>
                     <button type="button" className="text-gray-400 hover:text-gray-600" onClick={() => setFilterOpen(false)}>
                       <X size={18} />
                     </button>
@@ -762,13 +763,13 @@ const QuotationsPage = () => {
                   
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Client</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">{tt('Client')}</label>
                       <select 
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={filterConfig.clientId || ""}
                         onChange={(e) => handleFilterChange('clientId', e.target.value || null)}
                       >
-                        <option value="">All Clients</option>
+                        <option value="">{tt('All Clients')}</option>
                         {clients.map(client => (
                           <option key={client.id} value={client.id}>{client.name}</option>
                         ))}
@@ -777,7 +778,7 @@ const QuotationsPage = () => {
                     
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">From Date</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">{tt('From Date')}</label>
                         <input 
                           type="date"
                           className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -786,7 +787,7 @@ const QuotationsPage = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">To Date</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">{tt('To Date')}</label>
                         <input 
                           type="date"
                           className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -803,14 +804,14 @@ const QuotationsPage = () => {
                       className="px-4 py-2 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                       onClick={resetFilters}
                     >
-                      Reset
+                      {tt('Reset')}
                     </button>
                     <button 
                       type="button"
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                       onClick={applyFilters}
                     >
-                      Apply Filters
+                      {tt('Apply Filters')}
                     </button>
                   </div>
                 </PortalPopover>
@@ -825,7 +826,7 @@ const QuotationsPage = () => {
                   onClick={() => { setSortOpen(!sortOpen); setFilterOpen(false); }}
                 >
                   <ArrowUpDown size={16} className="mr-2 text-gray-500" />
-                  Sort
+                  {tt('Sort')}
                   <ChevronDown size={16} className="ml-2 text-gray-500" />
                 </button>
                 
@@ -851,7 +852,7 @@ const QuotationsPage = () => {
                       active={sortConfig.field === option.field}
                       onClick={() => handleSortChange(option.field)}
                     >
-                      <span>{option.label}</span>
+                      <span>{tt(option.label)}</span>
                       {sortConfig.field === option.field && (
                         <span className="text-xs font-medium">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
                       )}
@@ -867,7 +868,7 @@ const QuotationsPage = () => {
                   onClick={handleExportQuotations}
                 >
                   <Download size={16} className="mr-2 text-gray-500" />
-                  Export
+                  {tt('Export')}
                 </button>
               )}
             </div>
@@ -877,12 +878,12 @@ const QuotationsPage = () => {
           {isLoading ? (
             <div className="p-12 text-center">
               <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-3"></div>
-              <p className="text-gray-500">Loading quotations...</p>
+              <p className="text-gray-500">{tt('Loading quotations...')}</p>
             </div>
           ) : quotations.length === 0 ? (
             <div className="p-12 text-center">
               <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No quotations found</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">{tt('No quotations found')}</h3>
               <p className="text-gray-500 mb-6">
                 {activeTab !== "all" || searchQuery 
                   ? "Try adjusting your filters or search query"
@@ -894,7 +895,7 @@ const QuotationsPage = () => {
                   onClick={handleCreateQuotation}
                 >
                   <PlusCircle className="w-4 h-4 mr-2" />
-                  Create Quotation
+                  {tt('Create Quotation')}
                 </button>
               )}
             </div>
@@ -904,13 +905,13 @@ const QuotationsPage = () => {
                 <table className="w-full">
                   <thead className="bg-gray-50/50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Quotation #</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Valid Until</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Client</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Amount</th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Status</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{tt('Quotation #')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">{tt('Date')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">{tt('Valid Until')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{tt('Client')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">{tt('Amount')}</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">{tt('Status')}</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
@@ -1003,7 +1004,7 @@ const QuotationsPage = () => {
               {!isLoading && quotations.length > 0 && (
                 <div className="px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-100">
                   <div className="text-sm text-gray-600 order-2 sm:order-1">
-                    Showing <span className="font-semibold">{(currentPage - 1) * 10 + 1}</span> to <span className="font-semibold">{Math.min(currentPage * 10, quotations.length)}</span> of <span className="font-semibold">{quotations.length}</span> quotations
+                    {tt('Showing')} <span className="font-semibold">{(currentPage - 1) * 10 + 1}</span> {tt('to')} <span className="font-semibold">{Math.min(currentPage * 10, quotations.length)}</span> {tt('of')} <span className="font-semibold">{quotations.length}</span> {tt('quotations')}
                   </div>
                   <div className="flex items-center gap-2 order-1 sm:order-2">
                     <button 
@@ -1011,7 +1012,7 @@ const QuotationsPage = () => {
                       disabled={currentPage === 1}
                       onClick={() => handlePageChange(currentPage - 1)}
                     >
-                      Previous
+                      {tt('Previous')}
                     </button>
                     
                     {[...Array(Math.min(totalPages, 5))].map((_, i) => {
@@ -1040,7 +1041,7 @@ const QuotationsPage = () => {
                       disabled={currentPage === totalPages}
                       onClick={() => handlePageChange(currentPage + 1)}
                     >
-                      Next
+                      {tt('Next')}
                     </button>
                   </div>
                 </div>
@@ -1069,31 +1070,31 @@ const QuotationsPage = () => {
                   <div className="p-2 rounded-full bg-blue-100">
                     <CornerDownRight size={20} className="text-blue-600" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Convert to Invoice</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">{tt('Convert to Invoice')}</h3>
                 </div>
               </div>
               
               <div className="p-6">
                 <p className="text-gray-600 mb-4">
-                  You are about to convert quotation <span className="font-medium text-gray-900">{selectedQuotation.quotationNumber}</span> to an invoice.
+                  {tt('You are about to convert quotation')} <span className="font-medium text-gray-900">{selectedQuotation.quotationNumber}</span> {tt('to an invoice.')}
                 </p>
                 
                 <div className="bg-gray-50 rounded-lg p-4 mb-4">
                   <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="text-gray-500">Client:</div>
+                    <div className="text-gray-500">{tt('Client:')}</div>
                     <div className="font-medium text-gray-900">{selectedQuotation.client}</div>
                     
-                    <div className="text-gray-500">Description:</div>
+                    <div className="text-gray-500">{tt('Description:')}</div>
                     <div className="font-medium text-gray-900">{selectedQuotation.title}</div>
                     
-                    <div className="text-gray-500">Amount:</div>
+                    <div className="text-gray-500">{tt('Amount:')}</div>
                     <div className="font-medium text-gray-900">{formatCurrency(selectedQuotation.amount)}</div>
                   </div>
                 </div>
                 
                 <div className="flex items-start gap-3 text-sm bg-amber-50 text-amber-800 p-4 rounded-lg">
                   <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
-                  <span>This action cannot be undone. The invoice will need to be deleted separately if created in error.</span>
+                  <span>{tt('This action cannot be undone. The invoice will need to be deleted separately if created in error.')}</span>
                 </div>
               </div>
               
@@ -1102,7 +1103,7 @@ const QuotationsPage = () => {
                   className="px-4 py-2.5 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                   onClick={cancelConversion}
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button 
                   className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center"
@@ -1112,12 +1113,12 @@ const QuotationsPage = () => {
                   {conversionLoading ? (
                     <>
                       <RefreshCw size={16} className="mr-2 animate-spin" />
-                      Converting...
+                      {tt('Converting...')}
                     </>
                   ) : (
                     <>
                       <CornerDownRight size={16} className="mr-2" />
-                      Convert to Invoice
+                      {tt('Convert to Invoice')}
                     </>
                   )}
                 </button>
@@ -1155,8 +1156,8 @@ const QuotationsPage = () => {
               <div className="flex items-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-4"></div>
                 <div>
-                  <p className="font-medium text-gray-900">Preparing quotation...</p>
-                  <p className="text-sm text-gray-500">This may take a few seconds</p>
+                  <p className="font-medium text-gray-900">{tt('Preparing quotation...')}</p>
+                  <p className="text-sm text-gray-500">{tt('This may take a few seconds')}</p>
                 </div>
               </div>
             </div>
@@ -1168,7 +1169,7 @@ const QuotationsPage = () => {
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
               <div className="flex justify-between items-center p-5 border-b border-gray-100">
-                <h2 className="text-xl font-bold text-gray-900">Quotation Preview</h2>
+                <h2 className="text-xl font-bold text-gray-900">{tt('Quotation Preview')}</h2>
                 <div className="flex items-center gap-3">
                   {previewQuotationData && (
                     <button
@@ -1176,7 +1177,7 @@ const QuotationsPage = () => {
                       onClick={() => handleDownloadQuotation(quotationForPreview.id)}
                     >
                       <Download size={16} className="mr-2" />
-                      Download
+                      {tt('Download')}
                     </button>
                   )}
                   <button
@@ -1201,7 +1202,7 @@ const QuotationsPage = () => {
                 ) : (
                   <div className="flex items-center justify-center h-64">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
-                    <p>Loading quotation preview...</p>
+                    <p>{tt('Loading quotation preview...')}</p>
                   </div>
                 )}
               </div>

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from 'react';
 import { ChevronDown, Plus, X, AlertCircle } from 'lucide-react';
@@ -104,7 +105,7 @@ const UnitSelector = ({
       {/* Base Unit Selector - True Combobox */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Base Unit Type
+          {tt('Base Unit Type')}
         </label>
         <div className="relative">
           <input
@@ -165,7 +166,7 @@ const UnitSelector = ({
                 baseUnit.displayName.toLowerCase().includes(baseUnitSearch.toLowerCase()) ||
                 baseUnit.baseUnit.toLowerCase().includes(baseUnitSearch.toLowerCase())
               ).length === 0 && (
-                <div className="px-4 py-2 text-sm text-gray-500">No base units found</div>
+                <div className="px-4 py-2 text-sm text-gray-500">{tt('No base units found')}</div>
               )}
             </div>
           )}
@@ -181,7 +182,7 @@ const UnitSelector = ({
       {selectedBaseUnit && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Available Units
+            {tt('Available Units')}
           </label>
           <div className="relative">
             <input
@@ -197,7 +198,7 @@ const UnitSelector = ({
                 setTimeout(() => setShowUnitDropdown(false), 200);
               }}
               onKeyDown={handleUnitKeyDown}
-              placeholder="Search or select units..."
+              placeholder={tt('Search or select units...')}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               disabled={disabled}
             />
@@ -239,7 +240,7 @@ const UnitSelector = ({
                             Symbol: {unit.symbol}
                             {unit.isBaseUnit && (
                               <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded">
-                                Base
+                                {tt('Base')}
                               </span>
                             )}
                           </div>
@@ -261,7 +262,7 @@ const UnitSelector = ({
                       className="w-full px-3 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none text-sm text-blue-600"
                     >
                       <Plus className="inline h-4 w-4 mr-2" />
-                      Add Custom Unit
+                      {tt('Add Custom Unit')}
                     </button>
                   </div>
                 )}
@@ -270,7 +271,7 @@ const UnitSelector = ({
                   unit.name.toLowerCase().includes(unitSearch.toLowerCase()) ||
                   unit.symbol.toLowerCase().includes(unitSearch.toLowerCase())
                 ).length === 0 && (
-                  <div className="px-4 py-2 text-sm text-gray-500">No units found</div>
+                  <div className="px-4 py-2 text-sm text-gray-500">{tt('No units found')}</div>
                 )}
               </div>
             )}
@@ -281,35 +282,35 @@ const UnitSelector = ({
       {/* Custom Unit Form */}
       {showCustomUnitForm && (
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
-          <h4 className="text-sm font-medium text-blue-900 mb-3">Add Custom Unit</h4>
+          <h4 className="text-sm font-medium text-blue-900 mb-3">{tt('Add Custom Unit')}</h4>
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                Unit Name
+                {tt('Unit Name')}
               </label>
               <input
                 type="text"
                 value={customUnit.name}
                 onChange={(e) => setCustomUnit(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="e.g., Dozen, Pack, Bundle"
+                placeholder={tt('e.g., Dozen, Pack, Bundle')}
                 className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                Symbol
+                {tt('Symbol')}
               </label>
               <input
                 type="text"
                 value={customUnit.symbol}
                 onChange={(e) => setCustomUnit(prev => ({ ...prev, symbol: e.target.value }))}
-                placeholder="e.g., dz, pk, bdl"
+                placeholder={tt('e.g., dz, pk, bdl')}
                 className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                Conversion Rate
+                {tt('Conversion Rate')}
               </label>
               <input
                 type="number"
@@ -331,7 +332,7 @@ const UnitSelector = ({
                 disabled={!customUnit.name || !customUnit.symbol}
                 className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Add Unit
+                {tt('Add Unit')}
               </button>
               <button
                 type="button"
@@ -341,7 +342,7 @@ const UnitSelector = ({
                 }}
                 className="px-3 py-1 bg-gray-300 text-gray-700 text-sm rounded hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
             </div>
           </div>
@@ -352,7 +353,7 @@ const UnitSelector = ({
       {selectedUnits.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Selected Sub-Units
+            {tt('Selected Sub-Units')}
           </label>
           <div className="space-y-2">
             {selectedUnits.map(unit => (
@@ -367,12 +368,12 @@ const UnitSelector = ({
                     </span>
                     {unit.isBaseUnit && (
                       <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded">
-                        Base Unit
+                        {tt('Base Unit')}
                       </span>
                     )}
                     {unit.isCustom && (
                       <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded">
-                        Custom
+                        {tt('Custom')}
                       </span>
                     )}
                   </div>
@@ -389,7 +390,7 @@ const UnitSelector = ({
                 {/* Conversion Rate Input */}
                 <div className="flex items-center space-x-2">
                   <label className="text-xs text-gray-600 whitespace-nowrap">
-                    Conversion Rate:
+                    {tt('Conversion Rate:')}
                   </label>
                   <input
                     type="number"
@@ -415,7 +416,7 @@ const UnitSelector = ({
       {selectedBaseUnit && selectedUnits.length === 0 && (
         <div className="flex items-center text-sm text-amber-600">
           <AlertCircle className="h-4 w-4 mr-1" />
-          Please select at least one unit to use with this product
+          {tt('Please select at least one unit to use with this product')}
         </div>
       )}
     </div>

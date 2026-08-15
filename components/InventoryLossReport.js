@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { FinancialReport } from './FinancialReportComponents';
@@ -31,8 +32,8 @@ export const InventoryLossReport = ({
     return (
       <div className="text-center p-8 sm:p-10 bg-gradient-to-br from-slate-50 to-orange-50/40 rounded-2xl border border-slate-200">
         <AlertTriangle size={48} className="mx-auto text-orange-400 mb-4" />
-        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
-        <p className="text-slate-500 mt-2 text-sm">Select a time period and generate the report.</p>
+        <h3 className="text-lg font-medium text-slate-800">{tt('No data available')}</h3>
+        <p className="text-slate-500 mt-2 text-sm">{tt('Select a time period and generate the report.')}</p>
       </div>
     );
   }
@@ -52,40 +53,40 @@ export const InventoryLossReport = ({
       {data && (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center gap-3">
-            <label className="text-sm font-medium text-slate-700">Event type</label>
+            <label className="text-sm font-medium text-slate-700">{tt('Event type')}</label>
             <select
               value={eventTypeFilter}
               onChange={(e) => onEventTypeFilterChange?.(e.target.value)}
               className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             >
-              <option value="all">All events</option>
-              <option value="write_off">Write-offs only</option>
-              <option value="stock_out">Stock-outs only</option>
+              <option value="all">{tt('All events')}</option>
+              <option value="write_off">{tt('Write-offs only')}</option>
+              <option value="stock_out">{tt('Stock-outs only')}</option>
             </select>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <div className="rounded-2xl border border-orange-200 bg-orange-50/60 p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-orange-700">Total loss</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-orange-700">{tt('Total loss')}</p>
               <p className="mt-1 min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(summary.totalAmount || 0)}</p>
               <p className="text-xs text-slate-500 mt-1">{summary.totalCount || 0} events</p>
             </div>
             <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-rose-700">Write-offs</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-rose-700">{tt('Write-offs')}</p>
               <p className="mt-1 min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(summary.writeOffAmount || 0)}</p>
               <p className="text-xs text-slate-500 mt-1">{summary.writeOffCount || 0} events</p>
             </div>
             <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Stock-outs</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-amber-700">{tt('Stock-outs')}</p>
               <p className="mt-1 min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(summary.stockOutAmount || 0)}</p>
               <p className="text-xs text-slate-500 mt-1">{summary.stockOutCount || 0} events</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-600">Average loss/event</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-600">{tt('Average loss/event')}</p>
               <p className="mt-1 min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">
                 {formatCurrency((summary.totalCount || 0) > 0 ? (summary.totalAmount || 0) / summary.totalCount : 0)}
               </p>
-              <p className="text-xs text-slate-500 mt-1">For selected filter</p>
+              <p className="text-xs text-slate-500 mt-1">{tt('For selected filter')}</p>
             </div>
           </div>
 
@@ -93,17 +94,17 @@ export const InventoryLossReport = ({
             <table className="min-w-full">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Date</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Type</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Description</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Amount</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">{tt('Date')}</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">{tt('Type')}</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">{tt('Description')}</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">{tt('Amount')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
                 {items.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-500">
-                      No write-off or stock-out events found for this period.
+                      {tt('No write-off or stock-out events found for this period.')}
                     </td>
                   </tr>
                 ) : (
@@ -139,18 +140,18 @@ export const InventoryLossReport = ({
             <table className="min-w-full">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Month</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Write-offs</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Stock-outs</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Total</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Events</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">{tt('Month')}</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">{tt('Write-offs')}</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">{tt('Stock-outs')}</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">{tt('Total')}</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">{tt('Events')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
                 {byMonth.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">
-                      No monthly totals in this period.
+                      {tt('No monthly totals in this period.')}
                     </td>
                   </tr>
                 ) : (

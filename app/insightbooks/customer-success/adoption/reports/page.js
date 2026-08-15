@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import AdoptionContextBar from '@/components/admin/customerSuccess/AdoptionContextBar';
@@ -9,15 +10,15 @@ export default function AdoptionReportsPage() {
     <div style={{ padding: '1.5rem', maxWidth: 960 }}>
       <AdoptionContextBar population="adoption-reports" />
       <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
-        Adoption Reports
+        {tt('Adoption Reports')}
       </h1>
       <p style={{ color: '#555', marginBottom: '1.25rem' }}>
         Overview, at-risk, dormancy, value review, expansion. Exports strip
         secrets/tokens; portfolio fail-closed. DQ/recon never invent success zeroes.
       </p>
       <p style={{ fontSize: '0.875rem', color: '#777' }}>
-        Catalogue via <code>listAdoptionReports</code> /{' '}
-        <code>exportAdoptionReport</code>.
+        {tt('Catalogue via')} <code>{tt('listAdoptionReports')}</code> /{' '}
+        <code>{tt('exportAdoptionReport')}</code>.
       </p>
       <p style={{ marginTop: '1rem' }}>
         <Link href="/insightbooks/customer-success/adoption">← Overview</Link>

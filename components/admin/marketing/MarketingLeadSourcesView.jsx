@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from 'react';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -59,8 +60,7 @@ export default function MarketingLeadSourcesView() {
       >
         <strong>CRM Lead Source (source of truth)</strong>
         <p className="mt-1 text-emerald-800">
-          Marketing taxonomy mapping is separate. This view shows authoritative CRM capture evidence
-          only.
+          {tt('Marketing taxonomy mapping is separate. This view shows authoritative CRM capture evidence only.')}
         </p>
       </div>
 
@@ -70,7 +70,7 @@ export default function MarketingLeadSourcesView() {
             id="lead-id"
             value={leadId}
             onChange={(e) => setLeadId(e.target.value)}
-            placeholder="e.g. LEAD-2026-000001 or cuid"
+            placeholder={tt('e.g. LEAD-2026-000001 or cuid')}
           />
         </AdminField>
         <button type="submit" className={btnPrimary} disabled={loading || !leadId.trim()}>
@@ -85,32 +85,32 @@ export default function MarketingLeadSourcesView() {
         <div className="space-y-6">
           <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <h2 className="text-sm font-semibold text-[var(--admin-text)]">Lead</h2>
+              <h2 className="text-sm font-semibold text-[var(--admin-text)]">{tt('Lead')}</h2>
               <AdminStatusBadge tone="info">CRM Lead Source (source of truth)</AdminStatusBadge>
             </div>
             <dl className="grid gap-2 text-sm md:grid-cols-2">
               <div>
-                <dt className="text-[var(--admin-text-muted)]">Number</dt>
+                <dt className="text-[var(--admin-text-muted)]">{tt('Number')}</dt>
                 <dd className="font-medium">{evidence.lead.leadNumber}</dd>
               </div>
               <div>
-                <dt className="text-[var(--admin-text-muted)]">Title</dt>
+                <dt className="text-[var(--admin-text-muted)]">{tt('Title')}</dt>
                 <dd>{evidence.lead.title}</dd>
               </div>
               <div>
-                <dt className="text-[var(--admin-text-muted)]">Source</dt>
+                <dt className="text-[var(--admin-text-muted)]">{tt('Source')}</dt>
                 <dd>{evidence.lead.source || '—'}</dd>
               </div>
               <div>
-                <dt className="text-[var(--admin-text-muted)]">Channel</dt>
+                <dt className="text-[var(--admin-text-muted)]">{tt('Channel')}</dt>
                 <dd>{evidence.lead.channel || '—'}</dd>
               </div>
               <div>
-                <dt className="text-[var(--admin-text-muted)]">Status</dt>
+                <dt className="text-[var(--admin-text-muted)]">{tt('Status')}</dt>
                 <dd>{evidence.lead.status}</dd>
               </div>
               <div>
-                <dt className="text-[var(--admin-text-muted)]">Created</dt>
+                <dt className="text-[var(--admin-text-muted)]">{tt('Created')}</dt>
                 <dd>
                   {evidence.lead.createdAt
                     ? new Date(evidence.lead.createdAt).toLocaleString()
@@ -120,8 +120,7 @@ export default function MarketingLeadSourcesView() {
             </dl>
             {evidence.sourceOfTruth === 'crm' ? (
               <p className="mt-3 text-xs text-[var(--admin-text-muted)]">
-                Marketing taxonomy mapping is separate. This view shows authoritative CRM capture
-                evidence only.
+                {tt('Marketing taxonomy mapping is separate. This view shows authoritative CRM capture evidence only.')}
               </p>
             ) : null}
           </section>
@@ -131,7 +130,7 @@ export default function MarketingLeadSourcesView() {
               Capture records ({evidence.captureRecords?.length || 0})
             </h2>
             {!evidence.captureRecords?.length ? (
-              <p className="text-sm text-[var(--admin-text-muted)]">No capture records for this lead.</p>
+              <p className="text-sm text-[var(--admin-text-muted)]">{tt('No capture records for this lead.')}</p>
             ) : (
               <ul className="space-y-3">
                 {evidence.captureRecords.map((cap) => (
@@ -141,19 +140,19 @@ export default function MarketingLeadSourcesView() {
                   >
                     <div className="flex flex-wrap gap-4">
                       <span>
-                        <span className="text-[var(--admin-text-muted)]">Source code: </span>
+                        <span className="text-[var(--admin-text-muted)]">{tt('Source code:')} </span>
                         {cap.sourceCode}
                       </span>
                       <span>
-                        <span className="text-[var(--admin-text-muted)]">Channel: </span>
+                        <span className="text-[var(--admin-text-muted)]">{tt('Channel:')} </span>
                         {cap.channel}
                       </span>
                       <span>
-                        <span className="text-[var(--admin-text-muted)]">Consent: </span>
+                        <span className="text-[var(--admin-text-muted)]">{tt('Consent:')} </span>
                         {cap.consentStatus}
                       </span>
                       <span>
-                        <span className="text-[var(--admin-text-muted)]">At: </span>
+                        <span className="text-[var(--admin-text-muted)]">{tt('At:')} </span>
                         {cap.createdAt ? new Date(cap.createdAt).toLocaleString() : '—'}
                       </span>
                     </div>

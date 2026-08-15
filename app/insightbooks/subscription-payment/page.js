@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { adminFetch } from '@/lib/admin/adminApi';
 
@@ -136,8 +137,8 @@ export default function SubscriptionPaymentPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Subscription payments</h1>
-          <p className="text-sm text-gray-500">Process InsightBooks subscription payments and calculate affiliate commissions</p>
+          <h1 className="text-2xl font-bold text-gray-900">{tt('Subscription payments')}</h1>
+          <p className="text-sm text-gray-500">{tt('Process InsightBooks subscription payments and calculate affiliate commissions')}</p>
         </div>
       </div>
 
@@ -145,14 +146,14 @@ export default function SubscriptionPaymentPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Total Subscriptions</p>
+            <p className="text-sm font-medium text-gray-600">{tt('Total Subscriptions')}</p>
             <p className="text-2xl font-bold text-gray-900">{subscriptions.length}</p>
           </div>
         </div>
         
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Pending Payment</p>
+            <p className="text-sm font-medium text-gray-600">{tt('Pending Payment')}</p>
             <p className="text-2xl font-bold text-yellow-600">
               {subscriptions.filter(s => s.status === 'Pending').length}
             </p>
@@ -161,7 +162,7 @@ export default function SubscriptionPaymentPage() {
         
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Active Subscriptions</p>
+            <p className="text-sm font-medium text-gray-600">{tt('Active Subscriptions')}</p>
             <p className="text-2xl font-bold text-green-600">
               {subscriptions.filter(s => s.status === 'Active').length}
             </p>
@@ -170,7 +171,7 @@ export default function SubscriptionPaymentPage() {
         
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="text-center">
-            <p className="text-sm font-medium text-gray-600">Trial Users</p>
+            <p className="text-sm font-medium text-gray-600">{tt('Trial Users')}</p>
             <p className="text-2xl font-bold text-blue-600">
               {subscriptions.filter(s => s.isTrial).length}
             </p>
@@ -181,7 +182,7 @@ export default function SubscriptionPaymentPage() {
       {/* Subscriptions Table */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Subscriptions</h3>
+          <h3 className="text-lg font-medium text-gray-900">{tt('Subscriptions')}</h3>
         </div>
         
         <div className="overflow-x-auto">
@@ -189,22 +190,22 @@ export default function SubscriptionPaymentPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tenant
+                  {tt('Tenant')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Plan
+                  {tt('Plan')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  {tt('Status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Trial
+                  {tt('Trial')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
+                  {tt('Amount')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                  {tt('Actions')}
                 </th>
               </tr>
             </thead>
@@ -270,7 +271,7 @@ export default function SubscriptionPaymentPage() {
               ) : (
                 <tr>
                   <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
-                    No subscriptions found
+                    {tt('No subscriptions found')}
                   </td>
                 </tr>
               )}
@@ -285,7 +286,7 @@ export default function SubscriptionPaymentPage() {
           <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Process Payment</h3>
+                <h3 className="text-lg font-medium text-gray-900">{tt('Process Payment')}</h3>
                 <button
                   onClick={() => setShowPaymentModal(false)}
                   className="text-gray-400 hover:text-gray-600"
@@ -297,7 +298,7 @@ export default function SubscriptionPaymentPage() {
               <form onSubmit={handlePaymentSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tenant
+                    {tt('Tenant')}
                   </label>
                   <input
                     type="text"
@@ -323,7 +324,7 @@ export default function SubscriptionPaymentPage() {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Payment Method
+                    {tt('Payment Method')}
                   </label>
                   <select
                     value={paymentData.paymentMethod}
@@ -342,7 +343,7 @@ export default function SubscriptionPaymentPage() {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Transaction Reference *
+                    {tt('Transaction Reference *')}
                   </label>
                   <input
                     type="text"
@@ -360,13 +361,13 @@ export default function SubscriptionPaymentPage() {
                     onClick={() => setShowPaymentModal(false)}
                     className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
                     className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
                   >
-                    Process Payment
+                    {tt('Process Payment')}
                   </button>
                 </div>
               </form>
@@ -380,7 +381,7 @@ export default function SubscriptionPaymentPage() {
           <div className="flex">
             <AlertCircle className="h-5 w-5 text-red-400" />
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error</h3>
+              <h3 className="text-sm font-medium text-red-800">{tt('Error')}</h3>
               <div className="mt-2 text-sm text-red-700">{error}</div>
             </div>
           </div>

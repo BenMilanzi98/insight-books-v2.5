@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect, useMemo } from "react";
 import {
   Plus,
@@ -775,14 +776,14 @@ const LiabilityManagement = () => {
           )}
           
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold">Liability Management</h1>
+            <h1 className="text-2xl font-bold">{tt('Liability Management')}</h1>
             <div className="flex space-x-2">
               <button 
                 className="btn-secondary flex items-center gap-2 px-4 py-2 rounded border border-gray-300 bg-white hover:bg-gray-50"
                 onClick={() => setShowCategoryModal(true)}
               >
                 <Plus size={16} />
-                New Category
+                {tt('New Category')}
               </button>
               <button 
                 className="btn-primary flex items-center gap-2 px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
@@ -792,7 +793,7 @@ const LiabilityManagement = () => {
                 }}
               >
                 <Plus size={16} />
-                New Liability
+                {tt('New Liability')}
               </button>
             </div>
           </div>
@@ -803,7 +804,7 @@ const LiabilityManagement = () => {
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="Search liabilities..."
+                    placeholder={tt('Search liabilities...')}
                     className="input-search pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md"
                     value={searchTerm}
                     onChange={handleSearchChange}
@@ -818,7 +819,7 @@ const LiabilityManagement = () => {
                     value={categoryFilter}
                     onChange={handleCategoryFilterChange}
                   >
-                    <option value="all">All Categories</option>
+                    <option value="all">{tt('All Categories')}</option>
                     {categories.map(cat => (
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
@@ -831,9 +832,9 @@ const LiabilityManagement = () => {
                     value={typeFilter}
                     onChange={handleTypeFilterChange}
                   >
-                    <option value="all">All Types</option>
+                    <option value="all">{tt('All Types')}</option>
                     {liabilityTypes.map(type => (
-                      <option key={type.value} value={type.value}>{type.label}</option>
+                      <option key={type.value} value={type.value}>{tt(type.label)}</option>
                     ))}
                   </select>
                   <Filter className="absolute left-3 top-2.5 text-gray-400" size={18} />
@@ -868,24 +869,24 @@ const LiabilityManagement = () => {
               </div>
             ) : liabilities.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-500">No liabilities found. Create your first liability!</p>
+                <p className="text-gray-500">{tt('No liabilities found. Create your first liability!')}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 text-left">
-                      <th className="p-3 font-medium">Liability Name</th>
-                      <th className="p-3 font-medium">Type</th>
-                      <th className="p-3 font-medium">Category</th>
-                      <th className="p-3 font-medium">Lender</th>
-                      <th className="p-3 font-medium">Interest Method</th>
-                      <th className="p-3 font-medium text-right">Principal Amount</th>
+                      <th className="p-3 font-medium">{tt('Liability Name')}</th>
+                      <th className="p-3 font-medium">{tt('Type')}</th>
+                      <th className="p-3 font-medium">{tt('Category')}</th>
+                      <th className="p-3 font-medium">{tt('Lender')}</th>
+                      <th className="p-3 font-medium">{tt('Interest Method')}</th>
+                      <th className="p-3 font-medium text-right">{tt('Principal Amount')}</th>
                       <th className="p-3 font-medium text-right">Projected Total (Schedule)</th>
-                      <th className="p-3 font-medium text-right">Current Balance</th>
-                      <th className="p-3 font-medium text-right">Total Paid</th>
-                      <th className="p-3 font-medium">Status</th>
-                      <th className="p-3 font-medium text-center">Actions</th>
+                      <th className="p-3 font-medium text-right">{tt('Current Balance')}</th>
+                      <th className="p-3 font-medium text-right">{tt('Total Paid')}</th>
+                      <th className="p-3 font-medium">{tt('Status')}</th>
+                      <th className="p-3 font-medium text-center">{tt('Actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -975,7 +976,7 @@ const LiabilityManagement = () => {
                     onClick={() => handlePageChange(page - 1)}
                     disabled={page === 1}
                   >
-                    Previous
+                    {tt('Previous')}
                   </button>
                   {Array.from({ length: Math.min(5, totalPages) }).map((_, index) => {
                     const pageNumber = page > 2 ? page - 2 + index : index + 1;
@@ -1001,7 +1002,7 @@ const LiabilityManagement = () => {
                     onClick={() => handlePageChange(page + 1)}
                     disabled={page === totalPages}
                   >
-                    Next
+                    {tt('Next')}
                   </button>
                 </div>
               </div>
@@ -1030,7 +1031,7 @@ const LiabilityManagement = () => {
                   <div className="p-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Liability Name *</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Liability Name *')}</label>
                         <input
                           type="text"
                           className="w-full p-2 border border-gray-200 rounded"
@@ -1040,14 +1041,14 @@ const LiabilityManagement = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-1">Category *</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Category *')}</label>
                         <select
                           className="w-full p-2 border border-gray-200 rounded"
                           value={liabilityFormData.categoryId}
                           onChange={(e) => setLiabilityFormData({...liabilityFormData, categoryId: e.target.value})}
                           required
                         >
-                          <option value="">Select Category</option>
+                          <option value="">{tt('Select Category')}</option>
                           {categories.map(cat => (
                             <option key={cat.id} value={cat.id}>{cat.name}</option>
                           ))}
@@ -1057,7 +1058,7 @@ const LiabilityManagement = () => {
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Liability Type *</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Liability Type *')}</label>
                         <select
                           className="w-full p-2 border border-gray-200 rounded"
                           value={liabilityFormData.liabilityType}
@@ -1065,26 +1066,26 @@ const LiabilityManagement = () => {
                           required
                         >
                           {liabilityTypes.map(type => (
-                            <option key={type.value} value={type.value}>{type.label}</option>
+                            <option key={type.value} value={type.value}>{tt(type.label)}</option>
                           ))}
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-1">Status</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Status')}</label>
                         <select
                           className="w-full p-2 border border-gray-200 rounded"
                           value={liabilityFormData.status}
                           onChange={(e) => setLiabilityFormData({...liabilityFormData, status: e.target.value})}
                         >
-                          <option value="active">Active</option>
-                          <option value="paid_off">Paid Off</option>
-                          <option value="defaulted">Defaulted</option>
+                          <option value="active">{tt('Active')}</option>
+                          <option value="paid_off">{tt('Paid Off')}</option>
+                          <option value="defaulted">{tt('Defaulted')}</option>
                         </select>
                       </div>
                     </div>
                     
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Description</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Description')}</label>
                       <textarea
                         className="w-full p-2 border border-gray-200 rounded"
                         rows="2"
@@ -1095,7 +1096,7 @@ const LiabilityManagement = () => {
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Principal Amount *</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Principal Amount *')}</label>
                         <input
                           type="number"
                           step="0.01"
@@ -1106,18 +1107,18 @@ const LiabilityManagement = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-1">Interest Method</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Interest Method')}</label>
                         <select
                           className="w-full p-2 border border-gray-200 rounded"
                           value={liabilityFormData.interestType}
                           onChange={(e) => setLiabilityFormData({...liabilityFormData, interestType: e.target.value})}
                         >
                           {interestTypeOptions.map(option => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
+                            <option key={option.value} value={option.value}>{tt(option.label)}</option>
                           ))}
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
-                          Reducing balance recalculates interest each installment. One-time applies a single upfront charge.
+                          {tt('Reducing balance recalculates interest each installment. One-time applies a single upfront charge.')}
                         </p>
                       </div>
                     </div>
@@ -1127,7 +1128,7 @@ const LiabilityManagement = () => {
                         {liabilityFormData.interestType === 'one_time' ? (
                           <div className="space-y-2">
                             <div>
-                              <label className="block text-sm font-medium mb-1">One-time Interest Input</label>
+                              <label className="block text-sm font-medium mb-1">{tt('One-time Interest Input')}</label>
                               <select
                                 className="w-full p-2 border border-gray-200 rounded"
                                 value={liabilityFormData.oneTimeInterestMode || "amount"}
@@ -1142,8 +1143,8 @@ const LiabilityManagement = () => {
                                   }));
                                 }}
                               >
-                                <option value="amount">Enter amount</option>
-                                <option value="percentage">Enter percentage</option>
+                                <option value="amount">{tt('Enter amount')}</option>
+                                <option value="percentage">{tt('Enter percentage')}</option>
                               </select>
                             </div>
                             {liabilityFormData.oneTimeInterestMode === 'percentage' ? (
@@ -1155,22 +1156,22 @@ const LiabilityManagement = () => {
                                   className="w-full p-2 border border-gray-200 rounded"
                                   value={liabilityFormData.oneTimeInterestPercent || ""}
                                   onChange={(e) => setLiabilityFormData({...liabilityFormData, oneTimeInterestPercent: e.target.value})}
-                                  placeholder="e.g. 5"
+                                  placeholder={tt('e.g. 5')}
                                 />
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Converted to MWK automatically based on principal.
+                                  {tt('Converted to MWK automatically based on principal.')}
                                 </p>
                               </div>
                             ) : (
                               <div>
-                                <label className="block text-sm font-medium mb-1">One-time Interest Amount</label>
+                                <label className="block text-sm font-medium mb-1">{tt('One-time Interest Amount')}</label>
                                 <input
                                   type="number"
                                   step="0.01"
                                   className="w-full p-2 border border-gray-200 rounded"
                                   value={liabilityFormData.oneTimeInterestAmount}
                                   onChange={(e) => setLiabilityFormData({...liabilityFormData, oneTimeInterestAmount: e.target.value})}
-                                  placeholder="Enter agreed interest amount"
+                                  placeholder={tt('Enter agreed interest amount')}
                                 />
                               </div>
                             )}
@@ -1183,14 +1184,14 @@ const LiabilityManagement = () => {
                         ) : (
                           <div className="space-y-2">
                             <div>
-                              <label className="block text-sm font-medium mb-1">Interest Rate Input</label>
+                              <label className="block text-sm font-medium mb-1">{tt('Interest Rate Input')}</label>
                               <select
                                 className="w-full p-2 border border-gray-200 rounded"
                                 value={liabilityFormData.interestRateMode || "annual"}
                                 onChange={(e) => setLiabilityFormData({...liabilityFormData, interestRateMode: e.target.value})}
                               >
-                                <option value="annual">Annual percentage rate</option>
-                                <option value="monthly">Monthly percentage rate</option>
+                                <option value="annual">{tt('Annual percentage rate')}</option>
+                                <option value="monthly">{tt('Monthly percentage rate')}</option>
                               </select>
                             </div>
                             <div>
@@ -1208,7 +1209,7 @@ const LiabilityManagement = () => {
                                 placeholder={liabilityFormData.interestRateMode === 'monthly' ? 'Monthly percentage rate' : 'Annual percentage rate'}
                               />
                               <p className="text-xs text-gray-500 mt-1">
-                                Monthly rates are converted to an annual APR when calculating the schedule.
+                                {tt('Monthly rates are converted to an annual APR when calculating the schedule.')}
                               </p>
                             </div>
                           </div>
@@ -1221,17 +1222,17 @@ const LiabilityManagement = () => {
                           className="w-full p-2 border border-gray-200 rounded"
                           value={liabilityFormData.termMonths}
                           onChange={(e) => setLiabilityFormData({...liabilityFormData, termMonths: e.target.value})}
-                          placeholder="Optional"
+                          placeholder={tt('Optional')}
                         />
                         <p className="text-xs text-gray-500 mt-1">
-                          Updates automatically when you adjust the start or maturity date.
+                          {tt('Updates automatically when you adjust the start or maturity date.')}
                         </p>
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Start Date *</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Start Date *')}</label>
                         <input
                           type="date"
                           className="w-full p-2 border border-gray-200 rounded"
@@ -1241,7 +1242,7 @@ const LiabilityManagement = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-1">Maturity Date</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Maturity Date')}</label>
                         <input
                           type="date"
                           className="w-full p-2 border border-gray-200 rounded"
@@ -1253,7 +1254,7 @@ const LiabilityManagement = () => {
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Payment Frequency</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Payment Frequency')}</label>
                         <select
                           className="w-full p-2 border border-gray-200 rounded"
                           value={liabilityFormData.paymentFrequency}
@@ -1265,7 +1266,7 @@ const LiabilityManagement = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-1">Lender/Creditor</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Lender/Creditor')}</label>
                         <input
                           type="text"
                           className="w-full p-2 border border-gray-200 rounded"
@@ -1276,7 +1277,7 @@ const LiabilityManagement = () => {
                     </div>
                     
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Account Number</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Account Number')}</label>
                       <input
                         type="text"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -1286,7 +1287,7 @@ const LiabilityManagement = () => {
                     </div>
                     
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Notes</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Notes')}</label>
                       <textarea
                         className="w-full p-2 border border-gray-200 rounded"
                         rows="3"
@@ -1305,7 +1306,7 @@ const LiabilityManagement = () => {
                         resetLiabilityForm();
                       }}
                     >
-                      Cancel
+                      {tt('Cancel')}
                     </button>
                     <button
                       type="submit"
@@ -1325,7 +1326,7 @@ const LiabilityManagement = () => {
             <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
                 <div className="p-6 border-b border-gray-200">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-semibold">New Category</h2>
+                    <h2 className="text-xl font-semibold">{tt('New Category')}</h2>
                     <button 
                       onClick={() => {
                         setShowCategoryModal(false);
@@ -1340,7 +1341,7 @@ const LiabilityManagement = () => {
                 <form onSubmit={handleCategorySubmit}>
                   <div className="p-6">
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Category Name *</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Category Name *')}</label>
                       <input
                         type="text"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -1350,7 +1351,7 @@ const LiabilityManagement = () => {
                       />
                     </div>
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Description</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Description')}</label>
                       <textarea
                         className="w-full p-2 border border-gray-200 rounded"
                         rows="3"
@@ -1368,13 +1369,13 @@ const LiabilityManagement = () => {
                         setCategoryFormData({ name: "", description: "" });
                       }}
                     >
-                      Cancel
+                      {tt('Cancel')}
                     </button>
                     <button
                       type="submit"
                       className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                     >
-                      Create Category
+                      {tt('Create Category')}
                     </button>
                   </div>
                 </form>
@@ -1388,7 +1389,7 @@ const LiabilityManagement = () => {
               <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
                 <div className="p-6 border-b border-gray-200">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-semibold">Liability Details</h2>
+                    <h2 className="text-xl font-semibold">{tt('Liability Details')}</h2>
                     <button 
                       onClick={() => {
                         setShowViewModal(false);
@@ -1403,12 +1404,12 @@ const LiabilityManagement = () => {
                 <div className="p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <h3 className="font-semibold mb-2">Basic Information</h3>
+                      <h3 className="font-semibold mb-2">{tt('Basic Information')}</h3>
                       <div className="space-y-2 text-sm">
-                        <div><span className="font-medium">Name:</span> {viewLiability.name}</div>
-                        <div><span className="font-medium">Type:</span> {liabilityTypes.find(t => t.value === viewLiability.liabilityType)?.label || viewLiability.liabilityType}</div>
-                        <div><span className="font-medium">Category:</span> {viewLiability.category.name}</div>
-                        <div><span className="font-medium">Status:</span> 
+                        <div><span className="font-medium">{tt('Name:')}</span> {viewLiability.name}</div>
+                        <div><span className="font-medium">{tt('Type:')}</span> {liabilityTypes.find(t => t.value === viewLiability.liabilityType)?.label || viewLiability.liabilityType}</div>
+                        <div><span className="font-medium">{tt('Category:')}</span> {viewLiability.category.name}</div>
+                        <div><span className="font-medium">{tt('Status:')}</span> 
                           <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
                             viewLiability.status === "active" 
                               ? "bg-green-100 text-green-800" 
@@ -1420,29 +1421,29 @@ const LiabilityManagement = () => {
                           </span>
                         </div>
                         {viewLiability.description && (
-                          <div><span className="font-medium">Description:</span> {viewLiability.description}</div>
+                          <div><span className="font-medium">{tt('Description:')}</span> {viewLiability.description}</div>
                         )}
                       </div>
                     </div>
                     <div>
-                      <h3 className="font-semibold mb-2">Financial Information</h3>
+                      <h3 className="font-semibold mb-2">{tt('Financial Information')}</h3>
                       <div className="space-y-2 text-sm">
-                        <div><span className="font-medium">Principal Amount:</span> {formatCurrency(viewLiability.principalAmount)}</div>
-                        <div><span className="font-medium">Current Balance:</span> {formatCurrency(viewLiability.currentBalance)}</div>
-                        <div><span className="font-medium">Total Paid:</span> {formatCurrency(viewLiability.totalPaid)}</div>
-                        <div><span className="font-medium">Interest Method:</span> {interestTypeOptions.find(opt => opt.value === viewLiability.interestType)?.label || 'Reducing Balance'}</div>
+                        <div><span className="font-medium">{tt('Principal Amount:')}</span> {formatCurrency(viewLiability.principalAmount)}</div>
+                        <div><span className="font-medium">{tt('Current Balance:')}</span> {formatCurrency(viewLiability.currentBalance)}</div>
+                        <div><span className="font-medium">{tt('Total Paid:')}</span> {formatCurrency(viewLiability.totalPaid)}</div>
+                        <div><span className="font-medium">{tt('Interest Method:')}</span> {interestTypeOptions.find(opt => opt.value === viewLiability.interestType)?.label || 'Reducing Balance'}</div>
                         {viewLiability.interestType === 'one_time' ? (
-                          <div><span className="font-medium">One-time Interest:</span> {formatCurrency(viewLiability.oneTimeInterestAmount || 0)}</div>
+                          <div><span className="font-medium">{tt('One-time Interest:')}</span> {formatCurrency(viewLiability.oneTimeInterestAmount || 0)}</div>
                         ) : (
-                          <div><span className="font-medium">Interest Rate:</span> {viewLiability.interestRate ? `${viewLiability.interestRate}%` : 'N/A'}</div>
+                          <div><span className="font-medium">{tt('Interest Rate:')}</span> {viewLiability.interestRate ? `${viewLiability.interestRate}%` : 'N/A'}</div>
                         )}
-                        <div><span className="font-medium">Term Length:</span> {viewLiability.termMonths ? `${viewLiability.termMonths} months` : 'N/A'}</div>
+                        <div><span className="font-medium">{tt('Term Length:')}</span> {viewLiability.termMonths ? `${viewLiability.termMonths} months` : 'N/A'}</div>
                       </div>
                     </div>
                     <div>
-                      <h3 className="font-semibold mb-2">Dates</h3>
+                      <h3 className="font-semibold mb-2">{tt('Dates')}</h3>
                       <div className="space-y-2 text-sm">
-                        <div><span className="font-medium">Start Date:</span> {(() => {
+                        <div><span className="font-medium">{tt('Start Date:')}</span> {(() => {
                           const date = new Date(viewLiability.startDate);
                           const day = String(date.getDate()).padStart(2, '0');
                           const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -1450,7 +1451,7 @@ const LiabilityManagement = () => {
                           return `${day}-${month}-${year}`;
                         })()}</div>
                         {viewLiability.maturityDate && (
-                          <div><span className="font-medium">Maturity Date:</span> {(() => {
+                          <div><span className="font-medium">{tt('Maturity Date:')}</span> {(() => {
                             const date = new Date(viewLiability.maturityDate);
                             const day = String(date.getDate()).padStart(2, '0');
                             const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -1458,20 +1459,20 @@ const LiabilityManagement = () => {
                             return `${day}-${month}-${year}`;
                           })()}</div>
                         )}
-                        <div><span className="font-medium">Payment Frequency:</span> {paymentFrequencies.find(f => f.value === viewLiability.paymentFrequency)?.label || viewLiability.paymentFrequency || 'N/A'}</div>
+                        <div><span className="font-medium">{tt('Payment Frequency:')}</span> {paymentFrequencies.find(f => f.value === viewLiability.paymentFrequency)?.label || viewLiability.paymentFrequency || 'N/A'}</div>
                       </div>
                     </div>
                     <div>
-                      <h3 className="font-semibold mb-2">Additional Information</h3>
+                      <h3 className="font-semibold mb-2">{tt('Additional Information')}</h3>
                       <div className="space-y-2 text-sm">
                         {viewLiability.lender && (
-                          <div><span className="font-medium">Lender:</span> {viewLiability.lender}</div>
+                          <div><span className="font-medium">{tt('Lender:')}</span> {viewLiability.lender}</div>
                         )}
                         {viewLiability.accountNumber && (
-                          <div><span className="font-medium">Account Number:</span> {viewLiability.accountNumber}</div>
+                          <div><span className="font-medium">{tt('Account Number:')}</span> {viewLiability.accountNumber}</div>
                         )}
                         {viewLiability.notes && (
-                          <div><span className="font-medium">Notes:</span> {viewLiability.notes}</div>
+                          <div><span className="font-medium">{tt('Notes:')}</span> {viewLiability.notes}</div>
                         )}
                       </div>
                     </div>
@@ -1480,7 +1481,7 @@ const LiabilityManagement = () => {
                   {paymentSchedule && paymentSchedule.length > 0 && (
                     <div className="mt-6">
                       <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-semibold">Projected Payment Schedule</h3>
+                        <h3 className="font-semibold">{tt('Projected Payment Schedule')}</h3>
                         {paymentScheduleTotals && (
                           <div className="text-xs text-gray-500">
                             Principal {formatCurrency(paymentScheduleTotals.principal)} · Interest {formatCurrency(paymentScheduleTotals.interest)} · Total {formatCurrency(paymentScheduleTotals.payment)}
@@ -1492,11 +1493,11 @@ const LiabilityManagement = () => {
                           <thead>
                             <tr className="bg-gray-50 text-left">
                               <th className="p-2 font-medium">#</th>
-                              <th className="p-2 font-medium">Due Date</th>
-                              <th className="p-2 font-medium text-right">Principal</th>
-                              <th className="p-2 font-medium text-right">Interest</th>
-                              <th className="p-2 font-medium text-right">Payment</th>
-                              <th className="p-2 font-medium text-right">Balance</th>
+                              <th className="p-2 font-medium">{tt('Due Date')}</th>
+                              <th className="p-2 font-medium text-right">{tt('Principal')}</th>
+                              <th className="p-2 font-medium text-right">{tt('Interest')}</th>
+                              <th className="p-2 font-medium text-right">{tt('Payment')}</th>
+                              <th className="p-2 font-medium text-right">{tt('Balance')}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1524,16 +1525,16 @@ const LiabilityManagement = () => {
 
                   {viewLiability.payments && viewLiability.payments.length > 0 && (
                     <div className="mt-6">
-                      <h3 className="font-semibold mb-3">Payment History</h3>
+                      <h3 className="font-semibold mb-3">{tt('Payment History')}</h3>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="bg-gray-50 text-left">
-                              <th className="p-2 font-medium">Date</th>
-                              <th className="p-2 font-medium text-right">Amount</th>
-                              <th className="p-2 font-medium text-right">Principal</th>
-                              <th className="p-2 font-medium text-right">Interest</th>
-                              <th className="p-2 font-medium">Reference</th>
+                              <th className="p-2 font-medium">{tt('Date')}</th>
+                              <th className="p-2 font-medium text-right">{tt('Amount')}</th>
+                              <th className="p-2 font-medium text-right">{tt('Principal')}</th>
+                              <th className="p-2 font-medium text-right">{tt('Interest')}</th>
+                              <th className="p-2 font-medium">{tt('Reference')}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1566,7 +1567,7 @@ const LiabilityManagement = () => {
                       setViewLiability(null);
                     }}
                   >
-                    Close
+                    {tt('Close')}
                   </button>
                   <button
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -1575,7 +1576,7 @@ const LiabilityManagement = () => {
                       handleEditLiability(viewLiability);
                     }}
                   >
-                    Edit
+                    {tt('Edit')}
                   </button>
                 </div>
               </div>
@@ -1588,7 +1589,7 @@ const LiabilityManagement = () => {
               <div className="bg-white rounded-lg w-full max-w-md">
                 <div className="p-6 border-b border-gray-200">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-semibold">Record Payment</h2>
+                    <h2 className="text-xl font-semibold">{tt('Record Payment')}</h2>
                     <button 
                       onClick={() => {
                         setShowPaymentModal(false);
@@ -1604,12 +1605,12 @@ const LiabilityManagement = () => {
                   <div className="p-6">
                     <div className="mb-4 p-3 bg-gray-50 rounded">
                       <div className="text-sm">
-                        <div><span className="font-medium">Liability:</span> {paymentLiability.name}</div>
-                        <div><span className="font-medium">Current Balance:</span> {formatCurrency(paymentLiability.currentBalance)}</div>
+                        <div><span className="font-medium">{tt('Liability:')}</span> {paymentLiability.name}</div>
+                        <div><span className="font-medium">{tt('Current Balance:')}</span> {formatCurrency(paymentLiability.currentBalance)}</div>
                       </div>
                     </div>
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Payment Entry</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Payment Entry')}</label>
                       <select
                         className="w-full p-2 border border-gray-200 rounded"
                         value={paymentEntryMode}
@@ -1621,21 +1622,21 @@ const LiabilityManagement = () => {
                           }
                         }}
                       >
-                        <option value="custom">Custom amount</option>
+                        <option value="custom">{tt('Custom amount')}</option>
                         <option value="schedule" disabled={paymentScheduleOptions.length === 0}>
-                          Scheduled installment
+                          {tt('Scheduled installment')}
                         </option>
                       </select>
                     </div>
                     {paymentEntryMode === "schedule" && paymentScheduleOptions.length > 0 && (
                       <div className="mb-4">
-                        <label className="block text-sm font-medium mb-1">Select Scheduled Installment</label>
+                        <label className="block text-sm font-medium mb-1">{tt('Select Scheduled Installment')}</label>
                         <select
                           className="w-full p-2 border border-gray-200 rounded"
                           value={selectedScheduleIndex}
                           onChange={(e) => handleScheduledPaymentSelection(e.target.value)}
                         >
-                          <option value="">Choose installment</option>
+                          <option value="">{tt('Choose installment')}</option>
                           {paymentScheduleOptions.map((entry, idx) => (
                             <option key={idx} value={idx}>
                               {`#${entry.period} – ${entry.dueDate ? (() => {
@@ -1649,12 +1650,12 @@ const LiabilityManagement = () => {
                           ))}
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
-                          Amount, principal, and interest auto-fill from the selected schedule.
+                          {tt('Amount, principal, and interest auto-fill from the selected schedule.')}
                         </p>
                       </div>
                     )}
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Pay from account *</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Pay from account *')}</label>
                       <select
                         className="w-full p-2 border border-gray-200 rounded"
                         value={paymentFormData.paymentMethod || ""}
@@ -1677,11 +1678,11 @@ const LiabilityManagement = () => {
                         ))}
                       </select>
                       <p className="text-xs text-gray-500 mt-1">
-                        Same payment accounts as /payments/management.
+                        {tt('Same payment accounts as /payments/management.')}
                       </p>
                     </div>
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Payment Amount *</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Payment Amount *')}</label>
                       <input
                         type="number"
                         step="0.01"
@@ -1692,7 +1693,7 @@ const LiabilityManagement = () => {
                       />
                     </div>
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Payment Date *</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Payment Date *')}</label>
                       <input
                         type="date"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -1702,21 +1703,21 @@ const LiabilityManagement = () => {
                       />
                     </div>
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Payment Type</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Payment Type')}</label>
                       <select
                         className="w-full p-2 border border-gray-200 rounded"
                         value={paymentFormData.paymentType}
                         onChange={(e) => setPaymentFormData({...paymentFormData, paymentType: e.target.value})}
                       >
-                        <option value="both">Principal + Interest</option>
-                        <option value="principal">Principal Only</option>
-                        <option value="interest">Interest Only</option>
+                        <option value="both">{tt('Principal + Interest')}</option>
+                        <option value="principal">{tt('Principal Only')}</option>
+                        <option value="interest">{tt('Interest Only')}</option>
                       </select>
                     </div>
                     {paymentFormData.paymentType === 'both' && (
                       <>
                         <div className="mb-4">
-                          <label className="block text-sm font-medium mb-1">Principal Paid</label>
+                          <label className="block text-sm font-medium mb-1">{tt('Principal Paid')}</label>
                           <input
                             type="number"
                             step="0.01"
@@ -1726,7 +1727,7 @@ const LiabilityManagement = () => {
                           />
                         </div>
                         <div className="mb-4">
-                          <label className="block text-sm font-medium mb-1">Interest Paid</label>
+                          <label className="block text-sm font-medium mb-1">{tt('Interest Paid')}</label>
                           <input
                             type="number"
                             step="0.01"
@@ -1738,7 +1739,7 @@ const LiabilityManagement = () => {
                       </>
                     )}
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Reference</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Reference')}</label>
                       <input
                         type="text"
                         className="w-full p-2 border border-gray-200 rounded"
@@ -1747,7 +1748,7 @@ const LiabilityManagement = () => {
                       />
                     </div>
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Notes</label>
+                      <label className="block text-sm font-medium mb-1">{tt('Notes')}</label>
                       <textarea
                         className="w-full p-2 border border-gray-200 rounded"
                         rows="2"
@@ -1765,13 +1766,13 @@ const LiabilityManagement = () => {
                         setPaymentLiability(null);
                       }}
                     >
-                      Cancel
+                      {tt('Cancel')}
                     </button>
                     <button
                       type="submit"
                       className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                     >
-                      Record Payment
+                      {tt('Record Payment')}
                     </button>
                   </div>
                 </form>

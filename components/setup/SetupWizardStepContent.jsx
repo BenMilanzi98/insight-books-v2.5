@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
@@ -124,7 +125,7 @@ function StartingDateStep({ facts, onSaved, onError }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-600">
-        Set the date your books begin. Opening stock, cash, receivables, and bulk COA entries will use this as-of date.
+        {tt('Set the date your books begin. Opening stock, cash, receivables, and bulk COA entries will use this as-of date.')}
       </p>
       <form onSubmit={submit} className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
         <WizardFormError message={localError} />
@@ -189,25 +190,25 @@ function OpeningBalancesReviewStep({ facts, onSaved, onError }) {
       {s ? (
         <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm space-y-2">
           <div className="flex justify-between">
-            <span className="text-slate-600">Starting date</span>
+            <span className="text-slate-600">{tt('Starting date')}</span>
             <span className="font-medium">
               {s.startingDate ? new Date(s.startingDate).toLocaleDateString() : "Not set"}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-600">Opening stock</span>
+            <span className="text-slate-600">{tt('Opening stock')}</span>
             <span>MWK {fmt(s.stockTotal)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-600">Payment accounts</span>
+            <span className="text-slate-600">{tt('Payment accounts')}</span>
             <span>MWK {fmt(s.paymentAccountsTotal)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-600">Receivables</span>
+            <span className="text-slate-600">{tt('Receivables')}</span>
             <span>MWK {fmt(s.receivablesTotal)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-600">Payables</span>
+            <span className="text-slate-600">{tt('Payables')}</span>
             <span>MWK {fmt(s.payablesTotal)}</span>
           </div>
           <div className="flex justify-between border-t border-slate-100 pt-2 font-medium">
@@ -220,14 +221,14 @@ function OpeningBalancesReviewStep({ facts, onSaved, onError }) {
         </div>
       ) : (
         <p className="text-sm text-slate-600">
-          No opening balance journals yet. Complete earlier steps or enter balances in Financial Setup.
+          {tt('No opening balance journals yet. Complete earlier steps or enter balances in Financial Setup.')}
         </p>
       )}
       <a
         href="/financial-setup/opening-balances"
         className="inline-flex text-sm font-medium text-indigo-600 hover:text-indigo-800"
       >
-        Open bulk opening balances →
+        {tt('Open bulk opening balances →')}
       </a>
     </div>
   );
@@ -290,7 +291,7 @@ function CapitalStep({ facts, onSaved, onError }) {
             className={inputCls}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            placeholder="e.g. 500000"
+            placeholder={tt('e.g. 500000')}
             required
           />
         </WizardField>
@@ -401,7 +402,7 @@ function AssetsStep({ onSaved, onError }) {
               className={inputCls}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Company vehicle"
+              placeholder={tt('Company vehicle')}
               required
             />
           </WizardField>
@@ -449,7 +450,7 @@ function AssetsStep({ onSaved, onError }) {
               onChange={(e) => setForm({ ...form, glAccountId: e.target.value })}
               required
             >
-              <option value="">Select account…</option>
+              <option value="">{tt('Select account…')}</option>
               {glAccounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.accountCode} — {a.accountName || a.name}
@@ -458,7 +459,7 @@ function AssetsStep({ onSaved, onError }) {
             </select>
           </WizardField>
         </div>
-        <WizardSubmitButton saving={saving}>Add asset</WizardSubmitButton>
+        <WizardSubmitButton saving={saving}>{tt('Add asset')}</WizardSubmitButton>
       </form>
     </div>
   );
@@ -562,7 +563,7 @@ function LiabilitiesStep({ onSaved, onError }) {
               className={inputCls}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Bank loan — NBM"
+              placeholder={tt('Bank loan — NBM')}
               required
             />
           </WizardField>
@@ -572,9 +573,9 @@ function LiabilitiesStep({ onSaved, onError }) {
               value={form.liabilityType}
               onChange={(e) => setForm({ ...form, liabilityType: e.target.value })}
             >
-              <option value="loan">Loan</option>
-              <option value="hire_purchase">Hire purchase</option>
-              <option value="other">Other</option>
+              <option value="loan">{tt('Loan')}</option>
+              <option value="hire_purchase">{tt('Hire purchase')}</option>
+              <option value="other">{tt('Other')}</option>
             </select>
           </WizardField>
           <WizardField label="Principal amount (MWK) *">
@@ -611,7 +612,7 @@ function LiabilitiesStep({ onSaved, onError }) {
               onChange={(e) => setForm({ ...form, glAccountId: e.target.value })}
               required
             >
-              <option value="">Select account…</option>
+              <option value="">{tt('Select account…')}</option>
               {glAccounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.accountCode} — {a.accountName || a.name}
@@ -620,7 +621,7 @@ function LiabilitiesStep({ onSaved, onError }) {
             </select>
           </WizardField>
         </div>
-        <WizardSubmitButton saving={saving}>Add liability</WizardSubmitButton>
+        <WizardSubmitButton saving={saving}>{tt('Add liability')}</WizardSubmitButton>
       </form>
     </div>
   );
@@ -752,7 +753,7 @@ function PaymentAccountsStep({ onSaved, onError }) {
               className={inputCls}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Main cash / NBM operations"
+              placeholder={tt('Main cash / NBM operations')}
               required
             />
           </WizardField>
@@ -764,11 +765,11 @@ function PaymentAccountsStep({ onSaved, onError }) {
                 setForm({ ...form, accountType: e.target.value, parentGlCode: "" })
               }
             >
-              <option value="Cash">Cash</option>
-              <option value="Bank">Bank</option>
-              <option value="Mobile Money">Mobile Money</option>
-              <option value="Wallet">Wallet</option>
-              <option value="POS Terminal">POS Terminal</option>
+              <option value="Cash">{tt('Cash')}</option>
+              <option value="Bank">{tt('Bank')}</option>
+              <option value="Mobile Money">{tt('Mobile Money')}</option>
+              <option value="Wallet">{tt('Wallet')}</option>
+              <option value="POS Terminal">{tt('POS Terminal')}</option>
             </select>
           </WizardField>
           {needsChannel ? (
@@ -779,7 +780,7 @@ function PaymentAccountsStep({ onSaved, onError }) {
                 onChange={(e) => setForm({ ...form, parentGlCode: e.target.value })}
                 required
               >
-                <option value="">Select channel…</option>
+                <option value="">{tt('Select channel…')}</option>
                 {channelOptions.map((c) => (
                   <option key={c.code} value={c.code}>
                     {c.code} — {c.name}
@@ -793,7 +794,7 @@ function PaymentAccountsStep({ onSaved, onError }) {
               className={inputCls}
               value={form.reference}
               onChange={(e) => setForm({ ...form, reference: e.target.value })}
-              placeholder="Bank account no."
+              placeholder={tt('Bank account no.')}
             />
           </WizardField>
           <WizardField label="Opening balance (optional)" hint="Cash/bank balance on your starting date — posts Dr asset / Cr 3190.">
@@ -808,7 +809,7 @@ function PaymentAccountsStep({ onSaved, onError }) {
             />
           </WizardField>
         </div>
-        <WizardSubmitButton saving={saving}>Add payment account</WizardSubmitButton>
+        <WizardSubmitButton saving={saving}>{tt('Add payment account')}</WizardSubmitButton>
       </form>
     </div>
   );
@@ -853,7 +854,7 @@ function TaxesStep({ facts, onSaved, onError }) {
         </p>
       ) : (
         <p className="text-sm text-slate-600">
-          Sync the Malawi MRA tax catalog — creates tax types and GL child accounts under 2041 and 2045.
+          {tt('Sync the Malawi MRA tax catalog — creates tax types and GL child accounts under 2041 and 2045.')}
         </p>
       )}
       <WizardFormError message={localError} />
@@ -871,7 +872,7 @@ function TaxesStep({ facts, onSaved, onError }) {
         {syncing ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Syncing…
+            {tt('Syncing…')}
           </>
         ) : (
           "Sync MRA tax catalog"
@@ -1001,7 +1002,7 @@ function ClientsStep({ onSaved, onError }) {
             />
           </WizardField>
         </div>
-        <WizardSubmitButton saving={saving}>Add client</WizardSubmitButton>
+        <WizardSubmitButton saving={saving}>{tt('Add client')}</WizardSubmitButton>
       </form>
       <ClientBulkUpload onSaved={onSaved} onError={onError} />
     </div>
@@ -1043,14 +1044,14 @@ function ClientBulkUpload({ onSaved, onError }) {
 
   return (
     <form onSubmit={submit} className="space-y-3 rounded-xl border border-dashed border-rose-200 bg-rose-50/40 p-4">
-      <p className="text-sm font-semibold text-rose-900">Bulk upload</p>
+      <p className="text-sm font-semibold text-rose-900">{tt('Bulk upload')}</p>
       <a href="/api/clients/template" className="text-xs font-medium text-rose-800 underline">
-        Download CSV template
+        {tt('Download CSV template')}
       </a>
       <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" />
       <WizardFormError message={localError} />
       <WizardSubmitButton saving={saving} disabled={!file}>
-        Import customers
+        {tt('Import customers')}
       </WizardSubmitButton>
     </form>
   );
@@ -1175,7 +1176,7 @@ function SuppliersStep({ onSaved, onError }) {
             />
           </WizardField>
         </div>
-        <WizardSubmitButton saving={saving}>Add supplier</WizardSubmitButton>
+        <WizardSubmitButton saving={saving}>{tt('Add supplier')}</WizardSubmitButton>
       </form>
       <SupplierBulkUpload onSaved={async () => { await load(); await onSaved(); }} onError={onError} />
     </div>
@@ -1218,14 +1219,14 @@ function SupplierBulkUpload({ onSaved, onError }) {
 
   return (
     <form onSubmit={submit} className="space-y-3 rounded-xl border border-dashed border-lime-200 bg-lime-50/40 p-4">
-      <p className="text-sm font-semibold text-lime-900">Bulk upload</p>
+      <p className="text-sm font-semibold text-lime-900">{tt('Bulk upload')}</p>
       <a href="/api/purchases/suppliers/template" className="text-xs font-medium text-lime-800 underline">
-        Download CSV template
+        {tt('Download CSV template')}
       </a>
       <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" />
       <WizardFormError message={localError} />
       <WizardSubmitButton saving={saving} disabled={!file}>
-        Import suppliers
+        {tt('Import suppliers')}
       </WizardSubmitButton>
     </form>
   );
@@ -1356,7 +1357,7 @@ function OpeningStockStep({ onSaved, onError }) {
           onClick={() => setMode("new")}
           className={`rounded-md px-3 py-1.5 text-xs font-semibold ${mode === "new" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}
         >
-          New product
+          {tt('New product')}
         </button>
         <button
           type="button"
@@ -1401,7 +1402,7 @@ function OpeningStockStep({ onSaved, onError }) {
               />
             </WizardField>
           </div>
-          <WizardSubmitButton saving={saving}>Add product with opening stock</WizardSubmitButton>
+          <WizardSubmitButton saving={saving}>{tt('Add product with opening stock')}</WizardSubmitButton>
         </form>
       ) : (
         <form onSubmit={submitStockIn} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
@@ -1413,7 +1414,7 @@ function OpeningStockStep({ onSaved, onError }) {
                 onChange={(e) => setStockIn({ ...stockIn, productId: e.target.value })}
                 required
               >
-                <option value="">Select product…</option>
+                <option value="">{tt('Select product…')}</option>
                 {items.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} (current: {Number(p.stockLevel ?? p.quantityInStock ?? 0)})
@@ -1443,7 +1444,7 @@ function OpeningStockStep({ onSaved, onError }) {
               />
             </WizardField>
           </div>
-          <WizardSubmitButton saving={saving}>Record Stock In</WizardSubmitButton>
+          <WizardSubmitButton saving={saving}>{tt('Record Stock In')}</WizardSubmitButton>
         </form>
       )}
       <BulkStockUpload onSaved={onSaved} onError={onError} />
@@ -1496,13 +1497,13 @@ function BulkStockUpload({ onSaved, onError }) {
 
   return (
     <div className="rounded-xl border border-dashed border-sky-200 bg-sky-50/50 p-4 space-y-3">
-      <p className="text-sm font-semibold text-sky-900">Option A — bulk opening stock</p>
+      <p className="text-sm font-semibold text-sky-900">{tt('Option A — bulk opening stock')}</p>
       <div className="flex flex-wrap gap-2">
         <a
           href="/api/stock/basic-import/template"
           className="rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-medium text-sky-800"
         >
-          Download template
+          {tt('Download template')}
         </a>
       </div>
       <input
@@ -1519,7 +1520,7 @@ function BulkStockUpload({ onSaved, onError }) {
         }}
       >
         <WizardSubmitButton saving={saving} disabled={!file}>
-          Upload opening stock
+          {tt('Upload opening stock')}
         </WizardSubmitButton>
       </form>
     </div>
@@ -1571,7 +1572,7 @@ function AccountSettingsStep({ facts, onSaved, onError }) {
 
   return (
     <form onSubmit={submit} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-      <p className="text-sm text-slate-600">Only fill what is missing. Existing values are prefilled.</p>
+      <p className="text-sm text-slate-600">{tt('Only fill what is missing. Existing values are prefilled.')}</p>
       <WizardFormError message={localError} />
       <WizardField label="Business name *">
         <input className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
@@ -1591,7 +1592,7 @@ function AccountSettingsStep({ facts, onSaved, onError }) {
           <input className={inputCls} value={form.businessAddress} onChange={(e) => setForm({ ...form, businessAddress: e.target.value })} />
         </WizardField>
       )}
-      <WizardSubmitButton saving={saving}>Save account settings</WizardSubmitButton>
+      <WizardSubmitButton saving={saving}>{tt('Save account settings')}</WizardSubmitButton>
     </form>
   );
 }
@@ -1665,7 +1666,7 @@ function OpeningPaymentBalancesStep({ facts, onSaved, onError }) {
         <input type="date" className={inputCls} value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} />
       </WizardField>
       {!accounts.length ? (
-        <p className="text-sm text-slate-600">No payment accounts yet. Add cash/bank accounts in Payment Accounts, then resume this step.</p>
+        <p className="text-sm text-slate-600">{tt('No payment accounts yet. Add cash/bank accounts in Payment Accounts, then resume this step.')}</p>
       ) : (
         accounts.map((account) => (
           <WizardField key={account.id} label={`${account.name} (${account.accountType || "Account"})`}>
@@ -1674,14 +1675,14 @@ function OpeningPaymentBalancesStep({ facts, onSaved, onError }) {
               min="0"
               step="0.01"
               className={inputCls}
-              placeholder="Leave blank to skip"
+              placeholder={tt('Leave blank to skip')}
               value={amounts[account.id] || ""}
               onChange={(e) => setAmounts((prev) => ({ ...prev, [account.id]: e.target.value }))}
             />
           </WizardField>
         ))
       )}
-      <WizardSubmitButton saving={saving}>Post opening balances</WizardSubmitButton>
+      <WizardSubmitButton saving={saving}>{tt('Post opening balances')}</WizardSubmitButton>
     </form>
   );
 }

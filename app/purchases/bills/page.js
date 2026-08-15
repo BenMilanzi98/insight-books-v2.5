@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
@@ -67,7 +68,7 @@ function ConfirmDialog({ title, message, onConfirm, onCancel, loading, confirmLa
             onClick={onCancel}
             className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             onClick={onConfirm}
@@ -87,7 +88,7 @@ function ReverseDialog({ billNumber, onConfirm, onCancel, loading }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-xl bg-white p-6">
-        <h3 className="text-lg font-semibold text-gray-900">Reverse Supplier Bill</h3>
+        <h3 className="text-lg font-semibold text-gray-900">{tt('Reverse Supplier Bill')}</h3>
         <p className="mt-2 text-sm text-gray-600">
           This cancels the bill and records reversals for audit: unpaid bills reverse the bill journal; paid or
           partially paid bills also unwind linked supplier payments (full or per-allocation GL entries), input tax
@@ -97,7 +98,7 @@ function ReverseDialog({ billNumber, onConfirm, onCancel, loading }) {
         </p>
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Reversal reason <span className="text-red-500">*</span>
+            {tt('Reversal reason')} <span className="text-red-500">*</span>
           </label>
           <textarea
             className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-red-500 focus:ring-red-500"
@@ -107,7 +108,7 @@ function ReverseDialog({ billNumber, onConfirm, onCancel, loading }) {
             onChange={(e) => setReason(e.target.value)}
           />
           <div className="mt-1 text-xs text-gray-500">
-            The reason is stored for audit.
+            {tt('The reason is stored for audit.')}
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
@@ -115,7 +116,7 @@ function ReverseDialog({ billNumber, onConfirm, onCancel, loading }) {
             onClick={onCancel}
             className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             onClick={() => onConfirm(reason)}
@@ -137,8 +138,8 @@ function BillFormSection({ title, description, children }) {
   return (
     <div className={billFormPanel}>
       <div>
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {description && <p className="text-xs text-gray-500">{description}</p>}
+        <h3 className="text-sm font-semibold text-gray-900">{tt(title)}</h3>
+        {description && <p className="text-xs text-gray-500">{tt(description)}</p>}
       </div>
       {children}
     </div>
@@ -252,7 +253,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Supplier <span className="text-red-500">*</span>
+              {tt('Supplier')} <span className="text-red-500">*</span>
             </label>
             <select
               name="supplierId"
@@ -261,7 +262,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
               required
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
             >
-              <option value="">Select supplier</option>
+              <option value="">{tt('Select supplier')}</option>
               {suppliers.map((supplier) => (
                 <option key={supplier.id} value={supplier.id}>
                   {supplier.supplierName}
@@ -270,18 +271,18 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Bill Number</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Bill Number')}</label>
             <input
               type="text"
               name="billNumber"
               value={form.billNumber || ""}
               onChange={handleChange}
-              placeholder="Optional reference"
+              placeholder={tt('Optional reference')}
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Bill Date</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Bill Date')}</label>
             <input
               type="date"
               name="billDate"
@@ -292,7 +293,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Due Date</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Due Date')}</label>
             <input
               type="date"
               name="dueDate"
@@ -323,7 +324,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
                 value={item.quantity}
                 onChange={(e) => handleItemChange(idx, "quantity", e.target.value)}
                 required
-                placeholder="Quantity"
+                placeholder={tt('Quantity')}
               />
               <input
                 type="number"
@@ -333,7 +334,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
                 value={item.unitCost}
                 onChange={(e) => handleItemChange(idx, "unitCost", e.target.value)}
                 required
-                placeholder="Unit Cost"
+                placeholder={tt('Unit Cost')}
               />
               <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
                 <span>
@@ -345,7 +346,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
                     onClick={() => removeItem(idx)}
                     className="text-xs text-red-600"
                   >
-                    Remove
+                    {tt('Remove')}
                   </button>
                 )}
               </div>
@@ -369,12 +370,12 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
             onChange={handleChange}
             rows={3}
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-            placeholder="Extra context, project references, approvals…"
+            placeholder={tt('Extra context, project references, approvals…')}
           />
           <div className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
             <div>
-              <p className="text-xs uppercase tracking-wide text-amber-700">Bill Total</p>
-              <p className="text-sm text-amber-900">Subtotal excluding taxes</p>
+              <p className="text-xs uppercase tracking-wide text-amber-700">{tt('Bill Total')}</p>
+              <p className="text-sm text-amber-900">{tt('Subtotal excluding taxes')}</p>
             </div>
             <div className="text-lg font-semibold text-amber-900">
               MWK {subtotal.toLocaleString()}
@@ -389,7 +390,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
           onClick={onCancel}
           className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          Cancel
+          {tt('Cancel')}
         </button>
         <button
           type="submit"
@@ -479,16 +480,16 @@ export default function SupplierBillsPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Supplier Bills</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{tt('Supplier Bills')}</h1>
           <p className="text-sm text-gray-500">
-            Track Accounts Payable from goods receipts and manual bills.
+            {tt('Track Accounts Payable from goods receipts and manual bills.')}
           </p>
         </div>
         <button
           onClick={openCreateForm}
           className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white  hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
-          New Bill
+          {tt('New Bill')}
         </button>
       </div>
 
@@ -509,7 +510,7 @@ export default function SupplierBillsPage() {
             value={supplierFilter}
             onChange={(e) => setSupplierFilter(e.target.value)}
           >
-            <option value="">All Suppliers</option>
+            <option value="">{tt('All Suppliers')}</option>
             {suppliers.map((supplier) => (
               <option key={supplier.id} value={supplier.id}>
                 {supplier.supplierName}
@@ -521,7 +522,7 @@ export default function SupplierBillsPage() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="">All Statuses</option>
+            <option value="">{tt('All Statuses')}</option>
             {statusOptions.map((status) => (
               <option key={status} value={status}>
                 {status}
@@ -531,33 +532,33 @@ export default function SupplierBillsPage() {
         </div>
 
         {loading ? (
-          <p className="text-sm text-gray-500">Loading bills…</p>
+          <p className="text-sm text-gray-500">{tt('Loading bills…')}</p>
         ) : error ? (
           <p className="text-sm text-red-500">{error}</p>
         ) : bills.length === 0 ? (
-          <p className="text-sm text-gray-500">No bills found.</p>
+          <p className="text-sm text-gray-500">{tt('No bills found.')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Bill #
+                    {tt('Bill #')}
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Supplier
+                    {tt('Supplier')}
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Due Date
+                    {tt('Due Date')}
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Status
+                    {tt('Status')}
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Balance
+                    {tt('Balance')}
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Actions
+                    {tt('Actions')}
                   </th>
                 </tr>
               </thead>
@@ -622,7 +623,7 @@ export default function SupplierBillsPage() {
                               : "Cancel bill and reverse accounting"
                           }
                         >
-                          Reverse
+                          {tt('Reverse')}
                         </button>
                       </div>
                     </td>
@@ -640,7 +641,7 @@ export default function SupplierBillsPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  New Supplier Bill
+                  {tt('New Supplier Bill')}
                 </h2>
                 <p className="text-xs text-gray-500 mt-1">
                   Existing bills cannot be edited; reverse a bill if you need to undo it.

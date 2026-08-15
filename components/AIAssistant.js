@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef } from 'react';
 import { Bot, X, Send, Sparkles, Loader2, Minimize2, Maximize2 } from 'lucide-react';
@@ -169,8 +170,8 @@ const AIAssistant = () => {
                   <Bot size={20} />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm">AI Assistant</h3>
-                  <p className="text-xs text-white/80">InsightBooks Helper</p>
+                  <h3 className="font-semibold text-sm">{tt('AI Assistant')}</h3>
+                  <p className="text-xs text-white/80">{tt('InsightBooks Helper')}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -223,7 +224,7 @@ const AIAssistant = () => {
                       <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
                         <div className="flex items-center gap-2">
                           <Loader2 size={16} className="animate-spin text-blue-600" />
-                          <span className="text-sm text-gray-600">Thinking...</span>
+                          <span className="text-sm text-gray-600">{tt('Thinking...')}</span>
                         </div>
                       </div>
                     </div>
@@ -239,7 +240,7 @@ const AIAssistant = () => {
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyPress={handleKeyPress}
-                      placeholder="Ask me anything about InsightBooks..."
+                      placeholder={tt('Ask me anything about InsightBooks...')}
                       className="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       rows={2}
                       disabled={isLoading}
@@ -258,7 +259,7 @@ const AIAssistant = () => {
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-2">
-                    Press Enter to send, Shift+Enter for new line
+                    {tt('Press Enter to send, Shift+Enter for new line')}
                   </p>
                 </div>
               </>

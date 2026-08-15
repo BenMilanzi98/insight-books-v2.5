@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
@@ -51,7 +52,7 @@ function ConfirmDialog({ title, message, onConfirm, onCancel, loading }) {
             onClick={onCancel}
             className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             onClick={onConfirm}
@@ -101,7 +102,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
         <div className="overflow-y-auto max-h-[calc(90vh-140px)]">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="text-gray-500">Loading transactions...</div>
+              <div className="text-gray-500">{tt('Loading transactions...')}</div>
             </div>
           ) : transactions ? (
             <div className="p-6 space-y-6">
@@ -110,7 +111,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                 <div className="rounded-lg border border-gray-200 bg-white p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
                     <DollarSign size={16} className="text-indigo-600" />
-                    Total Owed
+                    {tt('Total Owed')}
                   </div>
                   <div className="mt-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-red-600 sm:text-2xl">
                     {formatMoney(summary.totalOwed || 0)}
@@ -122,7 +123,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                 <div className="rounded-lg border border-gray-200 bg-white p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
                     <FileText size={16} className="text-blue-600" />
-                    Total Billed
+                    {tt('Total Billed')}
                   </div>
                   <div className="mt-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-gray-900 sm:text-2xl">
                     {formatMoney(summary.totalBilled || 0)}
@@ -134,7 +135,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                 <div className="rounded-lg border border-gray-200 bg-white p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
                     <TrendingDown size={16} className="text-green-600" />
-                    Total Paid
+                    {tt('Total Paid')}
                   </div>
                   <div className="mt-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-green-600 sm:text-2xl">
                     {formatMoney(summary.totalPaid || 0)}
@@ -146,13 +147,13 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                 <div className="rounded-lg border border-gray-200 bg-white p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
                     <TrendingUp size={16} className="text-orange-600" />
-                    Current Balance
+                    {tt('Current Balance')}
                   </div>
                   <div className="mt-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-orange-600 sm:text-2xl">
                     {formatMoney(summary.currentBalance || 0)}
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
-                    From supplier record
+                    {tt('From supplier record')}
                   </div>
                 </div>
               </div>
@@ -162,25 +163,25 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                 <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
                   <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <Receipt size={20} className="text-indigo-600" />
-                    Bills Summary
+                    {tt('Bills Summary')}
                   </h3>
                 </div>
                 <div className="p-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div>
-                      <div className="text-xs text-gray-500">Total Bills</div>
+                      <div className="text-xs text-gray-500">{tt('Total Bills')}</div>
                       <div className="text-lg font-semibold text-gray-900">{bills.totalBills || 0}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Total Amount</div>
+                      <div className="text-xs text-gray-500">{tt('Total Amount')}</div>
                       <div className="text-lg font-semibold text-gray-900">{formatMoney(bills.totalBillsAmount || 0)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Amount Paid</div>
+                      <div className="text-xs text-gray-500">{tt('Amount Paid')}</div>
                       <div className="text-lg font-semibold text-green-600">{formatMoney(bills.totalBillsPaid || 0)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Outstanding</div>
+                      <div className="text-xs text-gray-500">{tt('Outstanding')}</div>
                       <div className="text-lg font-semibold text-red-600">{formatMoney(bills.billsOutstanding || 0)}</div>
                     </div>
                   </div>
@@ -203,25 +204,25 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                 <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
                   <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <FileText size={20} className="text-blue-600" />
-                    Expenses Summary
+                    {tt('Expenses Summary')}
                   </h3>
                 </div>
                 <div className="p-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div>
-                      <div className="text-xs text-gray-500">Total Expenses</div>
+                      <div className="text-xs text-gray-500">{tt('Total Expenses')}</div>
                       <div className="text-lg font-semibold text-gray-900">{expenses.totalExpenses || 0}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Total Amount</div>
+                      <div className="text-xs text-gray-500">{tt('Total Amount')}</div>
                       <div className="text-lg font-semibold text-gray-900">{formatMoney(expenses.totalExpensesAmount || 0)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Amount Paid</div>
+                      <div className="text-xs text-gray-500">{tt('Amount Paid')}</div>
                       <div className="text-lg font-semibold text-green-600">{formatMoney(expenses.totalExpensesPaid || 0)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Outstanding</div>
+                      <div className="text-xs text-gray-500">{tt('Outstanding')}</div>
                       <div className="text-lg font-semibold text-red-600">{formatMoney(expenses.expensesOutstanding || 0)}</div>
                     </div>
                   </div>
@@ -245,21 +246,21 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                   <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
                     <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                       <DollarSign size={20} className="text-green-600" />
-                      Payments Summary
+                      {tt('Payments Summary')}
                     </h3>
                   </div>
                   <div className="p-4">
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       <div>
-                        <div className="text-xs text-gray-500">Total Payments</div>
+                        <div className="text-xs text-gray-500">{tt('Total Payments')}</div>
                         <div className="text-lg font-semibold text-gray-900">{payments.totalPayments || 0}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-gray-500">Total Amount Paid</div>
+                        <div className="text-xs text-gray-500">{tt('Total Amount Paid')}</div>
                         <div className="text-lg font-semibold text-green-600">{formatMoney(payments.totalPaymentsAmount || 0)}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-gray-500">Allocated to Bills</div>
+                        <div className="text-xs text-gray-500">{tt('Allocated to Bills')}</div>
                         <div className="text-lg font-semibold text-blue-600">{formatMoney(payments.paymentsToBills || 0)}</div>
                       </div>
                     </div>
@@ -273,20 +274,20 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                   <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-gray-900">All Bills ({billsList.length})</h3>
                     {billsList.length > 10 && (
-                      <span className="text-xs text-gray-500">Showing all bills</span>
+                      <span className="text-xs text-gray-500">{tt('Showing all bills')}</span>
                     )}
                   </div>
                   <div className="overflow-x-auto max-h-96">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50 sticky top-0">
                         <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Bill Number</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Due Date</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Amount</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Paid</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Balance</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Status</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Bill Number')}</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Date')}</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Due Date')}</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Amount')}</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Paid')}</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Balance')}</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Status')}</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -317,7 +318,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                       {billsList.length > 0 && (
                         <tfoot className="bg-gray-50">
                           <tr>
-                            <td colSpan={3} className="px-4 py-2 text-sm font-semibold text-gray-900 text-right">Totals:</td>
+                            <td colSpan={3} className="px-4 py-2 text-sm font-semibold text-gray-900 text-right">{tt('Totals:')}</td>
                             <td className="px-4 py-2 text-sm font-semibold text-gray-900 text-right">
                               {formatMoney(billsList.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0))}
                             </td>
@@ -342,20 +343,20 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                   <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-gray-900">All Expenses ({expensesList.length})</h3>
                     {expensesList.length > 10 && (
-                      <span className="text-xs text-gray-500">Showing all expenses</span>
+                      <span className="text-xs text-gray-500">{tt('Showing all expenses')}</span>
                     )}
                   </div>
                   <div className="overflow-x-auto max-h-96">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50 sticky top-0">
                         <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Description</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Category</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Amount</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Paid</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Balance</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Status</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Description')}</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Date')}</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Category')}</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Amount')}</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Paid')}</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Balance')}</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Status')}</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -384,7 +385,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                       {expensesList.length > 0 && (
                         <tfoot className="bg-gray-50">
                           <tr>
-                            <td colSpan={3} className="px-4 py-2 text-sm font-semibold text-gray-900 text-right">Totals:</td>
+                            <td colSpan={3} className="px-4 py-2 text-sm font-semibold text-gray-900 text-right">{tt('Totals:')}</td>
                             <td className="px-4 py-2 text-sm font-semibold text-gray-900 text-right">
                               {formatMoney(expensesList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0))}
                             </td>
@@ -413,11 +414,11 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50 sticky top-0">
                         <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Payment Number</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Method</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Amount</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Allocated Bills</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Payment Number')}</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Date')}</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Method')}</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{tt('Amount')}</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Allocated Bills')}</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -439,7 +440,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                                   ))}
                                 </div>
                               ) : (
-                                <span className="text-gray-400">No allocations</span>
+                                <span className="text-gray-400">{tt('No allocations')}</span>
                               )}
                             </td>
                           </tr>
@@ -448,7 +449,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
                       {paymentsList.length > 0 && (
                         <tfoot className="bg-gray-50">
                           <tr>
-                            <td colSpan={3} className="px-4 py-2 text-sm font-semibold text-gray-900 text-right">Total:</td>
+                            <td colSpan={3} className="px-4 py-2 text-sm font-semibold text-gray-900 text-right">{tt('Total:')}</td>
                             <td className="px-4 py-2 text-sm font-semibold text-green-600 text-right">
                               {formatMoney(paymentsList.reduce((sum, p) => sum + (Number(p.totalAmount) || 0), 0))}
                             </td>
@@ -465,14 +466,14 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
               {billsList.length === 0 && expensesList.length === 0 && paymentsList.length === 0 && (
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
                   <FileText size={48} className="mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-600 font-medium">No transactions found</p>
-                  <p className="text-sm text-gray-500 mt-2">This supplier has no bills, expenses, or payments recorded.</p>
+                  <p className="text-gray-600 font-medium">{tt('No transactions found')}</p>
+                  <p className="text-sm text-gray-500 mt-2">{tt('This supplier has no bills, expenses, or payments recorded.')}</p>
                 </div>
               )}
             </div>
           ) : (
             <div className="flex items-center justify-center py-12">
-              <div className="text-gray-500">No transaction data available</div>
+              <div className="text-gray-500">{tt('No transaction data available')}</div>
             </div>
           )}
         </div>
@@ -483,7 +484,7 @@ function SupplierTransactionsModal({ supplier, transactions, onClose, loading })
             onClick={onClose}
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
           >
-            Close
+            {tt('Close')}
           </button>
         </div>
       </div>
@@ -689,8 +690,8 @@ function BillFormSection({ title, description, children }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
       <div>
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {description && <p className="text-xs text-gray-500">{description}</p>}
+        <h3 className="text-sm font-semibold text-gray-900">{tt(title)}</h3>
+        {description && <p className="text-xs text-gray-500">{tt(description)}</p>}
       </div>
       {children}
     </div>
@@ -701,8 +702,8 @@ function FormSection({ title, description, children }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
       <div>
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {description && <p className="text-xs text-gray-500">{description}</p>}
+        <h3 className="text-sm font-semibold text-gray-900">{tt(title)}</h3>
+        {description && <p className="text-xs text-gray-500">{tt(description)}</p>}
       </div>
       {children}
     </div>
@@ -713,8 +714,8 @@ function PaymentFormSection({ title, description, children }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
       <div>
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {description && <p className="text-xs text-gray-500">{description}</p>}
+        <h3 className="text-sm font-semibold text-gray-900">{tt(title)}</h3>
+        {description && <p className="text-xs text-gray-500">{tt(description)}</p>}
       </div>
       {children}
     </div>
@@ -731,7 +732,7 @@ function ProductSearchSelect({
   products = [],
   value,
   onChange,
-  placeholder = "Search products...",
+  placeholder = tt('Search products...'),
   required = false,
 }) {
   const containerRef = useRef(null);
@@ -796,7 +797,7 @@ function ProductSearchSelect({
       {open && (
         <div className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
           {filteredProducts.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-gray-500">No products found</p>
+            <p className="px-3 py-2 text-sm text-gray-500">{tt('No products found')}</p>
           ) : (
             filteredProducts.map((product) => (
               <button
@@ -998,7 +999,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Supplier <span className="text-red-500">*</span>
+              {tt('Supplier')} <span className="text-red-500">*</span>
             </label>
             <select
               name="supplierId"
@@ -1007,7 +1008,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
               required
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
             >
-              <option value="">Select supplier</option>
+              <option value="">{tt('Select supplier')}</option>
               {suppliers.map((supplier) => (
                 <option key={supplier.id} value={supplier.id}>
                   {supplier.supplierName}
@@ -1016,30 +1017,30 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Bill Type</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Bill Type')}</label>
             <select
               name="billType"
               value={form.billType}
               onChange={handleChange}
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
             >
-              <option value="inventory">Inventory Purchase</option>
-              <option value="expense">Operating Expense</option>
+              <option value="inventory">{tt('Inventory Purchase')}</option>
+              <option value="expense">{tt('Operating Expense')}</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Bill Number</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Bill Number')}</label>
             <input
               type="text"
               name="billNumber"
               value={form.billNumber || ""}
               onChange={handleChange}
-              placeholder="Optional reference"
+              placeholder={tt('Optional reference')}
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Bill Date</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Bill Date')}</label>
             <input
               type="date"
               name="billDate"
@@ -1050,7 +1051,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Due Date</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Due Date')}</label>
             <input
               type="date"
               name="dueDate"
@@ -1061,7 +1062,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Status</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Status')}</label>
             <select
               name="status"
               value={form.status}
@@ -1101,7 +1102,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
                 value={item.quantity}
                 onChange={(e) => handleItemChange(idx, "quantity", e.target.value)}
                 required
-                placeholder="Quantity"
+                placeholder={tt('Quantity')}
               />
               <input
                 type="number"
@@ -1111,7 +1112,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
                 value={item.unitCost}
                 onChange={(e) => handleItemChange(idx, "unitCost", e.target.value)}
                 required
-                placeholder="Order Price"
+                placeholder={tt('Order Price')}
               />
               <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
                 <span>
@@ -1123,7 +1124,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
                     onClick={() => removeItem(idx)}
                     className="text-xs text-red-600"
                   >
-                    Remove
+                    {tt('Remove')}
                   </button>
                 )}
               </div>
@@ -1147,12 +1148,12 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
             onChange={handleChange}
             rows={3}
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-            placeholder="Extra context, project references, approvals…"
+            placeholder={tt('Extra context, project references, approvals…')}
           />
           <div className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
             <div>
-              <p className="text-xs uppercase tracking-wide text-amber-700">Bill Total</p>
-              <p className="text-sm text-amber-900">Subtotal excluding taxes</p>
+              <p className="text-xs uppercase tracking-wide text-amber-700">{tt('Bill Total')}</p>
+              <p className="text-sm text-amber-900">{tt('Subtotal excluding taxes')}</p>
             </div>
             <div className="text-lg font-semibold text-amber-900">
               MWK {subtotal.toLocaleString()}
@@ -1167,7 +1168,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
           onClick={onCancel}
           className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          Cancel
+          {tt('Cancel')}
         </button>
         <button
           type="submit"
@@ -1314,7 +1315,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Supplier <span className="text-red-500">*</span>
+              {tt('Supplier')} <span className="text-red-500">*</span>
             </label>
             <select
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
@@ -1322,7 +1323,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
               onChange={(e) => handleChange("supplierId", e.target.value)}
               required
             >
-              <option value="">Select supplier</option>
+              <option value="">{tt('Select supplier')}</option>
               {suppliers.map((supplier) => (
                 <option key={supplier.id} value={supplier.id}>
                   {supplier.supplierName}
@@ -1331,7 +1332,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">PO Date *</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('PO Date *')}</label>
             <input
               type="date"
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
@@ -1341,7 +1342,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Expected Delivery</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Expected Delivery')}</label>
             <input
               type="date"
               min={form.poDate || undefined}
@@ -1364,7 +1365,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
               className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50/80 p-3 sm:grid-cols-5"
             >
               <div>
-                <label className="block text-xs font-medium text-gray-600">Product</label>
+                <label className="block text-xs font-medium text-gray-600">{tt('Product')}</label>
                 <ProductSearchSelect
                   products={products}
                   value={item.productId}
@@ -1373,7 +1374,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600">Quantity</label>
+                <label className="block text-xs font-medium text-gray-600">{tt('Quantity')}</label>
                 <input
                   type="number"
                   min="0"
@@ -1385,7 +1386,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600">Order Price</label>
+                <label className="block text-xs font-medium text-gray-600">{tt('Order Price')}</label>
                 <input
                   type="number"
                   min="0"
@@ -1397,10 +1398,10 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600">Description</label>
+                <label className="block text-xs font-medium text-gray-600">{tt('Description')}</label>
                 <input
                   type="text"
-                  placeholder="Optional note"
+                  placeholder={tt('Optional note')}
                   className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
                   value={item.description}
                   onChange={(e) => handleItemChange(idx, "description", e.target.value)}
@@ -1419,7 +1420,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
                     className="text-xs text-red-600"
                     onClick={() => removeItem(idx)}
                   >
-                    Remove
+                    {tt('Remove')}
                   </button>
                 )}
               </div>
@@ -1438,19 +1439,19 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
       <FormSection title="Notes & Totals" description="Internal instructions and quick totals overview.">
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Notes</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Notes')}</label>
             <textarea
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
               rows={3}
               value={form.notes}
               onChange={(e) => handleChange("notes", e.target.value)}
-              placeholder="Delivery windows, approvals, offloading instructions…"
+              placeholder={tt('Delivery windows, approvals, offloading instructions…')}
             />
           </div>
           <div className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
             <div>
-              <p className="text-xs uppercase tracking-wide text-indigo-700">Subtotal</p>
-              <p className="text-sm text-indigo-900">Products × Order Price</p>
+              <p className="text-xs uppercase tracking-wide text-indigo-700">{tt('Subtotal')}</p>
+              <p className="text-sm text-indigo-900">{tt('Products × Order Price')}</p>
             </div>
             <div className="text-lg font-semibold text-indigo-900">
               MWK {subtotal.toLocaleString()}
@@ -1465,7 +1466,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
           onClick={onCancel}
           className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          Cancel
+          {tt('Cancel')}
         </button>
         <button
           type="submit"
@@ -1626,7 +1627,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Supplier <span className="text-red-500">*</span>
+              {tt('Supplier')} <span className="text-red-500">*</span>
             </label>
             <select
               name="supplierId"
@@ -1635,7 +1636,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
               required
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
             >
-              <option value="">Select supplier</option>
+              <option value="">{tt('Select supplier')}</option>
               {suppliers.map((supplier) => (
                 <option key={supplier.id} value={supplier.id}>
                   {supplier.supplierName}
@@ -1644,7 +1645,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Receipt Date</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Receipt Date')}</label>
             <input
               type="date"
               name="receiptDate"
@@ -1666,7 +1667,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Purchase Order</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Purchase Order')}</label>
             <select
               name="purchaseOrderId"
               value={form.purchaseOrderId}
@@ -1708,7 +1709,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
                 value={item.quantityReceived}
                 onChange={(e) => handleItemChange(idx, "quantityReceived", e.target.value)}
                 required
-                placeholder="Quantity"
+                placeholder={tt('Quantity')}
               />
               <input
                 type="number"
@@ -1718,7 +1719,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
                 value={item.unitCost}
                 onChange={(e) => handleItemChange(idx, "unitCost", e.target.value)}
                 required
-                placeholder="Order Price"
+                placeholder={tt('Order Price')}
               />
               <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
                 <span>
@@ -1733,7 +1734,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
                     onClick={() => removeItem(idx)}
                     className="text-xs text-red-600"
                   >
-                    Remove
+                    {tt('Remove')}
                   </button>
                 )}
               </div>
@@ -1756,7 +1757,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
           onChange={handleChange}
           rows={3}
           className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-          placeholder="Condition of goods, discrepancies, quality checks…"
+          placeholder={tt('Condition of goods, discrepancies, quality checks…')}
         />
       </FormSection>
 
@@ -1766,7 +1767,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
           onClick={onCancel}
           className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          Cancel
+          {tt('Cancel')}
         </button>
         <button
           type="submit"
@@ -1877,7 +1878,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
       <PaymentFormSection title="Payment Details" description="Who is being paid and how.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Supplier</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Supplier')}</label>
             <select
               name="supplierId"
               value={form.supplierId}
@@ -1885,7 +1886,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
               required
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
             >
-              <option value="">Select supplier</option>
+              <option value="">{tt('Select supplier')}</option>
               {suppliers.map((supplier) => (
                 <option key={supplier.id} value={supplier.id}>
                   {supplier.supplierName}
@@ -1894,7 +1895,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Payment Date</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Payment Date')}</label>
             <input
               type="date"
               name="paymentDate"
@@ -1905,7 +1906,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Payment Method')}</label>
             <select
               name="paymentMethod"
               value={form.paymentMethod}
@@ -1922,13 +1923,13 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Reference</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Reference')}</label>
             <input
               type="text"
               name="referenceNumber"
               value={form.referenceNumber}
               onChange={(e) => setForm((prev) => ({ ...prev, referenceNumber: e.target.value }))}
-              placeholder="Optional"
+              placeholder={tt('Optional')}
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
             />
           </div>
@@ -1942,7 +1943,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
         {form.supplierId ? (
           <div className="space-y-3">
             {supplierBills.length === 0 ? (
-              <p className="text-sm text-gray-500">No outstanding bills for this supplier.</p>
+              <p className="text-sm text-gray-500">{tt('No outstanding bills for this supplier.')}</p>
             ) : (
               supplierBills.map((bill) => {
                 const balanceDue = Number(bill.totalAmount || 0) - Number(bill.amountPaid || 0);
@@ -1975,7 +1976,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
             )}
           </div>
         ) : (
-          <p className="text-sm text-gray-500">Select a supplier to allocate payments.</p>
+          <p className="text-sm text-gray-500">{tt('Select a supplier to allocate payments.')}</p>
         )}
       </PaymentFormSection>
 
@@ -1987,12 +1988,12 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
             onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
             rows={3}
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-            placeholder="Payment memo, cheque details, bank confirmation code…"
+            placeholder={tt('Payment memo, cheque details, bank confirmation code…')}
           />
           <div className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
             <div>
-              <p className="text-xs uppercase tracking-wide text-emerald-700">Total Payment</p>
-              <p className="text-sm text-emerald-900">Sum of bill allocations</p>
+              <p className="text-xs uppercase tracking-wide text-emerald-700">{tt('Total Payment')}</p>
+              <p className="text-sm text-emerald-900">{tt('Sum of bill allocations')}</p>
             </div>
             <div className="text-lg font-semibold text-emerald-900">
               MWK {totalAllocations.toLocaleString()}
@@ -2007,7 +2008,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
           onClick={onCancel}
           className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          Cancel
+          {tt('Cancel')}
         </button>
         <button
           type="submit"
@@ -2666,7 +2667,7 @@ export default function SuppliersPage() {
               ${
                 logoUrl
                   ? `<div style="height:64px;width:64px;border:1px solid #e5e7eb;border-radius:16px;padding:6px;display:flex;align-items:center;justify-content:center;">
-                      <img src="${logoUrl}" alt="Logo" style="max-height:100%;max-width:100%;object-fit:contain;" />
+                      <img src="${logoUrl}" alt={tt('Logo')} style="max-height:100%;max-width:100%;object-fit:contain;" />
                     </div>`
                   : ""
               }
@@ -2677,37 +2678,37 @@ export default function SuppliersPage() {
               </div>
             </div>
             <div style="text-align:right;">
-              <p style="text-transform:uppercase;font-size:10px;color:#6b7280;margin:0;">Document</p>
+              <p style="text-transform:uppercase;font-size:10px;color:#6b7280;margin:0;">{tt('Document')}</p>
               <p style="margin:4px 0 0;font-size:24px;font-weight:700;color:#111827;">${businessBrand.tagline}</p>
               <p style="margin:4px 0 0;color:#374151;font-size:16px;">${previewOrder.poNumber}</p>
             </div>
           </div>
 
-          <p><strong>Supplier:</strong> ${previewOrder.supplier?.supplierName || "-"}</p>
-          <p><strong>PO Date:</strong> ${
+          <p><strong>{tt('Supplier:')}</strong> ${previewOrder.supplier?.supplierName || "-"}</p>
+          <p><strong>{tt('PO Date:')}</strong> ${
             previewOrder.poDate ? formatDateDDMMYYYY(previewOrder.poDate) : "-"
           }</p>
-          <p><strong>Status:</strong> ${previewOrder.status}</p>
-          <p><strong>Total Amount:</strong> ${formatMoney(previewOrder.totalAmount)}</p>
-          <h2 style="margin-top:32px;">Line Items</h2>
+          <p><strong>{tt('Status:')}</strong> ${previewOrder.status}</p>
+          <p><strong>{tt('Total Amount:')}</strong> ${formatMoney(previewOrder.totalAmount)}</p>
+          <h2 style="margin-top:32px;">{tt('Line Items')}</h2>
           <table>
             <thead>
               <tr>
                 <th>#</th>
-                <th>Product</th>
-                <th style="text-align:right;">Qty Ordered</th>
-                <th style="text-align:right;">Order Price</th>
-                <th style="text-align:right;">Line Total</th>
+                <th>{tt('Product')}</th>
+                <th style="text-align:right;">{tt('Qty Ordered')}</th>
+                <th style="text-align:right;">{tt('Order Price')}</th>
+                <th style="text-align:right;">{tt('Line Total')}</th>
               </tr>
             </thead>
             <tbody>
-              ${itemsRows || `<tr><td colspan="5" style="padding:8px;border:1px solid #e5e7eb;text-align:center;">No items available</td></tr>`}
+              ${itemsRows || `<tr><td colspan="5" style="padding:8px;border:1px solid #e5e7eb;text-align:center;">{tt('No items available')}</td></tr>`}
             </tbody>
           </table>
           
           ${
             previewOrder.notes
-              ? `<h2 style="margin-top:32px;">Notes</h2>
+              ? `<h2 style="margin-top:32px;">{tt('Notes')}</h2>
                 <div style="padding:12px;border:1px dashed #d1d5db;border-radius:8px;background:#f9fafb;">
                   ${previewOrder.notes}
                 </div>`
@@ -2777,8 +2778,8 @@ export default function SuppliersPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Supplier Management</h1>
-          <p className="text-sm text-gray-500">Manage your suppliers.</p>
+          <h1 className="text-2xl font-semibold text-gray-900">{tt('Supplier Management')}</h1>
+          <p className="text-sm text-gray-500">{tt('Manage your suppliers.')}</p>
         </div>
         <button
             onClick={() => {
@@ -2788,7 +2789,7 @@ export default function SuppliersPage() {
             }}
             className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white  hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
           >
-            Add Supplier
+            {tt('Add Supplier')}
           </button>
       </div>
 
@@ -2809,7 +2810,7 @@ export default function SuppliersPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, code, email, or phone..."
+            placeholder={tt('Search by name, code, email, or phone...')}
             className="flex-1 min-w-[200px] rounded-md border border-gray-300 px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
           />
           <select
@@ -2817,9 +2818,9 @@ export default function SuppliersPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
           >
-            <option value="all">All Suppliers</option>
-            <option value="active">Active Only</option>
-            <option value="inactive">Inactive Only</option>
+            <option value="all">{tt('All Suppliers')}</option>
+            <option value="active">{tt('Active Only')}</option>
+            <option value="inactive">{tt('Inactive Only')}</option>
           </select>
           <button
             onClick={refreshSuppliers}
@@ -2842,31 +2843,31 @@ export default function SuppliersPage() {
                 disabled={bulkActionLoading}
                 className="rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
               >
-                Activate
+                {tt('Activate')}
               </button>
               <button
                 onClick={() => handleBulkAction("deactivate")}
                 disabled={bulkActionLoading}
                 className="rounded-md bg-orange-600 px-3 py-1 text-xs font-medium text-white hover:bg-orange-700 disabled:opacity-50"
               >
-                Deactivate
+                {tt('Deactivate')}
               </button>
               <button
                 onClick={() => setSelectedSuppliers(new Set())}
                 className="rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
               >
-                Clear
+                {tt('Clear')}
               </button>
             </div>
           </div>
         )}
 
         {loading ? (
-          <p className="text-sm text-gray-500">Loading suppliers…</p>
+          <p className="text-sm text-gray-500">{tt('Loading suppliers…')}</p>
         ) : error ? (
           <p className="text-sm text-red-500">{error}</p>
         ) : suppliers.length === 0 ? (
-          <p className="text-sm text-gray-500">No suppliers found.</p>
+          <p className="text-sm text-gray-500">{tt('No suppliers found.')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -2899,10 +2900,10 @@ export default function SuppliersPage() {
                     </div>
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Contact
+                    {tt('Contact')}
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Phone
+                    {tt('Phone')}
                   </th>
                   <th 
                     className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
@@ -2932,7 +2933,7 @@ export default function SuppliersPage() {
                     </div>
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Actions
+                    {tt('Actions')}
                   </th>
                 </tr>
               </thead>
@@ -3012,7 +3013,7 @@ export default function SuppliersPage() {
                           title="View all transactions"
                         >
                           <Eye size={14} className="inline mr-1" />
-                          View
+                          {tt('View')}
                         </button>
                         <button
                           className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
@@ -3022,13 +3023,13 @@ export default function SuppliersPage() {
                             setShowForm(true);
                           }}
                         >
-                          Edit
+                          {tt('Edit')}
                         </button>
                         <button
                           className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
                           onClick={() => setDeletingSupplier(supplier)}
                         >
-                          Delete
+                          {tt('Delete')}
                         </button>
                       </div>
                     </td>
@@ -3056,7 +3057,7 @@ export default function SuppliersPage() {
 
           <div className="rounded-lg border border-gray-200 bg-white p-4">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Goods Receipts</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{tt('Goods Receipts')}</h2>
               <div className="flex gap-2">
                 <div className="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2">
                   <Calendar size={16} className="text-gray-500" />
@@ -3068,9 +3069,9 @@ export default function SuppliersPage() {
                       receipts: { ...prev.receipts, startDate: e.target.value }
                     }))}
                     className="text-xs border-0 focus:ring-0"
-                    placeholder="From"
+                    placeholder={tt('From')}
                   />
-                  <span className="text-gray-400">to</span>
+                  <span className="text-gray-400">{tt('to')}</span>
                   <input
                     type="date"
                     value={exportDateRange.receipts.endDate}
@@ -3079,21 +3080,21 @@ export default function SuppliersPage() {
                       receipts: { ...prev.receipts, endDate: e.target.value }
                     }))}
                     className="text-xs border-0 focus:ring-0"
-                    placeholder="To"
+                    placeholder={tt('To')}
                   />
                   <button
                     onClick={() => handleExport('receipts')}
                     className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
                   >
                     <Download size={14} />
-                    Export
+                    {tt('Export')}
                   </button>
                 </div>
                 <button
                   onClick={() => setShowReceiptForm(true)}
                   className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                 >
-                  Receive Goods
+                  {tt('Receive Goods')}
                 </button>
               </div>
             </div>
@@ -3104,7 +3105,7 @@ export default function SuppliersPage() {
                 value={receiptSupplierFilter}
                 onChange={(e) => setReceiptSupplierFilter(e.target.value)}
               >
-                <option value="">All Suppliers</option>
+                <option value="">{tt('All Suppliers')}</option>
                 {suppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>
                     {supplier.supplierName}
@@ -3116,40 +3117,40 @@ export default function SuppliersPage() {
                 value={receiptStatusFilter}
                 onChange={(e) => setReceiptStatusFilter(e.target.value)}
               >
-                <option value="">All Statuses</option>
-                <option value="Draft">Draft</option>
-                <option value="Posted">Posted</option>
+                <option value="">{tt('All Statuses')}</option>
+                <option value="Draft">{tt('Draft')}</option>
+                <option value="Posted">{tt('Posted')}</option>
               </select>
             </div>
 
             {receiptsLoading ? (
-              <p className="text-sm text-gray-500">Loading receipts…</p>
+              <p className="text-sm text-gray-500">{tt('Loading receipts…')}</p>
             ) : receiptsError ? (
               <p className="text-sm text-red-500">{receiptsError}</p>
             ) : receipts.length === 0 ? (
-              <p className="text-sm text-gray-500">No goods receipts found.</p>
+              <p className="text-sm text-gray-500">{tt('No goods receipts found.')}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Receipt #
+                        {tt('Receipt #')}
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Supplier
+                        {tt('Supplier')}
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Date
+                        {tt('Date')}
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Status
+                        {tt('Status')}
                       </th>
                       <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Amount
+                        {tt('Amount')}
                       </th>
                       <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Actions
+                        {tt('Actions')}
                       </th>
                     </tr>
                   </thead>
@@ -3191,7 +3192,7 @@ export default function SuppliersPage() {
                             className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
                             onClick={() => setViewingReceipt(receipt)}
                           >
-                            View
+                            {tt('View')}
                           </button>
                         </td>
                       </tr>
@@ -3229,7 +3230,7 @@ export default function SuppliersPage() {
 
           <div className="rounded-lg border border-gray-200 bg-white p-4">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Supplier Payments</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{tt('Supplier Payments')}</h2>
               <div className="flex gap-2">
                 <div className="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2">
                   <Calendar size={16} className="text-gray-500" />
@@ -3241,9 +3242,9 @@ export default function SuppliersPage() {
                       payments: { ...prev.payments, startDate: e.target.value }
                     }))}
                     className="text-xs border-0 focus:ring-0"
-                    placeholder="From"
+                    placeholder={tt('From')}
                   />
-                  <span className="text-gray-400">to</span>
+                  <span className="text-gray-400">{tt('to')}</span>
                   <input
                     type="date"
                     value={exportDateRange.payments.endDate}
@@ -3252,21 +3253,21 @@ export default function SuppliersPage() {
                       payments: { ...prev.payments, endDate: e.target.value }
                     }))}
                     className="text-xs border-0 focus:ring-0"
-                    placeholder="To"
+                    placeholder={tt('To')}
                   />
                   <button
                     onClick={() => handleExport('payments')}
                     className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
                   >
                     <Download size={14} />
-                    Export
+                    {tt('Export')}
                   </button>
                 </div>
                 <button
                   onClick={() => setShowPaymentForm(true)}
                   className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                 >
-                  Record Payment
+                  {tt('Record Payment')}
                 </button>
               </div>
             </div>
@@ -3277,7 +3278,7 @@ export default function SuppliersPage() {
                 value={paymentSupplierFilter}
                 onChange={(e) => setPaymentSupplierFilter(e.target.value)}
               >
-                <option value="">All Suppliers</option>
+                <option value="">{tt('All Suppliers')}</option>
                 {suppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>
                     {supplier.supplierName}
@@ -3287,33 +3288,33 @@ export default function SuppliersPage() {
             </div>
 
             {paymentsLoading ? (
-              <p className="text-sm text-gray-500">Loading payments…</p>
+              <p className="text-sm text-gray-500">{tt('Loading payments…')}</p>
             ) : paymentsError ? (
               <p className="text-sm text-red-500">{paymentsError}</p>
             ) : payments.length === 0 ? (
-              <p className="text-sm text-gray-500">No supplier payments recorded.</p>
+              <p className="text-sm text-gray-500">{tt('No supplier payments recorded.')}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Payment #
+                        {tt('Payment #')}
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Supplier
+                        {tt('Supplier')}
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Date
+                        {tt('Date')}
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Method
+                        {tt('Method')}
                       </th>
                       <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Amount
+                        {tt('Amount')}
                       </th>
                       <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Actions
+                        {tt('Actions')}
                       </th>
                     </tr>
                   </thead>
@@ -3341,7 +3342,7 @@ export default function SuppliersPage() {
                             onClick={() => setViewingPayment(payment)}
                             className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
                           >
-                            View
+                            {tt('View')}
                           </button>
                         </td>
                       </tr>
@@ -3364,7 +3365,7 @@ export default function SuppliersPage() {
                   setPreviewOrder(null);
                 }}
                 className="absolute right-4 top-4 text-gray-500 transition hover:text-gray-700"
-                aria-label="Close preview"
+                aria-label={tt('Close preview')}
               >
                 ✕
               </button>
@@ -3395,7 +3396,7 @@ export default function SuppliersPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-xs uppercase tracking-wide text-gray-500">
-                    Document
+                    {tt('Document')}
                   </p>
                   <p className="text-2xl font-bold text-gray-900">
                     {businessBrand.tagline}
@@ -3410,7 +3411,7 @@ export default function SuppliersPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-lg border border-gray-200 p-4">
           <p className="text-xs uppercase text-gray-500 tracking-wide">
-            Supplier Details
+            {tt('Supplier Details')}
           </p>
           <div className="mt-2 text-sm">
             <p className="font-semibold text-gray-900">
@@ -3429,23 +3430,23 @@ export default function SuppliersPage() {
                 </div>
                 <div className="rounded-lg border border-gray-200 p-4">
           <p className="text-xs uppercase text-gray-500 tracking-wide">
-            Order Details
+            {tt('Order Details')}
           </p>
           <div className="mt-2 text-sm text-gray-900 space-y-1">
             <p>
-              <span className="text-gray-500">PO Date:</span>{" "}
+              <span className="text-gray-500">{tt('PO Date:')}</span>{" "}
               {previewOrder.poDate
                 ? formatDateDDMMYYYY(previewOrder.poDate)
                 : "—"}
             </p>
             <p>
-              <span className="text-gray-500">Expected Delivery:</span>{" "}
+              <span className="text-gray-500">{tt('Expected Delivery:')}</span>{" "}
               {previewOrder.expectedDeliveryDate
                 ? formatDateDDMMYYYY(previewOrder.expectedDeliveryDate)
                 : "—"}
             </p>
             <p>
-              <span className="text-gray-500">Payment Terms:</span>{" "}
+              <span className="text-gray-500">{tt('Payment Terms:')}</span>{" "}
               {previewOrder.paymentTerms
                 ? `${previewOrder.paymentTerms} days`
                 : "—"}
@@ -3453,7 +3454,7 @@ export default function SuppliersPage() {
           </div>
                 </div>
                 <div className="rounded-lg border border-gray-200 p-4">
-                  <p className="text-xs uppercase text-gray-500">Status</p>
+                  <p className="text-xs uppercase text-gray-500">{tt('Status')}</p>
                   <span
                     className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
                       statusColors[previewOrder.status] ||
@@ -3464,7 +3465,7 @@ export default function SuppliersPage() {
                   </span>
                 </div>
                 <div className="rounded-lg border border-gray-200 p-4">
-                  <p className="text-xs uppercase text-gray-500">Total Amount</p>
+                  <p className="text-xs uppercase text-gray-500">{tt('Total Amount')}</p>
                   <p className="text-lg font-semibold text-gray-900">
                     {formatMoney(previewOrder.totalAmount)}
                   </p>
@@ -3474,17 +3475,17 @@ export default function SuppliersPage() {
               <div>
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-gray-700">
-                    Line Items
+                    {tt('Line Items')}
                   </h3>
                 </div>
                 <div className="mt-2 overflow-x-auto rounded-lg border">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
                       <tr>
-                        <th className="px-4 py-2">Product</th>
-                        <th className="px-4 py-2 text-right">Qty Ordered</th>
-                        <th className="px-4 py-2 text-right">Order Price</th>
-                        <th className="px-4 py-2 text-right">Line Total</th>
+                        <th className="px-4 py-2">{tt('Product')}</th>
+                        <th className="px-4 py-2 text-right">{tt('Qty Ordered')}</th>
+                        <th className="px-4 py-2 text-right">{tt('Order Price')}</th>
+                        <th className="px-4 py-2 text-right">{tt('Line Total')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 bg-white">
@@ -3514,7 +3515,7 @@ export default function SuppliersPage() {
                             className="px-4 py-4 text-center text-gray-500"
                             colSpan={4}
                           >
-                            No items available
+                            {tt('No items available')}
                           </td>
                         </tr>
                       )}
@@ -3525,7 +3526,7 @@ export default function SuppliersPage() {
 
               <div>
                 <p className="text-xs uppercase text-gray-500 tracking-wide">
-                  Notes
+                  {tt('Notes')}
                 </p>
                 <div className="mt-2 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 min-h-[80px]">
                   {previewOrder.notes || "No additional notes provided for this purchase order."}
@@ -3540,13 +3541,13 @@ export default function SuppliersPage() {
                   setPreviewOrder(null);
                 }}
               >
-                Close
+                {tt('Close')}
               </button>
               <button
                 className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
                 onClick={handleExportOrderPreview}
               >
-                Export
+                {tt('Export')}
               </button>
             </div>
           </div>
@@ -3570,7 +3571,7 @@ export default function SuppliersPage() {
                   className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
                 >
                   <Download size={14} />
-                  Export
+                  {tt('Export')}
                 </button>
                 <button onClick={() => setViewingPayment(null)} className="text-gray-500 hover:text-gray-700">
                   ✕
@@ -3580,33 +3581,33 @@ export default function SuppliersPage() {
             <div className="space-y-6 p-6">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Payment Method</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Payment Method')}</div>
                   <div className="mt-1 text-gray-900">{viewingPayment.paymentMethodName || viewingPayment.paymentMethod}</div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Reference</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Reference')}</div>
                   <div className="mt-1 text-gray-900">{viewingPayment.referenceNumber || "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Total Amount</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Total Amount')}</div>
                   <div className="mt-1 text-gray-900">
                     MWK {Number(viewingPayment.totalAmount || 0).toLocaleString()}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Allocations</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Allocations')}</div>
                   <div className="mt-1 text-gray-900">{viewingPayment.allocations?.length ?? 0}</div>
                 </div>
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-gray-700">Bill Allocations</h3>
+                <h3 className="text-sm font-semibold text-gray-700">{tt('Bill Allocations')}</h3>
                 <div className="mt-2 overflow-x-auto rounded-lg border">
                   <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
                       <tr>
-                        <th className="px-4 py-2">Bill</th>
-                        <th className="px-4 py-2 text-right">Allocated</th>
+                        <th className="px-4 py-2">{tt('Bill')}</th>
+                        <th className="px-4 py-2 text-right">{tt('Allocated')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 bg-white">
@@ -3624,7 +3625,7 @@ export default function SuppliersPage() {
                       ) : (
                         <tr>
                           <td className="px-4 py-2 text-gray-500" colSpan={2}>
-                            No allocations recorded.
+                            {tt('No allocations recorded.')}
                           </td>
                         </tr>
                       )}
@@ -3654,7 +3655,7 @@ export default function SuppliersPage() {
                   className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
                 >
                   <Download size={14} />
-                  Export
+                  {tt('Export')}
                 </button>
                 <button onClick={() => setViewingBill(null)} className="text-gray-500 hover:text-gray-700">
                   ✕
@@ -3664,23 +3665,23 @@ export default function SuppliersPage() {
             <div className="space-y-6 p-6">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Supplier</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Supplier')}</div>
                   <div className="mt-1 text-gray-900">{viewingBill.supplier?.supplierName || "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Bill Date</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Bill Date')}</div>
                   <div className="mt-1 text-gray-900">
                     {viewingBill.billDate ? formatDateDDMMYYYY(viewingBill.billDate) : "—"}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Due Date</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Due Date')}</div>
                   <div className="mt-1 text-gray-900">
                     {viewingBill.dueDate ? formatDateDDMMYYYY(viewingBill.dueDate) : "—"}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Status</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Status')}</div>
                   <div className="mt-1">
                     <span
                       className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
@@ -3696,31 +3697,31 @@ export default function SuppliersPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Total Amount</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Total Amount')}</div>
                   <div className="mt-1 text-gray-900">
                     MWK {Number(viewingBill.totalAmount || 0).toLocaleString()}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Amount Paid</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Amount Paid')}</div>
                   <div className="mt-1 text-gray-900">
                     MWK {Number(viewingBill.amountPaid || 0).toLocaleString()}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Balance</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Balance')}</div>
                   <div className="mt-1 text-gray-900">
                     MWK {Number((Number(viewingBill.totalAmount || 0) - Number(viewingBill.amountPaid || 0))).toLocaleString()}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Supplier Invoice #</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Supplier Invoice #')}</div>
                   <div className="mt-1 text-gray-900">{viewingBill.supplierInvoiceNumber || "—"}</div>
                 </div>
               </div>
               {viewingBill.notes && (
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Notes</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Notes')}</div>
                   <div className="mt-1 text-gray-900">{viewingBill.notes}</div>
                 </div>
               )}
@@ -3746,7 +3747,7 @@ export default function SuppliersPage() {
                   className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
                 >
                   <Download size={14} />
-                  Export
+                  {tt('Export')}
                 </button>
                 <button onClick={() => setViewingOrder(null)} className="text-gray-500 hover:text-gray-700">
                   ✕
@@ -3756,23 +3757,23 @@ export default function SuppliersPage() {
             <div className="space-y-6 p-6">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Supplier</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Supplier')}</div>
                   <div className="mt-1 text-gray-900">{viewingOrder.supplier?.supplierName || "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">PO Date</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('PO Date')}</div>
                   <div className="mt-1 text-gray-900">
                     {viewingOrder.poDate ? formatDateDDMMYYYY(viewingOrder.poDate) : "—"}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Expected Delivery</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Expected Delivery')}</div>
                   <div className="mt-1 text-gray-900">
                     {viewingOrder.expectedDeliveryDate ? formatDateDDMMYYYY(viewingOrder.expectedDeliveryDate) : "—"}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Status</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Status')}</div>
                   <div className="mt-1">
                     <span
                       className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
@@ -3784,13 +3785,13 @@ export default function SuppliersPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Total Amount</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Total Amount')}</div>
                   <div className="mt-1 text-gray-900">
                     MWK {Number(viewingOrder.totalAmount || 0).toLocaleString()}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Payment Terms</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Payment Terms')}</div>
                   <div className="mt-1 text-gray-900">
                     {viewingOrder.paymentTerms ? `${viewingOrder.paymentTerms} days` : "—"}
                   </div>
@@ -3798,15 +3799,15 @@ export default function SuppliersPage() {
               </div>
               {viewingOrder.items && viewingOrder.items.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Items</h3>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">{tt('Items')}</h3>
                   <div className="overflow-x-auto rounded-lg border">
                     <table className="min-w-full divide-y divide-gray-200 text-sm">
                       <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
                         <tr>
-                          <th className="px-4 py-2">Product</th>
-                          <th className="px-4 py-2 text-right">Quantity</th>
-                          <th className="px-4 py-2 text-right">Selling Price</th>
-                          <th className="px-4 py-2 text-right">Total</th>
+                          <th className="px-4 py-2">{tt('Product')}</th>
+                          <th className="px-4 py-2 text-right">{tt('Quantity')}</th>
+                          <th className="px-4 py-2 text-right">{tt('Selling Price')}</th>
+                          <th className="px-4 py-2 text-right">{tt('Total')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 bg-white">
@@ -3829,7 +3830,7 @@ export default function SuppliersPage() {
               )}
               {viewingOrder.notes && (
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Notes</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Notes')}</div>
                   <div className="mt-1 text-gray-900">{viewingOrder.notes}</div>
                 </div>
               )}
@@ -3855,7 +3856,7 @@ export default function SuppliersPage() {
                   className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
                 >
                   <Download size={14} />
-                  Export
+                  {tt('Export')}
                 </button>
                 <button onClick={() => setViewingReceipt(null)} className="text-gray-500 hover:text-gray-700">
                   ✕
@@ -3865,23 +3866,23 @@ export default function SuppliersPage() {
             <div className="space-y-6 p-6">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Supplier</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Supplier')}</div>
                   <div className="mt-1 text-gray-900">{viewingReceipt.supplier?.supplierName || "—"}</div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Receipt Date</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Receipt Date')}</div>
                   <div className="mt-1 text-gray-900">
                     {viewingReceipt.receiptDate ? formatDateDDMMYYYY(viewingReceipt.receiptDate) : "—"}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Purchase Order</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Purchase Order')}</div>
                   <div className="mt-1 text-gray-900">
                     {viewingReceipt.purchaseOrder?.poNumber || "—"}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Status</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Status')}</div>
                   <div className="mt-1">
                     <span
                       className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
@@ -3895,7 +3896,7 @@ export default function SuppliersPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase text-gray-500">Total Amount</div>
+                  <div className="text-xs uppercase text-gray-500">{tt('Total Amount')}</div>
                   <div className="mt-1 text-gray-900">
                     MWK {Number(viewingReceipt.totalAmount || 0).toLocaleString()}
                   </div>
@@ -3903,15 +3904,15 @@ export default function SuppliersPage() {
               </div>
               {viewingReceipt.items && viewingReceipt.items.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Items Received</h3>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">{tt('Items Received')}</h3>
                   <div className="overflow-x-auto rounded-lg border">
                     <table className="min-w-full divide-y divide-gray-200 text-sm">
                       <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
                         <tr>
-                          <th className="px-4 py-2">Product</th>
-                          <th className="px-4 py-2 text-right">Quantity</th>
-                          <th className="px-4 py-2 text-right">Selling Price</th>
-                          <th className="px-4 py-2 text-right">Total</th>
+                          <th className="px-4 py-2">{tt('Product')}</th>
+                          <th className="px-4 py-2 text-right">{tt('Quantity')}</th>
+                          <th className="px-4 py-2 text-right">{tt('Selling Price')}</th>
+                          <th className="px-4 py-2 text-right">{tt('Total')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 bg-white">
@@ -4059,7 +4060,7 @@ export default function SuppliersPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">New Goods Receipt</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{tt('New Goods Receipt')}</h2>
               <button
                 onClick={() => setShowReceiptForm(false)}
                 className="text-sm text-gray-500 hover:text-gray-700"
@@ -4083,7 +4084,7 @@ export default function SuppliersPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">New Supplier Payment</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{tt('New Supplier Payment')}</h2>
               <button
                 onClick={() => setShowPaymentForm(false)}
                 className="text-sm text-gray-500 hover:text-gray-700"

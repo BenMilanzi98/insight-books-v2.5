@@ -1,5 +1,6 @@
 // components/SubscriptionCountdownBanner.js
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from 'react';
 import { Clock, AlertCircle, Crown, ArrowRight, Sparkles, Zap } from 'lucide-react';
@@ -241,7 +242,7 @@ const SubscriptionCountdownBanner = ({ subscription, isTrialActive, remainingTri
                         {String(timeRemaining.days).padStart(2, '0')}
                       </div>
                       <div className={`text-xs font-medium ${styles.text} opacity-70 uppercase tracking-wide`}>
-                        Days
+                        {tt('Days')}
                       </div>
                     </div>
                   )}
@@ -250,7 +251,7 @@ const SubscriptionCountdownBanner = ({ subscription, isTrialActive, remainingTri
                       {String(timeRemaining.hours).padStart(2, '0')}
                     </div>
                     <div className={`text-xs font-medium ${styles.text} opacity-70 uppercase tracking-wide`}>
-                      Hours
+                      {tt('Hours')}
                     </div>
                   </div>
                   <div className="text-center">
@@ -258,7 +259,7 @@ const SubscriptionCountdownBanner = ({ subscription, isTrialActive, remainingTri
                       {String(timeRemaining.minutes).padStart(2, '0')}
                     </div>
                     <div className={`text-xs font-medium ${styles.text} opacity-70 uppercase tracking-wide`}>
-                      Minutes
+                      {tt('Minutes')}
                     </div>
                   </div>
                   <div className="text-center">
@@ -266,7 +267,7 @@ const SubscriptionCountdownBanner = ({ subscription, isTrialActive, remainingTri
                       {String(timeRemaining.seconds).padStart(2, '0')}
                     </div>
                     <div className={`text-xs font-medium ${styles.text} opacity-70 uppercase tracking-wide`}>
-                      Seconds
+                      {tt('Seconds')}
                     </div>
                   </div>
                 </div>
@@ -284,7 +285,7 @@ const SubscriptionCountdownBanner = ({ subscription, isTrialActive, remainingTri
               {isProcessingPayment ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  Processing...
+                  {tt('Processing...')}
                 </>
               ) : (
                 <>
@@ -300,7 +301,7 @@ const SubscriptionCountdownBanner = ({ subscription, isTrialActive, remainingTri
                 className={`inline-flex items-center justify-center px-6 py-3 bg-white ${styles.text} font-semibold rounded-xl border-2 ${styles.border} hover:bg-opacity-90 transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-opacity-50 focus:ring-white shadow-md`}
               >
                 <Zap className="h-5 w-5 mr-2" />
-                View Plans
+                {tt('View Plans')}
               </Link>
             ) : null}
           </div>
@@ -310,7 +311,7 @@ const SubscriptionCountdownBanner = ({ subscription, isTrialActive, remainingTri
         {!isExpired && expiryDate && (subscription.isTrial || subscription.trialEndDate) && (
           <div className="mt-6">
             <div className="flex items-center justify-between text-xs font-medium mb-2">
-              <span className={styles.text}>Time Remaining</span>
+              <span className={styles.text}>{tt('Time Remaining')}</span>
               <span className={styles.text}>
                 {Math.round((timeRemaining.days * 24 + timeRemaining.hours) / (subscription.isTrial ? 3 : 30) * 100)}%
               </span>

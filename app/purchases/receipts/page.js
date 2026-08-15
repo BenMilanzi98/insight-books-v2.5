@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
@@ -45,8 +46,8 @@ function FormSection({ title, description, children }) {
   return (
     <div className={formCardClass}>
       <div>
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {description && <p className="text-xs text-gray-500">{description}</p>}
+        <h3 className="text-sm font-semibold text-gray-900">{tt(title)}</h3>
+        {description && <p className="text-xs text-gray-500">{tt(description)}</p>}
       </div>
       {children}
     </div>
@@ -446,7 +447,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Supplier <span className="text-red-500">*</span>
+              {tt('Supplier')} <span className="text-red-500">*</span>
             </label>
             <select
               name="supplierId"
@@ -455,7 +456,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
               required
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
             >
-              <option value="">Select supplier</option>
+              <option value="">{tt('Select supplier')}</option>
               {suppliers.map((supplier) => (
                 <option key={supplier.id} value={supplier.id}>
                   {supplier.supplierName}
@@ -464,7 +465,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Receipt Date</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Receipt Date')}</label>
             <input
               type="date"
               name="receiptDate"
@@ -492,7 +493,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Purchase Order</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Purchase Order')}</label>
             <select
               name="purchaseOrderId"
               value={form.purchaseOrderId}
@@ -518,7 +519,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
           </div>
           {isServiceMode && (
             <div>
-              <label className="block text-sm font-medium text-gray-700">Status</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Status')}</label>
               <select
                 name="status"
                 value={form.status}
@@ -542,7 +543,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
           description="Confirms service completion for a services/mixed PO. This does not update inventory stock."
         >
           <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
-            Select a service PO, then post receipt to move it to payables.
+            {tt('Select a service PO, then post receipt to move it to payables.')}
           </div>
         </FormSection>
       ) : (
@@ -560,7 +561,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
                     onChange={(e) => handleItemChange(idx, "productId", e.target.value)}
                     required
                   >
-                    <option value="">Product</option>
+                    <option value="">{tt('Product')}</option>
                     {products.map((product) => (
                       <option key={product.id} value={product.id}>
                         {product.name}
@@ -593,7 +594,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
                         handleItemChange(idx, "isPerishable", e.target.checked)
                       }
                     />
-                    Perishable
+                    {tt('Perishable')}
                   </label>
                   <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
                     <span>
@@ -608,7 +609,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
                         onClick={() => removeItem(idx)}
                         className="text-xs text-red-600"
                       >
-                        Remove
+                        {tt('Remove')}
                       </button>
                     )}
                   </div>
@@ -617,7 +618,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
                   <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-semibold text-amber-900">
-                        Expiry allocations
+                        {tt('Expiry allocations')}
                       </p>
                       <button
                         type="button"
@@ -645,7 +646,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
                               e.target.value
                             )
                           }
-                          placeholder="Qty"
+                          placeholder={tt('Qty')}
                           className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                         />
                         <input
@@ -674,7 +675,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
                               e.target.value
                             )
                           }
-                          placeholder="Unit cost"
+                          placeholder={tt('Unit cost')}
                           className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                         />
                         <button
@@ -682,7 +683,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
                           onClick={() => removeAllocationRow(idx, allocIdx)}
                           className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
                         >
-                          Remove
+                          {tt('Remove')}
                         </button>
                       </div>
                     ))}
@@ -719,7 +720,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
           onChange={handleChange}
           rows={3}
           className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-          placeholder="Condition of goods, discrepancies, quality checks…"
+          placeholder={tt('Condition of goods, discrepancies, quality checks…')}
         />
       </FormSection>
 
@@ -729,7 +730,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
           onClick={onCancel}
           className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          Cancel
+          {tt('Cancel')}
         </button>
         <button
           type="submit"
@@ -765,7 +766,7 @@ function ReceiptDetails({ receipt, onClose }) {
         <div className="space-y-6 p-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <div className="text-xs uppercase text-gray-500">Status</div>
+              <div className="text-xs uppercase text-gray-500">{tt('Status')}</div>
               <div className="mt-1 space-y-1">
                 <span
                   className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
@@ -790,34 +791,34 @@ function ReceiptDetails({ receipt, onClose }) {
               </div>
             </div>
             <div>
-              <div className="text-xs uppercase text-gray-500">Total Amount</div>
+              <div className="text-xs uppercase text-gray-500">{tt('Total Amount')}</div>
               <div className="mt-1 text-gray-900">
                 MWK {Number(receipt.totalAmount || 0).toLocaleString()}
               </div>
             </div>
             <div>
-              <div className="text-xs uppercase text-gray-500">PO Link</div>
+              <div className="text-xs uppercase text-gray-500">{tt('PO Link')}</div>
               <div className="mt-1 text-gray-900">
                 {receipt.purchaseOrder?.poNumber ?? "Not linked"}
               </div>
             </div>
             <div>
-              <div className="text-xs uppercase text-gray-500">Received By</div>
+              <div className="text-xs uppercase text-gray-500">{tt('Received By')}</div>
               <div className="mt-1 text-gray-900">{receipt.receivedBy?.name ?? "—"}</div>
             </div>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-gray-700">Items</h3>
+            <h3 className="text-sm font-semibold text-gray-700">{tt('Items')}</h3>
             <div className="mt-2 overflow-x-auto rounded-lg border">
               {Array.isArray(receipt.items) && receipt.items.length > 0 ? (
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
                   <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
                     <tr>
-                      <th className="px-4 py-2">Product</th>
-                      <th className="px-4 py-2">Qty</th>
-                      <th className="px-4 py-2">Unit Cost</th>
-                      <th className="px-4 py-2 text-right">Line Total</th>
+                      <th className="px-4 py-2">{tt('Product')}</th>
+                      <th className="px-4 py-2">{tt('Qty')}</th>
+                      <th className="px-4 py-2">{tt('Unit Cost')}</th>
+                      <th className="px-4 py-2 text-right">{tt('Line Total')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
@@ -989,7 +990,7 @@ export default function GoodsReceiptsPage() {
               : "text-gray-700 hover:bg-gray-50"
           }`}
         >
-          Inventory Receipt
+          {tt('Inventory Receipt')}
         </button>
         <button
           type="button"
@@ -1000,7 +1001,7 @@ export default function GoodsReceiptsPage() {
               : "text-gray-700 hover:bg-gray-50"
           }`}
         >
-          Goods/Service Receipt
+          {tt('Goods/Service Receipt')}
         </button>
       </div>
 
@@ -1038,10 +1039,10 @@ export default function GoodsReceiptsPage() {
               {receiveNotice.tone === "success" && (
                 <p className="mt-2 flex flex-wrap gap-3">
                   <a href="/purchases/bills" className="font-medium underline underline-offset-2">
-                    Open Bills
+                    {tt('Open Bills')}
                   </a>
                   <a href="/purchases/payments" className="font-medium underline underline-offset-2">
-                    Open Payments
+                    {tt('Open Payments')}
                   </a>
                 </p>
               )}
@@ -1051,7 +1052,7 @@ export default function GoodsReceiptsPage() {
               onClick={() => setReceiveNotice(null)}
               className="text-xs font-medium opacity-70 hover:opacity-100"
             >
-              Dismiss
+              {tt('Dismiss')}
             </button>
           </div>
         </div>
@@ -1064,7 +1065,7 @@ export default function GoodsReceiptsPage() {
             value={supplierFilter}
             onChange={(e) => setSupplierFilter(e.target.value)}
           >
-            <option value="">All Suppliers</option>
+            <option value="">{tt('All Suppliers')}</option>
             {suppliers.map((supplier) => (
               <option key={supplier.id} value={supplier.id}>
                 {supplier.supplierName}
@@ -1076,7 +1077,7 @@ export default function GoodsReceiptsPage() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="">All Statuses</option>
+            <option value="">{tt('All Statuses')}</option>
             {statusOptions.map((status) => (
               <option key={status} value={status}>
                 {status}
@@ -1086,7 +1087,7 @@ export default function GoodsReceiptsPage() {
         </div>
 
         {loading ? (
-          <p className="text-sm text-gray-500">Loading receipts…</p>
+          <p className="text-sm text-gray-500">{tt('Loading receipts…')}</p>
         ) : error ? (
           <p className="text-sm text-red-500">{error}</p>
         ) : receipts.length === 0 ? (
@@ -1099,22 +1100,22 @@ export default function GoodsReceiptsPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Receipt #
+                    {tt('Receipt #')}
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Supplier
+                    {tt('Supplier')}
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Date
+                    {tt('Date')}
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Status
+                    {tt('Status')}
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Amount
+                    {tt('Amount')}
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Actions
+                    {tt('Actions')}
                   </th>
                 </tr>
               </thead>
@@ -1150,7 +1151,7 @@ export default function GoodsReceiptsPage() {
                         </span>
                         {receipt.deferredStockPosting && (
                           <span className="rounded bg-sky-100 px-2 py-0.5 text-[10px] font-medium text-sky-900">
-                            Stock on receipt date
+                            {tt('Stock on receipt date')}
                           </span>
                         )}
                       </div>
@@ -1163,7 +1164,7 @@ export default function GoodsReceiptsPage() {
                         className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
                         onClick={() => setViewingReceipt(receipt)}
                       >
-                        View
+                        {tt('View')}
                       </button>
                     </td>
                   </tr>

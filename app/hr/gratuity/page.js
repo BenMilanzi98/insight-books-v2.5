@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { DollarSign, Calculator, Plus, Eye, TrendingUp, Calendar, User, RefreshCw, Download, Trash2, X, Loader } from "lucide-react";
@@ -183,11 +184,11 @@ export default function GratuityManagement() {
               className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md"
             >
               <Plus size={20} className="mr-2" />
-              Create/Update Gratuity Account
+              {tt('Create/Update Gratuity Account')}
             </button>
             <PosStyleHeaderButton type="button" onClick={fetchGratuityAccounts}>
               <RefreshCw size={20} className="mr-2" />
-              Refresh
+              {tt('Refresh')}
             </PosStyleHeaderButton>
           </>
         }
@@ -235,23 +236,23 @@ export default function GratuityManagement() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Accrual Rate</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Accrued</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Paid</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Outstanding</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Calculated</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Accrual Rate')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Total Accrued')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Total Paid')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Outstanding')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Last Calculated')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-4 text-center text-gray-500">Loading...</td>
+                  <td colSpan="7" className="px-6 py-4 text-center text-gray-500">{tt('Loading...')}</td>
                 </tr>
               ) : gratuityAccounts.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-4 text-center text-gray-500">No gratuity accounts found</td>
+                  <td colSpan="7" className="px-6 py-4 text-center text-gray-500">{tt('No gratuity accounts found')}</td>
                 </tr>
               ) : (
                 gratuityAccounts.map((account) => (
@@ -329,16 +330,16 @@ export default function GratuityManagement() {
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4">Create/Update Gratuity Account</h2>
+            <h2 className="text-xl font-bold mb-4">{tt('Create/Update Gratuity Account')}</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Employee')}</label>
                 <select
                   value={formData.employeeId}
                   onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 >
-                  <option value="">Select Employee</option>
+                  <option value="">{tt('Select Employee')}</option>
                   {employees.map((emp) => (
                     <option key={emp.id} value={emp.id}>
                       {emp.name} ({emp.employeeId || emp.id})
@@ -369,7 +370,7 @@ export default function GratuityManagement() {
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Notes')}</label>
                 <textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -383,7 +384,7 @@ export default function GratuityManagement() {
                 onClick={handleCreateOrUpdate}
                 className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
               >
-                Save
+                {tt('Save')}
               </button>
               <button
                 onClick={() => {
@@ -392,7 +393,7 @@ export default function GratuityManagement() {
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
             </div>
           </div>
@@ -403,14 +404,14 @@ export default function GratuityManagement() {
       {showPaymentModal && selectedAccount && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4">Record Gratuity Payment</h2>
+            <h2 className="text-xl font-bold mb-4">{tt('Record Gratuity Payment')}</h2>
             <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">Employee: <span className="font-medium">{selectedAccount.employee?.name}</span></p>
-              <p className="text-sm text-gray-600">Outstanding: <span className="font-medium text-orange-600">{formatCurrency(selectedAccount.outstandingAmount || 0)}</span></p>
+              <p className="text-sm text-gray-600">{tt('Employee:')} <span className="font-medium">{selectedAccount.employee?.name}</span></p>
+              <p className="text-sm text-gray-600">{tt('Outstanding:')} <span className="font-medium text-orange-600">{formatCurrency(selectedAccount.outstandingAmount || 0)}</span></p>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Amount *')}</label>
                 <input
                   type="number"
                   step="0.01"
@@ -421,7 +422,7 @@ export default function GratuityManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Payment Method')}</label>
                 <select
                   value={paymentData.paymentMethod}
                   onChange={(e) => setPaymentData({ ...paymentData, paymentMethod: e.target.value })}
@@ -437,7 +438,7 @@ export default function GratuityManagement() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Payment Date *')}</label>
                 <input
                   type="date"
                   value={paymentData.paymentDate}
@@ -446,17 +447,17 @@ export default function GratuityManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reference</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Reference')}</label>
                 <input
                   type="text"
                   value={paymentData.reference}
                   onChange={(e) => setPaymentData({ ...paymentData, reference: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  placeholder="Payment reference number"
+                  placeholder={tt('Payment reference number')}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Notes')}</label>
                 <textarea
                   value={paymentData.notes}
                   onChange={(e) => setPaymentData({ ...paymentData, notes: e.target.value })}
@@ -470,7 +471,7 @@ export default function GratuityManagement() {
                 onClick={handleRecordPayment}
                 className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
               >
-                Record Payment
+                {tt('Record Payment')}
               </button>
               <button
                 onClick={() => {
@@ -481,7 +482,7 @@ export default function GratuityManagement() {
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
             </div>
           </div>
@@ -492,44 +493,44 @@ export default function GratuityManagement() {
       {showDetailsModal && selectedAccount && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">Gratuity Account Details</h2>
+            <h2 className="text-xl font-bold mb-4">{tt('Gratuity Account Details')}</h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-600">Employee</p>
+                  <p className="text-sm text-gray-600">{tt('Employee')}</p>
                   <p className="font-medium">{selectedAccount.employee?.name}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Employee ID</p>
+                  <p className="text-sm text-gray-600">{tt('Employee ID')}</p>
                   <p className="font-medium">{selectedAccount.employee?.employeeId}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Accrual Rate</p>
+                  <p className="text-sm text-gray-600">{tt('Accrual Rate')}</p>
                   <p className="font-medium">{toPercentPoints(selectedAccount.accrualRate).toFixed(2)}% per month</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Total Accrued</p>
+                  <p className="text-sm text-gray-600">{tt('Total Accrued')}</p>
                   <p className="font-medium text-blue-600">{formatCurrency(selectedAccount.totalAccrued || 0)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Total Paid</p>
+                  <p className="text-sm text-gray-600">{tt('Total Paid')}</p>
                   <p className="font-medium text-green-600">{formatCurrency(selectedAccount.totalPaid || 0)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Outstanding</p>
+                  <p className="text-sm text-gray-600">{tt('Outstanding')}</p>
                   <p className="font-medium text-orange-600">{formatCurrency(selectedAccount.outstandingAmount || 0)}</p>
                 </div>
               </div>
               {selectedAccount.payments && selectedAccount.payments.length > 0 && (
                 <div className="mt-6">
-                  <h3 className="font-semibold mb-3">Payment History</h3>
+                  <h3 className="font-semibold mb-3">{tt('Payment History')}</h3>
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Amount</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Reference</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Date')}</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Amount')}</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{tt('Reference')}</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -553,7 +554,7 @@ export default function GratuityManagement() {
               }}
               className="mt-6 w-full bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
             >
-              Close
+              {tt('Close')}
             </button>
           </div>
         </div>
@@ -563,14 +564,14 @@ export default function GratuityManagement() {
       {showDeleteModal && selectedAccount && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4 text-red-600">Delete Gratuity Account</h2>
+            <h2 className="text-xl font-bold mb-4 text-red-600">{tt('Delete Gratuity Account')}</h2>
             <div className="mb-4">
               <p className="text-gray-700 mb-2">
-                Are you sure you want to delete the gratuity account for <strong>{selectedAccount.employee?.name}</strong>?
+                {tt('Are you sure you want to delete the gratuity account for')} <strong>{selectedAccount.employee?.name}</strong>?
               </p>
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                 <p className="text-sm text-red-800">
-                  <strong>Warning:</strong> This will permanently delete the account and all associated payment records. This action cannot be undone.
+                  <strong>{tt('Warning:')}</strong> {tt('This will permanently delete the account and all associated payment records. This action cannot be undone.')}
                 </p>
               </div>
             </div>
@@ -596,7 +597,7 @@ export default function GratuityManagement() {
                 }}
                 className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
               >
-                Delete
+                {tt('Delete')}
               </button>
               <button
                 onClick={() => {
@@ -605,7 +606,7 @@ export default function GratuityManagement() {
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
             </div>
           </div>
@@ -616,20 +617,20 @@ export default function GratuityManagement() {
       {showClearModal && selectedAccount && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4 text-orange-600">Clear Gratuity Account</h2>
+            <h2 className="text-xl font-bold mb-4 text-orange-600">{tt('Clear Gratuity Account')}</h2>
             <div className="mb-4">
               <p className="text-gray-700 mb-2">
-                Are you sure you want to clear the gratuity account for <strong>{selectedAccount.employee?.name}</strong>?
+                {tt('Are you sure you want to clear the gratuity account for')} <strong>{selectedAccount.employee?.name}</strong>?
               </p>
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3">
                 <p className="text-sm text-orange-800 mb-2">
-                  <strong>This will:</strong>
+                  <strong>{tt('This will:')}</strong>
                 </p>
                 <ul className="text-sm text-orange-800 list-disc list-inside space-y-1">
-                  <li>Reset total accrued to 0</li>
-                  <li>Reset total paid to 0</li>
-                  <li>Reset outstanding amount to 0</li>
-                  <li>Keep the account and accrual rate unchanged</li>
+                  <li>{tt('Reset total accrued to 0')}</li>
+                  <li>{tt('Reset total paid to 0')}</li>
+                  <li>{tt('Reset outstanding amount to 0')}</li>
+                  <li>{tt('Keep the account and accrual rate unchanged')}</li>
                 </ul>
               </div>
             </div>
@@ -655,7 +656,7 @@ export default function GratuityManagement() {
                 }}
                 className="flex-1 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
               >
-                Clear Account
+                {tt('Clear Account')}
               </button>
               <button
                 onClick={() => {
@@ -664,7 +665,7 @@ export default function GratuityManagement() {
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
             </div>
           </div>

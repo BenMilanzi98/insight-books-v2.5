@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { cn } from '@/lib/utils';
 
@@ -18,7 +19,7 @@ export default function AdminPageHeader({
     >
       <div className="min-w-0 flex-1">
         {breadcrumb ? (
-          <nav aria-label="Breadcrumb" className="mb-1 text-xs text-[var(--admin-text-muted)]">
+          <nav aria-label={tt('Breadcrumb')} className="mb-1 text-xs text-[var(--admin-text-muted)]">
             {breadcrumb}
           </nav>
         ) : null}

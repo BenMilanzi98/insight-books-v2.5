@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState, useEffect } from "react";
 import { 
@@ -71,7 +72,7 @@ const ReferralPage = ({ params }) => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Processing your referral...</p>
+          <p className="text-gray-600">{tt('Processing your referral...')}</p>
         </div>
       </div>
     );
@@ -84,13 +85,13 @@ const ReferralPage = ({ params }) => {
           <div className="mx-auto h-16 w-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
             <XCircle className="h-8 w-8 text-red-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Referral Link</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">{tt('Invalid Referral Link')}</h1>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={() => window.location.href = '/auth/signup'}
             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
           >
-            Continue to Signup
+            {tt('Continue to Signup')}
           </button>
         </div>
       </div>
@@ -106,7 +107,7 @@ const ReferralPage = ({ params }) => {
             <CheckCircle className="h-12 w-12 text-green-600" />
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Welcome to Insight Books!
+            {tt('Welcome to Insight Books!')}
           </h1>
 
         </div>
@@ -127,7 +128,7 @@ const ReferralPage = ({ params }) => {
               onClick={continueToRegistration}
               className="inline-flex items-center px-8 py-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-indigo-600 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white transition-colors"
             >
-              Create Your Account
+              {tt('Create Your Account')}
               <ArrowRight className="ml-2 h-5 w-5" />
             </button>
           </div>
@@ -136,7 +137,7 @@ const ReferralPage = ({ params }) => {
         {/* Footer Note */}
         <div className="text-center mt-8">
           <p className="text-sm text-gray-500">
-            Your referral has been successfully tracked. Thank you for using our affiliate program!
+            {tt('Your referral has been successfully tracked. Thank you for using our affiliate program!')}
           </p>
         </div>
       </div>

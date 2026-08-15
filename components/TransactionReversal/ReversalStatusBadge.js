@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 /**
  * Reversal Status Badge Component
  * 
@@ -69,15 +70,15 @@ export function ReversalInfoCard({ reversal }) {
           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
         <div className="flex-1">
-          <h4 className="text-sm font-medium text-red-900 mb-2">Reversal Details</h4>
+          <h4 className="text-sm font-medium text-red-900 mb-2">{tt('Reversal Details')}</h4>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-red-700">Reversed At:</span>
+              <span className="text-red-700">{tt('Reversed At:')}</span>
               <span className="text-red-900 font-medium">{formatDate(reversal.reversedAt)}</span>
             </div>
             {reversal.reversalReason && (
               <div className="mt-2">
-                <span className="text-red-700 block">Reason:</span>
+                <span className="text-red-700 block">{tt('Reason:')}</span>
                 <p className="text-red-900 mt-1 p-2 bg-red-100 rounded">{reversal.reversalReason}</p>
               </div>
             )}
@@ -128,27 +129,27 @@ export function ReversalChain({ original, reversal, type, taxReversals = [] }) {
       {original && (
         <div className="border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Original Transaction</span>
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{tt('Original Transaction')}</span>
             <ReversalStatusBadge transaction={original} size="sm" />
           </div>
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
-              <span className="text-gray-500">Reference:</span>
+              <span className="text-gray-500">{tt('Reference:')}</span>
               <span className="ml-2 font-medium">{getReference(original)}</span>
             </div>
             <div>
-              <span className="text-gray-500">Date:</span>
+              <span className="text-gray-500">{tt('Date:')}</span>
               <span className="ml-2 font-medium">{formatDate(original.date || original.issueDate || original.paymentDate)}</span>
             </div>
             <div>
-              <span className="text-gray-500">Amount:</span>
+              <span className="text-gray-500">{tt('Amount:')}</span>
               <span className="ml-2 font-medium">{formatCurrency(original.total || original.amount)}</span>
             </div>
           </div>
           {originalTaxAmount > 0 && (
             <div className="mt-2 pt-2 border-t border-gray-200">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Tax Amount:</span>
+                <span className="text-gray-500">{tt('Tax Amount:')}</span>
                 <span className="font-medium text-gray-700">{formatCurrency(originalTaxAmount)}</span>
               </div>
             </div>
@@ -169,26 +170,26 @@ export function ReversalChain({ original, reversal, type, taxReversals = [] }) {
       {reversal && (
         <div className="border border-red-200 bg-red-50 rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-red-500 uppercase tracking-wide">Reversal Transaction</span>
+            <span className="text-xs font-medium text-red-500 uppercase tracking-wide">{tt('Reversal Transaction')}</span>
             <ReversalStatusBadge transaction={reversal} size="sm" />
           </div>
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
-              <span className="text-gray-500">Reference:</span>
+              <span className="text-gray-500">{tt('Reference:')}</span>
               <span className="ml-2 font-medium">{getReference(reversal)}</span>
             </div>
             <div>
-              <span className="text-gray-500">Date:</span>
+              <span className="text-gray-500">{tt('Date:')}</span>
               <span className="ml-2 font-medium">{formatDate(reversal.reversedAt || reversal.date)}</span>
             </div>
             <div>
-              <span className="text-gray-500">Amount:</span>
+              <span className="text-gray-500">{tt('Amount:')}</span>
               <span className="ml-2 font-medium text-red-600">{formatCurrency(-(reversal.total || reversal.amount))}</span>
             </div>
           </div>
           {reversal.reversalReason && (
             <div className="mt-2 pt-2 border-t border-red-200">
-              <span className="text-xs text-gray-500">Reason:</span>
+              <span className="text-xs text-gray-500">{tt('Reason:')}</span>
               <p className="text-sm text-gray-700 mt-1">{reversal.reversalReason}</p>
             </div>
           )}
@@ -202,13 +203,13 @@ export function ReversalChain({ original, reversal, type, taxReversals = [] }) {
             <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="text-sm font-semibold text-orange-700 uppercase tracking-wide">Tax Reversals</span>
+            <span className="text-sm font-semibold text-orange-700 uppercase tracking-wide">{tt('Tax Reversals')}</span>
           </div>
           {taxReversals.map((taxRev, index) => (
             <div key={index} className="border border-orange-200 bg-orange-50 rounded-lg p-4">
               <div className="grid grid-cols-2 gap-4 text-sm mb-2">
                 <div>
-                  <span className="text-gray-500">Tax Account:</span>
+                  <span className="text-gray-500">{tt('Tax Account:')}</span>
                   <span className="ml-2 font-medium text-orange-900">
                     {taxRev.originalTaxTransaction?.taxAccount?.accountName || 
                      taxRev.reversalTaxTransaction?.taxAccount?.accountName || 
@@ -216,19 +217,19 @@ export function ReversalChain({ original, reversal, type, taxReversals = [] }) {
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-500">Original Tax:</span>
+                  <span className="text-gray-500">{tt('Original Tax:')}</span>
                   <span className="ml-2 font-medium text-gray-700">
                     {formatCurrency(taxRev.originalTaxTransaction?.taxAmount || 0)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-500">Reversal Reference:</span>
+                  <span className="text-gray-500">{tt('Reversal Reference:')}</span>
                   <span className="ml-2 font-medium text-orange-900">
                     {taxRev.reversalTaxTransaction?.reference || 'N/A'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-500">Reversed Tax:</span>
+                  <span className="text-gray-500">{tt('Reversed Tax:')}</span>
                   <span className="ml-2 font-medium text-red-600">
                     {formatCurrency(-(taxRev.reversalTaxTransaction?.reversedTaxAmount || 0))}
                   </span>
@@ -236,11 +237,11 @@ export function ReversalChain({ original, reversal, type, taxReversals = [] }) {
               </div>
               <div className="mt-2 pt-2 border-t border-orange-200 text-xs text-gray-600">
                 <div className="flex justify-between">
-                  <span>Original Tax Transaction:</span>
+                  <span>{tt('Original Tax Transaction:')}</span>
                   <span className="font-mono">{taxRev.originalTaxTransaction?.reference || taxRev.originalTaxTransaction?.id}</span>
                 </div>
                 <div className="flex justify-between mt-1">
-                  <span>Reversal Tax Transaction:</span>
+                  <span>{tt('Reversal Tax Transaction:')}</span>
                   <span className="font-mono">{taxRev.reversalTaxTransaction?.reference || taxRev.reversalTaxTransaction?.id}</span>
                 </div>
               </div>
@@ -271,7 +272,7 @@ export function ReversalAuditTrail({ auditRecords }) {
 
   return (
     <div className="mt-4">
-      <h4 className="text-sm font-medium text-gray-900 mb-3">Reversal History</h4>
+      <h4 className="text-sm font-medium text-gray-900 mb-3">{tt('Reversal History')}</h4>
       <div className="flow-root">
         <ul className="-mb-8">
           {auditRecords.map((record, idx) => (
@@ -291,7 +292,7 @@ export function ReversalAuditTrail({ auditRecords }) {
                   <div className="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
                     <div>
                       <p className="text-sm text-gray-500">
-                        Reversed <span className="font-medium text-gray-900">{record.originalTransactionType}</span>
+                        {tt('Reversed')} <span className="font-medium text-gray-900">{record.originalTransactionType}</span>
                       </p>
                     </div>
                     <div className="text-right text-sm whitespace-nowrap text-gray-500">

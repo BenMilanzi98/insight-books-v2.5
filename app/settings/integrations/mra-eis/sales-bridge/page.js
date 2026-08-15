@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -71,7 +72,7 @@ export default function MraEisSalesBridgePage() {
       <p className="text-sm text-slate-600">
         <Link href="/settings/integrations/mra-eis">← MRA EIS settings</Link>
       </p>
-      <h1 className="mt-2 text-2xl font-semibold text-slate-900">Sales eligibility & bridge</h1>
+      <h1 className="mt-2 text-2xl font-semibold text-slate-900">{tt('Sales eligibility & bridge')}</h1>
       <p className="mt-2 max-w-2xl text-slate-700">
         Phase 11 local compliance handoff. Eligible sales create a bridge and outbox event for Phase 12
         fiscal snapshots. No MRA submission, fiscal number, or QR code is produced here.
@@ -83,21 +84,21 @@ export default function MraEisSalesBridgePage() {
           onClick={load}
           className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
         >
-          Refresh bridges
+          {tt('Refresh bridges')}
         </button>
         <button
           type="button"
           onClick={runSamplePreflight}
           className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
         >
-          Run sample preflight
+          {tt('Run sample preflight')}
         </button>
         <button
           type="button"
           onClick={runReconcileDryRun}
           className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
         >
-          Missed-bridge dry run
+          {tt('Missed-bridge dry run')}
         </button>
       </div>
 
@@ -107,26 +108,26 @@ export default function MraEisSalesBridgePage() {
         </p>
       )}
 
-      {loading && <p className="mt-4 text-sm text-slate-600">Loading…</p>}
+      {loading && <p className="mt-4 text-sm text-slate-600">{tt('Loading…')}</p>}
 
       <section className="mt-8" aria-labelledby="bridges-heading">
         <h2 id="bridges-heading" className="text-lg font-medium">
-          Recent bridges
+          {tt('Recent bridges')}
         </h2>
         {!bridges.length && !loading && (
-          <p className="mt-2 text-sm text-slate-600">No bridge records yet.</p>
+          <p className="mt-2 text-sm text-slate-600">{tt('No bridge records yet.')}</p>
         )}
         <ul className="mt-3 space-y-2">
           {bridges.map((b) => (
             <li key={b.id} className="border-b border-slate-200 py-2 text-sm">
               <span className="font-medium">{b.sourceType}</span> · {b.sourceTransactionNumber || b.sourceId}
               <br />
-              Status: <span aria-label={`Bridge status ${b.status}`}>{b.status}</span>
+              {tt('Status:')} <span aria-label={`Bridge status ${b.status}`}>{b.status}</span>
               {' · '}
               Env: {b.environment}
               <br />
               <span className="text-slate-600">
-                Not submitted to MRA · No fiscal number · No QR
+                {tt('Not submitted to MRA · No fiscal number · No QR')}
               </span>
             </li>
           ))}
@@ -136,7 +137,7 @@ export default function MraEisSalesBridgePage() {
       {preflight && (
         <section className="mt-8" aria-labelledby="preflight-heading">
           <h2 id="preflight-heading" className="text-lg font-medium">
-            Preflight result
+            {tt('Preflight result')}
           </h2>
           <p className="mt-2 text-sm">{preflight.eligibility?.safeDecisionSummary || preflight.eisStatus}</p>
           <p className="text-sm text-slate-600">{preflight.notice}</p>
@@ -151,7 +152,7 @@ export default function MraEisSalesBridgePage() {
       {reconcile && (
         <section className="mt-8" aria-labelledby="reconcile-heading">
           <h2 id="reconcile-heading" className="text-lg font-medium">
-            Reconciliation dry run
+            {tt('Reconciliation dry run')}
           </h2>
           <p className="mt-2 text-sm">
             Missing bridges: {reconcile.summary?.missingBridges ?? 0} · Already bridged:{' '}
@@ -159,7 +160,7 @@ export default function MraEisSalesBridgePage() {
             {reconcile.summary?.beforeGoLive ?? 0}
           </p>
           <p className="text-sm text-slate-600">
-            Repair never reposts accounting or inventory. Historical pre-go-live sales are excluded.
+            {tt('Repair never reposts accounting or inventory. Historical pre-go-live sales are excluded.')}
           </p>
         </section>
       )}

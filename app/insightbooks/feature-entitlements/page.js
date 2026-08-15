@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -146,7 +147,7 @@ export default function FeatureEntitlementsPage() {
         actions={
           <button type="button" onClick={load} className={btnGhost}>
             <RefreshCw className="h-4 w-4" aria-hidden />
-            Refresh
+            {tt('Refresh')}
           </button>
         }
       />
@@ -172,14 +173,14 @@ export default function FeatureEntitlementsPage() {
             className="mb-6 grid grid-cols-1 gap-3 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4 sm:grid-cols-2 lg:grid-cols-3"
           >
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-[var(--admin-text)]">Tenant</span>
+              <span className="mb-1 block font-medium text-[var(--admin-text)]">{tt('Tenant')}</span>
               <select
                 required
                 className={inputCls}
                 value={form.tenantId}
                 onChange={(e) => setForm((p) => ({ ...p, tenantId: e.target.value }))}
               >
-                <option value="">Select tenant</option>
+                <option value="">{tt('Select tenant')}</option>
                 {tenants.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
@@ -188,17 +189,17 @@ export default function FeatureEntitlementsPage() {
               </select>
             </label>
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-[var(--admin-text)]">Feature code</span>
+              <span className="mb-1 block font-medium text-[var(--admin-text)]">{tt('Feature code')}</span>
               <input
                 required
                 className={inputCls}
                 value={form.featureCode}
                 onChange={(e) => setForm((p) => ({ ...p, featureCode: e.target.value }))}
-                placeholder="e.g. mra_eis, budgeting"
+                placeholder={tt('e.g. mra_eis, budgeting')}
               />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-[var(--admin-text)]">Display name</span>
+              <span className="mb-1 block font-medium text-[var(--admin-text)]">{tt('Display name')}</span>
               <input
                 className={inputCls}
                 value={form.featureName}
@@ -206,7 +207,7 @@ export default function FeatureEntitlementsPage() {
               />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-[var(--admin-text)]">Status</span>
+              <span className="mb-1 block font-medium text-[var(--admin-text)]">{tt('Status')}</span>
               <select
                 className={inputCls}
                 value={form.status}
@@ -219,7 +220,7 @@ export default function FeatureEntitlementsPage() {
               </select>
             </label>
             <label className="text-sm sm:col-span-2">
-              <span className="mb-1 block font-medium text-[var(--admin-text)]">Reason</span>
+              <span className="mb-1 block font-medium text-[var(--admin-text)]">{tt('Reason')}</span>
               <input
                 className={inputCls}
                 value={form.reason}

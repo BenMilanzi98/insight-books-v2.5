@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -17,7 +18,7 @@ export default function ExecutiveSectionNav({ className }) {
         'mb-6 flex flex-wrap gap-2 border-b border-[var(--admin-border)] pb-3',
         className
       )}
-      aria-label="Executive intelligence sections"
+      aria-label={tt('Executive intelligence sections')}
     >
       {INTEL_EXECUTIVE_SECTIONS.map((section) => {
         const active = isIntelExecutiveSectionActive(pathname, section);

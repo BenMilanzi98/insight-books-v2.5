@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -69,7 +70,7 @@ export default function PublicLeadCaptureForm({
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-12">
       <div className="mb-8 text-center">
-        <p className="text-sm font-semibold tracking-wide text-slate-500">InsightBooks</p>
+        <p className="text-sm font-semibold tracking-wide text-slate-500">{tt('InsightBooks')}</p>
         <h1 className="mt-2 text-3xl font-bold text-slate-900">{title}</h1>
         {subtitle ? (
           <p className="mt-3 text-base text-slate-600">{subtitle}</p>
@@ -79,7 +80,7 @@ export default function PublicLeadCaptureForm({
       <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
         <div className="grid gap-4 md:grid-cols-2">
           <label className="block text-sm font-medium text-slate-700">
-            Business name *
+            {tt('Business name *')}
             <input
               required
               name="businessName"
@@ -89,7 +90,7 @@ export default function PublicLeadCaptureForm({
             />
           </label>
           <label className="block text-sm font-medium text-slate-700">
-            Your name *
+            {tt('Your name *')}
             <input
               required
               name="contactName"
@@ -101,7 +102,7 @@ export default function PublicLeadCaptureForm({
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <label className="block text-sm font-medium text-slate-700">
-            Email *
+            {tt('Email *')}
             <input
               required
               type="email"
@@ -112,7 +113,7 @@ export default function PublicLeadCaptureForm({
             />
           </label>
           <label className="block text-sm font-medium text-slate-700">
-            Phone *
+            {tt('Phone *')}
             <input
               required
               name="phone"
@@ -124,7 +125,7 @@ export default function PublicLeadCaptureForm({
         </div>
         {showPreferredTime ? (
           <label className="block text-sm font-medium text-slate-700">
-            Preferred time
+            {tt('Preferred time')}
             <input
               type="datetime-local"
               name="preferredAt"
@@ -135,7 +136,7 @@ export default function PublicLeadCaptureForm({
           </label>
         ) : null}
         <label className="block text-sm font-medium text-slate-700">
-          Message *
+          {tt('Message *')}
           <textarea
             required
             name="message"
@@ -148,7 +149,7 @@ export default function PublicLeadCaptureForm({
         {/* Honeypot — leave empty */}
         <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
           <label>
-            Website
+            {tt('Website')}
             <input
               tabIndex={-1}
               autoComplete="off"
@@ -170,7 +171,7 @@ export default function PublicLeadCaptureForm({
             {isSubmitting ? 'Submitting…' : submitLabel}
           </button>
           <Link href="/contact" className="text-sm text-slate-600 underline">
-            Contact page
+            {tt('Contact page')}
           </Link>
         </div>
       </form>

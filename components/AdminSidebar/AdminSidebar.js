@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -194,7 +195,7 @@ export default function AdminSidebar({
         {!(collapsed && !isMobile) ? (
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold tracking-tight text-white">
-              InsightBooks
+              {tt('InsightBooks')}
             </div>
             <div className="truncate text-[11px] uppercase tracking-wide text-[var(--admin-sidebar-muted)]">
               {t('admin-shell.brand')}

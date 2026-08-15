@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 import prisma from '@/lib/prisma';
 import { notFound } from 'next/navigation';
 
@@ -50,32 +51,32 @@ export default async function VerifyPage({ params }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Transaction Verified</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{tt('Transaction Verified')}</h1>
         </div>
 
         <div className="space-y-3 text-sm">
           <div className="flex justify-between border-b pb-2">
-            <span className="text-gray-500">Type</span>
+            <span className="text-gray-500">{tt('Type')}</span>
             <span className="font-medium">{type}</span>
           </div>
           <div className="flex justify-between border-b pb-2">
-            <span className="text-gray-500">Number</span>
+            <span className="text-gray-500">{tt('Number')}</span>
             <span className="font-medium">{number}</span>
           </div>
           <div className="flex justify-between border-b pb-2">
-            <span className="text-gray-500">Date</span>
+            <span className="text-gray-500">{tt('Date')}</span>
             <span className="font-medium">{new Date(date).toLocaleDateString()}</span>
           </div>
           <div className="flex justify-between border-b pb-2">
-            <span className="text-gray-500">Total</span>
+            <span className="text-gray-500">{tt('Total')}</span>
             <span className="font-medium">MK {Number(record.total).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
           </div>
           <div className="flex justify-between border-b pb-2">
-            <span className="text-gray-500">Status</span>
+            <span className="text-gray-500">{tt('Status')}</span>
             <span className="font-medium">{record.status}</span>
           </div>
           <div className="flex justify-between border-b pb-2">
-            <span className="text-gray-500">Business</span>
+            <span className="text-gray-500">{tt('Business')}</span>
             <span className="font-medium">{record.tenant?.name || 'N/A'}</span>
           </div>
           {record.tenant?.tpin && (
@@ -87,7 +88,7 @@ export default async function VerifyPage({ params }) {
         </div>
 
         <p className="mt-6 text-xs text-center text-gray-400">
-          Verified by InsightBooks EIS
+          {tt('Verified by InsightBooks EIS')}
         </p>
       </div>
     </div>

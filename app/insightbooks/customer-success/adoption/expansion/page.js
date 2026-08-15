@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 
@@ -12,10 +13,10 @@ export default function CustomerSuccessAdoptionExpansionPage() {
         <Link href="/insightbooks/customer-success/adoption">← Adoption</Link>
       </p>
       <h1 style={{ fontSize: '1.35rem', marginBottom: '0.5rem' }}>
-        Expansion Handoffs
+        {tt('Expansion Handoffs')}
       </h1>
       <p style={{ color: '#555' }}>
-        Record-only handoffs: <code>DRAFT</code> → <code>HANDED_OFF</code> →{' '}
+        {tt('Record-only handoffs:')} <code>DRAFT</code> → <code>HANDED_OFF</code> →{' '}
         <code>ACKNOWLEDGED</code>. Target queues: RENEWALS, SALES, CS_LEADERSHIP.
         Never mutates Subscription, entitlement, invoice, or Tenant GL. Exact
         retry is idempotent.

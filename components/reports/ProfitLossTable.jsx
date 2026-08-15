@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { Fragment, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
@@ -47,7 +48,7 @@ export default function ProfitLossTable({ report, onDrill }) {
                 {p.label}
               </th>
             ))}
-            <th className="whitespace-nowrap px-3 py-3 text-right font-semibold">Total</th>
+            <th className="whitespace-nowrap px-3 py-3 text-right font-semibold">{tt('Total')}</th>
           </tr>
         </thead>
         <tbody>

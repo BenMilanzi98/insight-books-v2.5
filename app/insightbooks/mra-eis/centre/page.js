@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { adminFetch } from '@/lib/admin/adminApi';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -61,7 +62,7 @@ export default function SystemMraEisAdminCentrePage() {
         breadcrumb={
           <>
             <Link href="/insightbooks/mra-eis" className="underline">
-              Platform MRA EIS
+              {tt('Platform MRA EIS')}
             </Link>
             {' / '}
             Administration Centre
@@ -72,19 +73,19 @@ export default function SystemMraEisAdminCentrePage() {
         actions={
           <button type="button" className={btnGhost} onClick={load} disabled={loading}>
             <RefreshCw className="h-4 w-4" aria-hidden />
-            Refresh
+            {tt('Refresh')}
           </button>
         }
       />
 
       {ctx ? (
         <section
-          aria-label="Platform EIS context"
+          aria-label={tt('Platform EIS context')}
           className="mb-6 flex flex-wrap items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-3 text-sm"
         >
           <AdminStatusBadge tone="danger">{ctx.environmentLabel}</AdminStatusBadge>
           <span className="text-[var(--admin-text-muted)]">
-            Freshness <strong className="text-[var(--admin-text)]">{ctx.dataFreshness}</strong>
+            {tt('Freshness')} <strong className="text-[var(--admin-text)]">{ctx.dataFreshness}</strong>
           </span>
         </section>
       ) : null}
@@ -102,7 +103,7 @@ export default function SystemMraEisAdminCentrePage() {
                 id="plat-overview"
                 className="text-base font-semibold text-[var(--admin-text)]"
               >
-                Platform overview
+                {tt('Platform overview')}
               </h2>
               <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
                 Freshness {overview.freshness}. Cross-tenant drill-down requires permission.

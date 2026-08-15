@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -125,13 +126,13 @@ export default function RentalContractsV2Page() {
             Rental &amp; Hiring
           </Link>
           <span className="mx-2">/</span>
-          Contracts V2
+          {tt('Contracts V2')}
         </div>
-        <h1 className="text-2xl font-semibold text-gray-900">Outbound rental contracts</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">{tt('Outbound rental contracts')}</h1>
         <p className="mt-1 text-sm text-gray-600">
           Draft → approve → deposit (liability) → dispatch → return → bill. Legacy bookings remain on{' '}
           <Link href="/rentals" className="text-blue-600 underline">
-            Rentals
+            {tt('Rentals')}
           </Link>
           .
         </p>
@@ -145,10 +146,10 @@ export default function RentalContractsV2Page() {
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <section className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-              New draft
+              {tt('New draft')}
             </h2>
             <label className="block text-sm">
-              Client ID
+              {tt('Client ID')}
               <input
                 className="mt-1 w-full rounded border px-2 py-1.5"
                 value={clientId}
@@ -156,7 +157,7 @@ export default function RentalContractsV2Page() {
               />
             </label>
             <label className="block text-sm">
-              Rental asset ID
+              {tt('Rental asset ID')}
               <input
                 className="mt-1 w-full rounded border px-2 py-1.5"
                 value={assetId}
@@ -165,7 +166,7 @@ export default function RentalContractsV2Page() {
             </label>
             <div className="grid grid-cols-2 gap-2">
               <label className="block text-sm">
-                Start
+                {tt('Start')}
                 <input
                   type="datetime-local"
                   className="mt-1 w-full rounded border px-2 py-1.5"
@@ -174,7 +175,7 @@ export default function RentalContractsV2Page() {
                 />
               </label>
               <label className="block text-sm">
-                End
+                {tt('End')}
                 <input
                   type="datetime-local"
                   className="mt-1 w-full rounded border px-2 py-1.5"
@@ -185,7 +186,7 @@ export default function RentalContractsV2Page() {
             </div>
             <div className="grid grid-cols-3 gap-2">
               <label className="block text-sm">
-                Rate
+                {tt('Rate')}
                 <input
                   className="mt-1 w-full rounded border px-2 py-1.5"
                   value={unitRate}
@@ -193,7 +194,7 @@ export default function RentalContractsV2Page() {
                 />
               </label>
               <label className="block text-sm">
-                Qty
+                {tt('Qty')}
                 <input
                   className="mt-1 w-full rounded border px-2 py-1.5"
                   value={quantity}
@@ -201,7 +202,7 @@ export default function RentalContractsV2Page() {
                 />
               </label>
               <label className="block text-sm">
-                Deposit
+                {tt('Deposit')}
                 <input
                   className="mt-1 w-full rounded border px-2 py-1.5"
                   value={depositAmount}
@@ -215,11 +216,11 @@ export default function RentalContractsV2Page() {
               onClick={create}
               className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
             >
-              Create draft
+              {tt('Create draft')}
             </button>
 
             <h2 className="pt-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
-              Contracts
+              {tt('Contracts')}
             </h2>
             <ul className="max-h-80 divide-y overflow-auto rounded border">
               {contracts.map((row) => (
@@ -239,17 +240,17 @@ export default function RentalContractsV2Page() {
                 </li>
               ))}
               {!contracts.length ? (
-                <li className="px-3 py-4 text-sm text-gray-500">No contracts yet</li>
+                <li className="px-3 py-4 text-sm text-gray-500">{tt('No contracts yet')}</li>
               ) : null}
             </ul>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-              Selected
+              {tt('Selected')}
             </h2>
             {!c ? (
-              <p className="text-sm text-gray-500">Select a contract</p>
+              <p className="text-sm text-gray-500">{tt('Select a contract')}</p>
             ) : (
               <>
                 <div className="rounded border p-3 text-sm">
@@ -267,7 +268,7 @@ export default function RentalContractsV2Page() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <label className="block text-sm">
-                    Cash account ID
+                    {tt('Cash account ID')}
                     <input
                       className="mt-1 w-full rounded border px-2 py-1.5"
                       value={cashAccountId}
@@ -275,7 +276,7 @@ export default function RentalContractsV2Page() {
                     />
                   </label>
                   <label className="block text-sm">
-                    Deposit liability ID
+                    {tt('Deposit liability ID')}
                     <input
                       className="mt-1 w-full rounded border px-2 py-1.5"
                       value={depositLiabilityAccountId}
@@ -302,7 +303,7 @@ export default function RentalContractsV2Page() {
                     onClick={() => runAction('deposit')}
                     className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs hover:bg-amber-100 disabled:opacity-50"
                   >
-                    receive deposit
+                    {tt('receive deposit')}
                   </button>
                 </div>
               </>

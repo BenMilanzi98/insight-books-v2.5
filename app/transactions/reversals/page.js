@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from 'react';
 import { 
@@ -270,7 +271,7 @@ const ReversalsPage = () => {
       <div className="flex w-full items-center justify-center">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-          <p className="text-gray-500">Loading...</p>
+          <p className="text-gray-500">{tt('Loading...')}</p>
         </div>
       </div>
     );
@@ -283,11 +284,10 @@ const ReversalsPage = () => {
         <div className="flex w-full items-center justify-center">
           <div className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">{tt('Access Denied')}</h2>
             <p className="text-gray-600">
 
-              You don't have permission to view reversed transactions. 
-              Please contact your administrator if you believe this is an error.
+              {tt("You don't have permission to view reversed transactions. Please contact your administrator if you believe this is an error.")}
             </p>
           </div>
         </div>
@@ -305,7 +305,7 @@ const ReversalsPage = () => {
             pagePermissions.canExportReversals && reversals.length > 0 ? (
               <PosStyleHeaderButton type="button" onClick={handleExport}>
                 <Download className="mr-2 h-5 w-5" />
-                Export CSV
+                {tt('Export CSV')}
               </PosStyleHeaderButton>
             ) : null
           }
@@ -357,7 +357,7 @@ const ReversalsPage = () => {
         <PosStylePanel className="mb-6 p-4 sm:p-6">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Transaction Type</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">{tt('Transaction Type')}</label>
               <select
                 value={typeFilter}
                 onChange={(e) => {
@@ -366,19 +366,19 @@ const ReversalsPage = () => {
                 }}
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
               >
-                <option value="all">All Types</option>
-                <option value="expense">Expenses</option>
-                <option value="sale">Sales/Invoices</option>
-                <option value="payment">Payments</option>
-                <option value="refund">Invoice Refunds</option>
-                <option value="sale_refund">POS Refunds</option>
-                <option value="payroll">Payroll</option>
+                <option value="all">{tt('All Types')}</option>
+                <option value="expense">{tt('Expenses')}</option>
+                <option value="sale">{tt('Sales/Invoices')}</option>
+                <option value="payment">{tt('Payments')}</option>
+                <option value="refund">{tt('Invoice Refunds')}</option>
+                <option value="sale_refund">{tt('POS Refunds')}</option>
+                <option value="payroll">{tt('Payroll')}</option>
               </select>
             </div>
 
             {/* Date Range */}
             <div className="flex-1">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Start Date</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">{tt('Start Date')}</label>
               <input
                 type="date"
                 value={dateRange.start}
@@ -388,7 +388,7 @@ const ReversalsPage = () => {
             </div>
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                End Date
+                {tt('End Date')}
               </label>
               <input
                 type="date"
@@ -405,7 +405,7 @@ const ReversalsPage = () => {
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-md hover:shadow-lg"
               >
                 <Filter className="w-4 h-4 inline mr-2" />
-                Apply
+                {tt('Apply')}
               </button>
             </div>
           </div>
@@ -415,7 +415,7 @@ const ReversalsPage = () => {
             <form onSubmit={handleSearch} className="relative">
               <input
                 type="text"
-                placeholder="Search by reason or user..."
+                placeholder={tt('Search by reason or user...')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full p-3 pl-11 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all bg-white shadow-sm"
@@ -430,7 +430,7 @@ const ReversalsPage = () => {
           {isLoading ? (
             <div className="p-8 text-center">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-              <p className="text-gray-500">Loading reversed transactions...</p>
+              <p className="text-gray-500">{tt('Loading reversed transactions...')}</p>
             </div>
           ) : error ? (
             <div className="p-8 text-center">
@@ -440,13 +440,13 @@ const ReversalsPage = () => {
                 className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md"
                 onClick={fetchReversals}
               >
-                Try Again
+                {tt('Try Again')}
               </button>
             </div>
           ) : reversals.length === 0 ? (
             <div className="p-8 text-center">
               <RotateCcw className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <h3 className="text-lg font-medium text-gray-900 mb-1">No reversed transactions found</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-1">{tt('No reversed transactions found')}</h3>
               <p className="text-gray-500">
                 {typeFilter !== 'all' 
                   ? `No ${typeFilter} reversals match your filters`
@@ -459,31 +459,31 @@ const ReversalsPage = () => {
                 <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                   <tr>
                     <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Type
+                      {tt('Type')}
                     </th>
                     <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Description
+                      {tt('Description')}
                     </th>
                     <th className="px-4 sm:px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Original Amount
+                      {tt('Original Amount')}
                     </th>
                     <th className="px-4 sm:px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Reversal Amount
+                      {tt('Reversal Amount')}
                     </th>
                     <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Original Date
+                      {tt('Original Date')}
                     </th>
                     <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Reversed At
+                      {tt('Reversed At')}
                     </th>
                     <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Reason
+                      {tt('Reason')}
                     </th>
                     <th className="px-4 sm:px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Tax Reversed
+                      {tt('Tax Reversed')}
                     </th>
                     <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Performed By
+                      {tt('Performed By')}
                     </th>
                   </tr>
                 </thead>
@@ -557,7 +557,7 @@ const ReversalsPage = () => {
                             <span className="text-xs text-gray-500">{reversal.performedBy.email}</span>
                           </div>
                         ) : (
-                          <span className="text-gray-400">Unknown</span>
+                          <span className="text-gray-400">{tt('Unknown')}</span>
                         )}
                       </td>
                     </tr>
@@ -571,7 +571,7 @@ const ReversalsPage = () => {
           {!isLoading && !error && reversals.length > 0 && (
             <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100/50 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-100">
               <div className="text-sm text-gray-700 order-2 sm:order-1 font-medium">
-                Showing <span className="text-gray-900">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="text-gray-900">{Math.min(pagination.page * pagination.limit, pagination.totalCount)}</span> of <span className="text-gray-900">{pagination.totalCount}</span> reversals
+                {tt('Showing')} <span className="text-gray-900">{(pagination.page - 1) * pagination.limit + 1}</span> {tt('to')} <span className="text-gray-900">{Math.min(pagination.page * pagination.limit, pagination.totalCount)}</span> {tt('of')} <span className="text-gray-900">{pagination.totalCount}</span> {tt('reversals')}
               </div>
               <div className="flex items-center gap-2 order-1 sm:order-2">
                 <button 
@@ -580,7 +580,7 @@ const ReversalsPage = () => {
                   onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
                 >
                   <ChevronLeft className="w-4 h-4 inline mr-1" />
-                  Previous
+                  {tt('Previous')}
                 </button>
                 <span className="text-sm text-gray-600 font-medium px-2">
                   Page {pagination.page} of {pagination.totalPages}
@@ -590,7 +590,7 @@ const ReversalsPage = () => {
                   disabled={pagination.page === pagination.totalPages}
                   onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
                 >
-                  Next
+                  {tt('Next')}
                   <ChevronRight className="w-4 h-4 inline ml-1" />
                 </button>
               </div>

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
@@ -60,8 +61,8 @@ function PaymentFormSection({ title, description, children }) {
   return (
     <div className={cardPanelClass}>
       <div>
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {description && <p className="text-xs text-gray-500">{description}</p>}
+        <h3 className="text-sm font-semibold text-gray-900">{tt(title)}</h3>
+        {description && <p className="text-xs text-gray-500">{tt(description)}</p>}
       </div>
       {children}
     </div>
@@ -174,7 +175,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
       <PaymentFormSection title="Payment Details" description="Who is being paid and how.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Supplier</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Supplier')}</label>
             <select
               name="supplierId"
               value={form.supplierId}
@@ -182,7 +183,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
               required
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
             >
-              <option value="">Select supplier</option>
+              <option value="">{tt('Select supplier')}</option>
               {suppliers.map((supplier) => (
                 <option key={supplier.id} value={supplier.id}>
                   {supplier.supplierName}
@@ -191,7 +192,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Payment Date</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Payment Date')}</label>
             <input
               type="date"
               name="paymentDate"
@@ -202,7 +203,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Payment Method')}</label>
             <select
               name="paymentMethod"
               value={form.paymentMethod}
@@ -238,13 +239,13 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Reference</label>
+            <label className="block text-sm font-medium text-gray-700">{tt('Reference')}</label>
             <input
               type="text"
               name="referenceNumber"
               value={form.referenceNumber}
               onChange={(e) => setForm((prev) => ({ ...prev, referenceNumber: e.target.value }))}
-              placeholder="Optional"
+              placeholder={tt('Optional')}
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
             />
           </div>
@@ -258,7 +259,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
         {form.supplierId ? (
           <div className="space-y-3">
             {supplierBills.length === 0 ? (
-              <p className="text-sm text-gray-500">No outstanding bills for this supplier.</p>
+              <p className="text-sm text-gray-500">{tt('No outstanding bills for this supplier.')}</p>
             ) : (
               supplierBills.map((bill) => (
                 <div
@@ -288,7 +289,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
             )}
           </div>
         ) : (
-          <p className="text-sm text-gray-500">Select a supplier to allocate payments.</p>
+          <p className="text-sm text-gray-500">{tt('Select a supplier to allocate payments.')}</p>
         )}
       </PaymentFormSection>
 
@@ -300,12 +301,12 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
             onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
             rows={3}
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-            placeholder="Payment memo, cheque details, bank confirmation code…"
+            placeholder={tt('Payment memo, cheque details, bank confirmation code…')}
           />
           <div className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
             <div>
-              <p className="text-xs uppercase tracking-wide text-emerald-700">Total Payment</p>
-              <p className="text-sm text-emerald-900">Sum of bill allocations</p>
+              <p className="text-xs uppercase tracking-wide text-emerald-700">{tt('Total Payment')}</p>
+              <p className="text-sm text-emerald-900">{tt('Sum of bill allocations')}</p>
             </div>
             <div className="text-lg font-semibold text-emerald-900">
               MWK {totalAllocations.toLocaleString()}
@@ -320,7 +321,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
           onClick={onCancel}
           className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          Cancel
+          {tt('Cancel')}
         </button>
         <button
           type="submit"
@@ -356,33 +357,33 @@ function PaymentDetails({ payment, onClose }) {
         <div className="space-y-6 p-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <div className="text-xs uppercase text-gray-500">Payment Method</div>
+              <div className="text-xs uppercase text-gray-500">{tt('Payment Method')}</div>
               <div className="mt-1 text-gray-900">{displayPaymentMethod(payment)}</div>
             </div>
             <div>
-              <div className="text-xs uppercase text-gray-500">Reference</div>
+              <div className="text-xs uppercase text-gray-500">{tt('Reference')}</div>
               <div className="mt-1 text-gray-900">{payment.referenceNumber || "—"}</div>
             </div>
             <div>
-              <div className="text-xs uppercase text-gray-500">Total Amount</div>
+              <div className="text-xs uppercase text-gray-500">{tt('Total Amount')}</div>
               <div className="mt-1 text-gray-900">
                 MWK {Number(payment.totalAmount || 0).toLocaleString()}
               </div>
             </div>
             <div>
-              <div className="text-xs uppercase text-gray-500">Allocations</div>
+              <div className="text-xs uppercase text-gray-500">{tt('Allocations')}</div>
               <div className="mt-1 text-gray-900">{payment.allocations?.length ?? 0}</div>
             </div>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-gray-700">Bill Allocations</h3>
+            <h3 className="text-sm font-semibold text-gray-700">{tt('Bill Allocations')}</h3>
             <div className="mt-2 overflow-x-auto rounded-lg border">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
                   <tr>
-                    <th className="px-4 py-2">Bill</th>
-                    <th className="px-4 py-2 text-right">Allocated</th>
+                    <th className="px-4 py-2">{tt('Bill')}</th>
+                    <th className="px-4 py-2 text-right">{tt('Allocated')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 bg-white">
@@ -400,7 +401,7 @@ function PaymentDetails({ payment, onClose }) {
                   ) : (
                     <tr>
                       <td className="px-4 py-2 text-gray-500" colSpan={2}>
-                        No allocations recorded.
+                        {tt('No allocations recorded.')}
                       </td>
                     </tr>
                   )}
@@ -484,14 +485,14 @@ export default function SupplierPaymentsPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Supplier Payments</h1>
-          <p className="text-sm text-gray-500">Pay suppliers and close outstanding bills.</p>
+          <h1 className="text-2xl font-semibold text-gray-900">{tt('Supplier Payments')}</h1>
+          <p className="text-sm text-gray-500">{tt('Pay suppliers and close outstanding bills.')}</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
           className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white  hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
-          Record Payment
+          {tt('Record Payment')}
         </button>
       </div>
 
@@ -512,7 +513,7 @@ export default function SupplierPaymentsPage() {
             value={supplierFilter}
             onChange={(e) => setSupplierFilter(e.target.value)}
           >
-            <option value="">All Suppliers</option>
+            <option value="">{tt('All Suppliers')}</option>
             {suppliers.map((supplier) => (
               <option key={supplier.id} value={supplier.id}>
                 {supplier.supplierName}
@@ -522,33 +523,33 @@ export default function SupplierPaymentsPage() {
         </div>
 
         {loading ? (
-          <p className="text-sm text-gray-500">Loading payments…</p>
+          <p className="text-sm text-gray-500">{tt('Loading payments…')}</p>
         ) : error ? (
           <p className="text-sm text-red-500">{error}</p>
         ) : payments.length === 0 ? (
-          <p className="text-sm text-gray-500">No supplier payments recorded.</p>
+          <p className="text-sm text-gray-500">{tt('No supplier payments recorded.')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Payment #
+                    {tt('Payment #')}
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Supplier
+                    {tt('Supplier')}
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Date
+                    {tt('Date')}
                   </th>
                   <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Method
+                    {tt('Method')}
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Amount
+                    {tt('Amount')}
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Actions
+                    {tt('Actions')}
                   </th>
                 </tr>
               </thead>
@@ -578,7 +579,7 @@ export default function SupplierPaymentsPage() {
                         className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
                         onClick={() => setViewingPayment(payment)}
                       >
-                        View
+                        {tt('View')}
                       </button>
                     </td>
                   </tr>
@@ -593,7 +594,7 @@ export default function SupplierPaymentsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 ">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Record Supplier Payment</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{tt('Record Supplier Payment')}</h2>
               <button
                 onClick={() => setShowForm(false)}
                 className="text-sm text-gray-500 hover:text-gray-700"

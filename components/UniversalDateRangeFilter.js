@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Calendar, ChevronDown, X, RefreshCw, Loader2, Clock, X as XIcon } from 'lucide-react';
@@ -181,7 +182,7 @@ export const UniversalDateRangeFilter = ({
           {showCustomRange ? (
             <div className="flex flex-col sm:flex-row sm:items-end gap-3">
               <div className="flex-1">
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">{tt('Start Date')}</label>
                 <input
                   type="date"
                   value={customStartDate}
@@ -195,7 +196,7 @@ export const UniversalDateRangeFilter = ({
               </div>
               <ChevronDown size={16} className="text-gray-400 mb-2 rotate-[-90deg] hidden sm:block" />
               <div className="flex-1">
-                <label className="block text-xs font-semibold text-gray-600 mb-1">End Date</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">{tt('End Date')}</label>
                 <input
                   type="date"
                   value={customEndDate}
@@ -213,14 +214,14 @@ export const UniversalDateRangeFilter = ({
                   onClick={handleCustomDateReset}
                   className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
                 >
-                  Reset
+                  {tt('Reset')}
                 </button>
                 <button
                   type="button"
                   onClick={handleCustomDateApply}
                   className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 text-sm font-medium transition-colors"
                 >
-                  Apply
+                  {tt('Apply')}
                 </button>
               </div>
             </div>
@@ -257,7 +258,7 @@ export const UniversalDateRangeFilter = ({
             className={`px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 ${sizeClasses[size]}`}
             max={customEndDate}
           />
-          <span className="text-gray-500">to</span>
+          <span className="text-gray-500">{tt('to')}</span>
           <input
             type="date"
             value={customEndDate}
@@ -287,7 +288,7 @@ export const UniversalDateRangeFilter = ({
           onClick={() => onComparisonToggle && onComparisonToggle(!comparisonEnabled)}
         >
           <Clock size={size === 'small' ? 14 : 16} className="mr-2" />
-          Compare
+          {tt('Compare')}
         </button>
       )}
       

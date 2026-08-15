@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from 'react';
 import { Upload, Download, FileText, AlertCircle, CheckCircle, X, Calendar, DollarSign, Tag, Building, Plus, History } from 'lucide-react';
@@ -177,10 +178,10 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
         <div>
           <h3 className="text-lg font-semibold text-gray-900 flex items-center">
             <Calendar className="h-5 w-5 mr-2 text-blue-600" />
-            Historical Expense Import
+            {tt('Historical Expense Import')}
           </h3>
           <p className="text-sm text-gray-600 mt-1">
-            Import historical expenses from CSV file or add individual historical expenses
+            {tt('Import historical expenses from CSV file or add individual historical expenses')}
           </p>
         </div>
         <div className="flex space-x-3">
@@ -189,14 +190,14 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
             className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
           >
             <Plus className="h-4 w-4 mr-2" />
-            Add Single Expense
+            {tt('Add Single Expense')}
           </button>
           <button
             onClick={downloadTemplate}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             <Download className="h-4 w-4 mr-2" />
-            Download Template
+            {tt('Download Template')}
           </button>
         </div>
       </div>
@@ -206,13 +207,13 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
         <div className="flex">
           <AlertCircle className="h-5 w-5 text-amber-400 flex-shrink-0" />
           <div className="ml-3">
-            <h4 className="text-sm font-medium text-amber-800">Historical Data Entry</h4>
+            <h4 className="text-sm font-medium text-amber-800">{tt('Historical Data Entry')}</h4>
             <p className="text-sm text-amber-700 mt-1">
               This feature is for importing historical expenses that occurred in the past. 
               All imported expenses will be marked as historical and will affect account balances.
             </p>
             <div className="mt-2 text-xs text-amber-600">
-              <strong>Supported date formats:</strong> YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY
+              <strong>{tt('Supported date formats:')}</strong> {tt('YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY')}
             </div>
           </div>
         </div>
@@ -224,7 +225,7 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
           <div className="flex">
             <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
             <div className="ml-3">
-              <h4 className="text-sm font-medium text-red-800">Upload Error</h4>
+              <h4 className="text-sm font-medium text-red-800">{tt('Upload Error')}</h4>
               <p className="text-sm text-red-700 mt-1">{uploadError}</p>
             </div>
             <button
@@ -243,17 +244,17 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
           {/* Migration Batch Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Migration Batch Name
+              {tt('Migration Batch Name')}
             </label>
             <input
               type="text"
               value={migrationBatch}
               onChange={(e) => setMigrationBatch(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter a name to identify this import batch"
+              placeholder={tt('Enter a name to identify this import batch')}
             />
             <p className="text-xs text-gray-500 mt-1">
-              This helps you track and identify different import batches
+              {tt('This helps you track and identify different import batches')}
             </p>
           </div>
 
@@ -292,17 +293,17 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
                   }}
                   className="text-red-600 hover:text-red-700 text-sm"
                 >
-                  Remove file
+                  {tt('Remove file')}
                 </button>
               </div>
             ) : (
               <div className="space-y-2">
                 <Upload className="h-12 w-12 text-gray-400 mx-auto" />
                 <p className="text-sm font-medium text-gray-700">
-                  Drop your CSV file here, or click to browse
+                  {tt('Drop your CSV file here, or click to browse')}
                 </p>
                 <p className="text-xs text-gray-500">
-                  Supports CSV files up to 10MB
+                  {tt('Supports CSV files up to 10MB')}
                 </p>
               </div>
             )}
@@ -355,7 +356,7 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
               onClick={resetForm}
               className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              Reset
+              {tt('Reset')}
             </button>
             <button
               onClick={handleUpload}
@@ -369,12 +370,12 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
               {isUploading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Processing...
+                  {tt('Processing...')}
                 </>
               ) : (
                 <>
                   <Upload className="h-4 w-4 mr-2" />
-                  Import Expenses
+                  {tt('Import Expenses')}
                 </>
               )}
             </button>
@@ -388,9 +389,9 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
           <div className="flex items-start">
             <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
             <div className="ml-3 w-full">
-              <h4 className="text-sm font-medium text-red-800">Validation Errors Found</h4>
+              <h4 className="text-sm font-medium text-red-800">{tt('Validation Errors Found')}</h4>
               <p className="text-sm text-red-700 mt-1 mb-3">
-                Please fix the following errors and try again:
+                {tt('Please fix the following errors and try again:')}
               </p>
               <div className="max-h-60 overflow-y-auto">
                 {validationErrors.map((error, index) => (
@@ -408,7 +409,7 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
                 onClick={() => setValidationErrors([])}
                 className="mt-3 text-sm text-red-600 hover:text-red-700"
               >
-                Dismiss errors
+                {tt('Dismiss errors')}
               </button>
             </div>
           </div>
@@ -421,7 +422,7 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
           <div className="flex items-start">
             <CheckCircle className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
             <div className="ml-3 w-full">
-              <h4 className="text-sm font-medium text-green-800">Import Successful!</h4>
+              <h4 className="text-sm font-medium text-green-800">{tt('Import Successful!')}</h4>
               <p className="text-sm text-green-700 mt-1">
                 {uploadResults.message}
               </p>
@@ -430,7 +431,7 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
                 <div className="bg-white rounded border border-green-200 p-3">
                   <div className="flex items-center">
                     <DollarSign className="h-4 w-4 text-green-600 mr-2" />
-                    <span className="text-sm font-medium text-green-800">Total Processed</span>
+                    <span className="text-sm font-medium text-green-800">{tt('Total Processed')}</span>
                   </div>
                   <p className="text-lg font-bold text-green-900 mt-1">
                     {uploadResults.totalProcessed}
@@ -440,7 +441,7 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
                 <div className="bg-white rounded border border-green-200 p-3">
                   <div className="flex items-center">
                     <Tag className="h-4 w-4 text-green-600 mr-2" />
-                    <span className="text-sm font-medium text-green-800">Batch ID</span>
+                    <span className="text-sm font-medium text-green-800">{tt('Batch ID')}</span>
                   </div>
                   <p className="text-sm font-mono text-green-900 mt-1 truncate">
                     {uploadResults.migrationBatch}
@@ -450,10 +451,10 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
                 <div className="bg-white rounded border border-green-200 p-3">
                   <div className="flex items-center">
                     <Building className="h-4 w-4 text-green-600 mr-2" />
-                    <span className="text-sm font-medium text-green-800">Status</span>
+                    <span className="text-sm font-medium text-green-800">{tt('Status')}</span>
                   </div>
                   <p className="text-sm font-medium text-green-900 mt-1">
-                    Completed
+                    {tt('Completed')}
                   </p>
                 </div>
               </div>
@@ -463,7 +464,7 @@ const HistoricalExpenseUpload = ({ onUploadComplete, onSingleExpenseClick }) => 
                   onClick={resetForm}
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
                 >
-                  Import More Expenses
+                  {tt('Import More Expenses')}
                 </button>
               </div>
             </div>

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import OnboardingContextBar from '@/components/admin/customerSuccess/OnboardingContextBar';
@@ -11,7 +12,7 @@ export default function OnboardingProjectsPage() {
         <Link href="/insightbooks/customer-success/onboarding">← Onboarding</Link>
       </p>
       <OnboardingContextBar population="onboarding-projects" />
-      <h1 style={{ fontSize: '1.35rem', margin: '0.5rem 0' }}>Onboarding Projects</h1>
+      <h1 style={{ fontSize: '1.35rem', margin: '0.5rem 0' }}>{tt('Onboarding Projects')}</h1>
       <p style={{ color: '#555' }}>
         ONB-YYYY-###### — portfolio-scoped list. Open a project for detail tabs (overview
         through audit).

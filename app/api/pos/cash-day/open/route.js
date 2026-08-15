@@ -23,6 +23,7 @@ export async function POST(request) {
     });
     return NextResponse.json({ success: true, register });
   } catch (e) {
+    console.error('pos/cash-day/open failed', e?.code || e?.name, e?.message || e, e?.issues || e?.diagnostic);
     const code = e?.code;
     const status =
       code === 'ALREADY_OPEN' ||
@@ -35,6 +36,17 @@ export async function POST(request) {
           : code === 'INVALID_OPENING_BALANCE'
             ? 400
             : 400;
-    return NextResponse.json({ error: e?.message || 'Failed to open day', code }, { status });
+    const detail =
+      Array.isArray(e?.issues) && e.issues.length
+        ? e.issues.map((i) => i.message || i.path).filter(Boolean).join('; ')
+        : null;
+    return NextResponse.json(
+      {
+        error: detail ? `${e?.message || 'Failed to open day'} (${detail})` : e?.message || 'Failed to open day',
+        code,
+        issues: e?.issues || undefined,
+      },
+      { status }
+    );
   }
 }

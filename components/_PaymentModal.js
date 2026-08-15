@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { X, AlertCircle } from "lucide-react";
@@ -210,7 +211,7 @@ const PaymentModal = ({
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="invoiceId">
-                Invoice <span className="text-red-500">*</span>
+                {tt('Invoice')} <span className="text-red-500">*</span>
               </label>
               <select
                 id="invoiceId"
@@ -219,7 +220,7 @@ const PaymentModal = ({
                 value={formData.invoiceId}
                 onChange={(e) => handleInvoiceSelect(e.target.value)}
               >
-                <option value="">Select an invoice</option>
+                <option value="">{tt('Select an invoice')}</option>
                 {invoices.map(invoice => (
                   <option key={invoice.id} value={invoice.id}>
                     {invoice.invoiceNumber} - {invoice.client?.name} (MK {invoice.amountDue})
@@ -233,7 +234,7 @@ const PaymentModal = ({
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="amount">
-                Amount <span className="text-red-500">*</span>
+                {tt('Amount')} <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-gray-500">MK</span>
@@ -254,7 +255,7 @@ const PaymentModal = ({
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="paymentDate">
-                Payment Date <span className="text-red-500">*</span>
+                {tt('Payment Date')} <span className="text-red-500">*</span>
               </label>
               <input
                 type="date"
@@ -271,7 +272,7 @@ const PaymentModal = ({
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="paymentMethod">
-                Payment Method <span className="text-red-500">*</span>
+                {tt('Payment Method')} <span className="text-red-500">*</span>
               </label>
               <select
                 id="paymentMethod"
@@ -280,7 +281,7 @@ const PaymentModal = ({
                 value={formData.paymentMethod}
                 onChange={handleChange}
               >
-                <option value="">Select payment method</option>
+                <option value="">{tt('Select payment method')}</option>
                 {paymentAccounts.map(account => (
                   <option key={account.id} value={account.id}>{account.name}</option>
                 ))}
@@ -292,7 +293,7 @@ const PaymentModal = ({
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="reference">
-                Reference Number
+                {tt('Reference Number')}
               </label>
               <input
                 type="text"
@@ -301,13 +302,13 @@ const PaymentModal = ({
                 className="w-full p-2 border border-gray-300 rounded-md"
                 value={formData.reference}
                 onChange={handleChange}
-                placeholder="Transaction ref, check #, etc."
+                placeholder={tt('Transaction ref, check #, etc.')}
               />
             </div>
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="notes">
-                Notes
+                {tt('Notes')}
               </label>
               <textarea
                 id="notes"
@@ -316,7 +317,7 @@ const PaymentModal = ({
                 className="w-full p-2 border border-gray-300 rounded-md"
                 value={formData.notes}
                 onChange={handleChange}
-                placeholder="Any additional details about this payment"
+                placeholder={tt('Any additional details about this payment')}
               ></textarea>
             </div>
           </form>
@@ -328,7 +329,7 @@ const PaymentModal = ({
             onClick={onClose}
             className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="button"
@@ -339,7 +340,7 @@ const PaymentModal = ({
             {loading ? (
               <>
                 <span className="animate-spin mr-2">⌛</span>
-                Saving...
+                {tt('Saving...')}
               </>
             ) : (
               mode === "create" ? "Record Payment" : "Update Payment"

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from "react";
 import Link from "next/link";
@@ -44,7 +45,7 @@ export default function PrivacyPolicy() {
                 className="flex items-center text-gray-600 hover:text-gray-900 transition-colors bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg"
               >
                 <ArrowLeft size={18} className="mr-2" />
-                Back to Home
+                {tt('Back to Home')}
               </Link>
             </div>
             <div className="flex items-center space-x-3">
@@ -52,8 +53,8 @@ export default function PrivacyPolicy() {
                 <Shield size={24} className="text-indigo-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Privacy Policy</h1>
-                <p className="text-sm text-gray-500">Last updated: January 15, 2025</p>
+                <h1 className="text-xl font-bold text-gray-900">{tt('Privacy Policy')}</h1>
+                <p className="text-sm text-gray-500">{tt('Last updated: January 15, 2025')}</p>
               </div>
             </div>
           </div>
@@ -67,7 +68,7 @@ export default function PrivacyPolicy() {
             <div className="bg-white rounded-xl shadow-sm border p-6 sticky top-24">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                 <Shield size={20} className="mr-2 text-indigo-600" />
-                Table of Contents
+                {tt('Table of Contents')}
               </h2>
               <nav className="space-y-2">
                 {sections.map((section) => {
@@ -101,18 +102,18 @@ export default function PrivacyPolicy() {
                     <Shield size={24} />
                   </div>
                   <div>
-                    <h1 className="text-3xl font-bold">Privacy Policy</h1>
-                    <p className="text-indigo-100">How we protect and handle your personal information</p>
+                    <h1 className="text-3xl font-bold">{tt('Privacy Policy')}</h1>
+                    <p className="text-indigo-100">{tt('How we protect and handle your personal information')}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-6 text-sm">
                   <div className="flex items-center space-x-2">
                     <Clock size={16} />
-                    <span>Last Updated: January 15, 2025</span>
+                    <span>{tt('Last Updated: January 15, 2025')}</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Lock size={16} />
-                    <span>GDPR Compliant</span>
+                    <span>{tt('GDPR Compliant')}</span>
                   </div>
                 </div>
               </div>
@@ -124,11 +125,11 @@ export default function PrivacyPolicy() {
                     <div className="bg-indigo-100 p-2 rounded-lg">
                       <Shield size={20} className="text-indigo-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">1. Introduction</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('1. Introduction')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4 leading-relaxed">
-                      At <strong>InsightBooks</strong> ("we," "our," or "us"), we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our Business Management platform and services.
+                      {tt('At')} <strong>{tt('InsightBooks')}</strong> ("we," "our," or "us"), we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our Business Management platform and services.
                     </p>
                     <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg mb-6">
                       <p className="text-blue-800 font-medium">
@@ -144,17 +145,17 @@ export default function PrivacyPolicy() {
                     <div className="bg-purple-100 p-2 rounded-lg">
                       <Database size={20} className="text-purple-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">2. Information We Collect</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('2. Information We Collect')}</h2>
                   </div>
                   
                   {/* Personal Information */}
                   <div className="mb-8">
                     <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
                       <Users size={18} className="mr-2 text-purple-600" />
-                      2.1 Personal Information
+                      {tt('2.1 Personal Information')}
                     </h3>
                     <p className="text-gray-700 mb-4">
-                      We collect personal information that you provide directly to us, including:
+                      {tt('We collect personal information that you provide directly to us, including:')}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {[
@@ -178,10 +179,10 @@ export default function PrivacyPolicy() {
                   <div className="mb-8">
                     <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
                       <Database size={18} className="mr-2 text-blue-600" />
-                      2.2 Business Data
+                      {tt('2.2 Business Data')}
                     </h3>
                     <p className="text-gray-700 mb-4">
-                      When you use our Service, we may collect business-related data, including:
+                      {tt('When you use our Service, we may collect business-related data, including:')}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {[
@@ -205,10 +206,10 @@ export default function PrivacyPolicy() {
                   <div>
                     <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
                       <Eye size={18} className="mr-2 text-green-600" />
-                      2.3 Automatically Collected Information
+                      {tt('2.3 Automatically Collected Information')}
                     </h3>
                     <p className="text-gray-700 mb-4">
-                      We automatically collect certain information when you use our Service:
+                      {tt('We automatically collect certain information when you use our Service:')}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {[
@@ -234,10 +235,10 @@ export default function PrivacyPolicy() {
                     </h3>
                     <div className="prose prose-lg max-w-none text-gray-700 space-y-4">
                       <p className="leading-relaxed">
-                        The <strong>InsightBooks</strong> mobile app includes a <strong>Point of Sale (POS)</strong> workspace. When you choose to scan a product barcode or machine-readable code at checkout, the app may request permission to use your device&apos;s <strong>camera</strong>. That permission is used <strong>only when you actively open the scanner</strong> to capture barcodes or similar codes—not for continuous background recording or unrelated surveillance.
+                        {tt('The')} <strong>{tt('InsightBooks')}</strong> {tt('mobile app includes a')} <strong>Point of Sale (POS)</strong> workspace. When you choose to scan a product barcode or machine-readable code at checkout, the app may request permission to use your device&apos;s <strong>{tt('camera')}</strong>. That permission is used <strong>{tt('only when you actively open the scanner')}</strong> {tt('to capture barcodes or similar codes—not for continuous background recording or unrelated surveillance.')}
                       </p>
                       <p className="leading-relaxed">
-                        The camera feed is used <strong>on your device</strong> to read the code and match it to products or line items in your sale. We process the <strong>decoded scan result</strong> (for example, a SKU or barcode value) as part of your normal POS and inventory workflow. We do <strong>not</strong> upload or retain <strong>video recordings</strong> of your camera for this barcode feature on our servers.
+                        {tt('The camera feed is used')} <strong>{tt('on your device')}</strong> {tt('to read the code and match it to products or line items in your sale. We process the')} <strong>{tt('decoded scan result')}</strong> (for example, a SKU or barcode value) as part of your normal POS and inventory workflow. We do <strong>{tt('not')}</strong> {tt('upload or retain')} <strong>{tt('video recordings')}</strong> {tt('of your camera for this barcode feature on our servers.')}
                       </p>
                       <p className="leading-relaxed">
                         You can decline camera access and still use other POS actions (such as manual search or selection), though barcode scanning will not be available without permission. You may withdraw camera permission at any time in your device settings; the app will only request it again when you use a feature that requires the camera.
@@ -252,11 +253,11 @@ export default function PrivacyPolicy() {
                     <div className="bg-green-100 p-2 rounded-lg">
                       <Settings size={20} className="text-green-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">3. How We Use Your Information</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('3. How We Use Your Information')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4">
-                      We use the information we collect for the following purposes:
+                      {tt('We use the information we collect for the following purposes:')}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {[
@@ -283,11 +284,11 @@ export default function PrivacyPolicy() {
                     <div className="bg-orange-100 p-2 rounded-lg">
                       <Users size={20} className="text-orange-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">4. Information Sharing and Disclosure</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('4. Information Sharing and Disclosure')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4">
-                      We do not sell, trade, or rent your personal information to third parties. We may share your information in the following circumstances:
+                      {tt('We do not sell, trade, or rent your personal information to third parties. We may share your information in the following circumstances:')}
                     </p>
                     <div className="space-y-4">
                       {[
@@ -315,11 +316,11 @@ export default function PrivacyPolicy() {
                     <div className="bg-red-100 p-2 rounded-lg">
                       <Lock size={20} className="text-red-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">5. Data Security</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('5. Data Security')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4">
-                      We implement appropriate technical and organizational security measures to protect your information, including:
+                      {tt('We implement appropriate technical and organizational security measures to protect your information, including:')}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                       {[
@@ -352,11 +353,11 @@ export default function PrivacyPolicy() {
                     <div className="bg-gray-100 p-2 rounded-lg">
                       <Clock size={20} className="text-gray-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">6. Data Retention</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('6. Data Retention')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4">
-                      We retain your information for as long as necessary to:
+                      {tt('We retain your information for as long as necessary to:')}
                     </p>
                     <div className="space-y-3 mb-6">
                       {[
@@ -387,11 +388,11 @@ export default function PrivacyPolicy() {
                     <div className="bg-green-100 p-2 rounded-lg">
                       <CheckCircle size={20} className="text-green-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">7. Your Rights and Choices</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('7. Your Rights and Choices')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4">
-                      You have the following rights regarding your personal information:
+                      {tt('You have the following rights regarding your personal information:')}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {[
@@ -414,7 +415,7 @@ export default function PrivacyPolicy() {
                     </div>
                     <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-4">
                       <p className="text-green-800">
-                        To exercise these rights, please contact us using the information provided below.
+                        {tt('To exercise these rights, please contact us using the information provided below.')}
                       </p>
                     </div>
                   </div>
@@ -426,11 +427,11 @@ export default function PrivacyPolicy() {
                     <div className="bg-purple-100 p-2 rounded-lg">
                       <Eye size={20} className="text-purple-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">8. Cookies and Tracking Technologies</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('8. Cookies and Tracking Technologies')}</h2>
                   </div>
                   <div className="prose prose-lg max-w-none">
                     <p className="text-gray-700 mb-4">
-                      We use cookies and similar tracking technologies to:
+                      {tt('We use cookies and similar tracking technologies to:')}
                     </p>
                     <div className="space-y-3 mb-6">
                       {[
@@ -449,7 +450,7 @@ export default function PrivacyPolicy() {
                     </div>
                     <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                       <p className="text-purple-800">
-                        You can control cookies through your browser settings. However, disabling certain cookies may affect the functionality of our Service.
+                        {tt('You can control cookies through your browser settings. However, disabling certain cookies may affect the functionality of our Service.')}
                       </p>
                     </div>
                   </div>
@@ -461,7 +462,7 @@ export default function PrivacyPolicy() {
                     <div className="bg-blue-100 p-2 rounded-lg">
                       <Globe size={20} className="text-blue-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">9. Third-Party Services</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('9. Third-Party Services')}</h2>
                   </div>
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
                     <p className="text-gray-700">
@@ -476,7 +477,7 @@ export default function PrivacyPolicy() {
                     <div className="bg-pink-100 p-2 rounded-lg">
                       <Users size={20} className="text-pink-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">10. Children's Privacy</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt("10. Children's Privacy")}</h2>
                   </div>
                   <div className="bg-pink-50 border border-pink-200 rounded-lg p-6">
                     <p className="text-gray-700">
@@ -491,7 +492,7 @@ export default function PrivacyPolicy() {
                     <div className="bg-indigo-100 p-2 rounded-lg">
                       <Globe size={20} className="text-indigo-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">11. International Data Transfers</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('11. International Data Transfers')}</h2>
                   </div>
                   <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6">
                     <p className="text-gray-700">
@@ -506,7 +507,7 @@ export default function PrivacyPolicy() {
                     <div className="bg-yellow-100 p-2 rounded-lg">
                       <FileText size={20} className="text-yellow-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">12. Changes to This Policy</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('12. Changes to This Policy')}</h2>
                   </div>
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
                     <p className="text-gray-700">
@@ -521,11 +522,11 @@ export default function PrivacyPolicy() {
                     <div className="bg-green-100 p-2 rounded-lg">
                       <Mail size={20} className="text-green-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">13. Contact Information</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">{tt('13. Contact Information')}</h2>
                   </div>
                   <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6">
                     <p className="text-gray-700 mb-4">
-                      If you have any questions about this Privacy Policy or our data practices, please contact us:
+                      {tt('If you have any questions about this Privacy Policy or our data practices, please contact us:')}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="flex items-center space-x-3">
@@ -533,8 +534,8 @@ export default function PrivacyPolicy() {
                           <Mail size={16} className="text-green-600" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">Email</p>
-                          <p className="text-gray-700 text-sm">insightinnovationsltd@gmail.com</p>
+                          <p className="font-medium text-gray-900">{tt('Email')}</p>
+                          <p className="text-gray-700 text-sm">{tt('insightinnovationsltd@gmail.com')}</p>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
@@ -542,8 +543,8 @@ export default function PrivacyPolicy() {
                           <MapPin size={16} className="text-blue-600" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">Address</p>
-                          <p className="text-gray-700 text-sm">InsightBooks, Malawi</p>
+                          <p className="font-medium text-gray-900">{tt('Address')}</p>
+                          <p className="text-gray-700 text-sm">{tt('InsightBooks, Malawi')}</p>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
@@ -551,8 +552,8 @@ export default function PrivacyPolicy() {
                           <Shield size={16} className="text-purple-600" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">Data Protection Officer</p>
-                          <p className="text-gray-700 text-sm">Available upon request</p>
+                          <p className="font-medium text-gray-900">{tt('Data Protection Officer')}</p>
+                          <p className="text-gray-700 text-sm">{tt('Available upon request')}</p>
                         </div>
                       </div>
                     </div>
@@ -568,10 +569,10 @@ export default function PrivacyPolicy() {
                   </p>
                   <div className="flex space-x-6">
                     <Link href="/terms" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
-                      Terms of Service
+                      {tt('Terms of Service')}
                     </Link>
                     <Link href="/contact" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
-                      Contact Us
+                      {tt('Contact Us')}
                     </Link>
                   </div>
                 </div>

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -12,9 +13,9 @@ export default function TrainingProgramMaterialsTab() {
           ← Program
         </Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem' }}>Materials</h1>
+      <h1 style={{ fontSize: '1.25rem' }}>{tt('Materials')}</h1>
       <p style={{ color: '#555' }}>
-        Classification + private download boundary. UNKNOWN participants denied RESTRICTED.
+        {tt('Classification + private download boundary. UNKNOWN participants denied RESTRICTED.')}
       </p>
     </div>
   );

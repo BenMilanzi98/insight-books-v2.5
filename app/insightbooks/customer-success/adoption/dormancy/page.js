@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 
@@ -12,13 +13,12 @@ export default function CustomerSuccessAdoptionDormancyPage() {
         <Link href="/insightbooks/customer-success/adoption">← Adoption</Link>
       </p>
       <h1 style={{ fontSize: '1.35rem', marginBottom: '0.5rem' }}>
-        Dormancy Recovery
+        {tt('Dormancy Recovery')}
       </h1>
       <p style={{ color: '#555' }}>
-        Risk queue from Phase 9 <code>VALUE_THEN_INACTIVE</code> / inactive-class
+        {tt('Risk queue from Phase 9')} <code>{tt('VALUE_THEN_INACTIVE')}</code> / inactive-class
         signals. Analytics missing → <code>UNAVAILABLE</code> (not a healthy
-        zero). <code>RECOVERED</code> requires usage-return snapshot and/or
-        attested outreach. Phase 8 interventions are linked by id only.
+        zero). <code>RECOVERED</code> {tt('requires usage-return snapshot and/or attested outreach. Phase 8 interventions are linked by id only.')}
       </p>
     </div>
   );

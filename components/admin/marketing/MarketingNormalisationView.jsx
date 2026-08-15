@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -147,7 +148,7 @@ export default function MarketingNormalisationView() {
         description="Versioned rules map raw CRM capture strings to governed taxonomy. ACTIVE rules are immutable."
         actions={
           <button type="button" className={btnGhost} onClick={load} disabled={loading}>
-            Refresh
+            {tt('Refresh')}
           </button>
         }
       />
@@ -155,7 +156,7 @@ export default function MarketingNormalisationView() {
       <MarketingSectionNav />
 
       <section className="mb-8 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
-        <h2 className="mb-4 text-sm font-semibold text-[var(--admin-text)]">Create DRAFT rule</h2>
+        <h2 className="mb-4 text-sm font-semibold text-[var(--admin-text)]">{tt('Create DRAFT rule')}</h2>
         <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-2">
           <AdminField label="Rule code" htmlFor="rule-code" required>
             <AdminField.Input

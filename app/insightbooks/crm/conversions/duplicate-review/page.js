@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 
 
@@ -16,7 +17,7 @@ export default function ConversionDuplicateReviewPage() {
 
     <main style={{ padding: '1.5rem', maxWidth: 720 }}>
 
-      <h1>Conversion duplicate review</h1>
+      <h1>{tt('Conversion duplicate review')}</h1>
 
       <p>
 
@@ -30,13 +31,13 @@ export default function ConversionDuplicateReviewPage() {
 
       <ul>
 
-        <li>EXACT / HIGH_CONFIDENCE → link only</li>
+        <li>{tt('EXACT / HIGH_CONFIDENCE → link only')}</li>
 
-        <li>POSSIBLE_MATCH → block create</li>
+        <li>{tt('POSSIBLE_MATCH → block create')}</li>
 
-        <li>CONFLICT → escalate</li>
+        <li>{tt('CONFLICT → escalate')}</li>
 
-        <li>NO_MATCH → create allowed</li>
+        <li>{tt('NO_MATCH → create allowed')}</li>
 
       </ul>
 

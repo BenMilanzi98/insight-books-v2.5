@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar/Sidebar";
@@ -577,15 +578,15 @@ export default function HRReports() {
       <PosStylePanel className="p-6 mb-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <FileText size={24} className="text-blue-600" />
-          Employee Payslip Generator
+          {tt('Employee Payslip Generator')}
         </h2>
-        <p className="text-gray-600 mb-6">Generate, print, email, or export payslips for employees</p>
+        <p className="text-gray-600 mb-6">{tt('Generate, print, email, or export payslips for employees')}</p>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           {/* Month Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Month <span className="text-red-500">*</span>
+              {tt('Month')} <span className="text-red-500">*</span>
             </label>
             <select
               value={payslipMonth}
@@ -593,26 +594,26 @@ export default function HRReports() {
               className="w-full p-2.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             >
-              <option value="">Select Month</option>
-              <option value="1">January</option>
-              <option value="2">February</option>
-              <option value="3">March</option>
-              <option value="4">April</option>
-              <option value="5">May</option>
-              <option value="6">June</option>
-              <option value="7">July</option>
-              <option value="8">August</option>
-              <option value="9">September</option>
-              <option value="10">October</option>
-              <option value="11">November</option>
-              <option value="12">December</option>
+              <option value="">{tt('Select Month')}</option>
+              <option value="1">{tt('January')}</option>
+              <option value="2">{tt('February')}</option>
+              <option value="3">{tt('March')}</option>
+              <option value="4">{tt('April')}</option>
+              <option value="5">{tt('May')}</option>
+              <option value="6">{tt('June')}</option>
+              <option value="7">{tt('July')}</option>
+              <option value="8">{tt('August')}</option>
+              <option value="9">{tt('September')}</option>
+              <option value="10">{tt('October')}</option>
+              <option value="11">{tt('November')}</option>
+              <option value="12">{tt('December')}</option>
             </select>
           </div>
 
           {/* Year Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Year <span className="text-red-500">*</span>
+              {tt('Year')} <span className="text-red-500">*</span>
             </label>
             <input
               type="number"
@@ -628,7 +629,7 @@ export default function HRReports() {
           {/* Employee Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Employee <span className="text-red-500">*</span>
+              {tt('Employee')} <span className="text-red-500">*</span>
             </label>
             <select
               value={selectedPayslipEmployee}
@@ -637,7 +638,7 @@ export default function HRReports() {
               className="w-full p-2.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
               required
             >
-              <option value="">Select Employee</option>
+              <option value="">{tt('Select Employee')}</option>
               {employees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
                   {employee.employeeId || employee.id.substring(0, 8)} - {employee.name}
@@ -647,7 +648,7 @@ export default function HRReports() {
             {loadingEmployees && (
               <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                 <Loader2 size={12} className="animate-spin" />
-                Loading employees...
+                {tt('Loading employees...')}
               </p>
             )}
           </div>
@@ -663,12 +664,12 @@ export default function HRReports() {
             {generatingPayslip ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                Generating...
+                {tt('Generating...')}
               </>
             ) : (
               <>
                 <Printer size={18} />
-                Print Payslip
+                {tt('Print Payslip')}
               </>
             )}
           </button>
@@ -681,12 +682,12 @@ export default function HRReports() {
             {generatingPayslip ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                Generating...
+                {tt('Generating...')}
               </>
             ) : (
               <>
                 <Download size={18} />
-                Export PDF
+                {tt('Export PDF')}
               </>
             )}
           </button>
@@ -699,12 +700,12 @@ export default function HRReports() {
             {sendingEmail ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                Sending...
+                {tt('Sending...')}
               </>
             ) : (
               <>
                 <Mail size={18} />
-                Send via Email
+                {tt('Send via Email')}
               </>
             )}
           </button>
@@ -744,7 +745,7 @@ export default function HRReports() {
       <PosStylePanel className="p-6 mb-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <BarChart3 size={20} />
-          Select Report Type
+          {tt('Select Report Type')}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {reportTypes.map((report) => {
@@ -794,7 +795,7 @@ export default function HRReports() {
         <PosStylePanel className="p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <Filter size={20} />
-            Report Filters
+            {tt('Report Filters')}
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -803,7 +804,7 @@ export default function HRReports() {
               <div className="md:col-span-2 lg:col-span-3">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">Date Range</p>
+                    <p className="text-sm font-semibold text-gray-900">{tt('Date Range')}</p>
                     <p className="text-xs text-gray-500">Calendar-aligned periods (month/quarter/year) or custom range.</p>
                   </div>
                   <UniversalDateRangeFilter
@@ -829,7 +830,7 @@ export default function HRReports() {
                   disabled={loadingEmployees}
                   className="w-full p-2.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                 >
-                  <option value="">All Employees</option>
+                  <option value="">{tt('All Employees')}</option>
                   {employees.map((employee) => (
                     <option key={employee.id} value={employee.id}>
                       {employee.employeeId || employee.id.substring(0, 8)} - {employee.name}
@@ -839,7 +840,7 @@ export default function HRReports() {
                 {loadingEmployees && (
                   <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                     <Loader2 size={12} className="animate-spin" />
-                    Loading employees...
+                    {tt('Loading employees...')}
                   </p>
                 )}
               </div>
@@ -856,7 +857,7 @@ export default function HRReports() {
                   onChange={(e) => setSelectedDepartment(e.target.value)}
                   className="w-full p-2.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                 >
-                  <option value="">All Departments</option>
+                  <option value="">{tt('All Departments')}</option>
                   {departments.map((dept) => (
                     <option key={dept.id} value={dept.id}>
                       {dept.name}
@@ -871,7 +872,7 @@ export default function HRReports() {
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date *
+                    {tt('Start Date *')}
                   </label>
                   <input
                     type="date"
@@ -882,7 +883,7 @@ export default function HRReports() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    End Date *
+                    {tt('End Date *')}
                   </label>
                   <input
                     type="date"
@@ -901,7 +902,7 @@ export default function HRReports() {
       {/* Export Format Selection */}
       {reportType && (
         <PosStylePanel className="p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Export Format</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">{tt('Export Format')}</h2>
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => setExportFormat('pdf')}
@@ -923,7 +924,7 @@ export default function HRReports() {
               }`}
             >
               <FileSpreadsheet size={18} />
-              Excel
+              {tt('Excel')}
             </button>
           </div>
         </PosStylePanel>
@@ -934,7 +935,7 @@ export default function HRReports() {
         <PosStylePanel className="p-6 mb-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h3 className="font-semibold text-gray-900 mb-1">Ready to Generate Report</h3>
+              <h3 className="font-semibold text-gray-900 mb-1">{tt('Ready to Generate Report')}</h3>
               <p className="text-sm text-gray-600">
                 {selectedReportType?.name}
                 {startDate && endDate && ` from ${formatDate(startDate)} to ${formatDate(endDate)}`}
@@ -951,12 +952,12 @@ export default function HRReports() {
                 {previewLoading ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    Loading...
+                    {tt('Loading...')}
                   </>
                 ) : (
                   <>
                     <Eye size={18} />
-                    Preview
+                    {tt('Preview')}
                   </>
                 )}
               </button>
@@ -968,12 +969,12 @@ export default function HRReports() {
                 {generating ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    Generating...
+                    {tt('Generating...')}
                   </>
                 ) : (
                   <>
                     <Download size={18} />
-                    Generate & Download
+                    {tt('Generate & Download')}
                   </>
                 )}
               </button>
@@ -987,7 +988,7 @@ export default function HRReports() {
         <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold">Report Preview</h2>
+              <h2 className="text-xl font-bold">{tt('Report Preview')}</h2>
               <button
                 onClick={() => {
                   setShowPreview(false);
@@ -1009,7 +1010,7 @@ export default function HRReports() {
                 }}
                 className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
               >
-                Close
+                {tt('Close')}
               </button>
               <button
                 onClick={() => {
@@ -1019,7 +1020,7 @@ export default function HRReports() {
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
               >
                 <Download size={18} />
-                Download Report
+                {tt('Download Report')}
               </button>
             </div>
           </div>
@@ -1030,44 +1031,44 @@ export default function HRReports() {
       <div className="mt-6 bg-white border border-gray-200 rounded-lg p-6">
         <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <Info size={20} />
-          Report Information
+          {tt('Report Information')}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
           <div>
-            <h4 className="font-semibold text-gray-900 mb-2">Available Reports:</h4>
+            <h4 className="font-semibold text-gray-900 mb-2">{tt('Available Reports:')}</h4>
             <ul className="space-y-1.5">
               <li className="flex items-start">
                 <span className="mr-2 text-blue-600">•</span>
-                <span><strong>Employee Payslips:</strong> Individual employee payslips with detailed breakdown of salary, deductions, and net pay</span>
+                <span><strong>{tt('Employee Payslips:')}</strong> {tt('Individual employee payslips with detailed breakdown of salary, deductions, and net pay')}</span>
               </li>
               <li className="flex items-start">
                 <span className="mr-2 text-green-600">•</span>
-                <span><strong>Statutory Remittances:</strong> Summary of PAYE and NPS contributions for tax authority submission</span>
+                <span><strong>{tt('Statutory Remittances:')}</strong> {tt('Summary of PAYE and NPS contributions for tax authority submission')}</span>
               </li>
               <li className="flex items-start">
                 <span className="mr-2 text-blue-600">•</span>
-                <span><strong>Payroll Summary:</strong> Complete payroll breakdown including all employees and totals</span>
+                <span><strong>{tt('Payroll Summary:')}</strong> {tt('Complete payroll breakdown including all employees and totals')}</span>
               </li>
             </ul>
           </div>
           <div>
-            <h4 className="font-semibold text-gray-900 mb-2">Additional Reports:</h4>
+            <h4 className="font-semibold text-gray-900 mb-2">{tt('Additional Reports:')}</h4>
             <ul className="space-y-1.5">
               <li className="flex items-start">
                 <span className="mr-2 text-orange-600">•</span>
-                <span><strong>Attendance Report:</strong> Employee attendance records, hours worked, and overtime</span>
+                <span><strong>{tt('Attendance Report:')}</strong> {tt('Employee attendance records, hours worked, and overtime')}</span>
               </li>
               <li className="flex items-start">
                 <span className="mr-2 text-sky-600">•</span>
-                <span><strong>Employee Summary:</strong> Comprehensive employee information and statistics</span>
+                <span><strong>{tt('Employee Summary:')}</strong> {tt('Comprehensive employee information and statistics')}</span>
               </li>
               <li className="flex items-start">
                 <span className="mr-2 text-teal-600">•</span>
-                <span><strong>Department Report:</strong> Department-wise employee and payroll analysis</span>
+                <span><strong>{tt('Department Report:')}</strong> {tt('Department-wise employee and payroll analysis')}</span>
               </li>
               <li className="flex items-start">
                 <span className="mr-2 text-yellow-600">•</span>
-                <span><strong>PAYE Summary (MRA):</strong> Detailed PAYE breakdown by employee for MRA settlement - <a href="/hr/payroll/paye-summary" className="text-blue-600 underline hover:text-blue-800">View Here</a></span>
+                <span><strong>PAYE Summary (MRA):</strong> {tt('Detailed PAYE breakdown by employee for MRA settlement -')} <a href="/hr/payroll/paye-summary" className="text-blue-600 underline hover:text-blue-800">{tt('View Here')}</a></span>
               </li>
             </ul>
           </div>
@@ -1080,13 +1081,13 @@ export default function HRReports() {
 
 // Preview Component
 function ReportPreviewContent({ reportType, data }) {
-  if (!data) return <div>No preview data available</div>;
+  if (!data) return <div>{tt('No preview data available')}</div>;
 
   switch (reportType) {
     case 'payslips':
       return (
         <div>
-          <h3 className="text-lg font-semibold mb-4">Payslips Preview</h3>
+          <h3 className="text-lg font-semibold mb-4">{tt('Payslips Preview')}</h3>
           {data.payslips && Array.isArray(data.payslips) && data.payslips.length > 0 ? (
             <div className="space-y-4">
               {data.payslips.map((payslip, idx) => (
@@ -1110,19 +1111,19 @@ function ReportPreviewContent({ reportType, data }) {
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm mt-3 pt-3 border-t border-gray-200">
                     <div>
-                      <span className="text-gray-600">Gross Pay:</span>
+                      <span className="text-gray-600">{tt('Gross Pay:')}</span>
                       <span className="ml-2 font-medium">{formatCurrency(payslip.earnings?.grossPay || payslip.grossPay || 0)}</span>
                     </div>
                     <div>
-                      <span className="text-gray-600">PAYE:</span>
+                      <span className="text-gray-600">{tt('PAYE:')}</span>
                       <span className="ml-2 font-medium">{formatCurrency(payslip.deductions?.paye || 0)}</span>
                     </div>
                     <div>
-                      <span className="text-gray-600">NPS:</span>
+                      <span className="text-gray-600">{tt('NPS:')}</span>
                       <span className="ml-2 font-medium">{formatCurrency(payslip.deductions?.npsEmployee || 0)}</span>
                     </div>
                     <div>
-                      <span className="text-gray-600">Total Deductions:</span>
+                      <span className="text-gray-600">{tt('Total Deductions:')}</span>
                       <span className="ml-2 font-medium">{formatCurrency(payslip.deductions?.totalDeductions || 0)}</span>
                     </div>
                   </div>
@@ -1130,22 +1131,22 @@ function ReportPreviewContent({ reportType, data }) {
               ))}
               {data.summary && (
                 <div className="mt-4 pt-4 border-t border-gray-300">
-                  <h4 className="font-semibold mb-2">Summary</h4>
+                  <h4 className="font-semibold mb-2">{tt('Summary')}</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
-                      <p className="text-sm text-gray-600">Total Employees</p>
+                      <p className="text-sm text-gray-600">{tt('Total Employees')}</p>
                       <p className="text-lg font-bold">{data.summary.totalEmployees || 0}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Total Gross Pay</p>
+                      <p className="text-sm text-gray-600">{tt('Total Gross Pay')}</p>
                       <p className="text-lg font-bold">{formatCurrency(data.summary.totalGrossPay || 0)}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Total Net Pay</p>
+                      <p className="text-sm text-gray-600">{tt('Total Net Pay')}</p>
                       <p className="text-lg font-bold text-green-600">{formatCurrency(data.summary.totalNetPay || 0)}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Total Deductions</p>
+                      <p className="text-sm text-gray-600">{tt('Total Deductions')}</p>
                       <p className="text-lg font-bold text-red-600">
                         {formatCurrency((data.summary.totalPAYE || 0) + (data.summary.totalNPS || 0))}
                       </p>
@@ -1155,7 +1156,7 @@ function ReportPreviewContent({ reportType, data }) {
               )}
             </div>
           ) : (
-            <p className="text-gray-600">No payslips found for the selected period</p>
+            <p className="text-gray-600">{tt('No payslips found for the selected period')}</p>
           )}
         </div>
       );
@@ -1163,24 +1164,24 @@ function ReportPreviewContent({ reportType, data }) {
     case 'statutory':
       return (
         <div>
-          <h3 className="text-lg font-semibold mb-4">Statutory Remittances Preview</h3>
+          <h3 className="text-lg font-semibold mb-4">{tt('Statutory Remittances Preview')}</h3>
           {data.summary && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-blue-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Total Employees</p>
+                  <p className="text-sm text-gray-600">{tt('Total Employees')}</p>
                   <p className="text-2xl font-bold text-blue-600">{data.summary.totalEmployees || 0}</p>
                 </div>
                 <div className="bg-green-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Total PAYE</p>
+                  <p className="text-sm text-gray-600">{tt('Total PAYE')}</p>
                   <p className="text-2xl font-bold text-green-600">{formatCurrency(data.summary.totalPAYE || 0)}</p>
                 </div>
                 <div className="bg-sky-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Total NPS</p>
+                  <p className="text-sm text-gray-600">{tt('Total NPS')}</p>
                   <p className="text-2xl font-bold text-sky-600">{formatCurrency(data.summary.totalNPS || 0)}</p>
                 </div>
                 <div className="bg-orange-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Total Statutory</p>
+                  <p className="text-sm text-gray-600">{tt('Total Statutory')}</p>
                   <p className="text-2xl font-bold text-orange-600">{formatCurrency(data.summary.totalStatutory || 0)}</p>
                 </div>
               </div>
@@ -1192,24 +1193,24 @@ function ReportPreviewContent({ reportType, data }) {
     case 'payroll':
       return (
         <div>
-          <h3 className="text-lg font-semibold mb-4">Payroll Summary Preview</h3>
+          <h3 className="text-lg font-semibold mb-4">{tt('Payroll Summary Preview')}</h3>
           {data.summary && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-blue-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Total Employees</p>
+                  <p className="text-sm text-gray-600">{tt('Total Employees')}</p>
                   <p className="text-2xl font-bold text-blue-600">{data.summary.totalEmployees || 0}</p>
                 </div>
                 <div className="bg-green-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Total Gross Pay</p>
+                  <p className="text-sm text-gray-600">{tt('Total Gross Pay')}</p>
                   <p className="text-2xl font-bold text-green-600">{formatCurrency(data.summary.totalGrossPay || 0)}</p>
                 </div>
                 <div className="bg-red-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Total Deductions</p>
+                  <p className="text-sm text-gray-600">{tt('Total Deductions')}</p>
                   <p className="text-2xl font-bold text-red-600">{formatCurrency(data.summary.totalDeductions || 0)}</p>
                 </div>
                 <div className="bg-blue-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Total Net Pay</p>
+                  <p className="text-sm text-gray-600">{tt('Total Net Pay')}</p>
                   <p className="text-2xl font-bold text-blue-600">{formatCurrency(data.summary.totalNetPay || 0)}</p>
                 </div>
               </div>
@@ -1217,7 +1218,7 @@ function ReportPreviewContent({ reportType, data }) {
               {/* Show individual employee payrolls when available */}
               {data.employeePayrolls && data.employeePayrolls.length > 0 && (
                 <div className="mt-6">
-                  <h4 className="font-semibold mb-3">Employee Payroll Details</h4>
+                  <h4 className="font-semibold mb-3">{tt('Employee Payroll Details')}</h4>
                   <div className="space-y-3">
                     {data.employeePayrolls.map((empPayroll, idx) => (
                       <div key={idx} className="border border-gray-200 rounded-lg p-4">
@@ -1233,24 +1234,24 @@ function ReportPreviewContent({ reportType, data }) {
                             <p className="font-semibold text-green-600">
                               {formatCurrency(empPayroll.totals?.netPay || 0)}
                             </p>
-                            <p className="text-xs text-gray-500">Net Pay</p>
+                            <p className="text-xs text-gray-500">{tt('Net Pay')}</p>
                           </div>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm mt-3 pt-3 border-t border-gray-100">
                           <div>
-                            <span className="text-gray-600">Basic Salary:</span>
+                            <span className="text-gray-600">{tt('Basic Salary:')}</span>
                             <span className="ml-2 font-medium">{formatCurrency(empPayroll.totals?.basicSalary || 0)}</span>
                           </div>
                           <div>
-                            <span className="text-gray-600">Additions:</span>
+                            <span className="text-gray-600">{tt('Additions:')}</span>
                             <span className="ml-2 font-medium">{formatCurrency(empPayroll.totals?.additions || 0)}</span>
                           </div>
                           <div>
-                            <span className="text-gray-600">Gross Pay:</span>
+                            <span className="text-gray-600">{tt('Gross Pay:')}</span>
                             <span className="ml-2 font-medium">{formatCurrency(empPayroll.totals?.grossPay || 0)}</span>
                           </div>
                           <div>
-                            <span className="text-gray-600">Deductions:</span>
+                            <span className="text-gray-600">{tt('Deductions:')}</span>
                             <span className="ml-2 font-medium text-red-600">{formatCurrency(empPayroll.totals?.deductions || 0)}</span>
                           </div>
                         </div>
@@ -1263,7 +1264,7 @@ function ReportPreviewContent({ reportType, data }) {
               {/* Show individual payroll records */}
               {data.allPayrolls && data.allPayrolls.length > 0 && !data.employeePayrolls?.length && (
                 <div className="mt-6">
-                  <h4 className="font-semibold mb-3">Payroll Records</h4>
+                  <h4 className="font-semibold mb-3">{tt('Payroll Records')}</h4>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {data.allPayrolls.map((payroll, idx) => (
                       <div key={idx} className="border border-gray-200 rounded p-3 text-sm">
@@ -1293,30 +1294,30 @@ function ReportPreviewContent({ reportType, data }) {
     case 'attendance':
       return (
         <div>
-          <h3 className="text-lg font-semibold mb-4">Attendance Report Preview</h3>
+          <h3 className="text-lg font-semibold mb-4">{tt('Attendance Report Preview')}</h3>
           {data.summary && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-blue-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Total Records</p>
+                  <p className="text-sm text-gray-600">{tt('Total Records')}</p>
                   <p className="text-2xl font-bold text-blue-600">{data.summary.totalRecords || 0}</p>
                 </div>
                 <div className="bg-green-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Present Days</p>
+                  <p className="text-sm text-gray-600">{tt('Present Days')}</p>
                   <p className="text-2xl font-bold text-green-600">{data.summary.totalPresent || 0}</p>
                 </div>
                 <div className="bg-red-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Absent Days</p>
+                  <p className="text-sm text-gray-600">{tt('Absent Days')}</p>
                   <p className="text-2xl font-bold text-red-600">{data.summary.totalAbsent || 0}</p>
                 </div>
                 <div className="bg-sky-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Total Hours</p>
+                  <p className="text-sm text-gray-600">{tt('Total Hours')}</p>
                   <p className="text-2xl font-bold text-sky-600">{data.summary.totalHours || 0}</p>
                 </div>
               </div>
               {data.employeeStatistics && data.employeeStatistics.length > 0 && (
                 <div className="mt-4">
-                  <h4 className="font-semibold mb-2">Employee Statistics</h4>
+                  <h4 className="font-semibold mb-2">{tt('Employee Statistics')}</h4>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {data.employeeStatistics.slice(0, 5).map((stat, idx) => (
                       <div key={idx} className="border border-gray-200 rounded p-2 text-sm">
@@ -1340,28 +1341,28 @@ function ReportPreviewContent({ reportType, data }) {
     case 'employee-summary':
       return (
         <div>
-          <h3 className="text-lg font-semibold mb-4">Employee Summary Preview</h3>
+          <h3 className="text-lg font-semibold mb-4">{tt('Employee Summary Preview')}</h3>
           {data.employees && Array.isArray(data.employees) && data.employees.length > 0 ? (
             <div className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div className="bg-blue-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Total Employees</p>
+                  <p className="text-sm text-gray-600">{tt('Total Employees')}</p>
                   <p className="text-2xl font-bold text-blue-600">{data.employees.length}</p>
                 </div>
                 <div className="bg-green-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Active</p>
+                  <p className="text-sm text-gray-600">{tt('Active')}</p>
                   <p className="text-2xl font-bold text-green-600">
                     {data.employees.filter(e => e.status === 'Active').length}
                   </p>
                 </div>
                 <div className="bg-sky-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Departments</p>
+                  <p className="text-sm text-gray-600">{tt('Departments')}</p>
                   <p className="text-2xl font-bold text-sky-600">
                     {new Set(data.employees.map(e => e.department).filter(Boolean)).size}
                   </p>
                 </div>
                 <div className="bg-orange-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600">Avg Salary</p>
+                  <p className="text-sm text-gray-600">{tt('Avg Salary')}</p>
                   <p className="text-2xl font-bold text-orange-600">
                     {formatCurrency(
                       data.employees.reduce((sum, e) => sum + (e.salary || 0), 0) / data.employees.length || 0
@@ -1394,7 +1395,7 @@ function ReportPreviewContent({ reportType, data }) {
               </div>
             </div>
           ) : (
-            <p className="text-gray-600">No employee data found</p>
+            <p className="text-gray-600">{tt('No employee data found')}</p>
           )}
         </div>
       );
@@ -1402,7 +1403,7 @@ function ReportPreviewContent({ reportType, data }) {
     case 'department':
       return (
         <div>
-          <h3 className="text-lg font-semibold mb-4">Department Report Preview</h3>
+          <h3 className="text-lg font-semibold mb-4">{tt('Department Report Preview')}</h3>
           {data.departments && Array.isArray(data.departments) && data.departments.length > 0 ? (
             <div className="space-y-4">
               {data.departments.map((dept, idx) => (
@@ -1414,14 +1415,14 @@ function ReportPreviewContent({ reportType, data }) {
                     </div>
                     {dept.averageSalary && (
                       <div className="text-right">
-                        <p className="text-sm text-gray-600">Avg Salary</p>
+                        <p className="text-sm text-gray-600">{tt('Avg Salary')}</p>
                         <p className="font-semibold">{formatCurrency(dept.averageSalary)}</p>
                       </div>
                     )}
                   </div>
                   {dept.employees && dept.employees.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-gray-200">
-                      <p className="text-xs text-gray-500 mb-1">Sample employees:</p>
+                      <p className="text-xs text-gray-500 mb-1">{tt('Sample employees:')}</p>
                       <div className="flex flex-wrap gap-2">
                         {dept.employees.slice(0, 5).map((emp, empIdx) => (
                           <span key={empIdx} className="text-xs bg-gray-100 px-2 py-1 rounded">
@@ -1438,7 +1439,7 @@ function ReportPreviewContent({ reportType, data }) {
               ))}
             </div>
           ) : (
-            <p className="text-gray-600">No department data found</p>
+            <p className="text-gray-600">{tt('No department data found')}</p>
           )}
         </div>
       );
@@ -1446,9 +1447,9 @@ function ReportPreviewContent({ reportType, data }) {
     default:
       return (
         <div>
-          <h3 className="text-lg font-semibold mb-4">Report Preview</h3>
+          <h3 className="text-lg font-semibold mb-4">{tt('Report Preview')}</h3>
           <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-gray-600">Preview not available for this report type. Please generate the report to view.</p>
+            <p className="text-gray-600">{tt('Preview not available for this report type. Please generate the report to view.')}</p>
           </div>
         </div>
       );

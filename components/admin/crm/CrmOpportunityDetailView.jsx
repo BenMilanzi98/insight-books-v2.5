@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -263,7 +264,7 @@ export default function CrmOpportunityDetailView({ opportunityId }) {
                   <option value="COMPETITOR">COMPETITOR</option>
                   <option value="NO_DECISION">NO_DECISION</option>
                   <option value="TIMING">TIMING</option>
-                  <option value="REQUIREMENTS_MISMATCH">REQUIREMENTS_MISMATCH</option>
+                  <option value="REQUIREMENTS_MISMATCH">{tt('REQUIREMENTS_MISMATCH')}</option>
                   <option value="OTHER">OTHER</option>
                 </select>
               </label>

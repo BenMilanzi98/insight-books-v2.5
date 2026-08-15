@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/shell/PageHeader";
@@ -119,7 +120,7 @@ export default function TaxReturnsPage() {
                   onClick={() => runAction("ready", r.id)}
                   className="text-sm text-[var(--brand-primary)] hover:underline"
                 >
-                  Mark ready
+                  {tt('Mark ready')}
                 </button>
                 <button
                   type="button"
@@ -127,7 +128,7 @@ export default function TaxReturnsPage() {
                   onClick={() => runAction("file", r.id)}
                   className="text-sm text-[var(--brand-primary)] hover:underline"
                 >
-                  File
+                  {tt('File')}
                 </button>
               </>
             ) : null}
@@ -138,7 +139,7 @@ export default function TaxReturnsPage() {
                 onClick={() => runAction("file", r.id)}
                 className="text-sm text-[var(--brand-primary)] hover:underline"
               >
-                File
+                {tt('File')}
               </button>
             ) : null}
             {r.status === "FILED" ? (
@@ -152,7 +153,7 @@ export default function TaxReturnsPage() {
                 }
                 className="text-sm text-[var(--brand-primary)] hover:underline"
               >
-                Amend
+                {tt('Amend')}
               </button>
             ) : null}
           </div>
@@ -173,7 +174,7 @@ export default function TaxReturnsPage() {
                 value={periodId}
                 onChange={(e) => setPeriodId(e.target.value)}
               >
-                <option value="">Select period…</option>
+                <option value="">{tt('Select period…')}</option>
                 {periods.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.code} ({p.status})
@@ -186,7 +187,7 @@ export default function TaxReturnsPage() {
                 onClick={createDraft}
                 className="rounded-[var(--radius-sm)] bg-[var(--brand-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
-                New draft return
+                {tt('New draft return')}
               </button>
             </div>
           ) : null

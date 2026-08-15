@@ -1,78 +1,115 @@
-### Task 4: Hirings workspace (Customer + Supplier tabs)
+### Task 4: Prisma `DesktopDevice` + `DesktopOutboxReceipt`
 
 **Files:**
-- Create: `components/rentals/InboundHiringPanel.jsx` (move client UI from inbound page)
-- Create/Replace: `app/rentals/hirings/page.js`
-- Replace: `app/rentals/hiring/page.js` → redirect
-- Replace: `app/rentals/inbound-hiring/page.js` → redirect after extract
-- Reuse: `app/rentals/RentalsClient.js` with `mode="hiring"`
+- Modify: `prisma/schema.prisma` (Tenant relations + two new models)
+- Create: `prisma/migrations/20260815120000_desktop_device/migration.sql`
 
 **Interfaces:**
-- Consumes: `?tab=customer|supplier` (default `customer`)
-- Produces: single page with two tabs; supplier panel uses existing `/api/hiring-v2/*`
+- Produces Prisma models:
 
-- [ ] **Step 1: Extract inbound UI**
+```prisma
+model DesktopDevice {
+  id              String    @id @default(cuid())
+  tenantId        String
+  deviceId        String
+  name            String
+  numberPrefix    String
+  boundAt         DateTime  @default(now())
+  unboundAt       DateTime?
+  lastHeartbeatAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  receipts        DesktopOutboxReceipt[]
 
-Move the client component body from `app/rentals/inbound-hiring/page.js` into `components/rentals/InboundHiringPanel.jsx` as `export default function InboundHiringPanel()`. Keep API calls identical.
+  @@unique([deviceId])
+  @@index([tenantId, unboundAt])
+  @@index([tenantId, numberPrefix])
+}
 
-- [ ] **Step 2: Build `app/rentals/hirings/page.js`**
+model DesktopOutboxReceipt {
+  id             String   @id
+  tenantId       String
+  deviceId       String
+  kind           String
+  serverEntityId String?
+  resultJson     Json
+  createdAt      DateTime @default(now())
+  device         DesktopDevice @relation(fields: [deviceId], references: [deviceId], onDelete: Cascade)
 
-Client page pattern:
-
-```jsx
-'use client';
-import { useMemo } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import PermissionGuard from '@/components/PermissionGuard';
-import PosStylePageHeader from '@/components/shell/PosStylePageHeader';
-import RentalsClient from '../RentalsClient';
-import InboundHiringPanel from '@/components/rentals/InboundHiringPanel';
-
-export default function HiringsPage() {
-  const search = useSearchParams();
-  const router = useRouter();
-  const tab = search.get('tab') === 'supplier' ? 'supplier' : 'customer';
-
-  const setTab = (next) => {
-    router.replace(`/rentals/hirings?tab=${next}`);
-  };
-
-  return (
-    <PermissionGuard permissions={['rentals.view']}>
-      <div className="w-full p-4 sm:p-6">
-        <PosStylePageHeader
-          title="Hirings"
-          subtitle="Customer hire (outbound) and supplier hire (inbound)"
-        />
-        <div className="flex gap-2 mb-4">
-          <button type="button" onClick={() => setTab('customer')} className={tab === 'customer' ? 'font-semibold' : ''}>
-            Customer hire
-          </button>
-          <button type="button" onClick={() => setTab('supplier')} className={tab === 'supplier' ? 'font-semibold' : ''}>
-            Supplier hire
-          </button>
-        </div>
-        {tab === 'customer' ? <RentalsClient mode="hiring" embedded /> : <InboundHiringPanel />}
-      </div>
-    </PermissionGuard>
-  );
+  @@unique([tenantId, id])
+  @@index([tenantId])
 }
 ```
 
-If `RentalsClient` always renders its own full page chrome, add optional `embedded` prop to suppress duplicate title when true (minimal change: hide outer H1 when `embedded`).
+Add `desktopDevices DesktopDevice[]` on `Tenant`.
 
-Wrap with `Suspense` for `useSearchParams` if Next requires it.
+One-active-device is **application-enforced** (query `unboundAt: null`), not a unique constraint, so a tenant can re-bind after unbind and reuse `TILL1`.
 
-- [ ] **Step 3: Redirects from old pages**
+- [ ] **Step 1: Write a schema smoke test**
 
-`hiring/page.js` and `inbound-hiring/page.js` become server redirects.
+Create `test/desktop/schemaModels.test.js`:
 
-- [ ] **Step 4: Smoke check**
+```js
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-- Customer tab books → invoice with `isRentalInvoice` appears on `/invoices`.
-- Supplier tab lists requests — no customer invoice created.
+describe('DesktopDevice schema', () => {
+  const schema = readFileSync(join(process.cwd(), 'prisma/schema.prisma'), 'utf8');
+  it('declares DesktopDevice and DesktopOutboxReceipt', () => {
+    expect(schema).toMatch(/model DesktopDevice/);
+    expect(schema).toMatch(/model DesktopOutboxReceipt/);
+    expect(schema).toMatch(/desktopDevices\s+DesktopDevice\[\]/);
+  });
+});
+```
 
-- [ ] **Step 5: Commit only if user asked**
+- [ ] **Step 2: Run test (fail), then add models + SQL, then pass**
+
+Migration SQL:
+
+```sql
+CREATE TABLE "DesktopDevice" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "deviceId" TEXT NOT NULL,
+  "name" TEXT NOT NULL,
+  "numberPrefix" TEXT NOT NULL,
+  "boundAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "unboundAt" TIMESTAMP(3),
+  "lastHeartbeatAt" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "DesktopDevice_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "DesktopDevice_deviceId_key" ON "DesktopDevice"("deviceId");
+CREATE INDEX "DesktopDevice_tenantId_unboundAt_idx" ON "DesktopDevice"("tenantId", "unboundAt");
+CREATE INDEX "DesktopDevice_tenantId_numberPrefix_idx" ON "DesktopDevice"("tenantId", "numberPrefix");
+ALTER TABLE "DesktopDevice" ADD CONSTRAINT "DesktopDevice_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+CREATE TABLE "DesktopOutboxReceipt" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "deviceId" TEXT NOT NULL,
+  "kind" TEXT NOT NULL,
+  "serverEntityId" TEXT,
+  "resultJson" JSONB NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "DesktopOutboxReceipt_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "DesktopOutboxReceipt_tenantId_id_key" ON "DesktopOutboxReceipt"("tenantId", "id");
+CREATE INDEX "DesktopOutboxReceipt_tenantId_idx" ON "DesktopOutboxReceipt"("tenantId");
+ALTER TABLE "DesktopOutboxReceipt" ADD CONSTRAINT "DesktopOutboxReceipt_deviceId_fkey" FOREIGN KEY ("deviceId") REFERENCES "DesktopDevice"("deviceId") ON DELETE CASCADE ON UPDATE CASCADE;
+```
+
+- [ ] **Step 3: Generate client**
+
+Run: `npx prisma generate`
+
+Expected: client includes `desktopDevice` / `desktopOutboxReceipt`.
+
+- [ ] **Step 4: Commit** (skip unless asked)
 
 ---
 

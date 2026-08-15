@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { Crown, Lock, ArrowRight, Star } from 'lucide-react';
 
 const PremiumFeatureBlock = ({ 
@@ -42,14 +43,14 @@ const PremiumFeatureBlock = ({
         <div className="bg-white border border-blue-100 rounded-lg p-4 mb-6">
           <div className="flex items-center justify-center space-x-2 text-sm text-blue-700">
             <Lock className="h-4 w-4" />
-            <span className="font-medium">Upgrade Required</span>
+            <span className="font-medium">{tt('Upgrade Required')}</span>
           </div>
         </div>
 
         {/* Benefits List */}
         <div className="text-left mb-6">
           <h4 className="font-semibold text-gray-900 mb-3 text-center">
-            Premium Plan includes:
+            {tt('Premium Plan includes:')}
           </h4>
           <ul className="space-y-2 text-sm text-gray-600">
             <li className="flex items-center">
@@ -58,27 +59,27 @@ const PremiumFeatureBlock = ({
             </li>
             <li className="flex items-center">
               <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-3"></div>
-              Inventory Tracking
+              {tt('Inventory Tracking')}
             </li>
             <li className="flex items-center">
               <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-3"></div>
-              Expenses Tracking
+              {tt('Expenses Tracking')}
             </li>
             <li className="flex items-center">
               <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-3"></div>
-              Invoices
+              {tt('Invoices')}
             </li>
             <li className="flex items-center">
               <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-3"></div>
-              Quotations
+              {tt('Quotations')}
             </li>
             <li className="flex items-center">
               <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-3"></div>
-              Customer Database
+              {tt('Customer Database')}
             </li>
             <li className="flex items-center">
               <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-3"></div>
-              Financial Reporting
+              {tt('Financial Reporting')}
             </li>
           </ul>
         </div>
@@ -90,7 +91,7 @@ const PremiumFeatureBlock = ({
             className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-sky-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
           >
             <Crown className="h-4 w-4 mr-2" />
-            Upgrade to Premium
+            {tt('Upgrade to Premium')}
             <ArrowRight className="h-4 w-4 ml-2" />
           </button>
           
@@ -98,13 +99,13 @@ const PremiumFeatureBlock = ({
             onClick={() => window.location.href = '/subscription'}
             className="inline-flex items-center justify-center px-6 py-3 bg-white text-blue-600 font-medium rounded-lg border border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
           >
-            View Pricing Plans
+            {tt('View Pricing Plans')}
           </button>
         </div>
 
         {/* Small disclaimer */}
         <p className="text-xs text-gray-500 mt-4">
-          All premium features include a 30-day money-back guarantee
+          {tt('All premium features include a 30-day money-back guarantee')}
         </p>
       </div>
     </div>

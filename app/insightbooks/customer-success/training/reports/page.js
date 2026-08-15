@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import TrainingContextBar from '@/components/admin/customerSuccess/TrainingContextBar';
@@ -11,7 +12,7 @@ export default function TrainingReportsPage() {
         <Link href="/insightbooks/customer-success/training">← Training</Link>
       </p>
       <TrainingContextBar population="training-reports" />
-      <h1 style={{ fontSize: '1.35rem', margin: '0.5rem 0' }}>Reports</h1>
+      <h1 style={{ fontSize: '1.35rem', margin: '0.5rem 0' }}>{tt('Reports')}</h1>
       <p style={{ color: '#555' }}>
         Overview / At-Risk / Scheduling / Completion / Certificates. Exports strip answers
         and tokens; manage permission rechecked.

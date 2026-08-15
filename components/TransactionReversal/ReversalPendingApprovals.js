@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from "react";
 import { getPermission } from "@/lib/permissions";
@@ -123,9 +124,9 @@ export default function ReversalPendingApprovals({ currentUserId = null }) {
     <div className="mb-6 rounded-2xl bg-white shadow-lg border border-slate-100 p-4 sm:p-6">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Pending approvals</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{tt('Pending approvals')}</h2>
           <p className="text-sm text-slate-500">
-            Segregation of duties: requester cannot approve or execute when SoD is on.
+            {tt('Segregation of duties: requester cannot approve or execute when SoD is on.')}
           </p>
         </div>
         {canConfigure ? (
@@ -152,19 +153,19 @@ export default function ReversalPendingApprovals({ currentUserId = null }) {
       ) : null}
 
       {loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <p className="text-sm text-slate-500">{tt('Loading…')}</p>
       ) : pending.length === 0 ? (
-        <p className="text-sm text-slate-500">No pending reversal requests.</p>
+        <p className="text-sm text-slate-500">{tt('No pending reversal requests.')}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead className="text-slate-500">
               <tr>
-                <th className="px-2 py-2">Type</th>
-                <th className="px-2 py-2">Source</th>
-                <th className="px-2 py-2">Status</th>
-                <th className="px-2 py-2">Reason</th>
-                <th className="px-2 py-2">Requested</th>
+                <th className="px-2 py-2">{tt('Type')}</th>
+                <th className="px-2 py-2">{tt('Source')}</th>
+                <th className="px-2 py-2">{tt('Status')}</th>
+                <th className="px-2 py-2">{tt('Reason')}</th>
+                <th className="px-2 py-2">{tt('Requested')}</th>
                 <th className="px-2 py-2" />
               </tr>
             </thead>
@@ -206,11 +207,11 @@ export default function ReversalPendingApprovals({ currentUserId = null }) {
                             onClick={() => act("reject", row.id)}
                             className="text-red-600 hover:underline disabled:opacity-50"
                           >
-                            Reject
+                            {tt('Reject')}
                           </button>
                         </div>
                       ) : isRequester ? (
-                        <span className="text-xs text-slate-400">Awaiting another user</span>
+                        <span className="text-xs text-slate-400">{tt('Awaiting another user')}</span>
                       ) : null}
                     </td>
                   </tr>

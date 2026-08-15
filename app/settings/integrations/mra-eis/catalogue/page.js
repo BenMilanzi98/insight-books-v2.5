@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 
@@ -19,7 +20,7 @@ function Badge({ status }) {
         : 'bg-amber-50 text-amber-950 border-amber-200';
   return (
     <span className={`inline-flex rounded border px-2 py-0.5 text-xs font-medium ${tone}`}>
-      <span className="sr-only">Status: </span>
+      <span className="sr-only">{tt('Status:')} </span>
       {status}
     </span>
   );
@@ -143,7 +144,7 @@ export default function MraEisCataloguePage() {
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-slate-600" role="status">
-        Loading catalogue workspace…
+        {tt('Loading catalogue workspace…')}
       </div>
     );
   }
@@ -157,11 +158,11 @@ export default function MraEisCataloguePage() {
       <header className="mb-6">
         <p className="text-sm font-medium text-slate-500">
           <a href="/settings/integrations/mra-eis" className="hover:underline">
-            MRA EIS
+            {tt('MRA EIS')}
           </a>{' '}
           / Catalogue
         </p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Product & Service Catalogue</h1>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight">{tt('Product & Service Catalogue')}</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-600">
           External MRA catalogue is separate from local Products and Services. Sync never creates local items,
           overwrites prices/taxes, or adjusts stock. Suggestions never auto-activate.
@@ -179,7 +180,7 @@ export default function MraEisCataloguePage() {
         </div>
       )}
 
-      <nav className="mb-6 flex flex-wrap gap-2" aria-label="Catalogue sections">
+      <nav className="mb-6 flex flex-wrap gap-2" aria-label={tt('Catalogue sections')}>
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -213,13 +214,13 @@ export default function MraEisCataloguePage() {
             ))}
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="font-semibold">Blockers</h2>
+            <h2 className="font-semibold">{tt('Blockers')}</h2>
             <ul className="mt-2 list-disc pl-5 text-sm">
               {(data?.completeness?.blockers || []).map((b) => (
                 <li key={b}>{b}</li>
               ))}
             </ul>
-            <h2 className="mt-4 font-semibold">Warnings</h2>
+            <h2 className="mt-4 font-semibold">{tt('Warnings')}</h2>
             <ul className="mt-2 list-disc pl-5 text-sm text-amber-900">
               {(data?.completeness?.warnings || []).map((w) => (
                 <li key={w}>{w}</li>
@@ -242,10 +243,10 @@ export default function MraEisCataloguePage() {
               Sync services (MOCK)
             </button>
             <button type="button" disabled={busy} className="rounded border px-3 py-2 text-sm" onClick={() => suggest('PRODUCT')}>
-              Suggest product mappings
+              {tt('Suggest product mappings')}
             </button>
             <button type="button" disabled={busy} className="rounded border px-3 py-2 text-sm" onClick={() => suggest('SERVICE')}>
-              Suggest service mappings
+              {tt('Suggest service mappings')}
             </button>
           </div>
         </section>
@@ -258,13 +259,13 @@ export default function MraEisCataloguePage() {
               <caption className="sr-only">External MRA products (read-only)</caption>
               <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">Code</th>
-                  <th className="px-3 py-2">Barcode</th>
-                  <th className="px-3 py-2">Name</th>
+                  <th className="px-3 py-2">{tt('Code')}</th>
+                  <th className="px-3 py-2">{tt('Barcode')}</th>
+                  <th className="px-3 py-2">{tt('Name')}</th>
                   <th className="px-3 py-2">UOM</th>
-                  <th className="px-3 py-2">Price</th>
-                  <th className="px-3 py-2">Ext qty</th>
-                  <th className="px-3 py-2">Active</th>
+                  <th className="px-3 py-2">{tt('Price')}</th>
+                  <th className="px-3 py-2">{tt('Ext qty')}</th>
+                  <th className="px-3 py-2">{tt('Active')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -282,7 +283,7 @@ export default function MraEisCataloguePage() {
                 {products.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-3 py-6 text-slate-500">
-                      No external products. Run MOCK sync after terminal + site mapping are ready.
+                      {tt('No external products. Run MOCK sync after terminal + site mapping are ready.')}
                     </td>
                   </tr>
                 )}
@@ -298,11 +299,11 @@ export default function MraEisCataloguePage() {
             <table className="min-w-full text-left text-sm">
               <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">Code</th>
-                  <th className="px-3 py-2">Name</th>
-                  <th className="px-3 py-2">Unit</th>
-                  <th className="px-3 py-2">Price</th>
-                  <th className="px-3 py-2">Active</th>
+                  <th className="px-3 py-2">{tt('Code')}</th>
+                  <th className="px-3 py-2">{tt('Name')}</th>
+                  <th className="px-3 py-2">{tt('Unit')}</th>
+                  <th className="px-3 py-2">{tt('Price')}</th>
+                  <th className="px-3 py-2">{tt('Active')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -318,7 +319,7 @@ export default function MraEisCataloguePage() {
                 {services.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-3 py-6 text-slate-500">
-                      No external services yet.
+                      {tt('No external services yet.')}
                     </td>
                   </tr>
                 )}
@@ -334,11 +335,11 @@ export default function MraEisCataloguePage() {
             <table className="min-w-full text-left text-sm">
               <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">Type</th>
-                  <th className="px-3 py-2">Local</th>
-                  <th className="px-3 py-2">External</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Actions</th>
+                  <th className="px-3 py-2">{tt('Type')}</th>
+                  <th className="px-3 py-2">{tt('Local')}</th>
+                  <th className="px-3 py-2">{tt('External')}</th>
+                  <th className="px-3 py-2">{tt('Status')}</th>
+                  <th className="px-3 py-2">{tt('Actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -356,12 +357,12 @@ export default function MraEisCataloguePage() {
                       <td className="px-3 py-2">
                         {['SUGGESTED', 'MATCHED'].includes(m.status) && (
                           <button type="button" className="rounded border px-2 py-1 text-xs" disabled={busy} onClick={() => lifecycle(kind, m.id, 'verify', m.version)}>
-                            Verify
+                            {tt('Verify')}
                           </button>
                         )}
                         {m.status === 'VERIFIED' && (
                           <button type="button" className="ml-1 rounded bg-slate-900 px-2 py-1 text-xs text-white" disabled={busy} onClick={() => lifecycle(kind, m.id, 'activate', m.version)}>
-                            Activate
+                            {tt('Activate')}
                           </button>
                         )}
                       </td>
@@ -394,7 +395,7 @@ export default function MraEisCataloguePage() {
             ))}
           </div>
           <button type="button" disabled={busy} className="rounded bg-slate-900 px-3 py-2 text-sm text-white" onClick={reconcile}>
-            Run read-only reconciliation
+            {tt('Run read-only reconciliation')}
           </button>
         </section>
       )}

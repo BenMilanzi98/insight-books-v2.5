@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import OnboardingContextBar from '@/components/admin/customerSuccess/OnboardingContextBar';
@@ -14,10 +15,10 @@ export default function OnboardingMyWorkPage() {
         population="onboarding-my-work"
         permissionScope="customerSuccess.read (owner-scoped)"
       />
-      <h1 style={{ fontSize: '1.35rem', margin: '0.5rem 0' }}>My Work</h1>
+      <h1 style={{ fontSize: '1.35rem', margin: '0.5rem 0' }}>{tt('My Work')}</h1>
       <p style={{ color: '#555' }}>
         Projects where you are CS / implementation owner. Other owners&apos; projects are
-        excluded. Counts via <code>getOnboardingMyWork</code>.
+        excluded. Counts via <code>{tt('getOnboardingMyWork')}</code>.
       </p>
     </div>
   );

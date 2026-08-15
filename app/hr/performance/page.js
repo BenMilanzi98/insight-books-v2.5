@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from 'react';
 import { toYmdLocal, todayYmdLocal } from '@/lib/dateUtils';
@@ -311,7 +312,7 @@ export default function PerformanceManagement() {
               }`}
             >
               <Star className="h-4 w-4" />
-              Performance Reviews
+              {tt('Performance Reviews')}
             </button>
             <button
               onClick={() => setActiveTab('goals')}
@@ -322,7 +323,7 @@ export default function PerformanceManagement() {
               }`}
             >
               <Target className="h-4 w-4" />
-              Performance Goals
+              {tt('Performance Goals')}
             </button>
             <button
               onClick={() => setActiveTab('feedback')}
@@ -333,7 +334,7 @@ export default function PerformanceManagement() {
               }`}
             >
               <MessageSquare className="h-4 w-4" />
-              360° Feedback
+              {tt('360° Feedback')}
             </button>
           </nav>
         </div>
@@ -343,13 +344,13 @@ export default function PerformanceManagement() {
       <PosStylePanel className="mb-4 p-4">
       <div className="flex flex-wrap gap-4 items-end">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Employee')}</label>
           <select
             value={filters.employeeId}
             onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
             className="border border-gray-300 rounded-md px-3 py-2 text-sm"
           >
-            <option value="">All Employees</option>
+            <option value="">{tt('All Employees')}</option>
             {employees.map(emp => (
               <option key={emp.id} value={emp.id}>
                 {emp.name} {emp.employeeId ? `(${emp.employeeId})` : ''}
@@ -360,21 +361,21 @@ export default function PerformanceManagement() {
         {activeTab === 'reviews' && (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Review Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Review Type')}</label>
               <select
                 value={filters.reviewType}
                 onChange={(e) => setFilters({ ...filters, reviewType: e.target.value })}
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm"
               >
-                <option value="All">All Types</option>
-                <option value="annual">Annual</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="mid-year">Mid-Year</option>
-                <option value="probation">Probation</option>
+                <option value="All">{tt('All Types')}</option>
+                <option value="annual">{tt('Annual')}</option>
+                <option value="quarterly">{tt('Quarterly')}</option>
+                <option value="mid-year">{tt('Mid-Year')}</option>
+                <option value="probation">{tt('Probation')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Year')}</label>
               <select
                 value={filters.year}
                 onChange={(e) => setFilters({ ...filters, year: parseInt(e.target.value) })}
@@ -388,33 +389,33 @@ export default function PerformanceManagement() {
           </>
         )}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Status')}</label>
           <select
             value={filters.status}
             onChange={(e) => setFilters({ ...filters, status: e.target.value })}
             className="border border-gray-300 rounded-md px-3 py-2 text-sm"
           >
-            <option value="All">All Statuses</option>
+            <option value="All">{tt('All Statuses')}</option>
             {activeTab === 'reviews' && (
               <>
-                <option value="draft">Draft</option>
-                <option value="completed">Completed</option>
-                <option value="acknowledged">Acknowledged</option>
+                <option value="draft">{tt('Draft')}</option>
+                <option value="completed">{tt('Completed')}</option>
+                <option value="acknowledged">{tt('Acknowledged')}</option>
               </>
             )}
             {activeTab === 'goals' && (
               <>
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="on-hold">On Hold</option>
+                <option value="active">{tt('Active')}</option>
+                <option value="completed">{tt('Completed')}</option>
+                <option value="cancelled">{tt('Cancelled')}</option>
+                <option value="on-hold">{tt('On Hold')}</option>
               </>
             )}
             {activeTab === 'feedback' && (
               <>
-                <option value="submitted">Submitted</option>
-                <option value="reviewed">Reviewed</option>
-                <option value="archived">Archived</option>
+                <option value="submitted">{tt('Submitted')}</option>
+                <option value="reviewed">{tt('Reviewed')}</option>
+                <option value="archived">{tt('Archived')}</option>
               </>
             )}
           </select>
@@ -426,7 +427,7 @@ export default function PerformanceManagement() {
       {activeTab === 'reviews' && (
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Performance Reviews</h2>
+            <h2 className="text-lg font-semibold">{tt('Performance Reviews')}</h2>
             <button
               onClick={() => {
                 setEditingReview(null);
@@ -435,26 +436,26 @@ export default function PerformanceManagement() {
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
               <PlusIcon className="h-4 w-4" />
-              New Review
+              {tt('New Review')}
             </button>
           </div>
 
           {loading ? (
-            <div className="text-center py-8">Loading reviews...</div>
+            <div className="text-center py-8">{tt('Loading reviews...')}</div>
           ) : reviews.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">No performance reviews found</div>
+            <div className="text-center py-8 text-gray-500">{tt('No performance reviews found')}</div>
           ) : (
             <PosStylePanel className="overflow-hidden">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Review Period</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goals</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Review Period')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Type')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Rating')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Goals')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -477,7 +478,7 @@ export default function PerformanceManagement() {
                             <span className="text-gray-600">({review.overallRating.toFixed(1)})</span>
                           </div>
                         ) : (
-                          <span className="text-gray-400">N/A</span>
+                          <span className="text-gray-400">{tt('N/A')}</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -531,7 +532,7 @@ export default function PerformanceManagement() {
       {activeTab === 'goals' && (
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Performance Goals</h2>
+            <h2 className="text-lg font-semibold">{tt('Performance Goals')}</h2>
             <button
               onClick={() => {
                 setEditingGoal(null);
@@ -540,14 +541,14 @@ export default function PerformanceManagement() {
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
               <PlusIcon className="h-4 w-4" />
-              New Goal
+              {tt('New Goal')}
             </button>
           </div>
 
           {loading ? (
-            <div className="text-center py-8">Loading goals...</div>
+            <div className="text-center py-8">{tt('Loading goals...')}</div>
           ) : goals.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">No performance goals found</div>
+            <div className="text-center py-8 text-gray-500">{tt('No performance goals found')}</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {goals.map((goal) => (
@@ -561,7 +562,7 @@ export default function PerformanceManagement() {
                   <p className="text-sm text-gray-600 mb-3">{goal.description}</p>
                   <div className="mb-3">
                     <div className="flex justify-between text-xs text-gray-600 mb-1">
-                      <span>Progress</span>
+                      <span>{tt('Progress')}</span>
                       <span>{goal.progress.toFixed(0)}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
@@ -611,7 +612,7 @@ export default function PerformanceManagement() {
       {activeTab === 'feedback' && (
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">360° Feedback</h2>
+            <h2 className="text-lg font-semibold">{tt('360° Feedback')}</h2>
             <button
               onClick={() => {
                 setEditingFeedback(null);
@@ -620,26 +621,26 @@ export default function PerformanceManagement() {
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
               <PlusIcon className="h-4 w-4" />
-              New Feedback
+              {tt('New Feedback')}
             </button>
           </div>
 
           {loading ? (
-            <div className="text-center py-8">Loading feedback...</div>
+            <div className="text-center py-8">{tt('Loading feedback...')}</div>
           ) : feedback.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">No feedback found</div>
+            <div className="text-center py-8 text-gray-500">{tt('No feedback found')}</div>
           ) : (
             <PosStylePanel className="overflow-hidden">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('From')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Type')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Rating')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Date')}</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -662,7 +663,7 @@ export default function PerformanceManagement() {
                             <span className="text-gray-600">({item.rating.toFixed(1)})</span>
                           </div>
                         ) : (
-                          <span className="text-gray-400">N/A</span>
+                          <span className="text-gray-400">{tt('N/A')}</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -807,7 +808,7 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Employee *</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Employee *')}</label>
               <select
                 value={formData.employeeId}
                 onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
@@ -815,7 +816,7 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
                 required
                 disabled={!!review}
               >
-                <option value="">Select an employee</option>
+                <option value="">{tt('Select an employee')}</option>
                 {employees.map(emp => (
                   <option key={emp.id} value={emp.id}>
                     {emp.name} {emp.employeeId ? `(${emp.employeeId})` : ''}
@@ -826,34 +827,34 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Review Period *</label>
+                <label className="block text-sm font-medium text-gray-700">{tt('Review Period *')}</label>
                 <input
                   type="text"
                   value={formData.reviewPeriod}
                   onChange={(e) => setFormData({ ...formData, reviewPeriod: e.target.value })}
                   className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                  placeholder="e.g., Q1 2024, Annual 2024"
+                  placeholder={tt('e.g., Q1 2024, Annual 2024')}
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Review Type *</label>
+                <label className="block text-sm font-medium text-gray-700">{tt('Review Type *')}</label>
                 <select
                   value={formData.reviewType}
                   onChange={(e) => setFormData({ ...formData, reviewType: e.target.value })}
                   className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
                   required
                 >
-                  <option value="annual">Annual</option>
-                  <option value="quarterly">Quarterly</option>
-                  <option value="mid-year">Mid-Year</option>
-                  <option value="probation">Probation</option>
+                  <option value="annual">{tt('Annual')}</option>
+                  <option value="quarterly">{tt('Quarterly')}</option>
+                  <option value="mid-year">{tt('Mid-Year')}</option>
+                  <option value="probation">{tt('Probation')}</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Review Date *</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Review Date *')}</label>
               <input
                 type="date"
                 value={formData.reviewDate}
@@ -877,13 +878,13 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Review Criteria</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Review Criteria')}</label>
               {formData.reviewCriteria.map((criteria, index) => (
                 <div key={index} className="mb-3 p-3 border border-gray-200 rounded-md">
                   <div className="grid grid-cols-2 gap-2 mb-2">
                     <input
                       type="text"
-                      placeholder="Criteria Name"
+                      placeholder={tt('Criteria Name')}
                       value={criteria.criteriaName}
                       onChange={(e) => updateCriteria(index, 'criteriaName', e.target.value)}
                       className="border border-gray-300 rounded-md px-2 py-1 text-sm"
@@ -894,7 +895,7 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
                         min="1"
                         max="5"
                         step="0.1"
-                        placeholder="Rating"
+                        placeholder={tt('Rating')}
                         value={criteria.rating}
                         onChange={(e) => updateCriteria(index, 'rating', e.target.value)}
                         className="border border-gray-300 rounded-md px-2 py-1 text-sm flex-1"
@@ -903,7 +904,7 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
                         type="number"
                         min="0"
                         step="0.1"
-                        placeholder="Weight"
+                        placeholder={tt('Weight')}
                         value={criteria.weight}
                         onChange={(e) => updateCriteria(index, 'weight', e.target.value)}
                         className="border border-gray-300 rounded-md px-2 py-1 text-sm w-20"
@@ -920,7 +921,7 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
                     </div>
                   </div>
                   <textarea
-                    placeholder="Comments"
+                    placeholder={tt('Comments')}
                     value={criteria.comments}
                     onChange={(e) => updateCriteria(index, 'comments', e.target.value)}
                     className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm"
@@ -938,7 +939,7 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Strengths</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Strengths')}</label>
               <textarea
                 value={formData.strengths}
                 onChange={(e) => setFormData({ ...formData, strengths: e.target.value })}
@@ -948,7 +949,7 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Areas for Improvement</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Areas for Improvement')}</label>
               <textarea
                 value={formData.areasForImprovement}
                 onChange={(e) => setFormData({ ...formData, areasForImprovement: e.target.value })}
@@ -958,7 +959,7 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Overall Comments</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Overall Comments')}</label>
               <textarea
                 value={formData.overallComments}
                 onChange={(e) => setFormData({ ...formData, overallComments: e.target.value })}
@@ -973,7 +974,7 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="submit"
@@ -1035,7 +1036,7 @@ function GoalModal({ goal, employees, onClose, onSubmit }) {
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Employee *</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Employee *')}</label>
               <select
                 value={formData.employeeId}
                 onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
@@ -1043,7 +1044,7 @@ function GoalModal({ goal, employees, onClose, onSubmit }) {
                 required
                 disabled={!!goal}
               >
-                <option value="">Select an employee</option>
+                <option value="">{tt('Select an employee')}</option>
                 {employees.map(emp => (
                   <option key={emp.id} value={emp.id}>
                     {emp.name} {emp.employeeId ? `(${emp.employeeId})` : ''}
@@ -1053,7 +1054,7 @@ function GoalModal({ goal, employees, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Goal Title *</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Goal Title *')}</label>
               <input
                 type="text"
                 value={formData.title}
@@ -1064,7 +1065,7 @@ function GoalModal({ goal, employees, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Description</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Description')}</label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -1075,17 +1076,17 @@ function GoalModal({ goal, employees, onClose, onSubmit }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Category</label>
+                <label className="block text-sm font-medium text-gray-700">{tt('Category')}</label>
                 <input
                   type="text"
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                  placeholder="e.g., Sales, Quality"
+                  placeholder={tt('e.g., Sales, Quality')}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Target Value</label>
+                <label className="block text-sm font-medium text-gray-700">{tt('Target Value')}</label>
                 <input
                   type="number"
                   value={formData.targetValue}
@@ -1096,19 +1097,19 @@ function GoalModal({ goal, employees, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Target Unit</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Target Unit')}</label>
               <input
                 type="text"
                 value={formData.targetUnit}
                 onChange={(e) => setFormData({ ...formData, targetUnit: e.target.value })}
                 className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                placeholder="e.g., sales, projects, percentage"
+                placeholder={tt('e.g., sales, projects, percentage')}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Start Date *</label>
+                <label className="block text-sm font-medium text-gray-700">{tt('Start Date *')}</label>
                 <input
                   type="date"
                   value={formData.startDate}
@@ -1118,7 +1119,7 @@ function GoalModal({ goal, employees, onClose, onSubmit }) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Target Date *</label>
+                <label className="block text-sm font-medium text-gray-700">{tt('Target Date *')}</label>
                 <input
                   type="date"
                   value={formData.targetDate}
@@ -1132,7 +1133,7 @@ function GoalModal({ goal, employees, onClose, onSubmit }) {
             {goal && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Current Value</label>
+                  <label className="block text-sm font-medium text-gray-700">{tt('Current Value')}</label>
                   <input
                     type="number"
                     value={formData.currentValue}
@@ -1160,7 +1161,7 @@ function GoalModal({ goal, employees, onClose, onSubmit }) {
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="submit"
@@ -1218,7 +1219,7 @@ function FeedbackModal({ feedback, employees, onClose, onSubmit }) {
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Employee Receiving Feedback *</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Employee Receiving Feedback *')}</label>
               <select
                 value={formData.employeeId}
                 onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
@@ -1226,7 +1227,7 @@ function FeedbackModal({ feedback, employees, onClose, onSubmit }) {
                 required
                 disabled={!!feedback}
               >
-                <option value="">Select an employee</option>
+                <option value="">{tt('Select an employee')}</option>
                 {employees.map(emp => (
                   <option key={emp.id} value={emp.id}>
                     {emp.name} {emp.employeeId ? `(${emp.employeeId})` : ''}
@@ -1236,7 +1237,7 @@ function FeedbackModal({ feedback, employees, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Feedback From *</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Feedback From *')}</label>
               <select
                 value={formData.feedbackGiverId}
                 onChange={(e) => setFormData({ ...formData, feedbackGiverId: e.target.value })}
@@ -1244,7 +1245,7 @@ function FeedbackModal({ feedback, employees, onClose, onSubmit }) {
                 required
                 disabled={!!feedback}
               >
-                <option value="">Select an employee</option>
+                <option value="">{tt('Select an employee')}</option>
                 {employees
                   .filter(emp => emp.id !== formData.employeeId)
                   .map(emp => (
@@ -1256,7 +1257,7 @@ function FeedbackModal({ feedback, employees, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Feedback Type *</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Feedback Type *')}</label>
               <select
                 value={formData.feedbackType}
                 onChange={(e) => setFormData({ ...formData, feedbackType: e.target.value })}
@@ -1264,10 +1265,10 @@ function FeedbackModal({ feedback, employees, onClose, onSubmit }) {
                 required
                 disabled={!!feedback}
               >
-                <option value="peer">Peer</option>
-                <option value="manager">Manager</option>
-                <option value="subordinate">Subordinate</option>
-                <option value="self">Self</option>
+                <option value="peer">{tt('Peer')}</option>
+                <option value="manager">{tt('Manager')}</option>
+                <option value="subordinate">{tt('Subordinate')}</option>
+                <option value="self">{tt('Self')}</option>
                 <option value="360">360°</option>
               </select>
             </div>
@@ -1287,7 +1288,7 @@ function FeedbackModal({ feedback, employees, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Strengths</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Strengths')}</label>
               <textarea
                 value={formData.strengths}
                 onChange={(e) => setFormData({ ...formData, strengths: e.target.value })}
@@ -1298,7 +1299,7 @@ function FeedbackModal({ feedback, employees, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Areas for Improvement</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Areas for Improvement')}</label>
               <textarea
                 value={formData.areasForImprovement}
                 onChange={(e) => setFormData({ ...formData, areasForImprovement: e.target.value })}
@@ -1309,7 +1310,7 @@ function FeedbackModal({ feedback, employees, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Suggestions</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Suggestions')}</label>
               <textarea
                 value={formData.suggestions}
                 onChange={(e) => setFormData({ ...formData, suggestions: e.target.value })}
@@ -1327,7 +1328,7 @@ function FeedbackModal({ feedback, employees, onClose, onSubmit }) {
                   onChange={(e) => setFormData({ ...formData, isAnonymous: e.target.checked })}
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
-                <label className="ml-2 block text-sm text-gray-900">Submit anonymously</label>
+                <label className="ml-2 block text-sm text-gray-900">{tt('Submit anonymously')}</label>
               </div>
             )}
 
@@ -1344,7 +1345,7 @@ function FeedbackModal({ feedback, employees, onClose, onSubmit }) {
                   type="submit"
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
                 >
-                  Submit Feedback
+                  {tt('Submit Feedback')}
                 </button>
               )}
             </div>

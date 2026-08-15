@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -15,7 +16,7 @@ export default function OnboardingTestingTabPage() {
       </p>
       <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>Testing &amp; defects</h1>
       <p style={{ color: '#555' }}>
-        Test plans / cases / results metadata. Critical defects block go-live approval.
+        {tt('Test plans / cases / results metadata. Critical defects block go-live approval.')}
       </p>
     </div>
   );

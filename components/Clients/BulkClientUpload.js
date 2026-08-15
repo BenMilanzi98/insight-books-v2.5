@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from 'react';
 import { Upload, Download, FileText, AlertCircle, CheckCircle, X, Users, Plus, Building } from 'lucide-react';
@@ -209,10 +210,10 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
             <div>
               <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                 <Users className="h-5 w-5 mr-2 text-blue-600" />
-                Bulk Client Import
+                {tt('Bulk Client Import')}
               </h3>
               <p className="text-sm text-gray-600 mt-1">
-                Import multiple clients from CSV file
+                {tt('Import multiple clients from CSV file')}
               </p>
             </div>
             <div className="flex space-x-3">
@@ -221,7 +222,7 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
                 className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
               >
                 <Download className="h-4 w-4 mr-2" />
-                Download Template
+                {tt('Download Template')}
               </button>
               <button
                 className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-full"
@@ -238,12 +239,12 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
               <div className="flex">
                 <AlertCircle className="h-5 w-5 text-blue-400 flex-shrink-0" />
                 <div className="ml-3">
-                  <h4 className="text-sm font-medium text-blue-800">Bulk Client Import</h4>
+                  <h4 className="text-sm font-medium text-blue-800">{tt('Bulk Client Import')}</h4>
                   <p className="text-sm text-blue-700 mt-1">
-                    Upload a CSV file to import multiple clients at once. Download the template to see the required format.
+                    {tt('Upload a CSV file to import multiple clients at once. Download the template to see the required format.')}
                   </p>
                   <div className="mt-2 text-xs text-blue-600">
-                    <strong>Required fields:</strong> Client Name | <strong>Optional fields:</strong> Email, Phone, Address, Contact Person
+                    <strong>{tt('Required fields:')}</strong> {tt('Client Name |')} <strong>{tt('Optional fields:')}</strong> {tt('Email, Phone, Address, Contact Person')}
                   </div>
                 </div>
               </div>
@@ -255,7 +256,7 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
                 <div className="flex">
                   <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
                   <div className="ml-3">
-                    <h4 className="text-sm font-medium text-red-800">Upload Error</h4>
+                    <h4 className="text-sm font-medium text-red-800">{tt('Upload Error')}</h4>
                     <p className="text-sm text-red-700 mt-1">{uploadError}</p>
                   </div>
                   <button
@@ -274,13 +275,13 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
                 {/* Batch Name */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Batch Name
+                    {tt('Batch Name')}
                   </label>
                   <input
                     type="text"
                     value={batchName}
                     onChange={(e) => setBatchName(e.target.value)}
-                    placeholder="Enter batch name"
+                    placeholder={tt('Enter batch name')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     disabled={isUploading}
                   />
@@ -325,17 +326,17 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
                         }}
                         className="text-red-600 hover:text-red-700 text-sm"
                       >
-                        Remove file
+                        {tt('Remove file')}
                       </button>
                     </div>
                   ) : (
                     <div className="space-y-2">
                       <Upload className="h-12 w-12 text-gray-400 mx-auto" />
                       <p className="text-sm font-medium text-gray-700">
-                        Drop your CSV file here, or click to browse
+                        {tt('Drop your CSV file here, or click to browse')}
                       </p>
                       <p className="text-xs text-gray-500">
-                        Supports CSV files up to 10MB
+                        {tt('Supports CSV files up to 10MB')}
                       </p>
                     </div>
                   )}
@@ -355,7 +356,7 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
                         <div className="flex">
                           <AlertCircle className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
                           <div className="ml-2">
-                            <p className="text-sm text-amber-800 font-medium">Header Mismatch Warning</p>
+                            <p className="text-sm text-amber-800 font-medium">{tt('Header Mismatch Warning')}</p>
                             <p className="text-xs text-amber-700 mt-1">
                               Expected headers: {csvPreview.expectedHeaders.join(', ')}
                             </p>
@@ -407,7 +408,7 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
                     onClick={resetForm}
                     className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
                   >
-                    Reset
+                    {tt('Reset')}
                   </button>
                   <button
                     onClick={handleUpload}
@@ -421,12 +422,12 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
                     {isUploading ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Processing...
+                        {tt('Processing...')}
                       </>
                     ) : (
                       <>
                         <Upload className="h-4 w-4 mr-2" />
-                        Import Clients
+                        {tt('Import Clients')}
                       </>
                     )}
                   </button>
@@ -440,9 +441,9 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
                 <div className="flex items-start">
                   <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
                   <div className="ml-3 w-full">
-                    <h4 className="text-sm font-medium text-red-800">Validation Errors Found</h4>
+                    <h4 className="text-sm font-medium text-red-800">{tt('Validation Errors Found')}</h4>
                     <p className="text-sm text-red-700 mt-1 mb-3">
-                      Please fix the following errors and try again:
+                      {tt('Please fix the following errors and try again:')}
                     </p>
                     <div className="max-h-60 overflow-y-auto">
                       {validationErrors.map((error, index) => (
@@ -460,7 +461,7 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
                       onClick={() => setValidationErrors([])}
                       className="mt-3 text-sm text-red-600 hover:text-red-700"
                     >
-                      Dismiss errors
+                      {tt('Dismiss errors')}
                     </button>
                   </div>
                 </div>
@@ -473,7 +474,7 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
                 <div className="flex items-start">
                   <CheckCircle className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
                   <div className="ml-3 w-full">
-                    <h4 className="text-sm font-medium text-green-800">Import Successful!</h4>
+                    <h4 className="text-sm font-medium text-green-800">{tt('Import Successful!')}</h4>
                     <p className="text-sm text-green-700 mt-1">
                       {uploadResults.message}
                     </p>
@@ -484,7 +485,7 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
                           <Building className="h-5 w-5 text-green-600 mr-2" />
                           <div>
                             <p className="text-sm font-medium text-gray-900">{uploadResults.totalProcessed}</p>
-                            <p className="text-xs text-gray-500">Clients Imported</p>
+                            <p className="text-xs text-gray-500">{tt('Clients Imported')}</p>
                           </div>
                         </div>
                       </div>
@@ -495,13 +496,13 @@ const BulkClientUpload = ({ onUploadComplete, onClose }) => {
                         onClick={resetForm}
                         className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
                       >
-                        Import More Clients
+                        {tt('Import More Clients')}
                       </button>
                       <button
                         onClick={onClose}
                         className="px-4 py-2 border border-green-300 text-green-700 rounded-md hover:bg-green-50 transition-colors text-sm"
                       >
-                        Close
+                        {tt('Close')}
                       </button>
                     </div>
                   </div>

@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/ExpenseReport.jsx
 import React, { useState } from 'react';
 import { FinancialReport, PercentageChange } from './FinancialReportComponents';
@@ -26,8 +27,8 @@ export const ExpenseReport = ({
     return (
       <div className="text-center p-8 bg-gradient-to-br from-slate-50 to-amber-50/50 rounded-2xl border border-slate-200">
         <BarChart size={48} className="mx-auto text-amber-500 mb-4" />
-        <h3 className="text-lg font-medium text-slate-700">No data available</h3>
-        <p className="text-slate-500 mt-2">Please select a time period and generate the report.</p>
+        <h3 className="text-lg font-medium text-slate-700">{tt('No data available')}</h3>
+        <p className="text-slate-500 mt-2">{tt('Please select a time period and generate the report.')}</p>
       </div>
     );
   }
@@ -64,7 +65,7 @@ export const ExpenseReport = ({
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
             <div className="bg-gradient-to-br from-amber-50 to-white p-4 sm:p-5 rounded-2xl border border-amber-200/80 shadow-sm border-l-4 border-l-amber-500">
-              <h3 className="text-sm font-medium text-amber-700 mb-1">Total expenses</h3>
+              <h3 className="text-sm font-medium text-amber-700 mb-1">{tt('Total expenses')}</h3>
               <p className="min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">{formatCurrency(data.summary.totalExpenses)}</p>
               <p className="text-xs text-slate-500 mt-1">
                 {data.summary.expenseCount} register line{data.summary.expenseCount !== 1 ? 's' : ''}
@@ -80,14 +81,14 @@ export const ExpenseReport = ({
               </p>
             </div>
             <div className="bg-gradient-to-br from-blue-50 to-white p-4 sm:p-5 rounded-2xl border border-blue-200/80 shadow-sm border-l-4 border-l-blue-500">
-              <h3 className="text-sm font-medium text-blue-700 mb-1">Average monthly expense</h3>
+              <h3 className="text-sm font-medium text-blue-700 mb-1">{tt('Average monthly expense')}</h3>
               <p className="min-w-0 break-words text-xl font-semibold leading-tight tabular-nums text-slate-800 sm:text-2xl">
                 {formatCurrency(data.expensesByMonth?.length ? data.summary.totalExpenses / data.expensesByMonth.length : 0)}
               </p>
               <p className="text-xs text-slate-500 mt-1">{data.expensesByMonth?.length || 0} months in selected period</p>
             </div>
             <div className="bg-gradient-to-br from-sky-50 to-white p-4 sm:p-5 rounded-2xl border border-sky-200/80 shadow-sm border-l-4 border-l-sky-500">
-              <h3 className="text-sm font-medium text-sky-700 mb-1">Top expense category</h3>
+              <h3 className="text-sm font-medium text-sky-700 mb-1">{tt('Top expense category')}</h3>
               {data.expensesByCategory?.length > 0 ? (
                 (() => {
                   const top = [...data.expensesByCategory].sort((a, b) => b.total - a.total)[0];
@@ -103,14 +104,14 @@ export const ExpenseReport = ({
                   );
                 })()
               ) : (
-                <p className="text-2xl font-semibold text-slate-800">None</p>
+                <p className="text-2xl font-semibold text-slate-800">{tt('None')}</p>
               )}
             </div>
           </div>
           
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
-              <h3 className="text-lg font-semibold text-slate-800 border-l-4 border-amber-500 pl-3">Expenses by category</h3>
+              <h3 className="text-lg font-semibold text-slate-800 border-l-4 border-amber-500 pl-3">{tt('Expenses by category')}</h3>
               {data.summary.availableCategories?.length > 0 && (
                 <div className="relative">
                   <select
@@ -118,7 +119,7 @@ export const ExpenseReport = ({
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
                   >
-                    <option value="all">All categories</option>
+                    <option value="all">{tt('All categories')}</option>
                     {data.summary.availableCategories.map(category => (
                       <option key={category.name} value={category.name}>{category.name}</option>
                     ))}
@@ -154,10 +155,10 @@ export const ExpenseReport = ({
                         <table className="min-w-full">
                           <thead>
                             <tr className="bg-slate-50">
-                              <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
-                              <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
-                              <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Merchant</th>
-                              <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Amount</th>
+                              <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Date')}</th>
+                              <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Description')}</th>
+                              <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Merchant')}</th>
+                              <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Amount')}</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-200">
@@ -178,7 +179,7 @@ export const ExpenseReport = ({
               ))}
               {filteredExpensesByCategory.length === 0 && (
                 <div className="text-center p-8 bg-slate-50 rounded-2xl border border-slate-200">
-                  <p className="text-slate-500">No expenses found for the selected criteria.</p>
+                  <p className="text-slate-500">{tt('No expenses found for the selected criteria.')}</p>
                 </div>
               )}
             </div>
@@ -186,15 +187,15 @@ export const ExpenseReport = ({
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">Monthly expense trend</h3>
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">{tt('Monthly expense trend')}</h3>
               {data.expensesByMonth?.length > 0 ? (
                 <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="overflow-x-auto">
                     <table className="min-w-full">
                       <thead>
                         <tr className="bg-slate-50">
-                          <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Month</th>
-                          <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Total expenses</th>
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Month')}</th>
+                          <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Total expenses')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
@@ -210,21 +211,21 @@ export const ExpenseReport = ({
                 </div>
               ) : (
                 <div className="text-center p-8 bg-slate-50 rounded-2xl border border-slate-200">
-                  <p className="text-slate-500">No monthly data available.</p>
+                  <p className="text-slate-500">{tt('No monthly data available.')}</p>
                 </div>
               )}
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">Expense distribution</h3>
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">{tt('Expense distribution')}</h3>
               {data.expensesByCategory?.length > 0 ? (
                 <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="overflow-x-auto">
                     <table className="min-w-full">
                       <thead>
                         <tr className="bg-slate-50">
-                          <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Code</th>
-                          <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Category</th>
-                          <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Amount</th>
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Code')}</th>
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Category')}</th>
+                          <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Amount')}</th>
                           <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">% of total</th>
                         </tr>
                       </thead>
@@ -245,7 +246,7 @@ export const ExpenseReport = ({
                 </div>
               ) : (
                 <div className="text-center p-8 bg-slate-50 rounded-2xl border border-slate-200">
-                  <p className="text-slate-500">No category data available.</p>
+                  <p className="text-slate-500">{tt('No category data available.')}</p>
                 </div>
               )}
             </div>

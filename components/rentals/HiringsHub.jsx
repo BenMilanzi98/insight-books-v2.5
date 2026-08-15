@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -20,7 +21,7 @@ function HiringsHubInner() {
           title="Hirings"
           description="Customer hire (outbound) and supplier hire (inbound)"
         />
-        <div className="mb-4 flex gap-2" role="tablist" aria-label="Hiring type">
+        <div className="mb-4 flex gap-2" role="tablist" aria-label={tt('Hiring type')}>
           <button
             type="button"
             role="tab"
@@ -32,7 +33,7 @@ function HiringsHubInner() {
                 : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
             }`}
           >
-            Customer hire
+            {tt('Customer hire')}
           </button>
           <button
             type="button"
@@ -45,7 +46,7 @@ function HiringsHubInner() {
                 : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
             }`}
           >
-            Supplier hire
+            {tt('Supplier hire')}
           </button>
         </div>
         {tab === 'customer' ? (
@@ -60,7 +61,7 @@ function HiringsHubInner() {
 
 export default function HiringsHub() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm text-gray-500">Loading…</div>}>
+    <Suspense fallback={<div className="p-8 text-sm text-gray-500">{tt('Loading…')}</div>}>
       <HiringsHubInner />
     </Suspense>
   );

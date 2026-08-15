@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -88,7 +89,7 @@ export default function SystemHealthPage() {
             className="inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 text-sm font-medium text-white hover:opacity-90"
           >
             <RefreshCw className="h-4 w-4" aria-hidden />
-            Refresh
+            {tt('Refresh')}
           </button>
         }
       />
@@ -101,7 +102,7 @@ export default function SystemHealthPage() {
       {!loading && !error && data ? (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-2">
-            <span className="text-sm text-[var(--admin-text-muted)]">Overall status</span>
+            <span className="text-sm text-[var(--admin-text-muted)]">{tt('Overall status')}</span>
             <AdminStatusBadge
               tone={
                 overall === 'healthy' || overall === 'ok'
@@ -177,7 +178,7 @@ export default function SystemHealthPage() {
           <div className="mt-6 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-[var(--admin-text)]">Email queue</h2>
+                <h2 className="text-sm font-semibold text-[var(--admin-text)]">{tt('Email queue')}</h2>
                 <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
                   {emailQueue?.error
                     ? emailQueue.error
@@ -211,9 +212,9 @@ export default function SystemHealthPage() {
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-[var(--admin-surface-muted)] text-xs uppercase text-[var(--admin-text-muted)]">
                   <tr>
-                    <th className="px-4 py-3">Service</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Detail</th>
+                    <th className="px-4 py-3">{tt('Service')}</th>
+                    <th className="px-4 py-3">{tt('Status')}</th>
+                    <th className="px-4 py-3">{tt('Detail')}</th>
                   </tr>
                 </thead>
                 <tbody>

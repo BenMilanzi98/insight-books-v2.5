@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
@@ -83,13 +84,13 @@ export default function ReversalDetailDrawer({ open, onClose, reversal }) {
       <button
         type="button"
         className="absolute inset-0 cursor-default"
-        aria-label="Close drawer overlay"
+        aria-label={tt('Close drawer overlay')}
         onClick={onClose}
       />
       <aside className="relative flex h-full w-full max-w-xl flex-col bg-white shadow-xl">
         <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Reversal detail</h2>
+            <h2 className="text-lg font-semibold text-slate-900">{tt('Reversal detail')}</h2>
             <p className="mt-0.5 text-sm text-slate-500">
               {reversal.displayReference || reversal.description || reversal.id}
             </p>
@@ -122,7 +123,7 @@ export default function ReversalDetailDrawer({ open, onClose, reversal }) {
 
         <div className="flex-1 overflow-y-auto p-5 text-sm">
           {loading ? (
-            <p className="text-slate-500">Loading…</p>
+            <p className="text-slate-500">{tt('Loading…')}</p>
           ) : error ? (
             <p className="text-amber-700">{error}</p>
           ) : (
@@ -130,31 +131,31 @@ export default function ReversalDetailDrawer({ open, onClose, reversal }) {
               {tab === "overview" && (
                 <dl className="space-y-2">
                   <div>
-                    <dt className="text-slate-500">Type</dt>
+                    <dt className="text-slate-500">{tt('Type')}</dt>
                     <dd className="font-medium">{reversal.type}</dd>
                   </div>
                   <div>
-                    <dt className="text-slate-500">Reason</dt>
+                    <dt className="text-slate-500">{tt('Reason')}</dt>
                     <dd>{reversal.reversalReason || details?.original?.reversalReason || "—"}</dd>
                   </div>
                   <div>
-                    <dt className="text-slate-500">Is reversed</dt>
+                    <dt className="text-slate-500">{tt('Is reversed')}</dt>
                     <dd>{details?.isReversed ? "Yes" : "Unknown / see register"}</dd>
                   </div>
                   <div>
-                    <dt className="text-slate-500">Original id</dt>
+                    <dt className="text-slate-500">{tt('Original id')}</dt>
                     <dd className="font-mono text-xs">
                       {reversal.originalTransactionId || details?.original?.id || "—"}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-slate-500">Reversal doc id</dt>
+                    <dt className="text-slate-500">{tt('Reversal doc id')}</dt>
                     <dd className="font-mono text-xs">
                       {reversal.reversalTransactionId || details?.reversal?.id || reversal.id}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-slate-500">GL journal</dt>
+                    <dt className="text-slate-500">{tt('GL journal')}</dt>
                     <dd className="font-mono text-xs">
                       {reversal.glReversalJournalId || "—"}
                     </dd>
@@ -171,8 +172,7 @@ export default function ReversalDetailDrawer({ open, onClose, reversal }) {
               {tab === "journals" && (
                 <div className="space-y-2">
                   <p className="text-slate-600">
-                    V2 reversals create linked opposite journals. Use General Ledger for full line
-                    drill-down.
+                    {tt('V2 reversals create linked opposite journals. Use General Ledger for full line drill-down.')}
                   </p>
                   <p>
                     Linked GL id:{" "}
@@ -228,32 +228,32 @@ export default function ReversalDetailDrawer({ open, onClose, reversal }) {
                   ) : (
                     <dl className="space-y-2">
                       <div>
-                        <dt className="text-slate-500">Status</dt>
+                        <dt className="text-slate-500">{tt('Status')}</dt>
                         <dd className="font-medium">{register.status}</dd>
                       </div>
                       <div>
-                        <dt className="text-slate-500">Requested by</dt>
+                        <dt className="text-slate-500">{tt('Requested by')}</dt>
                         <dd className="font-mono text-xs">{register.requestedById || "—"}</dd>
                       </div>
                       <div>
-                        <dt className="text-slate-500">Approved by</dt>
+                        <dt className="text-slate-500">{tt('Approved by')}</dt>
                         <dd className="font-mono text-xs">{register.approvedById || "—"}</dd>
                       </div>
                       <div>
-                        <dt className="text-slate-500">Executed by</dt>
+                        <dt className="text-slate-500">{tt('Executed by')}</dt>
                         <dd className="font-mono text-xs">{register.executedById || "—"}</dd>
                       </div>
                       <div>
-                        <dt className="text-slate-500">Period policy</dt>
+                        <dt className="text-slate-500">{tt('Period policy')}</dt>
                         <dd>{register.periodPolicy}</dd>
                       </div>
                       <div>
-                        <dt className="text-slate-500">Cross-period disclosure</dt>
+                        <dt className="text-slate-500">{tt('Cross-period disclosure')}</dt>
                         <dd>{register.crossPeriodDisclosure ? "Yes" : "No"}</dd>
                       </div>
                       {register.errorMessage ? (
                         <div>
-                          <dt className="text-slate-500">Error</dt>
+                          <dt className="text-slate-500">{tt('Error')}</dt>
                           <dd className="text-amber-700">{register.errorMessage}</dd>
                         </div>
                       ) : null}

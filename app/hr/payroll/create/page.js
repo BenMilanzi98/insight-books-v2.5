@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { calendarMonthYmdRangeLocal } from "@/lib/dateUtils";
@@ -204,7 +205,7 @@ export default function PayrollCreation() {
           {/* Employee Selection */}
           <div className="lg:col-span-1">
             <PosStylePanel className="p-6">
-              <h2 className="text-lg font-semibold mb-4">Select Employee</h2>
+              <h2 className="text-lg font-semibold mb-4">{tt('Select Employee')}</h2>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {employees.map(employee => (
                   <div
@@ -234,7 +235,7 @@ export default function PayrollCreation() {
           {/* Payroll Configuration */}
           <div className="lg:col-span-2">
             <PosStylePanel className="p-6">
-              <h2 className="text-lg font-semibold mb-4">Payroll Configuration</h2>
+              <h2 className="text-lg font-semibold mb-4">{tt('Payroll Configuration')}</h2>
               
               {selectedEmployee && (
                 <div className="space-y-6">
@@ -251,20 +252,20 @@ export default function PayrollCreation() {
                         grossSalary: parseFloat(e.target.value) || 0
                       }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter gross salary"
+                      placeholder={tt('Enter gross salary')}
                     />
                   </div>
 
                   {/* Deductions */}
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-md font-medium text-gray-700">Deductions</h3>
+                      <h3 className="text-md font-medium text-gray-700">{tt('Deductions')}</h3>
                       <button
                         onClick={() => setShowDeductionModal(true)}
                         className="flex items-center px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
                       >
                         <Plus size={16} className="mr-1" />
-                        Add Custom
+                        {tt('Add Custom')}
                       </button>
                     </div>
 
@@ -292,7 +293,7 @@ export default function PayrollCreation() {
                             </div>
                             {deduction.isStatutory && (
                               <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded">
-                                Statutory
+                                {tt('Statutory')}
                               </span>
                             )}
                           </div>
@@ -303,7 +304,7 @@ export default function PayrollCreation() {
                     {/* Custom Deductions */}
                     {payrollData.customDeductions.length > 0 && (
                       <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-gray-700">Custom Deductions</h4>
+                        <h4 className="text-sm font-medium text-gray-700">{tt('Custom Deductions')}</h4>
                         {payrollData.customDeductions.map(deduction => (
                           <div key={deduction.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                             <div>
@@ -345,32 +346,32 @@ export default function PayrollCreation() {
         {/* Calculation Results */}
         {calculation && (
           <PosStylePanel className="mt-6 p-6">
-            <h2 className="text-lg font-semibold mb-4">Payroll Calculation Results</h2>
+            <h2 className="text-lg font-semibold mb-4">{tt('Payroll Calculation Results')}</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <div className="bg-blue-50 p-4 rounded-lg">
-                <div className="text-sm text-blue-600 font-medium">Gross Salary</div>
+                <div className="text-sm text-blue-600 font-medium">{tt('Gross Salary')}</div>
                 <div className="text-2xl font-bold text-blue-900">
                   MWK {calculation.grossSalary.toLocaleString()}
                 </div>
               </div>
               
               <div className="bg-red-50 p-4 rounded-lg">
-                <div className="text-sm text-red-600 font-medium">PAYE Tax</div>
+                <div className="text-sm text-red-600 font-medium">{tt('PAYE Tax')}</div>
                 <div className="text-2xl font-bold text-red-900">
                   MWK {calculation.paye.payeAmount.toLocaleString()}
                 </div>
               </div>
               
               <div className="bg-yellow-50 p-4 rounded-lg">
-                <div className="text-sm text-yellow-600 font-medium">NPS Employee</div>
+                <div className="text-sm text-yellow-600 font-medium">{tt('NPS Employee')}</div>
                 <div className="text-2xl font-bold text-yellow-900">
                   MWK {calculation.nps.employeeAmount.toLocaleString()}
                 </div>
               </div>
               
               <div className="bg-green-50 p-4 rounded-lg">
-                <div className="text-sm text-green-600 font-medium">Net Pay</div>
+                <div className="text-sm text-green-600 font-medium">{tt('Net Pay')}</div>
                 <div className="text-2xl font-bold text-green-900">
                   MWK {calculation.netPay.toLocaleString()}
                 </div>
@@ -379,7 +380,7 @@ export default function PayrollCreation() {
 
             {/* PAYE Breakdown */}
             <div className="mb-6">
-              <h3 className="text-md font-semibold mb-3">PAYE Tax Breakdown</h3>
+              <h3 className="text-md font-semibold mb-3">{tt('PAYE Tax Breakdown')}</h3>
               <div className="space-y-2">
                 {calculation.paye.breakdown.map((item, index) => (
                   <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
@@ -413,29 +414,29 @@ export default function PayrollCreation() {
         {showDeductionModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">Add Custom Deduction</h3>
+              <h3 className="text-lg font-semibold mb-4">{tt('Add Custom Deduction')}</h3>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Name')}</label>
                   <input
                     type="text"
                     value={newDeduction.name}
                     onChange={(e) => setNewDeduction(prev => ({ ...prev, name: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., Medical Aid, Loan Repayment"
+                    placeholder={tt('e.g., Medical Aid, Loan Repayment')}
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Type')}</label>
                   <select
                     value={newDeduction.type}
                     onChange={(e) => setNewDeduction(prev => ({ ...prev, type: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="percentage">Percentage</option>
-                    <option value="fixed">Fixed Amount</option>
+                    <option value="percentage">{tt('Percentage')}</option>
+                    <option value="fixed">{tt('Fixed Amount')}</option>
                   </select>
                 </div>
                 
@@ -471,13 +472,13 @@ export default function PayrollCreation() {
                   onClick={() => setShowDeductionModal(false)}
                   className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   onClick={addCustomDeduction}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 >
-                  Add Deduction
+                  {tt('Add Deduction')}
                 </button>
               </div>
             </div>

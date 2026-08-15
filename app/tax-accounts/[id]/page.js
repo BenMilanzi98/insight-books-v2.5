@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -160,8 +161,8 @@ export default function TaxAccountDetailPage() {
     return (
       <div className="container mx-auto px-4 py-6">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <h3 className="text-lg font-medium text-red-800 mb-2">Access Denied</h3>
-          <p className="text-red-600">You don't have permission to access this feature.</p>
+          <h3 className="text-lg font-medium text-red-800 mb-2">{tt('Access Denied')}</h3>
+          <p className="text-red-600">{tt("You don't have permission to access this feature.")}</p>
         </div>
       </div>
     );
@@ -210,27 +211,27 @@ export default function TaxAccountDetailPage() {
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Period</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Period')}</label>
             <select
               className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={selectedPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
             >
-              <option value="today">Today</option>
-              <option value="thisWeek">This Week</option>
-              <option value="thisMonth">This Month</option>
-              <option value="lastMonth">Last Month</option>
-              <option value="thisQuarter">This Quarter</option>
-              <option value="lastQuarter">Last Quarter</option>
-              <option value="thisYear">This Year</option>
-              <option value="custom">Custom Range</option>
+              <option value="today">{tt('Today')}</option>
+              <option value="thisWeek">{tt('This Week')}</option>
+              <option value="thisMonth">{tt('This Month')}</option>
+              <option value="lastMonth">{tt('Last Month')}</option>
+              <option value="thisQuarter">{tt('This Quarter')}</option>
+              <option value="lastQuarter">{tt('Last Quarter')}</option>
+              <option value="thisYear">{tt('This Year')}</option>
+              <option value="custom">{tt('Custom Range')}</option>
             </select>
           </div>
           
           {selectedPeriod === 'custom' && (
             <>
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Start Date')}</label>
                 <input
                   type="date"
                   className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -239,7 +240,7 @@ export default function TaxAccountDetailPage() {
                 />
               </div>
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('End Date')}</label>
                 <input
                   type="date"
                   className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -256,7 +257,7 @@ export default function TaxAccountDetailPage() {
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
             >
               <RefreshCw size={18} />
-              Refresh
+              {tt('Refresh')}
             </button>
           </div>
         </div>
@@ -267,7 +268,7 @@ export default function TaxAccountDetailPage() {
         <div className="bg-blue-50 rounded-lg p-6">
           <div className="flex items-center gap-2 mb-2">
             <DollarSign className="text-blue-600" size={24} />
-            <h3 className="text-sm font-medium text-gray-700">Total Collected</h3>
+            <h3 className="text-sm font-medium text-gray-700">{tt('Total Collected')}</h3>
           </div>
           <p className="text-2xl font-bold text-blue-600">
             {formatCurrency(summary.totalCollected || 0)}
@@ -277,7 +278,7 @@ export default function TaxAccountDetailPage() {
         <div className="bg-red-50 rounded-lg p-6">
           <div className="flex items-center gap-2 mb-2">
             <TrendingDown className="text-red-600" size={24} />
-            <h3 className="text-sm font-medium text-gray-700">Total Paid</h3>
+            <h3 className="text-sm font-medium text-gray-700">{tt('Total Paid')}</h3>
           </div>
           <p className="text-2xl font-bold text-red-600">
             {formatCurrency(summary.totalPaid || 0)}
@@ -287,7 +288,7 @@ export default function TaxAccountDetailPage() {
         <div className="bg-yellow-50 rounded-lg p-6">
           <div className="flex items-center gap-2 mb-2">
             <Info className="text-yellow-600" size={24} />
-            <h3 className="text-sm font-medium text-gray-700">Total Refunded</h3>
+            <h3 className="text-sm font-medium text-gray-700">{tt('Total Refunded')}</h3>
           </div>
           <p className="text-2xl font-bold text-yellow-600">
             {formatCurrency(summary.totalRefunded || 0)}
@@ -318,26 +319,26 @@ export default function TaxAccountDetailPage() {
       {/* Transaction History */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Transaction History</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{tt('Transaction History')}</h2>
         </div>
         
         {transactionHistory.length === 0 ? (
           <div className="p-12 text-center">
             <FileText className="mx-auto text-gray-400 mb-4" size={48} />
-            <p className="text-gray-500">No transactions found for this period.</p>
+            <p className="text-gray-500">{tt('No transactions found for this period.')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Debit</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Credit</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Date')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Reference')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Description')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Type')}</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{tt('Debit')}</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{tt('Credit')}</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{tt('Balance')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">

@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/TaxSettlementModal.js
 import React, { useState, useEffect } from 'react';
 import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
@@ -106,7 +107,7 @@ const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0, taxTy
           {/* Header */}
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-gray-900">
-              Settle Tax Payment
+              {tt('Settle Tax Payment')}
             </h2>
             <button
               onClick={onClose}
@@ -122,7 +123,7 @@ const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0, taxTy
             {/* Amount */}
             <div>
               <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">
-                Settlement Amount *
+                {tt('Settlement Amount *')}
               </label>
               <input
                 type="number"
@@ -146,7 +147,7 @@ const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0, taxTy
             {/* Date */}
             <div>
               <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">
-                Settlement Date *
+                {tt('Settlement Date *')}
               </label>
               <input
                 type="date"
@@ -167,7 +168,7 @@ const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0, taxTy
             {/* Payment Method */}
             <div>
               <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-1">
-                Payment Method *
+                {tt('Payment Method *')}
               </label>
               <select
                 id="paymentMethod"
@@ -196,7 +197,7 @@ const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0, taxTy
             {/* Description */}
             <div>
               <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-                Description *
+                {tt('Description *')}
               </label>
               <input
                 type="text"
@@ -207,7 +208,7 @@ const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0, taxTy
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   errors.description ? 'border-red-500' : 'border-gray-300'
                 }`}
-                placeholder="Tax Settlement - [Date]"
+                placeholder={tt('Tax Settlement - [Date]')}
                 disabled={isSubmitting}
               />
               {errors.description && (
@@ -227,7 +228,7 @@ const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0, taxTy
                 onChange={handleInputChange}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Additional notes about this tax settlement..."
+                placeholder={tt('Additional notes about this tax settlement...')}
                 disabled={isSubmitting}
               />
             </div>
@@ -245,7 +246,7 @@ const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0, taxTy
                 className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
                 disabled={isSubmitting}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="submit"

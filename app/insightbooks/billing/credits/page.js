@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -136,7 +137,7 @@ export default function AdminCreditsRefundsPage() {
         description="Platform SaaS credits and refunds. Idempotent — retries do not duplicate financial effects."
         actions={
           <button type="button" onClick={load} className={btnGhost}>
-            <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+            <RefreshCw className="h-4 w-4" aria-hidden /> {tt('Refresh')}
           </button>
         }
       />

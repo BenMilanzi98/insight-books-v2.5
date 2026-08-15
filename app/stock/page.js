@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -2457,9 +2458,9 @@ const StockManagement = () => {
         <div className="mb-6 rounded-xl border border-teal-200 bg-gradient-to-r from-teal-50 to-emerald-50 px-4 py-4 sm:px-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-teal-950">Setup wizard — opening stock</p>
+              <p className="text-sm font-semibold text-teal-950">{tt('Setup wizard — opening stock')}</p>
               <p className="mt-1 text-sm text-teal-900/80">
-                Add products with opening quantity and unit cost, or use <strong>Stock In</strong> on
+                {tt('Add products with opening quantity and unit cost, or use')} <strong>{tt('Stock In')}</strong> on
                 existing items. This updates inventory valuation and Stock on Hand (1310).
               </p>
             </div>
@@ -2467,7 +2468,7 @@ const StockManagement = () => {
               href="/setup?step=openingStock"
               className="shrink-0 text-sm font-medium text-teal-800 underline decoration-teal-300 underline-offset-2 hover:text-teal-950"
             >
-              Back to setup wizard
+              {tt('Back to setup wizard')}
             </Link>
           </div>
         </div>
@@ -2496,7 +2497,7 @@ const StockManagement = () => {
             >
               <span className="inline-flex items-center gap-2">
                 <Package size={16} />
-                Products
+                {tt('Products')}
               </span>
             </button>
             <button
@@ -2510,7 +2511,7 @@ const StockManagement = () => {
             >
               <span className="inline-flex items-center gap-2">
                 <Briefcase size={16} />
-                Services
+                {tt('Services')}
               </span>
             </button>
           </div>
@@ -2530,7 +2531,7 @@ const StockManagement = () => {
                 setSelectedProducts([]);
               }}
             >
-              Active Products
+              {tt('Active Products')}
             </button>
             <button
               className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
@@ -2585,7 +2586,7 @@ const StockManagement = () => {
                 onClick={handleAddProduct}
               >
                 <Plus size={16} />
-                <span>Add Product</span>
+                <span>{tt('Add Product')}</span>
               </button>
 
               <button
@@ -2595,7 +2596,7 @@ const StockManagement = () => {
                 title="Create a purchase order from stock"
               >
                 <ShoppingCart size={16} />
-                <span>New Purchase Order</span>
+                <span>{tt('New Purchase Order')}</span>
               </button>
               </>
               )}
@@ -2607,7 +2608,7 @@ const StockManagement = () => {
                   onClick={handleAddService}
                 >
                   <Plus size={16} />
-                  <span>Add Service</span>
+                  <span>{tt('Add Service')}</span>
                 </button>
               )}
 
@@ -2662,7 +2663,7 @@ const StockManagement = () => {
             onClick={() => setIsBulkOperationsOpen(true)}
           >
             <FileSpreadsheet size={16} />
-            <span>Bulk Operations</span>
+            <span>{tt('Bulk Operations')}</span>
           </button>
           )}
           
@@ -2671,7 +2672,7 @@ const StockManagement = () => {
             onClick={() => setIsBulkTaxModalOpen(true)}
           >
             <Settings size={16} />
-            <span>Apply Taxes</span>
+            <span>{tt('Apply Taxes')}</span>
           </button>
           
           {stockCatalog === "products" && (
@@ -2680,7 +2681,7 @@ const StockManagement = () => {
             onClick={() => setIsExpiryAlertsOpen(true)}
           >
             <Calendar size={16} />
-            <span>Expiry Alerts</span>
+            <span>{tt('Expiry Alerts')}</span>
           </button>
           )}
         </div>
@@ -2831,10 +2832,10 @@ const StockManagement = () => {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="bg-transparent border-none focus:outline-none text-sm text-gray-700 min-w-[110px]"
             >
-              <option value="All">All Status</option>
-              <option value="In Stock">In Stock</option>
-              <option value="Low Stock">Low Stock</option>
-              <option value="Out of Stock">Out of Stock</option>
+              <option value="All">{tt('All Status')}</option>
+              <option value="In Stock">{tt('In Stock')}</option>
+              <option value="Low Stock">{tt('Low Stock')}</option>
+              <option value="Out of Stock">{tt('Out of Stock')}</option>
             </select>
           </div>
           )}
@@ -2874,7 +2875,7 @@ const StockManagement = () => {
                 <rect x="1" y="7" width="14" height="2" rx="1" fill="currentColor"/>
                 <rect x="1" y="11" width="14" height="2" rx="1" fill="currentColor"/>
               </svg>
-              <span className="text-xs font-medium">List</span>
+              <span className="text-xs font-medium">{tt('List')}</span>
             </button>
             <button 
               className={`px-3 py-2 flex items-center gap-1.5 border-l border-gray-200 transition-all duration-200 ${
@@ -2891,7 +2892,7 @@ const StockManagement = () => {
                 <rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor"/>
                 <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor"/>
               </svg>
-              <span className="text-xs font-medium">Grid</span>
+              <span className="text-xs font-medium">{tt('Grid')}</span>
             </button>
           </div>
           )}
@@ -2902,7 +2903,7 @@ const StockManagement = () => {
               onClick={() => handleExport('csv')}
             >
               <Download size={16} className="text-gray-500" />
-              <span className="text-sm font-medium">Export</span>
+              <span className="text-sm font-medium">{tt('Export')}</span>
             </button>
           )}
           
@@ -2919,7 +2920,7 @@ const StockManagement = () => {
             }}
           >
             <Truck size={16} />
-            <span className="text-sm">Transfers</span>
+            <span className="text-sm">{tt('Transfers')}</span>
           </button>
 
           <button
@@ -2931,7 +2932,7 @@ const StockManagement = () => {
             onClick={handleOpenStockMovementReport}
           >
             <FileText size={16} />
-            <span className="text-sm">Stock movement report</span>
+            <span className="text-sm">{tt('Stock movement report')}</span>
           </button>
 
           <Link
@@ -2939,7 +2940,7 @@ const StockManagement = () => {
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all duration-200 font-medium bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:shadow-sm"
           >
             <AlertTriangle size={16} />
-            <span className="text-sm">Inventory loss report</span>
+            <span className="text-sm">{tt('Inventory loss report')}</span>
           </Link>
           </>
           )}
@@ -2950,12 +2951,12 @@ const StockManagement = () => {
       {stockCatalog === "products" && stockMovementReportOpen && (
         <div className="mb-6 lg:mb-8 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-slate-50">
-            <h2 className="text-lg font-semibold text-gray-900">Stock movement report</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{tt('Stock movement report')}</h2>
             <button
               type="button"
               onClick={handleCloseStockMovementReport}
               className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-200 transition-colors"
-              aria-label="Close report"
+              aria-label={tt('Close report')}
             >
               <X size={20} />
             </button>
@@ -2963,7 +2964,7 @@ const StockManagement = () => {
           <div className="p-4">
             {stockMovementNeedsDateRange && !stockMovementShowCustomRange && !stockMovementShowSingleDay && (
               <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
-                Select a date range using the period dropdown above.
+                {tt('Select a date range using the period dropdown above.')}
               </p>
             )}
             <StockMovementReport
@@ -2999,8 +3000,8 @@ const StockManagement = () => {
             <div className="h-14 w-14 border-4 border-gray-200 rounded-full animate-spin"></div>
             <div className="absolute top-0 left-0 h-14 w-14 border-4 border-t-blue-600 border-r-transparent border-l-transparent border-b-transparent rounded-full animate-spin"></div>
           </div>
-          <p className="text-gray-600 mt-4 font-medium">Loading stock...</p>
-          <p className="text-gray-400 text-sm mt-1">Please wait while we fetch your data</p>
+          <p className="text-gray-600 mt-4 font-medium">{tt('Loading stock...')}</p>
+          <p className="text-gray-400 text-sm mt-1">{tt('Please wait while we fetch your data')}</p>
         </div>
       ) : error ? (
         <div className="bg-red-50 border border-red-200 rounded-xl p-5 flex items-start">
@@ -3008,13 +3009,13 @@ const StockManagement = () => {
             <AlertTriangle size={20} className="text-red-600" />
           </div>
           <div className="flex-grow">
-            <h3 className="text-red-800 font-semibold mb-1">Error loading stock</h3>
+            <h3 className="text-red-800 font-semibold mb-1">{tt('Error loading stock')}</h3>
             <p className="text-red-600 text-sm mb-4">{error}</p>
             <button 
               className="px-4 py-2 bg-red-100 text-red-800 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
               onClick={loadInventory}
             >
-              Try Again
+              {tt('Try Again')}
             </button>
           </div>
         </div>
@@ -3053,7 +3054,7 @@ const StockManagement = () => {
                           onClick={() => handleSort("name")}
                         >
                           <div className="flex items-center gap-1.5">
-                            <span>Service name</span>
+                            <span>{tt('Service name')}</span>
                             {sortField === "name" &&
                               (sortDirection === "asc" ? (
                                 <ArrowUp size={12} className="text-blue-600" />
@@ -3063,17 +3064,17 @@ const StockManagement = () => {
                           </div>
                         </th>
                         <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Code
+                          {tt('Code')}
                         </th>
                         <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Billing
+                          {tt('Billing')}
                         </th>
                         <th
                           className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors"
                           onClick={() => handleSort("unitPrice")}
                         >
                           <div className="flex items-center gap-1.5">
-                            <span>Rate</span>
+                            <span>{tt('Rate')}</span>
                             {sortField === "unitPrice" &&
                               (sortDirection === "asc" ? (
                                 <ArrowUp size={12} className="text-blue-600" />
@@ -3083,10 +3084,10 @@ const StockManagement = () => {
                           </div>
                         </th>
                         <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          VAT %
+                          {tt('VAT %')}
                         </th>
                         <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Line items
+                          {tt('Line items')}
                         </th>
                       </>
                     ) : (
@@ -3096,7 +3097,7 @@ const StockManagement = () => {
                           onClick={() => handleSort("name")}
                         >
                           <div className="flex items-center gap-1.5">
-                            <span>Product Name</span>
+                            <span>{tt('Product Name')}</span>
                             {sortField === "name" &&
                               (sortDirection === "asc" ? (
                                 <ArrowUp size={12} className="text-blue-600" />
@@ -3111,7 +3112,7 @@ const StockManagement = () => {
                           onClick={() => handleSort("category")}
                         >
                           <div className="flex items-center gap-1.5">
-                            <span>Category</span>
+                            <span>{tt('Category')}</span>
                             {sortField === "category" &&
                               (sortDirection === "asc" ? (
                                 <ArrowUp size={12} className="text-blue-600" />
@@ -3125,7 +3126,7 @@ const StockManagement = () => {
                           onClick={() => handleSort("quantityInStock")}
                         >
                           <div className="flex items-center gap-1.5">
-                            <span>Quantity</span>
+                            <span>{tt('Quantity')}</span>
                             {sortField === "quantityInStock" &&
                               (sortDirection === "asc" ? (
                                 <ArrowUp size={12} className="text-blue-600" />
@@ -3139,7 +3140,7 @@ const StockManagement = () => {
                           onClick={() => handleSort("unitPrice")}
                         >
                           <div className="flex items-center gap-1.5">
-                            <span>Selling Price</span>
+                            <span>{tt('Selling Price')}</span>
                             {sortField === "unitPrice" &&
                               (sortDirection === "asc" ? (
                                 <ArrowUp size={12} className="text-blue-600" />
@@ -3153,7 +3154,7 @@ const StockManagement = () => {
                           onClick={() => handleSort("status")}
                         >
                           <div className="flex items-center gap-1.5">
-                            <span>Status</span>
+                            <span>{tt('Status')}</span>
                             {sortField === "status" &&
                               (sortDirection === "asc" ? (
                                 <ArrowUp size={12} className="text-blue-600" />
@@ -3163,11 +3164,11 @@ const StockManagement = () => {
                           </div>
                         </th>
                         <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Stock value
+                          {tt('Stock value')}
                         </th>
                       </>
                     )}
-                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -3355,7 +3356,7 @@ const StockManagement = () => {
                       onClick={handleAddService}
                     >
                       <Plus size={18} />
-                      Add your first service
+                      {tt('Add your first service')}
                     </button>
                   )
                 ) : (
@@ -3364,7 +3365,7 @@ const StockManagement = () => {
                   onClick={handleAddProduct}
                 >
                   <Plus size={18} />
-                  Add Your First Product
+                  {tt('Add Your First Product')}
                 </button>
                 )}
               </div>
@@ -3429,7 +3430,7 @@ const StockManagement = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-gray-50 rounded-lg p-2.5">
-                      <span className="block text-xs text-gray-500 mb-1">Quantity</span>
+                      <span className="block text-xs text-gray-500 mb-1">{tt('Quantity')}</span>
                       <span className={`text-sm font-bold ${
                         item.status === 'Out of Stock' ? 'text-red-600' : 
                         item.status === 'Low Stock' ? 'text-amber-600' : 
@@ -3439,7 +3440,7 @@ const StockManagement = () => {
                       </span>
                     </div>
                     <div className="bg-gray-50 rounded-lg p-2.5">
-                      <span className="block text-xs text-gray-500 mb-1">Price</span>
+                      <span className="block text-xs text-gray-500 mb-1">{tt('Price')}</span>
                       <span className="text-sm font-bold text-gray-900">
                         {formatCurrency(item.unitPrice)}
                       </span>
@@ -3447,7 +3448,7 @@ const StockManagement = () => {
                   </div>
                   <div className="mt-3 pt-3 border-t border-gray-100">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-500">Stock Value</span>
+                      <span className="text-xs text-gray-500">{tt('Stock Value')}</span>
                       <span className="text-sm font-bold text-gray-900">{formatCurrency(stockLineValue(item.quantityInStock, item.costPrice))}</span>
                     </div>
                   </div>
@@ -3508,7 +3509,7 @@ const StockManagement = () => {
                 <div className="bg-gray-50 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
                   <Package className="w-10 h-10 text-gray-300" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No products found</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{tt('No products found')}</h3>
                 <p className="text-gray-500 mb-6 max-w-sm mx-auto">
                   {(searchTerm || categoryFilter !== "All" || statusFilter !== "All" || locationFilter !== "All") 
                     ? "Try adjusting your search or filter criteria" 
@@ -3519,7 +3520,7 @@ const StockManagement = () => {
                   onClick={handleAddProduct}
                 >
                   <Plus size={18} />
-                  Add Your First Product
+                  {tt('Add Your First Product')}
                 </button>
               </div>
             )}
@@ -3533,12 +3534,12 @@ const StockManagement = () => {
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600">
-                Showing <span className="font-semibold text-gray-900">{(() => { const p = Number(pagination.currentPage) || 1; const s = Number(pagination.pageSize) || 20; const n = (p - 1) * s + 1; return Number.isFinite(n) ? n : 0; })()}</span> to <span className="font-semibold text-gray-900">{(() => { const p = Number(pagination.currentPage) || 1; const s = Number(pagination.pageSize) || 20; const t = Number(pagination.totalItems) || 0; const n = Math.min(p * s, t); return Number.isFinite(n) ? n : 0; })()}</span> of <span className="font-semibold text-gray-900">{Number.isFinite(Number(pagination.totalItems)) ? (Number(pagination.totalItems) || 0) : 0}</span>{" "}
+                {tt('Showing')} <span className="font-semibold text-gray-900">{(() => { const p = Number(pagination.currentPage) || 1; const s = Number(pagination.pageSize) || 20; const n = (p - 1) * s + 1; return Number.isFinite(n) ? n : 0; })()}</span> {tt('to')} <span className="font-semibold text-gray-900">{(() => { const p = Number(pagination.currentPage) || 1; const s = Number(pagination.pageSize) || 20; const t = Number(pagination.totalItems) || 0; const n = Math.min(p * s, t); return Number.isFinite(n) ? n : 0; })()}</span> {tt('of')} <span className="font-semibold text-gray-900">{Number.isFinite(Number(pagination.totalItems)) ? (Number(pagination.totalItems) || 0) : 0}</span>{" "}
                 {stockCatalog === "services" ? "services" : "products"}
               </span>
               
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Show:</span>
+                <span className="text-sm text-gray-600">{tt('Show:')}</span>
                 <select
                   value={pagination.pageSize}
                   onChange={(e) => handlePageSizeChange(parseInt(e.target.value))}
@@ -3549,7 +3550,7 @@ const StockManagement = () => {
                   <option value={20}>20</option>
                   <option value={50}>50</option>
                 </select>
-                <span className="text-sm text-gray-600">per page</span>
+                <span className="text-sm text-gray-600">{tt('per page')}</span>
               </div>
             </div>
             
@@ -3559,7 +3560,7 @@ const StockManagement = () => {
                 disabled={pagination.currentPage === 1}
                 className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-600 hover:text-gray-900"
               >
-                First
+                {tt('First')}
               </button>
               
               <button
@@ -3567,7 +3568,7 @@ const StockManagement = () => {
                 disabled={pagination.currentPage === 1}
                 className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-600 hover:text-gray-900"
               >
-                Previous
+                {tt('Previous')}
               </button>
               
               <div className="flex items-center gap-1">
@@ -3604,7 +3605,7 @@ const StockManagement = () => {
                 disabled={pagination.currentPage === pagination.totalPages}
                 className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-600 hover:text-gray-900"
               >
-                Next
+                {tt('Next')}
               </button>
               
               <button
@@ -3612,7 +3613,7 @@ const StockManagement = () => {
                 disabled={pagination.currentPage === pagination.totalPages}
                 className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-600 hover:text-gray-900"
               >
-                Last
+                {tt('Last')}
               </button>
             </div>
           </div>
@@ -3626,10 +3627,10 @@ const StockManagement = () => {
               <div className="p-2 bg-blue-100 rounded-lg">
                 <RefreshCw size={16} className="text-blue-600" />
               </div>
-              <h2 className="text-lg font-semibold text-gray-900">Recent Transactions</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{tt('Recent Transactions')}</h2>
             </div>
             <Link href="/stock/transactions" className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
-              View All
+              {tt('View All')}
               <ChevronDown size={14} className="rotate-[-90deg]" />
             </Link>
           </div>
@@ -3684,8 +3685,8 @@ const StockManagement = () => {
                 <div className="bg-gray-100 rounded-full w-14 h-14 flex items-center justify-center mx-auto mb-3">
                   <RefreshCw className="h-7 w-7 text-gray-400" />
                 </div>
-                <p className="font-medium text-gray-600">No recent transactions found</p>
-                <p className="text-sm text-gray-400 mt-1">Stock activity for this business will appear here</p>
+                <p className="font-medium text-gray-600">{tt('No recent transactions found')}</p>
+                <p className="text-sm text-gray-400 mt-1">{tt('Stock activity for this business will appear here')}</p>
               </div>
             )}
           </div>
@@ -3697,10 +3698,10 @@ const StockManagement = () => {
               <div className="p-2 bg-amber-100 rounded-lg">
                 <AlertTriangle size={16} className="text-amber-600" />
               </div>
-              <h2 className="text-lg font-semibold text-gray-900">Low Stock Alerts</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{tt('Low Stock Alerts')}</h2>
             </div>
             <Link href="/stock/low-stock" className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
-              View All
+              {tt('View All')}
               <ChevronDown size={14} className="rotate-[-90deg]" />
             </Link>
           </div>
@@ -3734,7 +3735,7 @@ const StockManagement = () => {
                         </div>
                         <div className="flex items-center flex-shrink-0">
                           <div className="text-right mr-4">
-                            <div className="text-xs text-gray-500">Current / Reorder</div>
+                            <div className="text-xs text-gray-500">{tt('Current / Reorder')}</div>
                             <div className={`font-bold ${item.status === "Out of Stock" ? "text-red-600" : "text-amber-600"}`}>
                               {item.quantityInStock} / {item.reorderPoint}
                             </div>
@@ -3747,7 +3748,7 @@ const StockManagement = () => {
                             }}
                           >
                             <Plus size={14} />
-                            Restock
+                            {tt('Restock')}
                           </button>
                         </div>
                       </div>
@@ -3757,8 +3758,8 @@ const StockManagement = () => {
                       <div className="bg-green-100 rounded-full w-14 h-14 flex items-center justify-center mx-auto mb-3">
                         <CheckCircle className="h-7 w-7 text-green-500" />
                       </div>
-                      <p className="font-medium text-gray-600">All stocked up!</p>
-                      <p className="text-sm text-gray-400 mt-1">No low stock alerts at the moment</p>
+                      <p className="font-medium text-gray-600">{tt('All stocked up!')}</p>
+                      <p className="text-sm text-gray-400 mt-1">{tt('No low stock alerts at the moment')}</p>
                     </div>
                   )}
                   
@@ -3783,7 +3784,7 @@ const StockManagement = () => {
                           disabled={lowStockPage === totalPages}
                           className="px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                          Next →
+                          {tt('Next →')}
                         </button>
                       </div>
                     </div>
@@ -3831,18 +3832,18 @@ const StockManagement = () => {
                       <div className="font-medium">{selectedItem.sku}</div>
                     </div>
                     <div>
-                      <span className="text-sm text-gray-500">Category</span>
+                      <span className="text-sm text-gray-500">{tt('Category')}</span>
                       <div className="font-medium">{selectedItem.category}</div>
                     </div>
                     {!selectedItem.isService && (
                     <div>
-                      <span className="text-sm text-gray-500">Location</span>
+                      <span className="text-sm text-gray-500">{tt('Location')}</span>
                       <div className="font-medium">{selectedItem.location || 'Not specified'}</div>
                     </div>
                     )}
                     {selectedItem.isService && (
                     <div className="md:col-span-2">
-                      <span className="text-sm text-gray-500">Revenue account</span>
+                      <span className="text-sm text-gray-500">{tt('Revenue account')}</span>
                       <div className="font-medium">
                         {selectedItem.incomeAccount
                           ? `${String(selectedItem.incomeAccount.accountCode || "").trim()} — ${selectedItem.incomeAccount.accountName || "Revenue"}`
@@ -3851,12 +3852,12 @@ const StockManagement = () => {
                     </div>
                     )}
                     <div>
-                      <span className="text-sm text-gray-500">Last Updated</span>
+                      <span className="text-sm text-gray-500">{tt('Last Updated')}</span>
                       <div className="font-medium">{formatDate(selectedItem.lastUpdated)}</div>
                     </div>
                     {!selectedItem.isService && (
                     <div className="md:col-span-2">
-                      <span className="text-sm text-gray-500">Barcodes</span>
+                      <span className="text-sm text-gray-500">{tt('Barcodes')}</span>
                       <div className="font-medium flex flex-wrap gap-2 mt-0.5">
                         {(selectedItem.barcodes && selectedItem.barcodes.length > 0)
                           ? selectedItem.barcodes.map((bc, i) => (
@@ -3865,11 +3866,11 @@ const StockManagement = () => {
                           : (selectedItem.barcode ? (
                               <span className="inline-flex px-2 py-0.5 bg-slate-100 text-slate-800 text-sm rounded font-mono">{selectedItem.barcode}</span>
                             ) : (
-                              <span className="text-gray-400">None</span>
+                              <span className="text-gray-400">{tt('None')}</span>
                             ))}
                       </div>
                       {selectedItem.barcodes?.length > 0 && (
-                        <p className="text-xs text-gray-500 mt-1">Any of these can be used in POS to search for this product.</p>
+                        <p className="text-xs text-gray-500 mt-1">{tt('Any of these can be used in POS to search for this product.')}</p>
                       )}
                     </div>
                     )}
@@ -3880,7 +3881,7 @@ const StockManagement = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 {!selectedItem.isService && (
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <h3 className="font-medium text-lg mb-4">Stock Information</h3>
+                  <h3 className="font-medium text-lg mb-4">{tt('Stock Information')}</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div className="text-center">
                       <div className={`text-2xl font-bold ${
@@ -3890,19 +3891,19 @@ const StockManagement = () => {
                       }`}>
                         {parseFloat(selectedItem.originalStockLevel !== undefined ? selectedItem.originalStockLevel : selectedItem.quantityInStock || 0).toFixed(3)}
                       </div>
-                      <div className="text-sm text-gray-500">In Stock</div>
+                      <div className="text-sm text-gray-500">{tt('In Stock')}</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold">{selectedItem.reorderPoint}</div>
-                      <div className="text-sm text-gray-500">Reorder Point</div>
+                      <div className="text-sm text-gray-500">{tt('Reorder Point')}</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold">-</div>
-                      <div className="text-sm text-gray-500">Reserved</div>
+                      <div className="text-sm text-gray-500">{tt('Reserved')}</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold">-</div>
-                      <div className="text-sm text-gray-500">On Order</div>
+                      <div className="text-sm text-gray-500">{tt('On Order')}</div>
                     </div>
                   </div>
                 </div>
@@ -3913,7 +3914,7 @@ const StockManagement = () => {
                   <div className={`grid gap-4 ${selectedItem.isService ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-2"}`}>
                     {!selectedItem.isService && (
                     <div>
-                      <span className="text-sm text-gray-500">Order Price</span>
+                      <span className="text-sm text-gray-500">{tt('Order Price')}</span>
                       <div className="min-w-0 break-words text-base font-bold leading-tight tabular-nums sm:text-lg">{formatCurrency(selectedItem.costPrice)}</div>
                     </div>
                     )}
@@ -3923,20 +3924,20 @@ const StockManagement = () => {
                     </div>
                     {selectedItem.isService && (
                       <div>
-                        <span className="text-sm text-gray-500">Billing</span>
+                        <span className="text-sm text-gray-500">{tt('Billing')}</span>
                         <div className="text-lg font-bold">{formatBillingLabel(selectedItem.serviceBillingType)}</div>
                       </div>
                     )}
                     {selectedItem.isService && selectedItem.serviceDefaultQty != null && (
                       <div>
-                        <span className="text-sm text-gray-500">Default quantity</span>
+                        <span className="text-sm text-gray-500">{tt('Default quantity')}</span>
                         <div className="text-lg font-bold">{String(selectedItem.serviceDefaultQty)}</div>
                       </div>
                     )}
                     {!selectedItem.isService && (
                     <>
                     <div>
-                      <span className="text-sm text-gray-500">Profit Margin</span>
+                      <span className="text-sm text-gray-500">{tt('Profit Margin')}</span>
                       <div className="text-lg font-bold">
                         {selectedItem.unitPrice
                           ? `${Math.round(((selectedItem.unitPrice - (selectedItem.costPrice || 0)) / selectedItem.unitPrice) * 100)}%`
@@ -3944,7 +3945,7 @@ const StockManagement = () => {
                       </div>
                     </div>
                     <div>
-                      <span className="text-sm text-gray-500">Stock Value</span>
+                      <span className="text-sm text-gray-500">{tt('Stock Value')}</span>
                       <div className="text-lg font-bold">
                         {formatCurrency(
                           selectedItem.totalStockValue != null && !isNaN(Number(selectedItem.totalStockValue))
@@ -3962,7 +3963,7 @@ const StockManagement = () => {
               {/* Product Units Display */}
               {!selectedItem.isService && selectedItem?.units && selectedItem.units.length > 0 && (
                 <div className="bg-blue-50 p-4 rounded-lg mb-6">
-                  <h3 className="font-medium text-lg mb-4 text-blue-900">Product Units</h3>
+                  <h3 className="font-medium text-lg mb-4 text-blue-900">{tt('Product Units')}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {selectedItem.units.map((unit, index) => (
                       <div key={unit.id || index} className="bg-white p-3 rounded-md border border-blue-200">
@@ -3972,22 +3973,22 @@ const StockManagement = () => {
                             <span className="text-sm text-gray-500">({unit.symbol || 'N/A'})</span>
                             {unit.isBaseUnit && (
                               <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded">
-                                Base Unit
+                                {tt('Base Unit')}
                               </span>
                             )}
                           </div>
                         </div>
                         <div className="space-y-1 text-sm">
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Price:</span>
+                            <span className="text-gray-600">{tt('Price:')}</span>
                             <span className="font-medium">MWK {parseFloat(unit.unitPrice || 0).toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Cost:</span>
+                            <span className="text-gray-600">{tt('Cost:')}</span>
                             <span className="font-medium">MWK {parseFloat(unit.costPrice || 0).toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Stock:</span>
+                            <span className="text-gray-600">{tt('Stock:')}</span>
                             <span className={`font-medium ${
                               parseFloat(unit.quantityInStock || 0) <= parseFloat(unit.reorderPoint || 0) 
                                 ? 'text-red-600' 
@@ -3997,7 +3998,7 @@ const StockManagement = () => {
                             </span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Reorder:</span>
+                            <span className="text-gray-600">{tt('Reorder:')}</span>
                             <span className="font-medium">{parseFloat(unit.reorderPoint || 0).toFixed(3)} {unit.symbol || ''}</span>
                           </div>
                         </div>
@@ -4010,8 +4011,8 @@ const StockManagement = () => {
               {!selectedItem.isService && (
               <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
                 <div className="px-4 py-3 border-b border-gray-200">
-                  <h3 className="font-medium text-lg">Stock activity</h3>
-                  <p className="text-xs text-gray-500 mt-1">Timeline of stock ins, stock outs, and adjustments for this business.</p>
+                  <h3 className="font-medium text-lg">{tt('Stock activity')}</h3>
+                  <p className="text-xs text-gray-500 mt-1">{tt('Timeline of stock ins, stock outs, and adjustments for this business.')}</p>
                 </div>
                 
                 <div className="max-h-96 overflow-y-auto">
@@ -4117,8 +4118,8 @@ const StockManagement = () => {
                   ) : (
                     <div className="p-8 text-center text-gray-500">
                       <RefreshCw className="mx-auto h-8 w-8 text-gray-300 mb-2" />
-                      <p className="text-sm">No activity recorded yet</p>
-                      <p className="text-xs text-gray-400 mt-1">Transactions will appear here for this product</p>
+                      <p className="text-sm">{tt('No activity recorded yet')}</p>
+                      <p className="text-xs text-gray-400 mt-1">{tt('Transactions will appear here for this product')}</p>
                     </div>
                   )}
                 </div>
@@ -4136,7 +4137,7 @@ const StockManagement = () => {
                   }}
                 >
                   <Truck size={14} />
-                  <span>Stock In</span>
+                  <span>{tt('Stock In')}</span>
                 </button>
                 <button 
                   className="px-3 py-1.5 border border-gray-300 rounded text-sm flex items-center gap-1 hover:bg-gray-50"
@@ -4146,7 +4147,7 @@ const StockManagement = () => {
                   }}
                 >
                   <ShoppingCart size={14} />
-                  <span>Stock Out</span>
+                  <span>{tt('Stock Out')}</span>
                 </button>
                 <button 
                   className="px-3 py-1.5 border border-gray-300 rounded text-sm flex items-center gap-1 hover:bg-gray-50"
@@ -4156,7 +4157,7 @@ const StockManagement = () => {
                   }}
                 >
                   <RefreshCw size={14} />
-                  <span>Adjust</span>
+                  <span>{tt('Adjust')}</span>
                 </button> </>)}
                  {pagePermissions.canUpdateStock &&(
                 <button 
@@ -4168,7 +4169,7 @@ const StockManagement = () => {
                   }}
                 >
                   <Upload size={14} />
-                  <span>Upload Image</span>
+                  <span>{tt('Upload Image')}</span>
                 </button>)}
               </div>
               <div className="flex space-x-3">
@@ -4176,7 +4177,7 @@ const StockManagement = () => {
                   className="px-4 py-2 border border-gray-300 rounded-md bg-white hover:bg-gray-50"
                   onClick={() => setIsDetailOpen(false)}
                 >
-                  Close
+                  {tt('Close')}
                 </button>
                 {pagePermissions.canUpdateStock &&(<button 
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -4241,7 +4242,7 @@ const StockManagement = () => {
                 className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                 onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="button"
@@ -4255,7 +4256,7 @@ const StockManagement = () => {
                   setConfirmDialog(prev => ({ ...prev, isOpen: false }));
                 }}
               >
-                Confirm
+                {tt('Confirm')}
               </button>
             </div>
           </div>
@@ -4366,8 +4367,8 @@ const StockManagement = () => {
                 onClick={triggerFileInput}
               >
                 <Upload className={`w-10 h-10 mx-auto mb-3 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
-                <p className="text-lg font-medium mb-1">Drag & drop files here</p>
-                <p className="text-sm text-gray-500 mb-3">or click to browse files</p>
+                <p className="text-lg font-medium mb-1">{tt('Drag & drop files here')}</p>
+                <p className="text-sm text-gray-500 mb-3">{tt('or click to browse files')}</p>
                 <p className="text-xs text-gray-400">Supports: JPG, PNG, WebP (Max 2MB per file)</p>
               </div>
                 
@@ -4389,7 +4390,7 @@ const StockManagement = () => {
                           <div className="flex-shrink-0 w-12 h-12 rounded border bg-white p-1 mr-2 overflow-hidden">
                             <img 
                               src={file.previewUrl} 
-                              alt="Preview" 
+                              alt={tt('Preview')} 
                               className="w-full h-full object-cover rounded"
                             />
                           </div>
@@ -4415,7 +4416,7 @@ const StockManagement = () => {
                 className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1"
                 onClick={() => setIsUploadModalOpen(false)}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button 
                 className={`px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 flex items-center ${
@@ -4427,12 +4428,12 @@ const StockManagement = () => {
                 {isUploading ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    <span>Processing...</span>
+                    <span>{tt('Processing...')}</span>
                   </>
                 ) : (
                   <>
                     <Upload className="w-4 h-4 mr-2" />
-                    Upload Image
+                    {tt('Upload Image')}
                   </>
                 )}
               </button>
@@ -4482,8 +4483,8 @@ const StockManagement = () => {
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Stock Transfers</h2>
-              <p className="text-gray-500 mt-1">Move inventory between businesses with FIFO cost tracking</p>
+              <h2 className="text-2xl font-bold text-gray-900">{tt('Stock Transfers')}</h2>
+              <p className="text-gray-500 mt-1">{tt('Move inventory between businesses with FIFO cost tracking')}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
@@ -4492,7 +4493,7 @@ const StockManagement = () => {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all flex items-center gap-2 text-sm font-medium"
               >
                 <Truck size={16} />
-                New transfer
+                {tt('New transfer')}
               </button>
               <button
                 type="button"
@@ -4501,7 +4502,7 @@ const StockManagement = () => {
                 title="Refresh"
               >
                 <RefreshCw size={16} />
-                Refresh
+                {tt('Refresh')}
               </button>
             </div>
           </div>
@@ -4582,7 +4583,7 @@ const StockManagement = () => {
           <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl overflow-hidden animate-fadeInUp">
             <div className="p-5 border-b border-gray-200">
               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Expiry Alert System</h2>
+                <h2 className="text-xl font-semibold">{tt('Expiry Alert System')}</h2>
                 <button 
                   className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
                   onClick={() => setIsExpiryAlertsOpen(false)}
@@ -4618,7 +4619,7 @@ const StockManagement = () => {
               
               <div className="mb-4">
                 <p className="text-sm text-gray-600 mb-3">
-                  You are about to delete the following products:
+                  {tt('You are about to delete the following products:')}
                 </p>
                 <div className="max-h-32 overflow-y-auto bg-gray-50 rounded p-3">
                   {batchDeleteModal.products.map(product => (
@@ -4634,9 +4635,10 @@ const StockManagement = () => {
                   Reason for deletion (optional)
                 </label>
                 <input
+                  id="batch-delete-reason"
                   type="text"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  placeholder="Enter reason..."
+                  placeholder={tt('Enter reason...')}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       confirmBatchDelete(e.target.value);
@@ -4650,16 +4652,16 @@ const StockManagement = () => {
                   onClick={() => setBatchDeleteModal({ isOpen: false, products: [] })}
                   className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   onClick={() => {
-                    const reason = document.querySelector('input[placeholder="Enter reason..."]')?.value;
+                    const reason = document.getElementById('batch-delete-reason')?.value;
                     confirmBatchDelete(reason);
                   }}
                   className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
                 >
-                  Delete Products
+                  {tt('Delete Products')}
                 </button>
               </div>
             </div>
@@ -4681,7 +4683,7 @@ const StockManagement = () => {
               
               <div className="mb-4">
                 <p className="text-sm text-gray-600 mb-3">
-                  You are about to restore the following products:
+                  {tt('You are about to restore the following products:')}
                 </p>
                 <div className="max-h-32 overflow-y-auto bg-gray-50 rounded p-3">
                   {restoreModal.products.map(product => (
@@ -4697,13 +4699,13 @@ const StockManagement = () => {
                   onClick={() => setRestoreModal({ isOpen: false, products: [] })}
                   className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   onClick={confirmRestore}
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
                 >
-                  Restore Products
+                  {tt('Restore Products')}
                 </button>
               </div>
             </div>
@@ -4767,8 +4769,8 @@ function FormSection({ title, description, children }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
       <div>
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {description && <p className="mt-0.5 text-xs text-gray-600">{description}</p>}
+        <h3 className="text-sm font-semibold text-gray-900">{tt(title)}</h3>
+        {description && <p className="mt-0.5 text-xs text-gray-600">{tt(description)}</p>}
       </div>
       {children}
     </div>
@@ -4932,7 +4934,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center z-10">
-          <h2 className="text-xl font-semibold text-gray-900">New Purchase Order</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{tt('New Purchase Order')}</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -4951,11 +4953,11 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Supplier <span className="text-red-500">*</span>
+                    {tt('Supplier')} <span className="text-red-500">*</span>
                   </label>
                   {suppliersLoading ? (
                     <div className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500">
-                      Loading suppliers...
+                      {tt('Loading suppliers...')}
                     </div>
                   ) : (
                     <select
@@ -4964,7 +4966,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                       onChange={(e) => handleChange("supplierId", e.target.value)}
                       required
                     >
-                      <option value="">Select supplier</option>
+                      <option value="">{tt('Select supplier')}</option>
                       {suppliers.map((supplier) => (
                         <option key={supplier.id} value={supplier.id}>
                           {supplier.supplierName}
@@ -4974,7 +4976,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">PO Date *</label>
+                  <label className="block text-sm font-medium text-gray-700">{tt('PO Date *')}</label>
                   <input
                     type="date"
                     className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
@@ -4984,7 +4986,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Expected Delivery</label>
+                  <label className="block text-sm font-medium text-gray-700">{tt('Expected Delivery')}</label>
                   <input
                     type="date"
                     className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
@@ -5006,14 +5008,14 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                     className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50/80 p-3 sm:grid-cols-6"
                   >
                     <div>
-                      <label className="block text-xs font-medium text-gray-600">Product</label>
+                      <label className="block text-xs font-medium text-gray-600">{tt('Product')}</label>
                       <ProductSearchSelect
                         products={products}
                         value={item.productId}
                         onChange={(productId) => handleItemChange(idx, "productId", productId)}
                         required
                         showCost
-                        placeholder="Search by name, SKU, code, or barcode…"
+                        placeholder={tt('Search by name, SKU, code, or barcode…')}
                       />
                     </div>
                     {item.productId &&
@@ -5032,7 +5034,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                               onChange={(e) => handleItemChange(idx, "productUnitId", e.target.value)}
                               required={pus.length > 1}
                             >
-                              {pus.length > 1 && <option value="">Select unit…</option>}
+                              {pus.length > 1 && <option value="">{tt('Select unit…')}</option>}
                               {pus.map((pu) => (
                                 <option key={pu.id} value={pu.id}>
                                   {pu.unit?.symbol || pu.unit?.name || "Unit"}
@@ -5044,7 +5046,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                         );
                       })()}
                     <div>
-                      <label className="block text-xs font-medium text-gray-600">Quantity</label>
+                      <label className="block text-xs font-medium text-gray-600">{tt('Quantity')}</label>
                       <input
                         type="number"
                         min="0"
@@ -5056,7 +5058,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600">Order Price</label>
+                      <label className="block text-xs font-medium text-gray-600">{tt('Order Price')}</label>
                       <input
                         type="number"
                         min="0"
@@ -5068,10 +5070,10 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600">Description</label>
+                      <label className="block text-xs font-medium text-gray-600">{tt('Description')}</label>
                       <input
                         type="text"
-                        placeholder="Optional note"
+                        placeholder={tt('Optional note')}
                         className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
                         value={item.description}
                         onChange={(e) => handleItemChange(idx, "description", e.target.value)}
@@ -5089,7 +5091,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                           className="text-xs text-red-600"
                           onClick={() => removeItem(idx)}
                         >
-                          Remove
+                          {tt('Remove')}
                         </button>
                       )}
                     </div>
@@ -5108,19 +5110,19 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
             <FormSection title="Notes & Totals" description="Internal instructions and quick totals overview.">
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Notes</label>
+                  <label className="block text-sm font-medium text-gray-700">{tt('Notes')}</label>
                   <textarea
                     className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
                     rows={3}
                     value={form.notes}
                     onChange={(e) => handleChange("notes", e.target.value)}
-                    placeholder="Delivery windows, approvals, offloading instructions…"
+                    placeholder={tt('Delivery windows, approvals, offloading instructions…')}
                   />
                 </div>
                 <div className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-indigo-700">Subtotal</p>
-                    <p className="text-sm text-indigo-900">Products × Order Price</p>
+                    <p className="text-xs uppercase tracking-wide text-indigo-700">{tt('Subtotal')}</p>
+                    <p className="text-sm text-indigo-900">{tt('Products × Order Price')}</p>
                   </div>
                   <div className="text-lg font-semibold text-indigo-900">
                     {formatCurrency(subtotal)}
@@ -5135,7 +5137,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                 onClick={onClose}
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="submit"
@@ -5923,7 +5925,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
               {/* Image upload on the left side */}
               <div className="md:col-span-1">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">Product Image</label>
+                  <label className="block text-sm font-medium text-gray-700">{tt('Product Image')}</label>
                   
                   {/* Image preview */}
                   <div 
@@ -5934,7 +5936,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                       <div className="relative">
                         <img 
                           src={previewUrl} 
-                          alt="Product preview" 
+                          alt={tt('Product preview')} 
                           className="w-full h-32 object-contain mb-2"
                         />
                         <button 
@@ -5953,8 +5955,8 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                     ) : (
                       <>
                         <Upload className="w-10 h-10 mx-auto mb-2 text-gray-400" />
-                        <p className="text-sm text-gray-500">Click to upload product image</p>
-                        <p className="text-xs text-gray-400 mt-1">Max size: 2MB</p>
+                        <p className="text-sm text-gray-500">{tt('Click to upload product image')}</p>
+                        <p className="text-xs text-gray-400 mt-1">{tt('Max size: 2MB')}</p>
                       </>
                     )}
                     
@@ -5972,7 +5974,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
               {/* Form fields on the right side */}
               <div className="md:col-span-1 space-y-4">
                 <div className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Product Name*</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Product Name*')}</label>
                   <input
                     ref={nameInputRef}
                     type="text"
@@ -5990,7 +5992,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                           ? "border-amber-500"
                           : "border-gray-300"
                     }`}
-                    placeholder="Enter product name"
+                    placeholder={tt('Enter product name')}
                     role="combobox"
                     aria-expanded={nameSuggestOpen && nameSuggestions.length > 0}
                     aria-controls="product-name-suggestions"
@@ -6034,7 +6036,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
 
                 {/* Barcodes – right after name; Enter or Add lets you add another */}
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Barcodes</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Barcodes')}</label>
                   <p className="text-xs text-gray-500 mb-2">Add one or more barcodes. Press Enter or Add to add another; each can be used in POS to search for this product.</p>
                   <div className="flex gap-2 mb-2">
                     <input
@@ -6044,14 +6046,14 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                       onChange={(e) => setNewBarcode(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddBarcode())}
                       className="flex-1 p-2 border border-gray-300 rounded-md"
-                      placeholder="Scan or enter barcode, then Enter or Add"
+                      placeholder={tt('Scan or enter barcode, then Enter or Add')}
                     />
                     <button
                       type="button"
                       onClick={handleAddBarcode}
                       className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                     >
-                      Add
+                      {tt('Add')}
                     </button>
                   </div>
                   {formData.barcodes.length > 0 && (
@@ -6080,7 +6082,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                     value={formData.category}
                     onChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
                     options={categoryOptions}
-                    placeholder="Select or add category"
+                    placeholder={tt('Select or add category')}
                     onAddCategory={async (newCategory) => {
                       try {
                         // Call the API to create the category
@@ -6118,7 +6120,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Description')}</label>
                   <textarea
                     name="description"
                     value={formData.description}
@@ -6141,7 +6143,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   min="0"
                   step="0.01"
                   className={`w-full p-2 border ${errors.unitPrice ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                  placeholder="Selling price"
+                  placeholder={tt('Selling price')}
                 />
                 {errors.unitPrice && <p className="mt-1 text-sm text-red-500">{errors.unitPrice}</p>}
               </div>
@@ -6156,13 +6158,13 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   min="0"
                   step="0.01"
                   className={`w-full p-2 border ${errors.costPrice ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                  placeholder="Purchase cost"
+                  placeholder={tt('Purchase cost')}
                 />
                 {errors.costPrice && <p className="mt-1 text-sm text-red-500">{errors.costPrice}</p>}
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity In Stock*</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Quantity In Stock*')}</label>
                 <input
                   type="number"
                   name="quantityInStock"
@@ -6170,13 +6172,13 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   onChange={handleChange}
                   min="0"
                   className={`w-full p-2 border ${errors.quantityInStock ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                  placeholder="Current quantity"
+                  placeholder={tt('Current quantity')}
                 />
                 {errors.quantityInStock && <p className="mt-1 text-sm text-red-500">{errors.quantityInStock}</p>}
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Point*</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Reorder Point*')}</label>
                 <input
                   type="number"
                   name="reorderPoint"
@@ -6184,11 +6186,11 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   onChange={handleChange}
                   min="0"
                   className={`w-full p-2 border ${errors.reorderPoint ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                  placeholder="Low stock threshold"
+                  placeholder={tt('Low stock threshold')}
                 />
                 {errors.reorderPoint && <p className="mt-1 text-sm text-red-500">{errors.reorderPoint}</p>}
                 <p className="mt-1 text-xs text-gray-500">
-                  Quantity at which you'll receive a low stock alert
+                  {tt("Quantity at which you'll receive a low stock alert")}
                 </p>
               </div>
               
@@ -6197,7 +6199,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   value={formData.location}
                   onChange={(value) => setFormData(prev => ({ ...prev, location: value }))}
                   options={locations.filter(loc => loc !== "All")}
-                  placeholder="Select or add location"
+                  placeholder={tt('Select or add location')}
                   searchPlaceholder="Search locations..."
                   emptyMessage="No locations available"
                   emptySearchMessage="No locations found"
@@ -6217,14 +6219,14 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
               {/* Tax Assignment Section */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Taxes
+                  {tt('Taxes')}
                   <span className="text-gray-400 text-xs ml-1">(Applied automatically in POS)</span>
                 </label>
                 {taxesLoading ? (
-                  <div className="text-sm text-gray-500">Loading taxes...</div>
+                  <div className="text-sm text-gray-500">{tt('Loading taxes...')}</div>
                 ) : !Array.isArray(taxTypes) || taxTypes.length === 0 ? (
                   <div className="text-sm text-gray-500 p-3 bg-gray-50 rounded-md">
-                    No active tax types available. <a href="/tax-management/accounts" className="text-blue-600 hover:underline">Create tax types</a> first.
+                    {tt('No active tax types available.')} <a href="/tax-management/accounts" className="text-blue-600 hover:underline">{tt('Create tax types')}</a> {tt('first.')}
 
                   </div>
                 ) : (
@@ -6268,13 +6270,13 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   </div>
                 )}
                 <p className="mt-1 text-xs text-gray-500">
-                  Select one or more taxes to apply to this product. Taxes are calculated automatically during sales.
+                  {tt('Select one or more taxes to apply to this product. Taxes are calculated automatically during sales.')}
                 </p>
               </div>
               
               {/* Enhanced Stock Management Fields */}
               <div className="md:col-span-2">
-                <h3 className="text-lg font-medium text-gray-800 mb-4 border-b pb-2">Enhanced Details</h3>
+                <h3 className="text-lg font-medium text-gray-800 mb-4 border-b pb-2">{tt('Enhanced Details')}</h3>
               </div>
               
               {/* Unit Management Section */}
@@ -6308,7 +6310,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                     onChange={handleChange}
                     className="mr-2"
                   />
-                  <label className="text-sm font-medium text-gray-700">This is a perishable item</label>
+                  <label className="text-sm font-medium text-gray-700">{tt('This is a perishable item')}</label>
                 </div>
               </div>
               
@@ -6316,13 +6318,13 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                 <>
                   <div className="md:col-span-2">
                     <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium text-gray-700">Expiry Allocations*</label>
+                      <label className="block text-sm font-medium text-gray-700">{tt('Expiry Allocations*')}</label>
                       <button
                         type="button"
                         onClick={handleAddAllocationRow}
                         className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                       >
-                        Add Row
+                        {tt('Add Row')}
                       </button>
                     </div>
                     <div className="space-y-2">
@@ -6334,7 +6336,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                             onChange={(e) => handleAllocationChange(index, 'qty', e.target.value)}
                             min="0"
                             step="0.001"
-                            placeholder="Qty"
+                            placeholder={tt('Qty')}
                             className="col-span-3 p-2 border border-gray-300 rounded-md"
                           />
                           <input
@@ -6368,14 +6370,14 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Batch Number</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Batch Number')}</label>
                     <input
                       type="text"
                       name="batchNumber"
                       value={formData.batchNumber}
                       onChange={handleChange}
                       className="w-full p-2 border border-gray-300 rounded-md"
-                      placeholder="Batch/Lot number"
+                      placeholder={tt('Batch/Lot number')}
                     />
                   </div>
                 </>
@@ -6392,7 +6394,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   min="0"
                   step="0.01"
                   className={`w-full p-2 border ${errors.discountAmount ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                  placeholder="Fixed discount amount"
+                  placeholder={tt('Fixed discount amount')}
                 />
                 {errors.discountAmount && <p className="mt-1 text-sm text-red-500">{errors.discountAmount}</p>}
                 <p className="mt-1 text-xs text-gray-500">Fixed amount discount (not percentage)</p>
@@ -6400,14 +6402,14 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
               
               {/* Product Details */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Supplier')}</label>
                 <input
                   type="text"
                   name="supplier"
                   value={formData.supplier}
                   onChange={handleChange}
                   className="w-full p-2 border border-gray-300 rounded-md"
-                  placeholder="Supplier name"
+                  placeholder={tt('Supplier name')}
                 />
               </div>
               
@@ -6421,7 +6423,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   min="0"
                   step="0.01"
                   className={`w-full p-2 border ${errors.weight ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                  placeholder="Product weight"
+                  placeholder={tt('Product weight')}
                 />
                 {errors.weight && <p className="mt-1 text-sm text-red-500">{errors.weight}</p>}
               </div>
@@ -6434,13 +6436,13 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   value={formData.dimensions}
                   onChange={handleChange}
                   className="w-full p-2 border border-gray-300 rounded-md"
-                  placeholder="e.g., 10x5x2"
+                  placeholder={tt('e.g., 10x5x2')}
                 />
               </div>
               
               {/* Tags Section */}
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Tags')}</label>
                 <div className="flex gap-2 mb-2">
                   <input
                     type="text"
@@ -6448,14 +6450,14 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                     onChange={(e) => setNewTag(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
                     className="flex-1 p-2 border border-gray-300 rounded-md"
-                    placeholder="Add a tag and press Enter"
+                    placeholder={tt('Add a tag and press Enter')}
                   />
                   <button
                     type="button"
                     onClick={handleAddTag}
                     className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                   >
-                    Add
+                    {tt('Add')}
                   </button>
                 </div>
                 
@@ -6490,7 +6492,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
             onClick={onClose}
             className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="button"
@@ -6501,7 +6503,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
             {isSubmitting ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                <span>Processing...</span>
+                <span>{tt('Processing...')}</span>
               </>
             ) : (
               <>
@@ -6650,7 +6652,7 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-fadeInUp">
         <div className="p-5 border-b border-gray-200">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Record Transaction</h2>
+            <h2 className="text-xl font-semibold">{tt('Record Transaction')}</h2>
             <button 
               className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
               onClick={onClose}
@@ -6673,11 +6675,11 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
             <div>
               <h3 className="font-medium">{product?.name}</h3>
               <p className="text-sm text-gray-500">
-                Current Stock: <span className="font-medium">{product?.quantityInStock}</span>
+                {tt('Current Stock:')} <span className="font-medium">{product?.quantityInStock}</span>
               </p>
               {product?.reorderPoint && (
                 <p className="text-xs text-gray-500">
-                  Reorder Point: <span className="font-medium">{product?.reorderPoint}</span>
+                  {tt('Reorder Point:')} <span className="font-medium">{product?.reorderPoint}</span>
                 </p>
               )}
             </div>
@@ -6686,16 +6688,16 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Type*</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Transaction Type*')}</label>
                 <select
                   name="type"
                   value={formData.type}
                   onChange={handleChange}
                   className="w-full p-2 border border-gray-300 rounded-md bg-white"
                 >
-                  <option value="Stock In">Stock In</option>
-                  <option value="Stock Out">Stock Out</option>
-                  <option value="Adjustment">Adjustment</option>
+                  <option value="Stock In">{tt('Stock In')}</option>
+                  <option value="Stock Out">{tt('Stock Out')}</option>
+                  <option value="Adjustment">{tt('Adjustment')}</option>
                 </select>
                 
                 <p className="mt-1 text-xs text-gray-500">
@@ -6708,7 +6710,7 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity*</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Quantity*')}</label>
                 <input
                   type="number"
                   name="quantity"
@@ -6716,7 +6718,7 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
                   onChange={handleChange}
                   min="1"
                   className={`w-full p-2 border ${errors.quantity ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                  placeholder="Enter quantity"
+                  placeholder={tt('Enter quantity')}
                 />
                 {errors.quantity && <p className="mt-1 text-sm text-red-500">{errors.quantity}</p>}
               </div>
@@ -6735,7 +6737,7 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
                     min="0"
                     step="0.01"
                     className={`w-full p-2 border ${errors.unitCost ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                    placeholder="Purchase cost per unit"
+                    placeholder={tt('Purchase cost per unit')}
                   />
                   {errors.unitCost && <p className="mt-1 text-sm text-red-500">{errors.unitCost}</p>}
                   <p className="mt-1 text-xs text-gray-500">
@@ -6747,14 +6749,14 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
               )}
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Notes')}</label>
                 <textarea
                   name="notes"
                   value={formData.notes}
                   onChange={handleChange}
                   rows="3"
                   className="w-full p-2 border border-gray-300 rounded-md"
-                  placeholder="Add any additional notes here..."
+                  placeholder={tt('Add any additional notes here...')}
                 ></textarea>
               </div>
             </div>
@@ -6767,7 +6769,7 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
             onClick={onClose}
             className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="button"
@@ -6778,7 +6780,7 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
             {isSubmitting ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                <span>Processing...</span>
+                <span>{tt('Processing...')}</span>
               </>
             ) : (
               <>
@@ -6800,7 +6802,7 @@ function StockManagementPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[40vh] items-center justify-center text-sm text-slate-500">
-          Loading stock…
+          {tt('Loading stock…')}
         </div>
       }
     >

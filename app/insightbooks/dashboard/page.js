@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -410,7 +411,7 @@ export default function AdminDashboard() {
               className="admin-btn-primary inline-flex h-11 items-center gap-2 rounded-[var(--admin-radius)] px-3.5 text-sm font-semibold"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
-              Refresh
+              {tt('Refresh')}
             </button>
           </div>
         }
@@ -505,7 +506,7 @@ export default function AdminDashboard() {
 
           <section className="admin-lift mb-6 overflow-hidden rounded-[var(--admin-radius)] border border-cyan-200 bg-gradient-to-br from-white via-sky-50 to-emerald-50 p-4 shadow-[var(--admin-shadow-card)] sm:p-5">
             <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-sm font-semibold text-[var(--admin-text)]">Ops health</h2>
+              <h2 className="text-sm font-semibold text-[var(--admin-text)]">{tt('Ops health')}</h2>
               <AdminStatusBadge
                 tone={
                   healthStatus === 'healthy' || healthStatus === 'ok'
@@ -528,7 +529,7 @@ export default function AdminDashboard() {
             <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-[var(--admin-radius)] bg-[var(--admin-surface-muted)] px-3 py-2.5">
                 <dt className="text-[11px] font-medium uppercase tracking-wide text-[var(--admin-text-muted)]">
-                  Email queue failed
+                  {tt('Email queue failed')}
                 </dt>
                 <dd className="mt-1 text-lg font-semibold tabular-nums text-[var(--admin-text)]">
                   {fmt(emailFailed)}
@@ -536,7 +537,7 @@ export default function AdminDashboard() {
               </div>
               <div className="rounded-[var(--admin-radius)] bg-[var(--admin-surface-muted)] px-3 py-2.5">
                 <dt className="text-[11px] font-medium uppercase tracking-wide text-[var(--admin-text-muted)]">
-                  Memory RSS
+                  {tt('Memory RSS')}
                 </dt>
                 <dd className="mt-1 text-lg font-semibold tabular-nums text-[var(--admin-text)]">
                   {memoryMb != null ? `${fmt(memoryMb)} MB` : '—'}
@@ -544,7 +545,7 @@ export default function AdminDashboard() {
               </div>
               <div className="rounded-[var(--admin-radius)] bg-[var(--admin-surface-muted)] px-3 py-2.5">
                 <dt className="text-[11px] font-medium uppercase tracking-wide text-[var(--admin-text-muted)]">
-                  Process uptime
+                  {tt('Process uptime')}
                 </dt>
                 <dd className="mt-1 text-lg font-semibold tabular-nums text-[var(--admin-text)]">
                   {uptimeSec != null ? `${Math.floor(uptimeSec / 3600)}h` : '—'}
@@ -552,7 +553,7 @@ export default function AdminDashboard() {
               </div>
               <div className="rounded-[var(--admin-radius)] bg-[var(--admin-surface-muted)] px-3 py-2.5">
                 <dt className="text-[11px] font-medium uppercase tracking-wide text-[var(--admin-text-muted)]">
-                  Overdue invoices
+                  {tt('Overdue invoices')}
                 </dt>
                 <dd className="mt-1 text-lg font-semibold tabular-nums text-[var(--admin-text)]">
                   {fmt(billing?.stats?.overdueInvoiceCount)}
@@ -647,9 +648,9 @@ export default function AdminDashboard() {
 
             <section className="admin-lift xl:col-span-2 overflow-hidden rounded-[var(--admin-radius)] border border-amber-200 bg-gradient-to-b from-white to-amber-50/50 p-4 shadow-[var(--admin-shadow-card)] sm:p-5">
               <div className="mb-1 h-1 w-12 rounded-full bg-gradient-to-r from-amber-400 to-orange-400" aria-hidden />
-              <h2 className="text-sm font-semibold text-[var(--admin-text)]">Recent activity</h2>
+              <h2 className="text-sm font-semibold text-[var(--admin-text)]">{tt('Recent activity')}</h2>
               <p className="mt-0.5 text-xs text-[var(--admin-text-muted)]">
-                Latest control-plane events from dashboard stats.
+                {tt('Latest control-plane events from dashboard stats.')}
               </p>
               {loading && !activity.length ? (
                 <AdminLoadingState label="Loading activity" className="mt-4" />
@@ -686,9 +687,9 @@ export default function AdminDashboard() {
           </div>
 
           <section className="admin-lift rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-white/80 p-4 shadow-[var(--admin-shadow-card)] sm:p-5">
-            <h2 className="text-sm font-semibold text-[var(--admin-text)]">Quick navigation</h2>
+            <h2 className="text-sm font-semibold text-[var(--admin-text)]">{tt('Quick navigation')}</h2>
             <p className="mt-1 text-xs text-[var(--admin-text-muted)]">
-              Jump to high-frequency control-plane surfaces.
+              {tt('Jump to high-frequency control-plane surfaces.')}
             </p>
             <ul className="admin-stagger mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
               {shortcuts.map((s) => {

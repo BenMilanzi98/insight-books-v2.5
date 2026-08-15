@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { 
@@ -510,8 +511,8 @@ const GeneralLedger = () => {
                 <BookOpen className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">General Ledger</h1>
-                <p className="text-blue-100 text-sm sm:text-base mt-0.5">View and filter journal entries</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{tt('General Ledger')}</h1>
+                <p className="text-blue-100 text-sm sm:text-base mt-0.5">{tt('View and filter journal entries')}</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 sm:gap-3">
@@ -528,14 +529,14 @@ const GeneralLedger = () => {
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium transition-all shadow-sm border border-white/20"
                 >
                   <Download size={18} />
-                  Export
+                  {tt('Export')}
                 </button>
               )}
               {pagePermissions.canCreateJournal && (
                 <Link href="/journal-entries/new">
                   <button className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-blue-700 hover:bg-blue-50 font-semibold transition-all shadow-lg">
                     <Plus size={18} />
-                    New Entry
+                    {tt('New Entry')}
                   </button>
                 </Link>
               )}
@@ -555,7 +556,7 @@ const GeneralLedger = () => {
           <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Transactions</p>
+                <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">{tt('Transactions')}</p>
                 <p className="mt-1 min-w-0 break-words text-2xl font-bold leading-tight tabular-nums text-slate-800 sm:text-3xl">{summary.totalTransactions}</p>
                 <p className="text-xs text-slate-400 mt-2">{formatDateDisplay(dateRange.startDate)} – {formatDateDisplay(dateRange.endDate)}</p>
               </div>
@@ -567,7 +568,7 @@ const GeneralLedger = () => {
           <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Debits</p>
+                <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">{tt('Total Debits')}</p>
                 <p className="mt-1 min-w-0 break-words text-2xl font-bold leading-tight tabular-nums text-amber-600 sm:text-3xl">{formatCurrency(summary.totalDebits)}</p>
                 <p className="text-xs text-slate-400 mt-2">
                   {((summary.totalDebits / (summary.totalDebits + summary.totalCredits || 1)) * 100).toFixed(1)}% of volume
@@ -581,7 +582,7 @@ const GeneralLedger = () => {
           <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Credits</p>
+                <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">{tt('Total Credits')}</p>
                 <p className="mt-1 min-w-0 break-words text-2xl font-bold leading-tight tabular-nums text-emerald-600 sm:text-3xl">{formatCurrency(summary.totalCredits)}</p>
                 <p className="text-xs text-slate-400 mt-2">
                   {((summary.totalCredits / (summary.totalDebits + summary.totalCredits || 1)) * 100).toFixed(1)}% of volume
@@ -602,7 +603,7 @@ const GeneralLedger = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search by description, account, or reference..."
+                  placeholder={tt('Search by description, account, or reference...')}
                   className={cn(
                     "w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50",
                     "focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 focus:bg-white transition-all"
@@ -627,7 +628,7 @@ const GeneralLedger = () => {
                   value={accountFilter}
                   onChange={(e) => setAccountFilter(e.target.value)}
                 >
-                  <option value="all">All Accounts</option>
+                  <option value="all">{tt('All Accounts')}</option>
                   {accounts.map((account) => {
                     const code = account.accountCode || account.code || '';
                     const name = account.accountName || account.name || 'Account';
@@ -658,29 +659,29 @@ const GeneralLedger = () => {
           {showAdvancedFilters && (
             <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Reference</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{tt('Reference')}</label>
                 <input
                   type="text"
-                  placeholder="Invoice or payment reference"
+                  placeholder={tt('Invoice or payment reference')}
                   value={referenceFilter}
                   onChange={(e) => setReferenceFilter(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/50"
                 />
               </div>
               <div className="flex-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Balance type</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{tt('Balance type')}</label>
                 <select
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/50"
                   value={balanceFilter}
                   onChange={(e) => setBalanceFilter(e.target.value)}
                 >
-                  <option value="all">All</option>
-                  <option value="debit">Debit</option>
-                  <option value="credit">Credit</option>
+                  <option value="all">{tt('All')}</option>
+                  <option value="debit">{tt('Debit')}</option>
+                  <option value="credit">{tt('Credit')}</option>
                 </select>
               </div>
               <div className="flex-1 min-w-[200px]">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Void / refund reversals</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{tt('Void / refund reversals')}</label>
                 <select
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/50"
                   value={reversalFilter}
@@ -690,12 +691,12 @@ const GeneralLedger = () => {
                   }}
                 >
                   <option value="all">Show all (full audit trail)</option>
-                  <option value="exclude">Hide reversal rows</option>
-                  <option value="only">Reversal rows only</option>
+                  <option value="exclude">{tt('Hide reversal rows')}</option>
+                  <option value="only">{tt('Reversal rows only')}</option>
                 </select>
               </div>
               <div className="flex-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Per page</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{tt('Per page')}</label>
                 <select
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/50"
                   value={limit}
@@ -716,15 +717,15 @@ const GeneralLedger = () => {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20">
               <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mb-4" />
-              <p className="text-slate-500 font-medium">Loading ledger...</p>
+              <p className="text-slate-500 font-medium">{tt('Loading ledger...')}</p>
             </div>
           ) : transactions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 px-4">
               <div className="p-4 rounded-2xl bg-slate-100 mb-4">
                 <FileText className="w-12 h-12 text-slate-400" />
               </div>
-              <p className="text-lg font-semibold text-slate-700 mb-1">No transactions found</p>
-              <p className="text-slate-500 text-sm text-center">Try adjusting filters or date range</p>
+              <p className="text-lg font-semibold text-slate-700 mb-1">{tt('No transactions found')}</p>
+              <p className="text-slate-500 text-sm text-center">{tt('Try adjusting filters or date range')}</p>
             </div>
           ) : (
             <>
@@ -733,17 +734,17 @@ const GeneralLedger = () => {
                   <thead>
                     <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
                       {showBusinessColumn && (
-                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Business</th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Business')}</th>
                       )}
-                      <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
-                      <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
-                      <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Reference</th>
-                      <th className="px-4 py-3.5 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider w-24">GL type</th>
-                      <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Account</th>
-                      <th className="px-4 py-3.5 text-right text-xs font-semibold text-amber-600 uppercase tracking-wider">Debit</th>
-                      <th className="px-4 py-3.5 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider">Credit</th>
-                      <th className="px-4 py-3.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Balance</th>
-                      <th className="px-4 py-3.5 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider w-20">Actions</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Date')}</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Description')}</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Reference')}</th>
+                      <th className="px-4 py-3.5 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider w-24">{tt('GL type')}</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Account')}</th>
+                      <th className="px-4 py-3.5 text-right text-xs font-semibold text-amber-600 uppercase tracking-wider">{tt('Debit')}</th>
+                      <th className="px-4 py-3.5 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider">{tt('Credit')}</th>
+                      <th className="px-4 py-3.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Balance')}</th>
+                      <th className="px-4 py-3.5 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider w-20">{tt('Actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -769,7 +770,7 @@ const GeneralLedger = () => {
                               className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800"
                               title={transaction.reversalReason || "Reversing journal entry"}
                             >
-                              Reversal
+                              {tt('Reversal')}
                             </span>
                           ) : (
                             <span className="text-slate-300">—</span>
@@ -845,7 +846,7 @@ const GeneralLedger = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
-              <h2 className="text-lg font-semibold text-slate-800">Ledger entry details</h2>
+              <h2 className="text-lg font-semibold text-slate-800">{tt('Ledger entry details')}</h2>
               <button
                 type="button"
                 onClick={closeDetails}
@@ -858,7 +859,7 @@ const GeneralLedger = () => {
               {detailsLoading && (
                 <div className="flex items-center gap-2 text-slate-500">
                   <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-                  Loading details...
+                  {tt('Loading details...')}
                 </div>
               )}
               {!detailsLoading && entryDetails && (
@@ -888,15 +889,15 @@ const GeneralLedger = () => {
                     ))}
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Lines</p>
+                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">{tt('Lines')}</p>
                     <div className="overflow-x-auto rounded-xl border border-slate-200">
                       <table className="w-full text-sm">
                         <thead className="bg-slate-50">
                           <tr>
-                            <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Account</th>
-                            <th className="px-4 py-2.5 text-right font-semibold text-amber-600">Debit</th>
-                            <th className="px-4 py-2.5 text-right font-semibold text-emerald-600">Credit</th>
-                            <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Description</th>
+                            <th className="px-4 py-2.5 text-left font-semibold text-slate-600">{tt('Account')}</th>
+                            <th className="px-4 py-2.5 text-right font-semibold text-amber-600">{tt('Debit')}</th>
+                            <th className="px-4 py-2.5 text-right font-semibold text-emerald-600">{tt('Credit')}</th>
+                            <th className="px-4 py-2.5 text-left font-semibold text-slate-600">{tt('Description')}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -918,7 +919,7 @@ const GeneralLedger = () => {
                 </>
               )}
               {!detailsLoading && !entryDetails && (
-                <p className="text-sm text-rose-600">No details available.</p>
+                <p className="text-sm text-rose-600">{tt('No details available.')}</p>
               )}
             </div>
           </div>

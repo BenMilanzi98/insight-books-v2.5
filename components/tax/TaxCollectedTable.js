@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import React from 'react';
 import { useState} from "react";
 import { ChevronDown, ChevronRight, Search, FileText } from "lucide-react";
@@ -41,7 +42,7 @@ export default function TaxCollectedTable({ collectedTaxes, searchTerm = "" }) {
     return (
       <div className="text-center py-12">
         <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No Tax Data Found</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">{tt('No Tax Data Found')}</h3>
         <p className="text-gray-500 max-w-md mx-auto">
           {searchTerm 
             ? `No collected taxes match "${searchTerm}". Try a different search term.`
@@ -53,7 +54,7 @@ export default function TaxCollectedTable({ collectedTaxes, searchTerm = "" }) {
 
   return (
     <div>
-      <h2 className="text-lg font-medium mb-4">Collected Taxes</h2>
+      <h2 className="text-lg font-medium mb-4">{tt('Collected Taxes')}</h2>
       
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
@@ -63,25 +64,25 @@ export default function TaxCollectedTable({ collectedTaxes, searchTerm = "" }) {
                 scope="col"
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
-                Tax Rate
+                {tt('Tax Rate')}
               </th>
               <th
                 scope="col"
                 className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
-                Taxable Amount
+                {tt('Taxable Amount')}
               </th>
               <th
                 scope="col"
                 className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
-                Tax Amount
+                {tt('Tax Amount')}
               </th>
               <th
                 scope="col"
                 className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
-                Items
+                {tt('Items')}
               </th>
             </tr>
           </thead>
@@ -138,7 +139,7 @@ export default function TaxCollectedTable({ collectedTaxes, searchTerm = "" }) {
             {/* Total row */}
             <tr className="bg-gray-100 font-medium">
               <td className="px-6 py-4 whitespace-nowrap">
-                Total Collected Tax
+                {tt('Total Collected Tax')}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right">
                 {formatCurrency(collectedTaxes.totalTaxableAmount)}

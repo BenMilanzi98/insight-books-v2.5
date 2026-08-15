@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import React, { useState, useRef } from 'react';
 import { Upload, X, Paperclip, Image, FileText, Download, Bold, Italic, Underline, List, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 
@@ -106,14 +107,14 @@ const SimpleEmailComposer = ({
       {/* Subject Field */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Subject *
+          {tt('Subject *')}
         </label>
         <input
           type="text"
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Enter email subject..."
+          placeholder={tt('Enter email subject...')}
           required
         />
       </div>
@@ -121,7 +122,7 @@ const SimpleEmailComposer = ({
       {/* Simple Rich Text Editor */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Message *
+          {tt('Message *')}
         </label>
         
         {/* Formatting Toolbar */}
@@ -161,7 +162,7 @@ const SimpleEmailComposer = ({
           </button>
           <div className="w-px h-6 bg-gray-300 mx-2"></div>
           <div className="text-xs text-gray-500">
-            Supports: **bold**, *italic*, <u>underline</u>, • lists
+            {tt('Supports: **bold**, *italic*,')} <u>{tt('underline')}</u>, • lists
           </div>
         </div>
 
@@ -172,14 +173,14 @@ const SimpleEmailComposer = ({
           onChange={(e) => setMessage(e.target.value)}
           rows={12}
           className="w-full px-3 py-2 border border-gray-300 rounded-b-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-          placeholder="Compose your message here... Use the toolbar above for basic formatting."
+          placeholder={tt('Compose your message here... Use the toolbar above for basic formatting.')}
         />
       </div>
 
       {/* File Attachments */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Attachments
+          {tt('Attachments')}
         </label>
         
         {/* Upload Area */}
@@ -195,14 +196,14 @@ const SimpleEmailComposer = ({
         >
           <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
           <p className="text-sm text-gray-600 mb-2">
-            Drag and drop files here, or click to select
+            {tt('Drag and drop files here, or click to select')}
           </p>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="text-blue-600 hover:text-blue-700 text-sm font-medium"
           >
-            Choose Files
+            {tt('Choose Files')}
           </button>
           <input
             ref={fileInputRef}
@@ -217,7 +218,7 @@ const SimpleEmailComposer = ({
         {/* Attachments List */}
         {attachments.length > 0 && (
           <div className="mt-4 space-y-2">
-            <h4 className="text-sm font-medium text-gray-700">Attached Files:</h4>
+            <h4 className="text-sm font-medium text-gray-700">{tt('Attached Files:')}</h4>
             {attachments.map((attachment) => (
               <div
                 key={attachment.id}
@@ -266,12 +267,12 @@ const SimpleEmailComposer = ({
           {isSending ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              <span>Sending...</span>
+              <span>{tt('Sending...')}</span>
             </>
           ) : (
             <>
               <Paperclip className="h-4 w-4" />
-              <span>Send Email</span>
+              <span>{tt('Send Email')}</span>
             </>
           )}
         </button>

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -31,11 +32,11 @@ export default function TaxReportsPage() {
       />
       <div className="mb-6 grid gap-4 md:grid-cols-2">
         <div className="rounded border border-[var(--border-default)] p-4">
-          <h2 className="mb-2 font-medium">Tax summary</h2>
+          <h2 className="mb-2 font-medium">{tt('Tax summary')}</h2>
           <p className="mb-3 text-sm text-[var(--text-secondary)]">
             Collected vs paid for a date range. Dashboard view:{" "}
             <Link href="/tax-management" className="text-[var(--brand-primary)] hover:underline">
-              Tax Management home
+              {tt('Tax Management home')}
             </Link>
             .
           </p>
@@ -59,48 +60,48 @@ export default function TaxReportsPage() {
               onClick={exportCsv}
               className="rounded bg-[var(--brand-primary)] px-4 py-2 text-sm font-medium text-white"
             >
-              Export CSV
+              {tt('Export CSV')}
             </button>
           ) : (
             <p className="text-sm text-[var(--text-secondary)]">
-              Export requires tax.export permission.
+              {tt('Export requires tax.export permission.')}
             </p>
           )}
         </div>
         <div className="rounded border border-[var(--border-default)] p-4">
-          <h2 className="mb-2 font-medium">Reconciliation</h2>
+          <h2 className="mb-2 font-medium">{tt('Reconciliation')}</h2>
           <p className="mb-3 text-sm text-[var(--text-secondary)]">
-            Subledger ↔ GL and reversal journal linkage checks.
+            {tt('Subledger ↔ GL and reversal journal linkage checks.')}
           </p>
           <Link
             href="/tax-management/reconciliation"
             className="text-sm text-[var(--brand-primary)] hover:underline"
           >
-            Open reconciliation →
+            {tt('Open reconciliation →')}
           </Link>
         </div>
         <div className="rounded border border-[var(--border-default)] p-4">
-          <h2 className="mb-2 font-medium">Tax codes & accounts</h2>
+          <h2 className="mb-2 font-medium">{tt('Tax codes & accounts')}</h2>
           <p className="mb-3 text-sm text-[var(--text-secondary)]">
-            Per-type reports live on the tax codes screen.
+            {tt('Per-type reports live on the tax codes screen.')}
           </p>
           <Link
             href="/tax-management/accounts"
             className="text-sm text-[var(--brand-primary)] hover:underline"
           >
-            Open tax codes →
+            {tt('Open tax codes →')}
           </Link>
         </div>
         <div className="rounded border border-[var(--border-default)] p-4">
-          <h2 className="mb-2 font-medium">Reversed taxes</h2>
+          <h2 className="mb-2 font-medium">{tt('Reversed taxes')}</h2>
           <p className="mb-3 text-sm text-[var(--text-secondary)]">
-            Reversed tax lines export from tax codes / reversed-taxes APIs.
+            {tt('Reversed tax lines export from tax codes / reversed-taxes APIs.')}
           </p>
           <Link
             href="/tax-management/accounts"
             className="text-sm text-[var(--brand-primary)] hover:underline"
           >
-            Open tax codes →
+            {tt('Open tax codes →')}
           </Link>
         </div>
       </div>

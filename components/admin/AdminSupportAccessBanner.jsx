@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
@@ -58,13 +59,13 @@ export default function AdminSupportAccessBanner() {
       <div className="flex min-w-0 items-start gap-2">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
         <div className="min-w-0 text-sm">
-          <strong>Support Access Active</strong>
+          <strong>{tt('Support Access Active')}</strong>
           <span className="block truncate sm:inline sm:before:content-['_|_']">
             Tenant {session.tenantId}
             {session.expiresAt ? ` · expires ${new Date(session.expiresAt).toLocaleString()}` : ''}
           </span>
           <span className="block text-xs text-amber-900/80">
-            Real actor remains your System Administrator identity. All actions are audited.
+            {tt('Real actor remains your System Administrator identity. All actions are audited.')}
           </span>
         </div>
       </div>

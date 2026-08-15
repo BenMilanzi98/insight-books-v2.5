@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState } from 'react';
 import { X, DollarSign, AlertTriangle, Receipt } from 'lucide-react';
@@ -72,7 +73,7 @@ export default function RefundSaleModal({
                 <DollarSign className="h-6 w-6 text-blue-600" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 ml-3">
-                Process Refund
+                {tt('Process Refund')}
               </h3>
             </div>
             <button
@@ -92,16 +93,16 @@ export default function RefundSaleModal({
               </span>
             </div>
             <div className="space-y-2 text-sm text-gray-600">
-              <p><strong>Customer:</strong> {sale?.client ?? 'Walk-in'}</p>
-              <p><strong>Sale Total:</strong> {formatCurrency(availableForRefund)}</p>
-              <p><strong>Refund Amount:</strong> <span className="font-semibold text-green-600">{formatCurrency(availableForRefund)}</span> (full refund)</p>
+              <p><strong>{tt('Customer:')}</strong> {sale?.client ?? 'Walk-in'}</p>
+              <p><strong>{tt('Sale Total:')}</strong> {formatCurrency(availableForRefund)}</p>
+              <p><strong>{tt('Refund Amount:')}</strong> <span className="font-semibold text-green-600">{formatCurrency(availableForRefund)}</span> (full refund)</p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="refundMethod" className="block text-sm font-medium text-gray-700 mb-2">
-                Refund Method *
+                {tt('Refund Method *')}
               </label>
               <select
                 id="refundMethod"
@@ -111,7 +112,7 @@ export default function RefundSaleModal({
                 required
                 disabled={loading}
               >
-                <option value="">Select method</option>
+                <option value="">{tt('Select method')}</option>
                 {refundMethods.map(method => (
                   <option key={method.value} value={method.value}>
                     {method.label}
@@ -122,7 +123,7 @@ export default function RefundSaleModal({
 
             <div>
               <label htmlFor="refundReason" className="block text-sm font-medium text-gray-700 mb-2">
-                Refund Reason *
+                {tt('Refund Reason *')}
               </label>
               <textarea
                 id="refundReason"
@@ -130,7 +131,7 @@ export default function RefundSaleModal({
                 value={refundReason}
                 onChange={(e) => setRefundReason(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Explain why this refund is being processed..."
+                placeholder={tt('Explain why this refund is being processed...')}
                 required
                 disabled={loading}
               />
@@ -144,7 +145,7 @@ export default function RefundSaleModal({
                 <div className="flex">
                   <AlertTriangle className="h-5 w-5 text-red-400" />
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">Error</h3>
+                    <h3 className="text-sm font-medium text-red-800">{tt('Error')}</h3>
                     <div className="mt-2 text-sm text-red-700">{error}</div>
                   </div>
                 </div>
@@ -158,7 +159,7 @@ export default function RefundSaleModal({
                 disabled={loading}
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="submit"
@@ -172,7 +173,7 @@ export default function RefundSaleModal({
                 {loading ? (
                   <div className="flex items-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Processing...
+                    {tt('Processing...')}
                   </div>
                 ) : (
                   'Process Refund'

@@ -1,3 +1,4 @@
+import { tt, tx } from '@/lib/i18n/runtime';
 import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Button from './Button';
@@ -17,11 +18,11 @@ export default function ErrorState({
       )}
     >
       <AlertTriangle className="mb-2 h-6 w-6 text-[var(--status-danger)]" aria-hidden="true" />
-      <h3 className="text-base font-semibold text-[var(--text-primary)]">{title}</h3>
-      {message ? <p className="mt-1 max-w-md text-sm text-[var(--text-secondary)]">{message}</p> : null}
+      <h3 className="text-base font-semibold text-[var(--text-primary)]">{tx(title)}</h3>
+      {message ? <p className="mt-1 max-w-md text-sm text-[var(--text-secondary)]">{tx(message)}</p> : null}
       {onRetry ? (
         <Button type="button" variant="secondary" className="mt-4" onClick={onRetry}>
-          Try again
+          {tt('Try again')}
         </Button>
       ) : null}
     </div>

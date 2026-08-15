@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { formatCurrency } from '@/lib/currencyUtils';
@@ -62,7 +63,7 @@ export default function TaxSummaryChart({ taxData }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-medium">Tax Summary Visualization</h2>
+        <h2 className="text-lg font-medium">{tt('Tax Summary Visualization')}</h2>
         <div className="flex space-x-2">
           <button
             className={`px-3 py-1 rounded text-sm ${
@@ -72,7 +73,7 @@ export default function TaxSummaryChart({ taxData }) {
             }`}
             onClick={() => setChartType('bar')}
           >
-            Bar Chart
+            {tt('Bar Chart')}
           </button>
           <button
             className={`px-3 py-1 rounded text-sm ${
@@ -82,7 +83,7 @@ export default function TaxSummaryChart({ taxData }) {
             }`}
             onClick={() => setChartType('pie')}
           >
-            Pie Chart
+            {tt('Pie Chart')}
           </button>
         </div>
       </div>
@@ -129,7 +130,7 @@ export default function TaxSummaryChart({ taxData }) {
 
       {chartType === 'pie' && (
         <div className="text-sm text-gray-500 mt-2 text-center">
-          Showing breakdown of collected taxes by tax rate
+          {tt('Showing breakdown of collected taxes by tax rate')}
         </div>
       )}
     </div>

@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 import React, { useState, useRef } from 'react';
 import { X, Send, Mail, AlertCircle, Loader2, Paperclip, File, Image, Plus } from 'lucide-react';
 
@@ -66,7 +67,7 @@ const SendQuotationModal = ({ isOpen, onClose, quotation, isSending, companyName
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
         <div className="flex justify-between items-center p-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium">Send Quotation to Client</h3>
+          <h3 className="text-lg font-medium">{tt('Send Quotation to Client')}</h3>
           <button
             type="button"
             className="text-gray-400 hover:text-gray-600 focus:outline-none"
@@ -83,14 +84,14 @@ const SendQuotationModal = ({ isOpen, onClose, quotation, isSending, companyName
               <div className="flex items-center space-x-2 mb-4 p-3 bg-blue-50 rounded-md border border-blue-100">
                 <Mail className="h-5 w-5 text-blue-500 flex-shrink-0" />
                 <div>
-                  <p className="font-medium text-blue-800">Quotation will be included in email</p>
+                  <p className="font-medium text-blue-800">{tt('Quotation will be included in email')}</p>
                   <p className="text-sm text-blue-600">Quotation #{quotation.quotationNumber} will be attached as PDF</p>
                 </div>
               </div>
 
               <div className="mb-4">
                 <p className="text-sm text-gray-700 mb-2">
-                  <strong>To:</strong> {clientName || 'Client'}{clientEmail ? ` (${clientEmail})` : ''}
+                  <strong>{tt('To:')}</strong> {clientName || 'Client'}{clientEmail ? ` (${clientEmail})` : ''}
                 </p>
                 <div className="mb-3">
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -100,7 +101,7 @@ const SendQuotationModal = ({ isOpen, onClose, quotation, isSending, companyName
                     <input
                       type="email"
                       className="flex-1 min-w-[180px] p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
-                      placeholder="email@example.com"
+                      placeholder={tt('email@example.com')}
                       value={otherEmailInput}
                       onChange={(e) => setOtherEmailInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addOtherEmail())}
@@ -111,7 +112,7 @@ const SendQuotationModal = ({ isOpen, onClose, quotation, isSending, companyName
                       className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
                       <Plus className="h-4 w-4 mr-1" />
-                      Add
+                      {tt('Add')}
                     </button>
                   </div>
                   {otherEmails.length > 0 && (
@@ -136,7 +137,7 @@ const SendQuotationModal = ({ isOpen, onClose, quotation, isSending, companyName
                   )}
                 </div>
                 <p className="text-sm text-gray-700 mb-2">
-                  <strong>Subject:</strong> Quotation #{quotation.quotationNumber} from {companyName}
+                  <strong>{tt('Subject:')}</strong> Quotation #{quotation.quotationNumber} from {companyName}
                 </p>
               </div>
 
@@ -146,7 +147,7 @@ const SendQuotationModal = ({ isOpen, onClose, quotation, isSending, companyName
               <textarea
                 className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                 rows="5"
-                placeholder="Include any additional information for your client..."
+                placeholder={tt('Include any additional information for your client...')}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
               />
@@ -194,7 +195,7 @@ const SendQuotationModal = ({ isOpen, onClose, quotation, isSending, companyName
                         type="button"
                         onClick={() => removeAttachment(index)}
                         className="ml-2 text-red-500 hover:text-red-700 focus:outline-none flex-shrink-0"
-                        aria-label="Remove file"
+                        aria-label={tt('Remove file')}
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -208,8 +209,8 @@ const SendQuotationModal = ({ isOpen, onClose, quotation, isSending, companyName
               <div className="mb-4 flex items-start p-3 bg-amber-50 rounded-md border border-amber-100">
                 <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5 mr-2" />
                 <div>
-                  <p className="font-medium text-amber-800">Client email not shown in list</p>
-                  <p className="text-sm text-amber-700">Sending will use the email from the client profile. If none is set, the send will fail.</p>
+                  <p className="font-medium text-amber-800">{tt('Client email not shown in list')}</p>
+                  <p className="text-sm text-amber-700">{tt('Sending will use the email from the client profile. If none is set, the send will fail.')}</p>
                 </div>
               </div>
             )}
@@ -222,7 +223,7 @@ const SendQuotationModal = ({ isOpen, onClose, quotation, isSending, companyName
               onClick={handleClose}
               disabled={isSending}
             >
-              Cancel
+              {tt('Cancel')}
             </button>
             <button
               type="submit"
@@ -232,12 +233,12 @@ const SendQuotationModal = ({ isOpen, onClose, quotation, isSending, companyName
               {isSending ? (
                 <>
                   <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                  Sending...
+                  {tt('Sending...')}
                 </>
               ) : (
                 <>
                   <Send className="-ml-1 mr-2 h-4 w-4" />
-                  Send Quotation
+                  {tt('Send Quotation')}
                 </>
               )}
             </button>

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
@@ -38,7 +39,7 @@ export default function AdminDrawer({
       <button
         type="button"
         className="absolute inset-0 bg-slate-900/40"
-        aria-label="Close panel"
+        aria-label={tt('Close panel')}
         onClick={onClose}
       />
       <div
@@ -65,7 +66,7 @@ export default function AdminDrawer({
             type="button"
             onClick={onClose}
             className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-muted)]"
-            aria-label="Close"
+            aria-label={tt('Close')}
           >
             <X className="h-4 w-4" />
           </button>

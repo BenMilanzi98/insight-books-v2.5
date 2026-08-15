@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -151,21 +152,21 @@ export default function SecurityCompliancePage() {
               value={selectedFramework}
               onChange={(e) => setSelectedFramework(e.target.value)}
               className={inputCls}
-              aria-label="Framework"
+              aria-label={tt('Framework')}
             >
-              <option value="general">General Security</option>
+              <option value="general">{tt('General Security')}</option>
               <option value="gdpr">GDPR</option>
               <option value="sox">SOX</option>
-              <option value="iso27001">ISO 27001</option>
-              <option value="pci">PCI DSS</option>
+              <option value="iso27001">{tt('ISO 27001')}</option>
+              <option value="pci">{tt('PCI DSS')}</option>
             </select>
             <button type="button" onClick={exportComplianceReport} className={btnGhost}>
               <Download className="h-4 w-4" aria-hidden />
-              Export report
+              {tt('Export report')}
             </button>
             <button type="button" onClick={fetchComplianceData} className={btnGhost}>
               <RefreshCw className="h-4 w-4" aria-hidden />
-              Refresh
+              {tt('Refresh')}
             </button>
           </div>
         }
@@ -225,13 +226,13 @@ export default function SecurityCompliancePage() {
             <div className="flex items-center gap-2 border-b border-[var(--admin-border)] px-4 py-3 sm:px-6">
               <Calendar className="h-5 w-5 text-[var(--admin-text-muted)]" aria-hidden />
               <h2 className="text-base font-semibold text-[var(--admin-text)]">
-                Assessment timeline
+                {tt('Assessment timeline')}
               </h2>
             </div>
             <div className="grid grid-cols-1 gap-6 p-4 sm:grid-cols-2 sm:p-6">
               <div>
                 <h3 className="text-sm font-medium text-[var(--admin-text-muted)]">
-                  Last assessment
+                  {tt('Last assessment')}
                 </h3>
                 <p className="mt-1 text-lg font-semibold text-[var(--admin-text)]">
                   {complianceData.lastAssessment
@@ -247,7 +248,7 @@ export default function SecurityCompliancePage() {
               </div>
               <div>
                 <h3 className="text-sm font-medium text-[var(--admin-text-muted)]">
-                  Next assessment
+                  {tt('Next assessment')}
                 </h3>
                 <p className="mt-1 text-lg font-semibold text-[var(--admin-text)]">
                   {complianceData.nextAssessment
@@ -270,7 +271,7 @@ export default function SecurityCompliancePage() {
             <div className="flex items-center gap-2 border-b border-[var(--admin-border)] px-4 py-3 sm:px-6">
               <FileText className="h-5 w-5 text-[var(--admin-text-muted)]" aria-hidden />
               <h2 className="text-base font-semibold text-[var(--admin-text)]">
-                Policy compliance
+                {tt('Policy compliance')}
               </h2>
             </div>
             <div className="p-4 sm:p-6">
@@ -324,7 +325,7 @@ export default function SecurityCompliancePage() {
             <div className="flex items-center gap-2 border-b border-[var(--admin-border)] px-4 py-3 sm:px-6">
               <Eye className="h-5 w-5 text-[var(--admin-text-muted)]" aria-hidden />
               <h2 className="text-base font-semibold text-[var(--admin-text)]">
-                Audit requirements
+                {tt('Audit requirements')}
               </h2>
             </div>
             <div className="p-4 sm:p-6">

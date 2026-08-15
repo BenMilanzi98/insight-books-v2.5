@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -13,9 +14,9 @@ export default function OnboardingStabilisationTabPage() {
       <p>
         <Link href={`/insightbooks/customer-success/onboarding/projects/${id}`}>← Project</Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>Stabilisation</h1>
+      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>{tt('Stabilisation')}</h1>
       <p style={{ color: '#555' }}>
-        Daily checks, issue monitoring, exit criteria + approval before handover.
+        {tt('Daily checks, issue monitoring, exit criteria + approval before handover.')}
       </p>
     </div>
   );

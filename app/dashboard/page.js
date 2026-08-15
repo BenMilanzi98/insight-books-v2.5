@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -198,11 +199,11 @@ const DashboardBarChart = ({ data }) => {
         <div className="flex items-center space-x-4">
           <div className="flex items-center">
             <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-            <span className="text-sm text-gray-600">Income</span>
+            <span className="text-sm text-gray-600">{tt('Income')}</span>
           </div>
           <div className="flex items-center">
             <div className="w-3 h-3 rounded-full bg-red-400 mr-2"></div>
-            <span className="text-sm text-gray-600">Expenses</span>
+            <span className="text-sm text-gray-600">{tt('Expenses')}</span>
           </div>
         </div>
         
@@ -299,11 +300,11 @@ const SkeletonBarChart = () => (
     <div className="flex items-center justify-end space-x-4 mb-4">
       <div className="flex items-center">
         <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-        <span className="text-sm text-gray-600">Income</span>
+        <span className="text-sm text-gray-600">{tt('Income')}</span>
       </div>
       <div className="flex items-center">
         <div className="w-3 h-3 rounded-full bg-red-400 mr-2"></div>
-        <span className="text-sm text-gray-600">Expenses</span>
+        <span className="text-sm text-gray-600">{tt('Expenses')}</span>
       </div>
     </div>
     
@@ -1022,8 +1023,8 @@ const BusinessOwnerDashboard = () => {
             <div className="absolute inset-0 rounded-full border-4 border-blue-200"></div>
             <div className="absolute inset-0 rounded-full border-4 border-blue-600 border-t-transparent animate-spin"></div>
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Checking access</h2>
-          <p className="text-xs text-gray-500">Verifying permissions…</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">{tt('Checking access')}</h2>
+          <p className="text-xs text-gray-500">{tt('Verifying permissions…')}</p>
         </div>
       </div>
     );
@@ -1037,8 +1038,8 @@ const BusinessOwnerDashboard = () => {
             <div className="absolute inset-0 rounded-full border-4 border-blue-200"></div>
             <div className="absolute inset-0 rounded-full border-4 border-blue-600 border-t-transparent animate-spin"></div>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Opening POS</h2>
-          <p className="text-sm text-gray-600">You do not have dashboard access. Redirecting…</p>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">{tt('Opening POS')}</h2>
+          <p className="text-sm text-gray-600">{tt('You do not have dashboard access. Redirecting…')}</p>
         </div>
       </div>
     );
@@ -1052,13 +1053,13 @@ const BusinessOwnerDashboard = () => {
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5">
             <AlertCircle className="h-8 w-8 text-red-600" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Error Loading Dashboard</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">{tt('Error Loading Dashboard')}</h2>
           <p className="text-gray-600 text-sm mb-6">{error}</p>
           <button 
             onClick={() => window.location.reload()}
             className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
           >
-            Try Again
+            {tt('Try Again')}
           </button>
         </div>
       </div>
@@ -1115,7 +1116,7 @@ const BusinessOwnerDashboard = () => {
                   type="button"
                   onClick={closeAndroidAppNotice}
                   className="absolute right-4 top-4 rounded-full bg-white/15 p-2 text-white transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/70"
-                  aria-label="Close Android app announcement"
+                  aria-label={tt('Close Android app announcement')}
                 >
                   <span className="block text-xl leading-none">&times;</span>
                 </button>
@@ -1125,13 +1126,13 @@ const BusinessOwnerDashboard = () => {
                   </div>
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100">
-                      New release
+                      {tt('New release')}
                     </p>
                     <h2 id="android-app-release-title" className="mt-1 text-2xl font-bold">
-                      Insight Books Android App is now available
+                      {tt('Insight Books Android App is now available')}
                     </h2>
                     <p className="mt-2 text-sm leading-6 text-blue-50">
-                      Download and install the Android app to access Insight Books from your phone.
+                      {tt('Download and install the Android app to access Insight Books from your phone.')}
                     </p>
                   </div>
                 </div>
@@ -1147,7 +1148,7 @@ const BusinessOwnerDashboard = () => {
                     href={ANDROID_APP_RELEASE_NOTICE.downloadUrl}
                     className="inline-flex flex-1 items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                   >
-                    Go to download page
+                    {tt('Go to download page')}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </a>
                   <button
@@ -1155,7 +1156,7 @@ const BusinessOwnerDashboard = () => {
                     onClick={closeAndroidAppNotice}
                     className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
                   >
-                    Close
+                    {tt('Close')}
                   </button>
                 </div>
 
@@ -1165,14 +1166,14 @@ const BusinessOwnerDashboard = () => {
                       Already installed it?
                     </p>
                     <p className="mt-1 text-xs text-emerald-800">
-                      Select this only after you have downloaded and installed the Android app. We will not show this announcement again.
+                      {tt('Select this only after you have downloaded and installed the Android app. We will not show this announcement again.')}
                     </p>
                     <button
                       type="button"
                       onClick={markAndroidAppInstalled}
                       className="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 sm:w-auto"
                     >
-                      I have downloaded and installed the app
+                      {tt('I have downloaded and installed the app')}
                     </button>
                   </div>
                 )}
@@ -1187,7 +1188,7 @@ const BusinessOwnerDashboard = () => {
             status={
               <span
                 className="inline-flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-[var(--status-success)]"
-                aria-label="Live overview"
+                aria-label={tt('Live overview')}
               />
             }
             actions={<DashboardSetupWizardButton />}
@@ -1237,13 +1238,13 @@ const BusinessOwnerDashboard = () => {
                     </div>
                     <div className="min-w-0">
                       <h3 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
-                        {tenantInfo?.name || 'Loading...'}
+                        {tenantInfo?.name || tt('Loading...')}
                       </h3>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-                        <span className="text-gray-500">Your business dashboard</span>
+                        <span className="text-gray-500">{tt('Your business dashboard')}</span>
                         <span className="text-gray-300">•</span>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${hasMultipleBusinesses ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                          {hasMultipleBusinesses ? 'Multi-business account' : 'Single business account'}
+                          {hasMultipleBusinesses ? tt('Multi-business account') : tt('Single business account')}
                         </span>
                       </div>
                     </div>
@@ -1257,12 +1258,12 @@ const BusinessOwnerDashboard = () => {
                       {isExporting ? (
                         <>
                           <RefreshCw size={16} className="mr-2 animate-spin" />
-                          Exporting...
+                          {tt('Exporting...')}
                         </>
                       ) : (
                         <>
                           <Download size={16} className="mr-2" />
-                          Data Backup
+                          {tt('Data Backup')}
                         </>
                       )}
                     </button>
@@ -1297,7 +1298,7 @@ const BusinessOwnerDashboard = () => {
                         className="inline-flex items-center px-4 py-2.5 bg-gradient-to-r from-blue-500 to-sky-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-200 hover:-translate-y-0.5 transition-all duration-200"
                       >
                         <ArrowRight className="h-4 w-4 mr-2" />
-                        Switch Business
+                        {tt('Switch Business')}
                       </button>
                     )}
                     {!hasMultipleBusinesses && tenantInfo && (
@@ -1306,7 +1307,7 @@ const BusinessOwnerDashboard = () => {
                         className="inline-flex items-center px-4 py-2.5 bg-white text-gray-700 rounded-xl font-semibold shadow-lg shadow-gray-200 border border-gray-200 hover:shadow-xl hover:shadow-gray-200 hover:-translate-y-0.5 transition-all duration-200"
                       >
                         <Settings className="h-4 w-4 mr-2" />
-                        Manage Business
+                        {tt('Manage Business')}
                       </Link>
                     )}
                   </div>
@@ -1398,7 +1399,7 @@ const BusinessOwnerDashboard = () => {
                 </div>
                 <div className="mt-2 flex items-center gap-1 text-xs text-gray-400">
                   <Activity size={12} />
-                  <span>Last 7 days trend</span>
+                  <span>{tt('Last 7 days trend')}</span>
                 </div>
               </StatCard>
 
@@ -1431,7 +1432,7 @@ const BusinessOwnerDashboard = () => {
                 </div>
                 <div className="mt-2 flex items-center gap-1 text-xs text-gray-400">
                   <Activity size={12} />
-                  <span>Last 7 days trend</span>
+                  <span>{tt('Last 7 days trend')}</span>
                 </div>
               </StatCard>
             </div>
@@ -1452,8 +1453,8 @@ const BusinessOwnerDashboard = () => {
                 <BarChart3 size={20} className="text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Financial Summary</h2>
-                <p className="text-xs text-gray-500">Revenue and expenses overview</p>
+                <h2 className="text-xl font-bold text-gray-900">{tt('Financial Summary')}</h2>
+                <p className="text-xs text-gray-500">{tt('Revenue and expenses overview')}</p>
               </div>
             </div>
             
@@ -1529,9 +1530,9 @@ const BusinessOwnerDashboard = () => {
                       <Package size={20} className="text-white" />
                     </div>
                     <div className="min-w-0">
-                      <h2 className="font-bold text-gray-900">Revenue by inventory category</h2>
+                      <h2 className="font-bold text-gray-900">{tt('Revenue by inventory category')}</h2>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Optional — completed sales by product category for the selected period
+                        {tt('Optional — completed sales by product category for the selected period')}
                       </p>
                     </div>
                   </div>
@@ -1545,8 +1546,8 @@ const BusinessOwnerDashboard = () => {
                     <table className="min-w-full text-sm">
                       <thead>
                         <tr className="text-left text-gray-500 border-b border-gray-100">
-                          <th className="py-2 pr-4 font-medium">Category</th>
-                          <th className="py-2 text-right font-medium">Revenue</th>
+                          <th className="py-2 pr-4 font-medium">{tt('Category')}</th>
+                          <th className="py-2 text-right font-medium">{tt('Revenue')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1561,7 +1562,7 @@ const BusinessOwnerDashboard = () => {
                       </tbody>
                       <tfoot>
                         <tr className="font-semibold text-gray-900">
-                          <td className="pt-3">Total</td>
+                          <td className="pt-3">{tt('Total')}</td>
                           <td className="pt-3 text-right">
                             {formatCurrency(revenueByCategory.totalActual ?? 0)}
                           </td>
@@ -1584,10 +1585,10 @@ const BusinessOwnerDashboard = () => {
                   <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-blue-500 to-sky-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
                     <BarChart3 size={20} className="text-white" />
                   </div>
-                  <h2 className="font-bold text-gray-800 truncate">Income & Expense Overview</h2>
+                  <h2 className="font-bold text-gray-800 truncate">{tt('Income & Expense Overview')}</h2>
                 </div>
                 <a href="/reports-v2" className="group flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-all duration-200">
-                  Detailed Report 
+                  {tt('Detailed Report')} 
                   <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform duration-200" />
                 </a>
               </div>
@@ -1607,10 +1608,10 @@ const BusinessOwnerDashboard = () => {
                   <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
                     <Wallet size={20} className="text-white" />
                   </div>
-                  <h2 className="font-bold text-gray-800 truncate">Expenses Breakdown</h2>
+                  <h2 className="font-bold text-gray-800 truncate">{tt('Expenses Breakdown')}</h2>
                 </div>
                 <a href="/expenses" className="group flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-orange-100 text-orange-600 rounded-lg text-sm font-medium transition-all duration-200">
-                  View Details 
+                  {tt('View Details')} 
                   <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform duration-200" />
                 </a>
               </div>
@@ -1630,29 +1631,29 @@ const BusinessOwnerDashboard = () => {
                   <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-green-200">
                     <DollarSign size={20} className="text-white" />
                   </div>
-                  <h2 className="font-bold text-gray-800 truncate">Accounts Receivable</h2>
+                  <h2 className="font-bold text-gray-800 truncate">{tt('Accounts Receivable')}</h2>
                 </div>
                 <a href="/accounting/receivables" className="group flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-green-100 text-green-600 rounded-lg text-sm font-medium transition-all duration-200">
-                  View More 
+                  {tt('View More')} 
                   <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform duration-200" />
                 </a>
               </div>
               <div className="p-5">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                   <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 text-center">
-                    <p className="text-xs text-gray-500 mb-1">Total Receivables</p>
+                    <p className="text-xs text-gray-500 mb-1">{tt('Total Receivables')}</p>
                     <div className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums text-gray-900">
                       {receivables ? formatCurrency(receivables.current) : <SkeletonElement className="h-6 w-24 mx-auto" />}
                     </div>
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 text-center border border-green-100">
-                    <p className="text-xs text-green-600 mb-1 font-medium">Not Due</p>
+                    <p className="text-xs text-green-600 mb-1 font-medium">{tt('Not Due')}</p>
                     <div className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums text-green-700">
                       {receivables ? formatCurrency(receivables.notDue) : <SkeletonElement className="h-6 w-20 mx-auto" />}
                     </div>
                   </div>
                   <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-xl p-4 text-center border border-red-100">
-                    <p className="text-xs text-red-600 mb-1 font-medium">Overdue</p>
+                    <p className="text-xs text-red-600 mb-1 font-medium">{tt('Overdue')}</p>
                     <div className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums text-red-700">
                       {receivables ? formatCurrency(receivables.overdue) : <SkeletonElement className="h-6 w-20 mx-auto" />}
                     </div>
@@ -1661,11 +1662,11 @@ const BusinessOwnerDashboard = () => {
 
                 <div>
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                    <h3 className="text-sm font-semibold text-gray-700">Aging Summary</h3>
+                    <h3 className="text-sm font-semibold text-gray-700">{tt('Aging Summary')}</h3>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                       <div className="flex items-center">
                         <div className="w-2.5 h-2.5 bg-green-500 rounded-full mr-1.5 shadow-sm shadow-green-300"></div>
-                        <span className="text-gray-500">Current</span>
+                        <span className="text-gray-500">{tt('Current')}</span>
                       </div>
                       <div className="flex items-center">
                         <div className="w-2.5 h-2.5 bg-yellow-500 rounded-full mr-1.5 shadow-sm shadow-yellow-300"></div>
@@ -1729,29 +1730,29 @@ const BusinessOwnerDashboard = () => {
                   <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-red-400 to-rose-500 rounded-xl flex items-center justify-center shadow-lg shadow-red-200">
                     <CreditCard size={20} className="text-white" />
                   </div>
-                  <h2 className="font-bold text-gray-800 truncate">Accounts Payable</h2>
+                  <h2 className="font-bold text-gray-800 truncate">{tt('Accounts Payable')}</h2>
                 </div>
                 <a href="/accounting/payables" className="group flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-red-100 text-red-600 rounded-lg text-sm font-medium transition-all duration-200">
-                  View More 
+                  {tt('View More')} 
                   <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform duration-200" />
                 </a>
               </div>
               <div className="p-5">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                   <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 text-center">
-                    <p className="text-xs text-gray-500 mb-1">Total Payables</p>
+                    <p className="text-xs text-gray-500 mb-1">{tt('Total Payables')}</p>
                     <div className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums text-gray-900">
                       {payables ? formatCurrency(payables.current) : <SkeletonElement className="h-6 w-24 mx-auto" />}
                     </div>
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 text-center border border-green-100">
-                    <p className="text-xs text-green-600 mb-1 font-medium">Not Due</p>
+                    <p className="text-xs text-green-600 mb-1 font-medium">{tt('Not Due')}</p>
                     <div className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums text-green-700">
                       {payables ? formatCurrency(payables.notDue) : <SkeletonElement className="h-6 w-20 mx-auto" />}
                     </div>
                   </div>
                   <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-xl p-4 text-center border border-red-100">
-                    <p className="text-xs text-red-600 mb-1 font-medium">Overdue</p>
+                    <p className="text-xs text-red-600 mb-1 font-medium">{tt('Overdue')}</p>
                     <div className="text-lg sm:text-xl font-bold leading-tight break-words tabular-nums text-red-700">
                       {payables ? formatCurrency(payables.overdue) : <SkeletonElement className="h-6 w-20 mx-auto" />}
                     </div>
@@ -1760,11 +1761,11 @@ const BusinessOwnerDashboard = () => {
 
                 <div>
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                    <h3 className="text-sm font-semibold text-gray-700">Aging Summary</h3>
+                    <h3 className="text-sm font-semibold text-gray-700">{tt('Aging Summary')}</h3>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                       <div className="flex items-center">
                         <div className="w-2.5 h-2.5 bg-green-500 rounded-full mr-1.5 shadow-sm shadow-green-300"></div>
-                        <span className="text-gray-500">Current</span>
+                        <span className="text-gray-500">{tt('Current')}</span>
                       </div>
                       <div className="flex items-center">
                         <div className="w-2.5 h-2.5 bg-yellow-500 rounded-full mr-1.5 shadow-sm shadow-yellow-300"></div>
@@ -1832,8 +1833,8 @@ const BusinessOwnerDashboard = () => {
                     <Truck size={20} className="text-white" />
                   </div>
                   <div>
-                    <h2 className="font-bold text-gray-800 truncate">Stock received</h2>
-                    <p className="text-xs text-gray-500">Inventory transferred into this business</p>
+                    <h2 className="font-bold text-gray-800 truncate">{tt('Stock received')}</h2>
+                    <p className="text-xs text-gray-500">{tt('Inventory transferred into this business')}</p>
                   </div>
                 </div>
               </div>
@@ -1854,7 +1855,7 @@ const BusinessOwnerDashboard = () => {
                       }`}
                     >
                       <p className="text-sm text-gray-700">
-                        <span className="font-medium text-gray-900">New stock received</span>
+                        <span className="font-medium text-gray-900">{tt('New stock received')}</span>
                         {' from '}
                         <span className="font-semibold text-teal-800">{srcName}</span>
                         <span className="text-gray-500">
@@ -1868,7 +1869,7 @@ const BusinessOwnerDashboard = () => {
                         className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 transition-colors shadow-sm shrink-0"
                       >
                         <Eye size={16} />
-                        View
+                        {tt('View')}
                       </button>
                     </div>
                   );
@@ -1884,7 +1885,7 @@ const BusinessOwnerDashboard = () => {
                 <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-200">
                   <AlertTriangle size={20} className="text-white" />
                 </div>
-                <h2 className="font-bold text-gray-800 truncate">Stock Alerts</h2>
+                <h2 className="font-bold text-gray-800 truncate">{tt('Stock Alerts')}</h2>
               </div>
               <button
                 onClick={refreshDashboard}
@@ -1892,7 +1893,7 @@ const BusinessOwnerDashboard = () => {
                 disabled={isLoading}
               >
                 <RefreshCw size={16} className={`mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-                Refresh
+                {tt('Refresh')}
               </button>
             </div>
             <div className="p-5">
@@ -1900,7 +1901,7 @@ const BusinessOwnerDashboard = () => {
               <div className="mb-5 p-4 rounded-xl border border-orange-100 bg-gradient-to-r from-orange-50/90 to-red-50/60">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-800">Expiry alerts</h3>
+                    <h3 className="text-sm font-semibold text-gray-800">{tt('Expiry alerts')}</h3>
                     <p className="text-xs text-gray-500">
                       Expired, urgent (≤ {expiryAlerts?.thresholds?.urgentDays ?? 7}d), and early (≤ {expiryAlerts?.thresholds?.earlyDays ?? 30}d)
                     </p>
@@ -1909,21 +1910,21 @@ const BusinessOwnerDashboard = () => {
                     href="/stock"
                     className="text-xs px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-blue-600 font-medium"
                   >
-                    Manage in Stock
+                    {tt('Manage in Stock')}
                   </a>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
                   <div className="rounded-lg bg-red-50 border border-red-100 px-3 py-2">
-                    <p className="text-[11px] text-red-600 font-semibold uppercase tracking-wide">Expired</p>
+                    <p className="text-[11px] text-red-600 font-semibold uppercase tracking-wide">{tt('Expired')}</p>
                     <p className="text-lg font-bold text-red-800">{expiryAlerts?.summary?.expired ?? 0}</p>
                   </div>
                   <div className="rounded-lg bg-orange-50 border border-orange-100 px-3 py-2">
-                    <p className="text-[11px] text-orange-600 font-semibold uppercase tracking-wide">Urgent</p>
+                    <p className="text-[11px] text-orange-600 font-semibold uppercase tracking-wide">{tt('Urgent')}</p>
                     <p className="text-lg font-bold text-orange-800">{expiryAlerts?.summary?.urgent ?? 0}</p>
                   </div>
                   <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
-                    <p className="text-[11px] text-amber-700 font-semibold uppercase tracking-wide">Early</p>
+                    <p className="text-[11px] text-amber-700 font-semibold uppercase tracking-wide">{tt('Early')}</p>
                     <p className="text-lg font-bold text-amber-800">{expiryAlerts?.summary?.early ?? 0}</p>
                   </div>
                 </div>
@@ -1951,7 +1952,7 @@ const BusinessOwnerDashboard = () => {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-600">No current expiry alerts.</p>
+                  <p className="text-sm text-gray-600">{tt('No current expiry alerts.')}</p>
                 )}
               </div>
 
@@ -1996,7 +1997,7 @@ const BusinessOwnerDashboard = () => {
                               }}
                               className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-all duration-200 transform hover:scale-105 hover:bg-blue-50 px-3 py-1 rounded-lg"
                             >
-                              Restock
+                              {tt('Restock')}
                             </button>
                           </div>
                         </div>
@@ -2022,7 +2023,7 @@ const BusinessOwnerDashboard = () => {
                           disabled={stockAlertsPage === Math.ceil(stockAlerts.length / stockAlertsPageSize)}
                           className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                         >
-                          Next →
+                          {tt('Next →')}
                         </button>
                       </div>
                     </div>
@@ -2031,8 +2032,8 @@ const BusinessOwnerDashboard = () => {
               ) : (
                 <div className="text-center py-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl">
                   <CheckCircle size={48} className="text-green-500 mx-auto mb-3" />
-                  <p className="text-gray-600 font-medium">No stock alerts at the moment</p>
-                  <p className="text-sm text-gray-500 mt-1">All inventory levels are healthy</p>
+                  <p className="text-gray-600 font-medium">{tt('No stock alerts at the moment')}</p>
+                  <p className="text-sm text-gray-500 mt-1">{tt('All inventory levels are healthy')}</p>
                 </div>
               )}
             </div>
@@ -2078,10 +2079,10 @@ const BusinessOwnerDashboard = () => {
                 <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-3">
                   <div>
                     <h2 id="stock-receipt-title" className="text-lg font-bold text-gray-900">
-                      Received stock
+                      {tt('Received stock')}
                     </h2>
                     <p className="text-sm text-gray-600 mt-1">
-                      From <span className="font-semibold text-teal-800">{fromBiz}</span>
+                      {tt('From')} <span className="font-semibold text-teal-800">{fromBiz}</span>
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
                       {t?.createdAt
@@ -2093,7 +2094,7 @@ const BusinessOwnerDashboard = () => {
                     type="button"
                     onClick={() => setStockReceiptDetail(null)}
                     className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-                    aria-label="Close"
+                    aria-label={tt('Close')}
                   >
                     <span className="text-xl leading-none">&times;</span>
                   </button>
@@ -2103,12 +2104,12 @@ const BusinessOwnerDashboard = () => {
                     <table className="min-w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50 text-left text-gray-600 border-b border-gray-200">
-                          <th className="py-2.5 px-3 font-medium">Product</th>
+                          <th className="py-2.5 px-3 font-medium">{tt('Product')}</th>
                           <th className="py-2.5 px-3 font-medium">SKU</th>
-                          <th className="py-2.5 px-3 font-medium text-right">Qty</th>
-                          <th className="py-2.5 px-3 font-medium text-right">Selling Price</th>
-                          <th className="py-2.5 px-3 font-medium text-right">Line total</th>
-                          <th className="py-2.5 px-3 font-medium text-right">Cost basis</th>
+                          <th className="py-2.5 px-3 font-medium text-right">{tt('Qty')}</th>
+                          <th className="py-2.5 px-3 font-medium text-right">{tt('Selling Price')}</th>
+                          <th className="py-2.5 px-3 font-medium text-right">{tt('Line total')}</th>
+                          <th className="py-2.5 px-3 font-medium text-right">{tt('Cost basis')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2132,8 +2133,7 @@ const BusinessOwnerDashboard = () => {
                     </table>
                   </div>
                   <p className="text-xs text-gray-500 mt-3">
-                    Selling Price reflects the product record in this business after receipt. Cost basis is the
-                    recorded product cost when available.
+                    {tt('Selling Price reflects the product record in this business after receipt. Cost basis is the recorded product cost when available.')}
                   </p>
                   <div className="mt-6 flex justify-end">
                     <button
@@ -2141,7 +2141,7 @@ const BusinessOwnerDashboard = () => {
                       onClick={() => setStockReceiptDetail(null)}
                       className="px-4 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium hover:bg-gray-200"
                     >
-                      Close
+                      {tt('Close')}
                     </button>
                   </div>
                 </div>

@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // AssignUsersModal.js - Component for assigning users to a role
 import { useState, useEffect } from "react";
 import { X, Search, Check, User, AlertCircle, Loader } from "lucide-react";
@@ -123,7 +124,7 @@ const AssignUsersModal = ({ isOpen, onClose, roleId, roleName, onSuccess }) => {
             onClick={onClose}
             className="text-gray-400 hover:text-gray-500 focus:outline-none"
           >
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{tt('Close')}</span>
             <X size={20} />
           </button>
         </div>
@@ -136,7 +137,7 @@ const AssignUsersModal = ({ isOpen, onClose, roleId, roleName, onSuccess }) => {
             </div>
             <input
               type="text"
-              placeholder="Search users..."
+              placeholder={tt('Search users...')}
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               value={searchTerm}
               onChange={handleSearchChange}
@@ -153,14 +154,14 @@ const AssignUsersModal = ({ isOpen, onClose, roleId, roleName, onSuccess }) => {
                 className="text-sm text-blue-600 hover:text-blue-800"
                 onClick={selectAllUsers}
               >
-                Select All
+                {tt('Select All')}
               </button>
               <button
                 type="button"
                 className="text-sm text-blue-600 hover:text-blue-800"
                 onClick={deselectAllUsers}
               >
-                Deselect All
+                {tt('Deselect All')}
               </button>
             </div>
           </div>
@@ -183,8 +184,8 @@ const AssignUsersModal = ({ isOpen, onClose, roleId, roleName, onSuccess }) => {
           ) : filteredUsers.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-8 text-gray-500">
               <User size={24} className="text-gray-400 mb-2" />
-              <p className="mb-2">No users found</p>
-              <p className="text-sm text-gray-400">Try adjusting your search</p>
+              <p className="mb-2">{tt('No users found')}</p>
+              <p className="text-sm text-gray-400">{tt('Try adjusting your search')}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -228,7 +229,7 @@ const AssignUsersModal = ({ isOpen, onClose, roleId, roleName, onSuccess }) => {
             onClick={onClose}
             disabled={saving}
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="button"
@@ -239,7 +240,7 @@ const AssignUsersModal = ({ isOpen, onClose, roleId, roleName, onSuccess }) => {
             {saving ? (
               <>
                 <Loader size={16} className="animate-spin mr-2" />
-                Assigning...
+                {tt('Assigning...')}
               </>
             ) : (
               'Assign Users'

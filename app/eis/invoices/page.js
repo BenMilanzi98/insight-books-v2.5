@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from 'react';
 import {
   FileText, Search, CheckCircle, XCircle, Clock, AlertCircle, RefreshCw, Eye, ChevronLeft, ChevronRight
@@ -76,8 +77,8 @@ export default function EISInvoicesPage() {
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">MRA EIS Invoices</h1>
-        <p className="text-gray-500 mt-1">Track and manage your MRA electronic invoice submissions</p>
+        <h1 className="text-2xl font-bold text-gray-900">{tt('MRA EIS Invoices')}</h1>
+        <p className="text-gray-500 mt-1">{tt('Track and manage your MRA electronic invoice submissions')}</p>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
@@ -86,7 +87,7 @@ export default function EISInvoicesPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by invoice number or MRA ID..."
+              placeholder={tt('Search by invoice number or MRA ID...')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && fetchInvoices()}
@@ -95,16 +96,16 @@ export default function EISInvoicesPage() {
           </div>
           <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
-            <option value="all">All Status</option>
-            <option value="Pending">Pending</option>
-            <option value="Submitted">Submitted</option>
-            <option value="Approved">Approved</option>
-            <option value="Rejected">Rejected</option>
-            <option value="Error">Error</option>
+            <option value="all">{tt('All Status')}</option>
+            <option value="Pending">{tt('Pending')}</option>
+            <option value="Submitted">{tt('Submitted')}</option>
+            <option value="Approved">{tt('Approved')}</option>
+            <option value="Rejected">{tt('Rejected')}</option>
+            <option value="Error">{tt('Error')}</option>
           </select>
           <button onClick={fetchInvoices}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-50">
-            <RefreshCw className="h-4 w-4" /> Refresh
+            <RefreshCw className="h-4 w-4" /> {tt('Refresh')}
           </button>
         </div>
       </div>
@@ -117,9 +118,9 @@ export default function EISInvoicesPage() {
         ) : invoices.length === 0 ? (
           <div className="text-center py-16">
             <FileText className="mx-auto h-12 w-12 text-gray-300" />
-            <h3 className="mt-3 text-sm font-medium text-gray-900">No invoices found</h3>
+            <h3 className="mt-3 text-sm font-medium text-gray-900">{tt('No invoices found')}</h3>
             <p className="mt-1 text-sm text-gray-500">
-              Invoices submitted to MRA will appear here.
+              {tt('Invoices submitted to MRA will appear here.')}
             </p>
           </div>
         ) : (
@@ -127,15 +128,15 @@ export default function EISInvoicesPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice #</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tax</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MRA ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Invoice #')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Date')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Amount')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Tax')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('MRA ID')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Source')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Submitted')}</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -186,11 +187,11 @@ export default function EISInvoicesPage() {
             <div className="flex gap-2">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                 className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50">
-                <ChevronLeft className="h-4 w-4" /> Previous
+                <ChevronLeft className="h-4 w-4" /> {tt('Previous')}
               </button>
               <button onClick={() => setPage(p => Math.min(pagination.pages, p + 1))} disabled={page === pagination.pages}
                 className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50">
-                Next <ChevronRight className="h-4 w-4" />
+                {tt('Next')} <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -202,7 +203,7 @@ export default function EISInvoicesPage() {
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">EIS Invoice Details</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{tt('EIS Invoice Details')}</h3>
                 <button onClick={() => setSelectedInvoice(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">
                   &times;
                 </button>
@@ -220,7 +221,7 @@ export default function EISInvoicesPage() {
               <Detail label="Submitted At" value={selectedInvoice.submittedAt ? new Date(selectedInvoice.submittedAt).toLocaleString() : '-'} />
               {selectedInvoice.errorMessage && (
                 <div>
-                  <p className="text-xs font-medium text-gray-500">Error</p>
+                  <p className="text-xs font-medium text-gray-500">{tt('Error')}</p>
                   <p className="text-sm text-red-600 bg-red-50 p-2 rounded-lg mt-1">{selectedInvoice.errorMessage}</p>
                 </div>
               )}

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -71,10 +72,10 @@ export default function CustomerSuccessReportsView() {
             onChange={(e) => setDataset(e.target.value)}
             aria-label={t('admin-pages.customerSuccess.reports.dataset')}
           >
-            <option value="cases">cases</option>
-            <option value="tasks">tasks</option>
-            <option value="plans">plans</option>
-            <option value="handoffs">handoffs</option>
+            <option value="cases">{tt('cases')}</option>
+            <option value="tasks">{tt('tasks')}</option>
+            <option value="plans">{tt('plans')}</option>
+            <option value="handoffs">{tt('handoffs')}</option>
           </select>
         </label>
         <button type="button" className={btnGhost} disabled={busy} onClick={() => exportPack('json')}>

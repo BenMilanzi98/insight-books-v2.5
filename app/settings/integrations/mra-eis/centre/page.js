@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -105,12 +106,12 @@ export default function MraEisAdminCentrePage() {
       <header className="space-y-2">
         <p className="text-sm text-slate-600">
           <Link href="/settings/integrations/mra-eis" className="underline">
-            MRA EIS
+            {tt('MRA EIS')}
           </Link>
           {' / '}
           Administration Centre
         </p>
-        <h1 className="text-2xl font-semibold text-slate-900">EIS Administration Centre</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">{tt('EIS Administration Centre')}</h1>
         <p className="text-sm text-slate-700" role="status">
           Unified operational monitoring for MRA EIS. Statuses come from server-side domain data.
           This centre does not edit fiscal evidence, set Terminals Active, or clear MRA blocks.
@@ -120,15 +121,15 @@ export default function MraEisAdminCentrePage() {
       {/* Global context bar */}
       {ctx ? (
         <section
-          aria-label="EIS context"
+          aria-label={tt('EIS context')}
           className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"
         >
           <span>
-            Tenant <strong className="break-all">{ctx.tenantId || '—'}</strong>
+            {tt('Tenant')} <strong className="break-all">{ctx.tenantId || '—'}</strong>
           </span>
           <span aria-hidden="true">·</span>
           <span>
-            Business <strong className="break-all">{ctx.businessId || '—'}</strong>
+            {tt('Business')} <strong className="break-all">{ctx.businessId || '—'}</strong>
           </span>
           <span aria-hidden="true">·</span>
           <span
@@ -143,11 +144,11 @@ export default function MraEisAdminCentrePage() {
           </span>
           <span aria-hidden="true">·</span>
           <span>
-            Freshness <strong>{ctx.dataFreshness}</strong>
+            {tt('Freshness')} <strong>{ctx.dataFreshness}</strong>
           </span>
           <span aria-hidden="true">·</span>
           <span>
-            Capability <strong>{ctx.effectiveCapabilityStatus}</strong>
+            {tt('Capability')} <strong>{ctx.effectiveCapabilityStatus}</strong>
           </span>
           {ctx.primaryRestriction ? (
             <>
@@ -163,7 +164,7 @@ export default function MraEisAdminCentrePage() {
             onClick={load}
             disabled={loading}
           >
-            Refresh
+            {tt('Refresh')}
           </button>
         </section>
       ) : null}
@@ -174,7 +175,7 @@ export default function MraEisAdminCentrePage() {
         </div>
       ) : null}
 
-      <nav aria-label="EIS sections" className="flex flex-wrap gap-2">
+      <nav aria-label={tt('EIS sections')} className="flex flex-wrap gap-2">
         {sections.map((s) => (
           <Link
             key={s.id}
@@ -193,21 +194,21 @@ export default function MraEisAdminCentrePage() {
 
       <section aria-labelledby="search-heading" className="space-y-2">
         <h2 id="search-heading" className="text-lg font-medium">
-          Global search
+          {tt('Global search')}
         </h2>
         <form onSubmit={runSearch} className="flex flex-wrap gap-2">
           <label className="sr-only" htmlFor="eis-search">
-            Search EIS entities
+            {tt('Search EIS entities')}
           </label>
           <input
             id="eis-search"
             className="min-w-[12rem] flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
-            placeholder="Terminal, fiscal number, correlation ID…"
+            placeholder={tt('Terminal, fiscal number, correlation ID…')}
           />
           <button type="submit" className="rounded bg-slate-900 px-3 py-2 text-sm text-white">
-            Search
+            {tt('Search')}
           </button>
         </form>
         {searchResults ? (
@@ -221,10 +222,10 @@ export default function MraEisAdminCentrePage() {
       {overview ? (
         <section aria-labelledby="overview-heading" className="space-y-3">
           <h2 id="overview-heading" className="text-lg font-medium">
-            Operational overview
+            {tt('Operational overview')}
           </h2>
           <p className="text-sm text-slate-600">
-            Freshness: <strong>{overview.freshness}</strong>
+            {tt('Freshness:')} <strong>{overview.freshness}</strong>
             {overview.partial ? ' — PARTIAL data (failed queries are not shown as zero).' : null}
             {' · '}
             Not financial source of truth.
@@ -235,7 +236,7 @@ export default function MraEisAdminCentrePage() {
                 <p className="text-xs uppercase tracking-wide text-slate-500">{c.label}</p>
                 {c.error ? (
                   <p className="mt-1 text-sm font-medium text-red-800" role="alert">
-                    Unavailable
+                    {tt('Unavailable')}
                   </p>
                 ) : (
                   <p className="mt-1 text-2xl font-semibold text-slate-900">{c.value}</p>
@@ -250,10 +251,10 @@ export default function MraEisAdminCentrePage() {
       {health ? (
         <section aria-labelledby="health-heading" className="space-y-2">
           <h2 id="health-heading" className="text-lg font-medium">
-            Health scorecard
+            {tt('Health scorecard')}
           </h2>
           <p className="text-sm" role="status">
-            Band: <strong>{health.band}</strong> · Score {health.score}/100 (raw {health.rawScore})
+            {tt('Band:')} <strong>{health.band}</strong> · Score {health.score}/100 (raw {health.rawScore})
           </p>
           <p className="text-sm text-slate-700">{health.interpretation}</p>
           {health.blocking?.length ? (
@@ -268,26 +269,26 @@ export default function MraEisAdminCentrePage() {
 
       <section aria-labelledby="safe-actions" className="space-y-2">
         <h2 id="safe-actions" className="text-lg font-medium">
-          Safe workspaces
+          {tt('Safe workspaces')}
         </h2>
         <p className="text-sm text-slate-600">
-          Deep links into Phase 1–17 domain UIs. No direct state mutation from this centre.
+          {tt('Deep links into Phase 1–17 domain UIs. No direct state mutation from this centre.')}
         </p>
         <div className="flex flex-wrap gap-2">
           <Link className="rounded border border-slate-300 px-3 py-2 text-sm" href="/settings/integrations/mra-eis/restrictions">
-            Restrictions & Unblock
+            {tt('Restrictions & Unblock')}
           </Link>
           <Link className="rounded border border-slate-300 px-3 py-2 text-sm" href="/settings/integrations/mra-eis/reconciliation">
-            Reconciliation
+            {tt('Reconciliation')}
           </Link>
           <Link className="rounded border border-slate-300 px-3 py-2 text-sm" href="/settings/integrations/mra-eis/sales-transmission">
-            Transmissions
+            {tt('Transmissions')}
           </Link>
           <Link className="rounded border border-slate-300 px-3 py-2 text-sm" href="/settings/integrations/mra-eis/offline">
-            Offline
+            {tt('Offline')}
           </Link>
           <Link className="rounded border border-slate-300 px-3 py-2 text-sm" href="/settings/integrations/mra-eis/fiscal-receipts">
-            Receipts
+            {tt('Receipts')}
           </Link>
           <button
             type="button"
@@ -318,15 +319,15 @@ export default function MraEisAdminCentrePage() {
 
       <section aria-labelledby="forbidden" className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
         <h2 id="forbidden" className="font-medium">
-          Forbidden from this UI
+          {tt('Forbidden from this UI')}
         </h2>
         <ul className="mt-1 list-disc pl-5">
-          <li>Set Terminal Active</li>
-          <li>Mark Transmission Accepted</li>
-          <li>Clear MRA restriction without evidence</li>
-          <li>Edit fiscal numbers, Snapshots, Response Evidence, Offline Envelopes</li>
-          <li>Delete or reorder Offline Queue Items</li>
-          <li>Overwrite original Fiscal Receipts</li>
+          <li>{tt('Set Terminal Active')}</li>
+          <li>{tt('Mark Transmission Accepted')}</li>
+          <li>{tt('Clear MRA restriction without evidence')}</li>
+          <li>{tt('Edit fiscal numbers, Snapshots, Response Evidence, Offline Envelopes')}</li>
+          <li>{tt('Delete or reorder Offline Queue Items')}</li>
+          <li>{tt('Overwrite original Fiscal Receipts')}</li>
           <li>Generic Retry (use Phase 15 safe-retry authorization)</li>
         </ul>
       </section>

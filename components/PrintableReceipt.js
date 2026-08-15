@@ -1,5 +1,6 @@
 // components/PrintableReceipt.js
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
@@ -82,7 +83,7 @@ const PrintableReceipt = ({ receiptData }) => {
             />
           )}
           <div>
-            <div className="text-2xl font-bold text-blue-600">Payment Receipt</div>
+            <div className="text-2xl font-bold text-blue-600">{tt('Payment Receipt')}</div>
             <div className="text-xl text-gray-700">{documentType} #{documentNumber}</div>
           </div>
         </div>
@@ -92,27 +93,27 @@ const PrintableReceipt = ({ receiptData }) => {
       <div className="grid grid-cols-2 gap-6 mb-6">
         {/* Client Information */}
         <div>
-          <h3 className="text-lg font-semibold text-blue-600 mb-3">Client Information</h3>
-          <p><strong>Name:</strong> {client?.name || 'N/A'}</p>
-          <p><strong>Email:</strong> {client?.email || 'N/A'}</p>
-          <p><strong>Phone:</strong> {client?.phone || 'N/A'}</p>
+          <h3 className="text-lg font-semibold text-blue-600 mb-3">{tt('Client Information')}</h3>
+          <p><strong>{tt('Name:')}</strong> {client?.name || 'N/A'}</p>
+          <p><strong>{tt('Email:')}</strong> {client?.email || 'N/A'}</p>
+          <p><strong>{tt('Phone:')}</strong> {client?.phone || 'N/A'}</p>
         </div>
 
         {type === 'individual' ? (
           /* Receipt Details */
           <div>
-            <h3 className="text-lg font-semibold text-blue-600 mb-3">Receipt Details</h3>
-            <p><strong>Receipt Date:</strong> {formatDate(payment?.paymentDate)}</p>
-            <p><strong>Payment reference:</strong> {payment?.reference || payment?.receiptReference || 'N/A'}</p>
+            <h3 className="text-lg font-semibold text-blue-600 mb-3">{tt('Receipt Details')}</h3>
+            <p><strong>{tt('Receipt Date:')}</strong> {formatDate(payment?.paymentDate)}</p>
+            <p><strong>{tt('Payment reference:')}</strong> {payment?.reference || payment?.receiptReference || 'N/A'}</p>
             <p><strong>{documentType} Total:</strong> {formatCurrency(documentTotal)}</p>
           </div>
         ) : (
           /* Receipt Summary */
           <div>
-            <h3 className="text-lg font-semibold text-blue-600 mb-3">Receipt Summary</h3>
-            <p><strong>Total Payments:</strong> {payments?.length || 0}</p>
+            <h3 className="text-lg font-semibold text-blue-600 mb-3">{tt('Receipt Summary')}</h3>
+            <p><strong>{tt('Total Payments:')}</strong> {payments?.length || 0}</p>
             <p><strong>{documentType} Total:</strong> {formatCurrency(documentTotal)}</p>
-            <p><strong>Total Paid:</strong> {formatCurrency(totalPaid || 0)}</p>
+            <p><strong>{tt('Total Paid:')}</strong> {formatCurrency(totalPaid || 0)}</p>
           </div>
         )}
       </div>
@@ -125,7 +126,7 @@ const PrintableReceipt = ({ receiptData }) => {
             <div className="bg-blue-600 text-white p-4 rounded-lg mb-4">
               <div className="flex justify-between items-center">
                 <div>
-                  <div className="text-sm opacity-90">Payment Amount</div>
+                  <div className="text-sm opacity-90">{tt('Payment Amount')}</div>
                   <div className="text-2xl font-bold">{formatCurrency(payment?.amount || 0)}</div>
                 </div>
                 <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold">
@@ -149,7 +150,7 @@ const PrintableReceipt = ({ receiptData }) => {
             {payment?.amount < documentTotal ? (
               <div className="bg-yellow-50 border border-yellow-300 p-3 rounded mt-4">
                 <p className="text-yellow-800 text-sm m-0">
-                  <strong>Note:</strong> This is a partial payment of {formatCurrency(payment?.amount || 0)} 
+                  <strong>{tt('Note:')}</strong> This is a partial payment of {formatCurrency(payment?.amount || 0)} 
                   from {documentType.toLowerCase()} total of {formatCurrency(documentTotal)}. 
                   Outstanding balance: {formatCurrency(documentTotal - (payment?.amount || 0))}
                 </p>
@@ -157,7 +158,7 @@ const PrintableReceipt = ({ receiptData }) => {
             ) : (
               <div className="bg-green-50 border border-green-300 p-3 rounded mt-4">
                 <p className="text-green-800 text-sm m-0">
-                  <strong>Payment Complete:</strong> This payment of {formatCurrency(payment?.amount || 0)} 
+                  <strong>{tt('Payment Complete:')}</strong> This payment of {formatCurrency(payment?.amount || 0)} 
                   fully settles {documentType.toLowerCase()} #{documentNumber} for {formatCurrency(documentTotal)}.
                 </p>
               </div>
@@ -171,7 +172,7 @@ const PrintableReceipt = ({ receiptData }) => {
             <div className="bg-blue-600 text-white p-4 rounded-lg mb-4">
               <div className="flex justify-between items-center">
                 <div>
-                  <div className="text-sm opacity-90">Total Amount Paid</div>
+                  <div className="text-sm opacity-90">{tt('Total Amount Paid')}</div>
                   <div className="text-2xl font-bold">{formatCurrency(totalPaid || 0)}</div>
                 </div>
                 <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold">
@@ -180,14 +181,14 @@ const PrintableReceipt = ({ receiptData }) => {
               </div>
             </div>
 
-            <h3 className="text-blue-600 font-semibold mb-4">Payment History</h3>
+            <h3 className="text-blue-600 font-semibold mb-4">{tt('Payment History')}</h3>
             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
               <div className="bg-gray-100 p-3 font-semibold text-gray-700 border-b border-gray-200">
                 <div className="grid grid-cols-4 gap-4">
-                  <div>Date</div>
-                  <div>Method</div>
-                  <div>Amount</div>
-                  <div>Reference</div>
+                  <div>{tt('Date')}</div>
+                  <div>{tt('Method')}</div>
+                  <div>{tt('Amount')}</div>
+                  <div>{tt('Reference')}</div>
                 </div>
               </div>
               {(payments || []).map((p, index) => (
@@ -206,15 +207,15 @@ const PrintableReceipt = ({ receiptData }) => {
                 <span>{formatCurrency(documentTotal)}</span>
               </div>
               <div className="flex justify-between mb-3">
-                <span>Total Paid:</span>
+                <span>{tt('Total Paid:')}</span>
                 <span>{formatCurrency(totalPaid || 0)}</span>
               </div>
               <div className="flex justify-between mb-3">
-                <span>Outstanding Balance:</span>
+                <span>{tt('Outstanding Balance:')}</span>
                 <span>{formatCurrency(documentTotal - (totalPaid || 0))}</span>
               </div>
               <div className="flex justify-between font-bold text-lg text-blue-600 border-t-2 border-blue-600 pt-3 mt-3">
-                <span>Status:</span>
+                <span>{tt('Status:')}</span>
                 <span>{isFullyPaid ? 'FULLY PAID' : 'PARTIALLY PAID'}</span>
               </div>
             </div>
@@ -222,14 +223,14 @@ const PrintableReceipt = ({ receiptData }) => {
             {!isFullyPaid ? (
               <div className="bg-yellow-50 border border-yellow-300 p-3 rounded mt-4">
                 <p className="text-yellow-800 text-sm m-0">
-                  <strong>Outstanding Balance:</strong> {formatCurrency(documentTotal - (totalPaid || 0))} 
+                  <strong>{tt('Outstanding Balance:')}</strong> {formatCurrency(documentTotal - (totalPaid || 0))} 
                   remaining to be paid on this {documentType.toLowerCase()}.
                 </p>
               </div>
             ) : (
               <div className="bg-green-50 border border-green-300 p-3 rounded mt-4">
                 <p className="text-green-800 text-sm m-0">
-                  <strong>Payment Complete:</strong> All payments totaling {formatCurrency(totalPaid || 0)} 
+                  <strong>{tt('Payment Complete:')}</strong> All payments totaling {formatCurrency(totalPaid || 0)} 
                   fully settle {documentType.toLowerCase()} #{documentNumber}.
                 </p>
               </div>
@@ -246,7 +247,7 @@ const PrintableReceipt = ({ receiptData }) => {
         if (!positiveTaxBreakdown.length) return null;
         return (
         <div className="mt-6 bg-gray-50 border border-gray-200 p-4 rounded-lg">
-          <h4 className="font-semibold text-sm text-gray-700 mb-2">Tax Summary</h4>
+          <h4 className="font-semibold text-sm text-gray-700 mb-2">{tt('Tax Summary')}</h4>
           <div className="space-y-1">
             {positiveTaxBreakdown.map((tax, idx) => (
               <div key={idx} className="flex justify-between text-sm">
@@ -267,7 +268,7 @@ const PrintableReceipt = ({ receiptData }) => {
       {/* Tourism Levy - TC-TAX-006 */}
       {receiptData.levyBreakdown && receiptData.levyBreakdown.length > 0 && (
         <div className="mt-3 bg-amber-50 border border-amber-200 p-4 rounded-lg">
-          <h4 className="font-semibold text-sm text-amber-700 mb-2">Levies</h4>
+          <h4 className="font-semibold text-sm text-amber-700 mb-2">{tt('Levies')}</h4>
           <div className="space-y-1">
             {receiptData.levyBreakdown.map((levy, idx) => (
               <div key={idx} className="flex justify-between text-sm">
@@ -282,7 +283,7 @@ const PrintableReceipt = ({ receiptData }) => {
       {/* MRA Invoice Number */}
       {receiptData.eisInvoiceNumber && (
         <div className="mt-3 text-center">
-          <p className="text-xs text-gray-500">MRA Invoice: <span className="font-mono font-medium text-gray-700">{receiptData.eisInvoiceNumber}</span></p>
+          <p className="text-xs text-gray-500">{tt('MRA Invoice:')} <span className="font-mono font-medium text-gray-700">{receiptData.eisInvoiceNumber}</span></p>
         </div>
       )}
 
@@ -293,7 +294,7 @@ const PrintableReceipt = ({ receiptData }) => {
             value={`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify/${receiptData.invoice?.id || receiptData.payment?.id || receiptData.expense?.id}`}
             size={96}
           />
-          <p className="text-xs text-gray-500 mt-1">Scan to verify</p>
+          <p className="text-xs text-gray-500 mt-1">{tt('Scan to verify')}</p>
         </div>
       )}
 
@@ -302,7 +303,7 @@ const PrintableReceipt = ({ receiptData }) => {
         <p>Thank you for your {type === 'individual' ? 'payment' : 'payments'}!</p>
         <p>Generated on {new Date().toLocaleString()}</p>
         <p className="mt-4 text-xs text-gray-500">
-          Powered by <a href="https://insightbooksafrica.com/" className="text-blue-600 no-underline">InsightBooks</a>
+          {tt('Powered by')} <a href="https://insightbooksafrica.com/" className="text-blue-600 no-underline">{tt('InsightBooks')}</a>
         </p>
       </div>
     </div>

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect, useMemo } from "react";
 import { 
   Search, 
@@ -345,13 +346,13 @@ const AccountsPayable = () => {
       <div className="p-4 sm:p-6 bg-gray-50 flex items-center justify-center min-h-screen">
         <div className="text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-gray-800 mb-2">Error Loading Payables</h2>
+          <h2 className="text-lg font-bold text-gray-800 mb-2">{tt('Error Loading Payables')}</h2>
           <p className="text-gray-600 mb-4">{error}</p>
           <button 
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
           >
-            Try Again
+            {tt('Try Again')}
           </button>
         </div>
       </div>
@@ -363,8 +364,8 @@ const AccountsPayable = () => {
       <div className="p-4 sm:p-6 bg-gray-50 flex items-center justify-center min-h-screen">
         <div className="text-center">
           <DollarSign className="h-12 w-12 text-indigo-500 animate-spin mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-gray-800 mb-2">Loading Permissions</h2>
-          <p className="text-gray-600">Checking user permissions...</p>
+          <h2 className="text-lg font-bold text-gray-800 mb-2">{tt('Loading Permissions')}</h2>
+          <p className="text-gray-600">{tt('Checking user permissions...')}</p>
         </div>
       </div>
     );
@@ -375,8 +376,8 @@ const AccountsPayable = () => {
       <div className="p-4 sm:p-6 bg-gray-50">
         <div className="text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-gray-800 mb-2">Access Denied</h2>
-          <p className="text-gray-600">You don't have permission to view this page.</p>
+          <h2 className="text-lg font-bold text-gray-800 mb-2">{tt('Access Denied')}</h2>
+          <p className="text-gray-600">{tt("You don't have permission to view this page.")}</p>
         </div>
       </div>
     );
@@ -387,9 +388,9 @@ const AccountsPayable = () => {
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Accounts Payable</h1>
+          <h1 className="text-2xl font-bold text-gray-800">{tt('Accounts Payable')}</h1>
           <p className="text-gray-600 mt-1">
-            Manage and track outstanding expenses and vendor payments
+            {tt('Manage and track outstanding expenses and vendor payments')}
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
@@ -452,7 +453,7 @@ const AccountsPayable = () => {
       {/* Aging Summary */}
       <div className="bg-white rounded-lg shadow mb-6">
         <div className="p-5 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-800">Aging Summary</h2>
+          <h2 className="text-lg font-semibold text-gray-800">{tt('Aging Summary')}</h2>
         </div>
         <div className="p-5">
           {payables?.aging ? (
@@ -502,7 +503,7 @@ const AccountsPayable = () => {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <input
                   type="text"
-                  placeholder="Search expenses, vendors..."
+                  placeholder={tt('Search expenses, vendors...')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
@@ -515,17 +516,17 @@ const AccountsPayable = () => {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               >
-                <option value="All">All Status</option>
-                <option value="Pending">Pending</option>
-                <option value="Overdue">Overdue</option>
-                <option value="Not Due">Not Due</option>
+                <option value="All">{tt('All Status')}</option>
+                <option value="Pending">{tt('Pending')}</option>
+                <option value="Overdue">{tt('Overdue')}</option>
+                <option value="Not Due">{tt('Not Due')}</option>
               </select>
               <button 
                 onClick={handleExport}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center"
               >
                 <Download className="h-4 w-4 mr-2" />
-                Export
+                {tt('Export')}
               </button>
             </div>
           </div>
@@ -535,7 +536,7 @@ const AccountsPayable = () => {
       {/* Payables Table */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-5 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-800">Outstanding Expenses</h2>
+          <h2 className="text-lg font-semibold text-gray-800">{tt('Outstanding Expenses')}</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full">
@@ -563,7 +564,7 @@ const AccountsPayable = () => {
                     )}
                   </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Type')}</th>
                 <th 
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('billDate')}
@@ -586,8 +587,8 @@ const AccountsPayable = () => {
                     )}
                   </div>
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Total')}</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Paid')}</th>
                 <th 
                   className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('amountOwed')}
@@ -599,8 +600,8 @@ const AccountsPayable = () => {
                     )}
                   </div>
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -617,12 +618,12 @@ const AccountsPayable = () => {
                       {payable.type === 'bill' ? (
                         <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
                           <FileText className="mr-1 h-3 w-3" />
-                          Bill
+                          {tt('Bill')}
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
                           <DollarSign className="mr-1 h-3 w-3" />
-                          Expense
+                          {tt('Expense')}
                         </span>
                       )}
                     </td>
@@ -704,23 +705,23 @@ const AccountsPayable = () => {
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Bill Number</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Bill Number')}</div>
                           <div className="text-gray-900 font-medium">{viewingPayable.billNumber || 'N/A'}</div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Supplier</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Supplier')}</div>
                           <div className="text-gray-900">{viewingPayable.supplier?.supplierName || 'N/A'}</div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Bill Date</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Bill Date')}</div>
                           <div className="text-gray-900">{formatDate(viewingPayable.billDate)}</div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Due Date</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Due Date')}</div>
                           <div className="text-gray-900">{formatDate(viewingPayable.dueDate)}</div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Status</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Status')}</div>
                           <div className="mt-1">
                             <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
                               viewingPayable.status === "Paid" ? "bg-green-100 text-green-800" :
@@ -732,15 +733,15 @@ const AccountsPayable = () => {
                           </div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Total Amount</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Total Amount')}</div>
                           <div className="text-gray-900 font-semibold">{formatCurrency(viewingPayable.totalAmount || 0)}</div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Amount Paid</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Amount Paid')}</div>
                           <div className="text-gray-900">{formatCurrency(viewingPayable.amountPaid || 0)}</div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Balance Due</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Balance Due')}</div>
                           <div className="text-gray-900 font-bold">
                             {formatCurrency((viewingPayable.totalAmount || 0) - (viewingPayable.amountPaid || 0))}
                           </div>
@@ -748,15 +749,15 @@ const AccountsPayable = () => {
                       </div>
                       {viewingPayable.items && viewingPayable.items.length > 0 && (
                         <div>
-                          <h3 className="text-lg font-semibold mb-3">Items</h3>
+                          <h3 className="text-lg font-semibold mb-3">{tt('Items')}</h3>
                           <div className="overflow-x-auto">
                             <table className="min-w-full">
                               <thead className="bg-gray-50">
                                 <tr>
-                                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Unit Cost</th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{tt('Description')}</th>
+                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">{tt('Quantity')}</th>
+                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">{tt('Unit Cost')}</th>
+                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">{tt('Total')}</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-200">
@@ -778,23 +779,23 @@ const AccountsPayable = () => {
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Description</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Description')}</div>
                           <div className="text-gray-900 font-medium">{viewingPayable.description || 'N/A'}</div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Merchant/Vendor</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Merchant/Vendor')}</div>
                           <div className="text-gray-900">{viewingPayable.merchant || 'N/A'}</div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Category</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Category')}</div>
                           <div className="text-gray-900">{viewingPayable.category || 'N/A'}</div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Date</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Date')}</div>
                           <div className="text-gray-900">{formatDate(viewingPayable.date)}</div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Payment Status</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Payment Status')}</div>
                           <div className="mt-1">
                             <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
                               viewingPayable.paymentStatus === "Fully paid" ? "bg-green-100 text-green-800" :
@@ -806,15 +807,15 @@ const AccountsPayable = () => {
                           </div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Total Amount</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Total Amount')}</div>
                           <div className="text-gray-900 font-semibold">{formatCurrency(viewingPayable.amount || 0)}</div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Amount Paid</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Amount Paid')}</div>
                           <div className="text-gray-900">{formatCurrency(viewingPayable.paidAmount || 0)}</div>
                         </div>
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Balance Due</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Balance Due')}</div>
                           <div className="text-gray-900 font-bold">
                             {formatCurrency((viewingPayable.amount || 0) - (viewingPayable.paidAmount || 0))}
                           </div>
@@ -822,7 +823,7 @@ const AccountsPayable = () => {
                       </div>
                       {viewingPayable.notes && (
                         <div>
-                          <div className="text-xs uppercase text-gray-500 mb-1">Notes</div>
+                          <div className="text-xs uppercase text-gray-500 mb-1">{tt('Notes')}</div>
                           <div className="text-gray-900">{viewingPayable.notes}</div>
                         </div>
                       )}

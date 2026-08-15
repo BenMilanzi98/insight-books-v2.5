@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * Adoption Context Bar — Phase 19 Wave 4.
@@ -16,7 +17,7 @@ export default function AdoptionContextBar({
   return (
     <div
       role="region"
-      aria-label="Adoption context"
+      aria-label={tt('Adoption context')}
       style={{
         display: 'flex',
         flexWrap: 'wrap',

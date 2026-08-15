@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import React from 'react';
 import { X } from 'lucide-react';
@@ -81,7 +82,7 @@ function ModalHeader({ title, onClose }) {
         type="button"
         onClick={onClose}
         className="p-2 rounded-xl text-slate-500 hover:bg-slate-100"
-        aria-label="Close"
+        aria-label={tt('Close')}
       >
         <X size={20} />
       </button>
@@ -111,7 +112,7 @@ function ModalActions({ onCancel, onApply, applyLabel }) {
         className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors text-sm font-medium"
         onClick={onCancel}
       >
-        Cancel
+        {tt('Cancel')}
       </button>
       <button
         type="button"

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from 'react';
 import { AlertCircle, ArrowRightLeft, Check, X } from 'lucide-react';
@@ -145,7 +146,7 @@ export default function AddTransferFundsPanel({
         <div>
           <h4 className="text-sm font-semibold text-amber-950 flex items-center gap-1.5">
             <ArrowRightLeft className="h-4 w-4" />
-            Insufficient funds — add / transfer
+            {tt('Insufficient funds — add / transfer')}
           </h4>
           <p className="mt-1 text-xs text-amber-900">
             {destinationAccountName || 'Selected account'} has MWK {formatMwk(availableAmount)} but
@@ -158,7 +159,7 @@ export default function AddTransferFundsPanel({
           onClick={onCancel}
           className="rounded p-1 text-amber-800 hover:bg-amber-100"
           disabled={submitting}
-          aria-label="Close funding panel"
+          aria-label={tt('Close funding panel')}
         >
           <X className="h-4 w-4" />
         </button>
@@ -175,7 +176,7 @@ export default function AddTransferFundsPanel({
           }`}
           disabled={submitting}
         >
-          From capital account
+          {tt('From capital account')}
         </button>
         <button
           type="button"
@@ -187,7 +188,7 @@ export default function AddTransferFundsPanel({
           }`}
           disabled={submitting}
         >
-          From another payment account
+          {tt('From another payment account')}
         </button>
       </div>
 
@@ -201,7 +202,7 @@ export default function AddTransferFundsPanel({
 
         {sourceMode === 'capital' ? (
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Source — Capital</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">{tt('Source — Capital')}</label>
             <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800">
               {loadingCapital
                 ? 'Loading capital account…'
@@ -213,7 +214,7 @@ export default function AddTransferFundsPanel({
               <p className="mt-1 text-xs text-red-700">
                 Capital is empty.{' '}
                 <a href="/capital-account" className="underline font-medium" target="_blank" rel="noreferrer">
-                  Add owner capital
+                  {tt('Add owner capital')}
                 </a>{' '}
                 first, or transfer from another payment account.
               </p>
@@ -221,7 +222,7 @@ export default function AddTransferFundsPanel({
           </div>
         ) : (
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Source payment account</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">{tt('Source payment account')}</label>
             <select
               value={sourcePaymentAccountId}
               onChange={(e) => setSourcePaymentAccountId(e.target.value)}
@@ -229,7 +230,7 @@ export default function AddTransferFundsPanel({
               disabled={submitting}
               required
             >
-              <option value="">Select account with funds</option>
+              <option value="">{tt('Select account with funds')}</option>
               {otherPaymentAccounts.map((acc) => (
                 <option key={acc.id} value={acc.id}>
                   {formatPaymentAccountOptionLabel(acc)}
@@ -257,7 +258,7 @@ export default function AddTransferFundsPanel({
             </p>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Date</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">{tt('Date')}</label>
             <input
               type="date"
               value={date}
@@ -275,7 +276,7 @@ export default function AddTransferFundsPanel({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            placeholder="Why you are funding this account"
+            placeholder={tt('Why you are funding this account')}
             disabled={submitting}
           />
         </div>
@@ -300,7 +301,7 @@ export default function AddTransferFundsPanel({
             disabled={submitting}
             className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="submit"

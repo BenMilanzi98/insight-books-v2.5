@@ -17,4 +17,3 @@ export default defineConfig({
     sequence: { shuffle: false },
   },
 });
-

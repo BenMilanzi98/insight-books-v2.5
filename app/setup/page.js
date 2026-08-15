@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -31,7 +32,7 @@ function SetupPageInner() {
   if (!bootstrapped) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-sm text-slate-500">
-        Opening setup…
+        {tt('Opening setup…')}
       </div>
     );
   }
@@ -46,7 +47,7 @@ export default function SetupWizardPage() {
         <Suspense
           fallback={
             <div className="flex min-h-[40vh] items-center justify-center text-slate-500">
-              Loading…
+              {tt('Loading…')}
             </div>
           }
         >

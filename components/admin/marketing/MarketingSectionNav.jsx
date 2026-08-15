@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -40,7 +41,7 @@ export default function MarketingSectionNav({ className }) {
         'mb-6 flex flex-wrap gap-2 border-b border-[var(--admin-border)] pb-3',
         className
       )}
-      aria-label="Marketing sections"
+      aria-label={tt('Marketing sections')}
     >
       {MARKETING_SECTIONS.map((section) => {
         const active = isMarketingSectionActive(pathname, section);

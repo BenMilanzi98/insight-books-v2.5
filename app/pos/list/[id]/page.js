@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { useRouter,useParams } from "next/navigation";
@@ -279,7 +280,7 @@ const handleDeleteSale = async () => {
       <div className="flex justify-center items-center h-screen">
         <div className="text-center">
           <Loader className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-500">Loading sale details...</p>
+          <p className="text-gray-500">{tt('Loading sale details...')}</p>
         </div>
       </div>
     );
@@ -290,7 +291,7 @@ const handleDeleteSale = async () => {
       <div className="flex justify-center items-center h-screen">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Error</h2>
+          <h2 className="text-xl font-bold mb-2">{tt('Error')}</h2>
           <p className="text-red-500 mb-4">{error}</p>
           <div className="flex justify-center space-x-4">
             <button 
@@ -298,14 +299,14 @@ const handleDeleteSale = async () => {
               onClick={() => router.push('/pos')}
             >
               <ArrowLeft className="w-4 h-4 mr-2 inline-block" />
-              Back to Sales
+              {tt('Back to Sales')}
             </button>
             <button 
               className="px-4 py-2 bg-blue-600 text-white rounded-md"
               onClick={loadSale}
             >
               <RefreshCw className="w-4 h-4 mr-2 inline-block" />
-              Try Again
+              {tt('Try Again')}
             </button>
           </div>
         </div>
@@ -318,14 +319,14 @@ const handleDeleteSale = async () => {
       <div className="flex justify-center items-center h-screen">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Sale Not Found</h2>
-          <p className="text-gray-500 mb-4">The requested sale could not be found</p>
+          <h2 className="text-xl font-bold mb-2">{tt('Sale Not Found')}</h2>
+          <p className="text-gray-500 mb-4">{tt('The requested sale could not be found')}</p>
           <button
             className="px-4 py-2 bg-blue-600 text-white rounded-md"
             onClick={() => router.push('/pos')}
           >
             <ArrowLeft className="w-4 h-4 mr-2 inline-block" />
-            Back to Sales
+            {tt('Back to Sales')}
           </button>
         </div>
       </div>
@@ -342,7 +343,7 @@ const handleDeleteSale = async () => {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-2xl font-bold">Sale Details</h1>
+          <h1 className="text-2xl font-bold">{tt('Sale Details')}</h1>
         </div>
         
         <div className="flex items-center space-x-2">
@@ -365,7 +366,7 @@ const handleDeleteSale = async () => {
             onClick={() => handlePrintReceipt(receiptPaperWidthMm)}
           >
             <Printer className="w-4 h-4 mr-2" />
-            <span className="hidden sm:inline">Print Receipt</span>
+            <span className="hidden sm:inline">{tt('Print Receipt')}</span>
           </button>
           
           {/* <div className="relative">
@@ -386,14 +387,14 @@ const handleDeleteSale = async () => {
                         onClick={() => router.push(`/sales/${id}/edit`)}
                       >
                         <Edit className="w-4 h-4 mr-2 text-gray-500" />
-                        Edit Draft
+                        {tt('Edit Draft')}
                       </button>
                       <button 
                         className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"
                         onClick={() => {}} // Would implement delete functionality
                       >
                         <Trash2 className="w-4 h-4 mr-2 text-red-500" />
-                        Delete Draft
+                        {tt('Delete Draft')}
                       </button>
                     </>
                   )}
@@ -405,14 +406,14 @@ const handleDeleteSale = async () => {
                         onClick={() => setShowVoidModal(true)}
                       >
                         <Ban className="w-4 h-4 mr-2 text-orange-500" />
-                        Void Sale
+                        {tt('Void Sale')}
                       </button>
                       <button 
                         className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center"
                         onClick={() => setShowRefundModal(true)}
                       >
                         <RotateCcw className="w-4 h-4 mr-2 text-blue-500" />
-                        Process Refund
+                        {tt('Process Refund')}
                       </button>
                     </>
                   )}
@@ -422,7 +423,7 @@ const handleDeleteSale = async () => {
                     onClick={() => handlePdfReceipt()} // Would implement export functionality
                   >
                     <Download className="w-4 h-4 mr-2 text-gray-500" />
-                    Export as PDF
+                    {tt('Export as PDF')}
                   </button>
                 </div>
               </div>
@@ -454,18 +455,18 @@ const handleDeleteSale = async () => {
                 <div className="flex items-center">
                   <Calendar className="w-5 h-5 text-amber-600 mr-2" />
                   <div>
-                    <h3 className="text-sm font-medium text-amber-800">Historical Transaction</h3>
+                    <h3 className="text-sm font-medium text-amber-800">{tt('Historical Transaction')}</h3>
                     <p className="text-xs text-amber-700 mt-1">
                       This transaction was recorded for historical purposes with date: {sale.historicalDate || sale.saleDate}
                     </p>
                     {sale.originalReference && (
                       <p className="text-xs text-amber-700">
-                        Original Reference: <span className="font-medium">{sale.originalReference}</span>
+                        {tt('Original Reference:')} <span className="font-medium">{sale.originalReference}</span>
                       </p>
                     )}
                     {sale.migrationBatch && (
                       <p className="text-xs text-amber-700">
-                        Migration Batch: <span className="font-medium">{sale.migrationBatch}</span>
+                        {tt('Migration Batch:')} <span className="font-medium">{sale.migrationBatch}</span>
                       </p>
                     )}
                   </div>
@@ -480,7 +481,7 @@ const handleDeleteSale = async () => {
                   {sale.isHistorical && (
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
                       <Calendar className="w-3 h-3 mr-1" />
-                      Historical
+                      {tt('Historical')}
                     </span>
                   )}
                 </div>
@@ -499,7 +500,7 @@ const handleDeleteSale = async () => {
               <div className="border border-gray-200 rounded-md p-4">
                 <h3 className="text-sm text-gray-500 font-medium mb-2 flex items-center">
                   <User className="w-4 h-4 mr-1" />
-                  Customer
+                  {tt('Customer')}
                 </h3>
                 <p className="text-lg font-medium">{sale.client?.name || 'Walk-in Customer'}</p>
                 {sale.clientId && (
@@ -510,7 +511,7 @@ const handleDeleteSale = async () => {
               <div className="border border-gray-200 rounded-md p-4">
                 <h3 className="text-sm text-gray-500 font-medium mb-2 flex items-center">
                   {getPaymentMethodIcon(sale.paymentMethod)}
-                  <span className="ml-1">Payment Method</span>
+                  <span className="ml-1">{tt('Payment Method')}</span>
                 </h3>
                 <p className="text-lg font-medium">{getPaymentMethodName(sale.paymentMethod)}</p>
                 <p className="text-sm text-gray-500">Processed by {sale.createdBy?.name}</p>
@@ -519,21 +520,21 @@ const handleDeleteSale = async () => {
             
             {sale.notes && (
               <div className="mb-6 bg-gray-50 p-4 rounded-md">
-                <h3 className="text-sm text-gray-500 font-medium mb-2">Notes</h3>
+                <h3 className="text-sm text-gray-500 font-medium mb-2">{tt('Notes')}</h3>
                 <p className="text-sm">{sale.notes}</p>
               </div>
             )}
             
-            <h3 className="text-lg font-semibold mb-3">Sale Items</h3>
+            <h3 className="text-lg font-semibold mb-3">{tt('Sale Items')}</h3>
             {sale.items && sale.items.length > 0 ? (
             <div className="border border-gray-200 rounded-md overflow-hidden">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Product')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Price')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Qty')}</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Subtotal')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -554,8 +555,8 @@ const handleDeleteSale = async () => {
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Product')}</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Qty')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -568,17 +569,17 @@ const handleDeleteSale = async () => {
                   </tbody>
                 </table>
               </div>
-              <p className="text-xs text-gray-500 mt-2">Pricing details not available for this sale. See sale summary for totals.</p>
+              <p className="text-xs text-gray-500 mt-2">{tt('Pricing details not available for this sale. See sale summary for totals.')}</p>
             </div>
             ) : sale.originalReference ? (
             <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
               <p className="text-sm font-medium text-gray-700">{sale.originalReference}</p>
-              <p className="text-xs text-gray-500 mt-1">Full item details are not available for this historical sale. See sale summary for totals.</p>
+              <p className="text-xs text-gray-500 mt-1">{tt('Full item details are not available for this historical sale. See sale summary for totals.')}</p>
             </div>
             ) : (
             <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
-              <p className="text-sm text-gray-600">Item details are not available for this sale.</p>
-              <p className="text-xs text-gray-500 mt-1">This sale was recorded before item-level tracking was enabled. See sale summary for totals.</p>
+              <p className="text-sm text-gray-600">{tt('Item details are not available for this sale.')}</p>
+              <p className="text-xs text-gray-500 mt-1">{tt('This sale was recorded before item-level tracking was enabled. See sale summary for totals.')}</p>
             </div>
             )}
           </div>
@@ -587,15 +588,15 @@ const handleDeleteSale = async () => {
         {/* Right Column - Sale Summary */}
         <div>
           <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold mb-4">Sale Summary</h2>
+            <h2 className="text-lg font-semibold mb-4">{tt('Sale Summary')}</h2>
             
             <div className="border-b border-gray-200 pb-4 mb-4">
               <div className="flex justify-between mb-2">
-                <span className="text-gray-600">Discount:</span>
+                <span className="text-gray-600">{tt('Discount:')}</span>
                 <span>{sale.discount}</span>
               </div>
               <div className="flex justify-between mb-2">
-                <span className="text-gray-600">Subtotal:</span>
+                <span className="text-gray-600">{tt('Subtotal:')}</span>
                 <span>{sale.subtotal}</span>
               </div>
               <div className="flex justify-between mb-2">
@@ -604,30 +605,30 @@ const handleDeleteSale = async () => {
               </div>
               {sale.taxRate === 'Mixed' && (
                 <div className="text-xs text-gray-500 ml-2">
-                  Multiple tax rates applied
+                  {tt('Multiple tax rates applied')}
                 </div>
               )}
               <div className="flex justify-between text-lg font-bold">
-                <span>Total:</span>
+                <span>{tt('Total:')}</span>
                 <span>{sale.total}</span>
               </div>
             </div>
             
             <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-500 mb-2">Sale Details</h3>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">{tt('Sale Details')}</h3>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="text-gray-600">Status:</div>
+                <div className="text-gray-600">{tt('Status:')}</div>
                 <div className="text-right font-medium">
                   <StatusBadge status={sale.status} />
                 </div>
                 
-                <div className="text-gray-600">Created By:</div>
+                <div className="text-gray-600">{tt('Created By:')}</div>
                 <div className="text-right">{sale.createdBy?.name}</div>
                 
-                <div className="text-gray-600">Sale Date:</div>
+                <div className="text-gray-600">{tt('Sale Date:')}</div>
                 <div className="text-right">{sale.saleDate}</div>
                 
-                <div className="text-gray-600">Items:</div>
+                <div className="text-gray-600">{tt('Items:')}</div>
                 <div className="text-right">{sale.items.length}</div>
               </div>
             </div>
@@ -635,7 +636,7 @@ const handleDeleteSale = async () => {
             <div className="space-y-2">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Thermal paper width
+                  {tt('Thermal paper width')}
                 </label>
                 <select
                   value={receiptPaperWidthMm}
@@ -656,7 +657,7 @@ const handleDeleteSale = async () => {
                 onClick={() => handlePrintReceipt(receiptPaperWidthMm)}
               >
                 <Printer className="w-4 h-4 mr-2" />
-                Print Receipt
+                {tt('Print Receipt')}
               </button>
               
               {sale.status === 'completed' && (
@@ -666,7 +667,7 @@ const handleDeleteSale = async () => {
                     onClick={() => setShowVoidModal(true)}
                   >
                     <Ban className="w-4 h-4 mr-2" />
-                    Void Sale
+                    {tt('Void Sale')}
                   </button>
                   
                   <button 
@@ -674,7 +675,7 @@ const handleDeleteSale = async () => {
                     onClick={() => setShowRefundModal(true)}
                   >
                     <RotateCcw className="w-4 h-4 mr-2" />
-                    Process Refund
+                    {tt('Process Refund')}
                   </button>
                 </>
               )}
@@ -686,7 +687,7 @@ const handleDeleteSale = async () => {
                     onClick={() => router.push(`/pos/list/${id}/edit`)}
                   >
                     <Edit className="w-4 h-4 mr-2" />
-                    Edit Draft
+                    {tt('Edit Draft')}
                   </button>
                   
                   <button 
@@ -694,7 +695,7 @@ const handleDeleteSale = async () => {
                     onClick={handleDeleteSale} // Would implement delete functionality
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
-                    Delete Draft
+                    {tt('Delete Draft')}
                   </button>
                 </>
               )}
@@ -707,19 +708,19 @@ const handleDeleteSale = async () => {
       {showVoidModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Void Sale</h2>
+            <h2 className="text-xl font-semibold mb-4">{tt('Void Sale')}</h2>
             <p className="mb-4 text-gray-600">
               Are you sure you want to void this sale? This action cannot be undone.
             </p>
             
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Reason for Void</label>
+              <label className="block text-sm font-medium mb-1">{tt('Reason for Void')}</label>
               <textarea
                 className="w-full p-2 border border-gray-300 rounded-md"
                 rows="3"
                 value={voidReason}
                 onChange={(e) => setVoidReason(e.target.value)}
-                placeholder="At least 10 characters required for audit..."
+                placeholder={tt('At least 10 characters required for audit...')}
                 required
               ></textarea>
               <p className="text-xs text-gray-500 mt-1">
@@ -736,7 +737,7 @@ const handleDeleteSale = async () => {
                 }}
                 disabled={isSubmitting}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button 
                 className="px-4 py-2 bg-red-600 text-white rounded-md flex items-center"
@@ -749,12 +750,12 @@ const handleDeleteSale = async () => {
                 {isSubmitting ? (
                   <>
                     <Loader className="animate-spin w-4 h-4 mr-2" />
-                    Processing...
+                    {tt('Processing...')}
                   </>
                 ) : (
                   <>
                     <Ban className="w-4 h-4 mr-2" />
-                    Void Sale
+                    {tt('Void Sale')}
                   </>
                 )}
               </button>
@@ -767,19 +768,19 @@ const handleDeleteSale = async () => {
       {showRefundModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Process Refund</h2>
+            <h2 className="text-xl font-semibold mb-4">{tt('Process Refund')}</h2>
             <p className="mb-4 text-gray-600">
               Are you sure you want to process a refund for this sale? This action cannot be undone.
             </p>
             
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Reason for Refund</label>
+              <label className="block text-sm font-medium mb-1">{tt('Reason for Refund')}</label>
               <textarea
                 className="w-full p-2 border border-gray-300 rounded-md"
                 rows="3"
                 value={refundReason}
                 onChange={(e) => setRefundReason(e.target.value)}
-                placeholder="At least 10 characters required for audit..."
+                placeholder={tt('At least 10 characters required for audit...')}
                 required
               ></textarea>
               <p className="text-xs text-gray-500 mt-1">
@@ -796,7 +797,7 @@ const handleDeleteSale = async () => {
                 }}
                 disabled={isSubmitting}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button 
                 className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center"
@@ -809,12 +810,12 @@ const handleDeleteSale = async () => {
                 {isSubmitting ? (
                   <>
                     <Loader className="animate-spin w-4 h-4 mr-2" />
-                    Processing...
+                    {tt('Processing...')}
                   </>
                 ) : (
                   <>
                     <RotateCcw className="w-4 h-4 mr-2" />
-                    Process Refund
+                    {tt('Process Refund')}
                   </>
                 )}
               </button>

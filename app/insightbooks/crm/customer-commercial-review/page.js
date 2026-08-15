@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useState } from 'react';
 
@@ -93,15 +94,15 @@ export default function CustomerCommercialReviewPage() {
 
   return (
     <main style={{ maxWidth: 720, margin: '40px auto', padding: '0 16px', fontFamily: 'Georgia, serif' }}>
-      <h1 style={{ fontSize: 28, marginBottom: 8 }}>Commercial review</h1>
+      <h1 style={{ fontSize: 28, marginBottom: 8 }}>{tt('Commercial review')}</h1>
       <p style={{ color: '#475569', marginBottom: 24 }}>
-        Secure link access only. Delivery does not imply view or acceptance.
+        {tt('Secure link access only. Delivery does not imply view or acceptance.')}
       </p>
 
       {!review && (
         <div>
           <label htmlFor="review-token" style={{ display: 'block', marginBottom: 8 }}>
-            Access token
+            {tt('Access token')}
           </label>
           <input
             id="review-token"
@@ -111,7 +112,7 @@ export default function CustomerCommercialReviewPage() {
             autoComplete="off"
           />
           <button type="button" onClick={loadReview} disabled={busy || !token}>
-            Open review
+            {tt('Open review')}
           </button>
         </div>
       )}
@@ -134,7 +135,7 @@ export default function CustomerCommercialReviewPage() {
           </p>
           <p>Total: {review.content?.totals?.grandTotal} {review.content?.totals?.currency}</p>
           {review.content?.internalNotes != null && (
-            <p style={{ color: '#b91c1c' }}>Unexpected internal field leaked</p>
+            <p style={{ color: '#b91c1c' }}>{tt('Unexpected internal field leaked')}</p>
           )}
           <ul>
             {(review.content?.lineItems || []).map((li, idx) => (
@@ -149,14 +150,14 @@ export default function CustomerCommercialReviewPage() {
               disabled={busy}
               onClick={() => postAction('accept')}
             >
-              Accept
+              {tt('Accept')}
             </button>
             <button
               type="button"
               disabled={busy}
               onClick={() => postAction('reject', { reason: 'Customer declined' })}
             >
-              Reject
+              {tt('Reject')}
             </button>
             <button
               type="button"
@@ -165,11 +166,11 @@ export default function CustomerCommercialReviewPage() {
                 postAction('revision', { reason: 'Please revise commercial terms' })
               }
             >
-              Request revision
+              {tt('Request revision')}
             </button>
           </div>
           <p style={{ marginTop: 16, fontSize: 12, color: '#64748b' }}>
-            E-sign: NOT_CONFIGURED — acceptance is authority-backed, not fabricated signature.
+            {tt('E-sign: NOT_CONFIGURED — acceptance is authority-backed, not fabricated signature.')}
           </p>
         </section>
       )}

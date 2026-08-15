@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/charts/InventoryChart.jsx
 import React from 'react';
 import {
@@ -23,7 +24,7 @@ export const InventoryByCategoryChart = ({ data }) => {
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
-        <p className="text-gray-500">No inventory category data available for visualization</p>
+        <p className="text-gray-500">{tt('No inventory category data available for visualization')}</p>
       </div>
     );
   }
@@ -61,7 +62,7 @@ export const InventoryByCategoryChart = ({ data }) => {
 
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-      <h3 className="text-lg font-medium text-gray-800 mb-4">Inventory Value by Category</h3>
+      <h3 className="text-lg font-medium text-gray-800 mb-4">{tt('Inventory Value by Category')}</h3>
       <div className="flex flex-col items-center">
         <ResponsiveContainer width="100%" height={300}>
           <PieChart>
@@ -108,7 +109,7 @@ export const InventoryStockLevelsChart = ({ data }) => {
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
-        <p className="text-gray-500">No inventory data available for visualization</p>
+        <p className="text-gray-500">{tt('No inventory data available for visualization')}</p>
       </div>
     );
   }
@@ -128,7 +129,7 @@ export const InventoryStockLevelsChart = ({ data }) => {
 
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-      <h3 className="text-lg font-medium text-gray-800 mb-4">Top 10 Items by Value</h3>
+      <h3 className="text-lg font-medium text-gray-800 mb-4">{tt('Top 10 Items by Value')}</h3>
       <ResponsiveContainer width="100%" height={400}>
         <BarChart
           data={topItems}

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from 'react';
 import { 
   Mail, 
@@ -250,9 +251,9 @@ const EmailManagement = () => {
         <div>
           <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Mail className="h-6 w-6" />
-            Email Management
+            {tt('Email Management')}
           </h2>
-          <p className="text-gray-600">Send emails to users across all tenants</p>
+          <p className="text-gray-600">{tt('Send emails to users across all tenants')}</p>
         </div>
         <button
           onClick={() => setShowEmailForm(true)}
@@ -270,7 +271,7 @@ const EmailManagement = () => {
           <div className="flex items-center">
             <Users className="h-8 w-8 text-blue-500" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Total Users</p>
+              <p className="text-sm font-medium text-gray-500">{tt('Total Users')}</p>
               <p className="text-2xl font-bold text-gray-900">{stats.totalUsers}</p>
             </div>
           </div>
@@ -279,7 +280,7 @@ const EmailManagement = () => {
           <div className="flex items-center">
             <CheckCircle className="h-8 w-8 text-green-500" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Active Users</p>
+              <p className="text-sm font-medium text-gray-500">{tt('Active Users')}</p>
               <p className="text-2xl font-bold text-gray-900">{stats.activeUsers}</p>
             </div>
           </div>
@@ -288,7 +289,7 @@ const EmailManagement = () => {
           <div className="flex items-center">
             <CheckSquare className="h-8 w-8 text-blue-500" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Selected</p>
+              <p className="text-sm font-medium text-gray-500">{tt('Selected')}</p>
               <p className="text-2xl font-bold text-gray-900">{stats.selectedCount}</p>
             </div>
           </div>
@@ -297,7 +298,7 @@ const EmailManagement = () => {
           <div className="flex items-center">
             <Mail className="h-8 w-8 text-orange-500" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-500">Emails Sent</p>
+              <p className="text-sm font-medium text-gray-500">{tt('Emails Sent')}</p>
               <p className="text-2xl font-bold text-gray-900">{emailHistory.length}</p>
             </div>
           </div>
@@ -308,12 +309,12 @@ const EmailManagement = () => {
       <div className="bg-white p-4 rounded-lg shadow">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Search')}</label>
             <div className="relative">
               <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search users..."
+                placeholder={tt('Search users...')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -321,39 +322,39 @@ const EmailManagement = () => {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Status')}</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="pending">Pending</option>
+              <option value="all">{tt('All Status')}</option>
+              <option value="active">{tt('Active')}</option>
+              <option value="inactive">{tt('Inactive')}</option>
+              <option value="pending">{tt('Pending')}</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Role')}</label>
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">All Roles</option>
-              <option value="admin">Admin</option>
-              <option value="manager">Manager</option>
-              <option value="user">User</option>
+              <option value="all">{tt('All Roles')}</option>
+              <option value="admin">{tt('Admin')}</option>
+              <option value="manager">{tt('Manager')}</option>
+              <option value="user">{tt('User')}</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tenant</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Tenant')}</label>
             <select
               value={tenantFilter}
               onChange={(e) => setTenantFilter(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">All Tenants</option>
+              <option value="all">{tt('All Tenants')}</option>
               {Array.from(new Set(users.map(user => user.tenant))).map(tenant => (
                 <option key={tenant} value={tenant}>{tenant}</option>
               ))}
@@ -370,7 +371,7 @@ const EmailManagement = () => {
               className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 flex items-center justify-center gap-2"
             >
               <X className="h-4 w-4" />
-              Clear Filters
+              {tt('Clear Filters')}
             </button>
           </div>
         </div>
@@ -400,7 +401,7 @@ const EmailManagement = () => {
         {loading ? (
           <div className="p-8 text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
-            <p className="mt-2 text-gray-500">Loading users...</p>
+            <p className="mt-2 text-gray-500">{tt('Loading users...')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -408,22 +409,22 @@ const EmailManagement = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Select
+                    {tt('Select')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    User
+                    {tt('User')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role
+                    {tt('Role')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tenant
+                    {tt('Tenant')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                    {tt('Status')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Login
+                    {tt('Last Login')}
                   </th>
                 </tr>
               </thead>
@@ -477,7 +478,7 @@ const EmailManagement = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Send Email</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{tt('Send Email')}</h3>
               <button
                 onClick={() => setShowEmailForm(false)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -489,56 +490,56 @@ const EmailManagement = () => {
             <div className="p-6 space-y-4">
               <div className="bg-blue-50 p-4 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  <strong>Recipients:</strong> {selectedUsers.length} user(s) selected
+                  <strong>{tt('Recipients:')}</strong> {selectedUsers.length} user(s) selected
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Subject')}</label>
                 <input
                   type="text"
                   value={emailData.subject}
                   onChange={(e) => setEmailData({ ...emailData, subject: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter email subject"
+                  placeholder={tt('Enter email subject')}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Message')}</label>
                 <textarea
                   value={emailData.message}
                   onChange={(e) => setEmailData({ ...emailData, message: e.target.value })}
                   rows={8}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter your message here..."
+                  placeholder={tt('Enter your message here...')}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Template</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Template')}</label>
                   <select
                     value={emailData.template}
                     onChange={(e) => setEmailData({ ...emailData, template: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="custom">Custom Message</option>
-                    <option value="announcement">Announcement</option>
-                    <option value="maintenance">Maintenance Notice</option>
-                    <option value="update">System Update</option>
+                    <option value="custom">{tt('Custom Message')}</option>
+                    <option value="announcement">{tt('Announcement')}</option>
+                    <option value="maintenance">{tt('Maintenance Notice')}</option>
+                    <option value="update">{tt('System Update')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Priority')}</label>
                   <select
                     value={emailData.priority}
                     onChange={(e) => setEmailData({ ...emailData, priority: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="normal">Normal</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
+                    <option value="normal">{tt('Normal')}</option>
+                    <option value="high">{tt('High')}</option>
+                    <option value="urgent">{tt('Urgent')}</option>
                   </select>
                 </div>
               </div>
@@ -556,7 +557,7 @@ const EmailManagement = () => {
                     onClick={() => setShowEmailForm(false)}
                     className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     onClick={handleSendEmail}
@@ -575,10 +576,10 @@ const EmailManagement = () => {
 
               {showPreview && (
                 <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                  <h4 className="font-medium text-gray-900 mb-2">Email Preview</h4>
+                  <h4 className="font-medium text-gray-900 mb-2">{tt('Email Preview')}</h4>
                   <div className="text-sm text-gray-600">
-                    <p><strong>To:</strong> {selectedUsers.length} selected users</p>
-                    <p><strong>Subject:</strong> {emailData.subject || '(No subject)'}</p>
+                    <p><strong>{tt('To:')}</strong> {selectedUsers.length} selected users</p>
+                    <p><strong>{tt('Subject:')}</strong> {emailData.subject || '(No subject)'}</p>
                     <div className="mt-2 p-3 bg-white rounded border">
                       <div dangerouslySetInnerHTML={{ __html: emailData.message.replace(/\n/g, '<br>') }} />
                     </div>

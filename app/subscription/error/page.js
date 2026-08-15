@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { AlertTriangle, ArrowLeft, RefreshCw } from 'lucide-react';
@@ -72,10 +73,10 @@ function SubscriptionErrorContent() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Subscription Error
+            {tt('Subscription Error')}
           </h1>
           <p className="text-gray-600">
-            We encountered an issue with your subscription
+            {tt('We encountered an issue with your subscription')}
           </p>
         </div>
       </div>
@@ -99,13 +100,13 @@ function SubscriptionErrorContent() {
           <div className="space-y-4">
             <div className="text-sm text-gray-600">
               <p className="mb-4">
-                Don't worry, your account is safe and no charges have been made. Here are some things you can try:
+                {tt("Don't worry, your account is safe and no charges have been made. Here are some things you can try:")}
               </p>
               <ul className="list-disc list-inside space-y-2 ml-4">
-                <li>Check your payment method details</li>
-                <li>Ensure you have sufficient funds</li>
-                <li>Try using a different payment method</li>
-                <li>Clear your browser cache and try again</li>
+                <li>{tt('Check your payment method details')}</li>
+                <li>{tt('Ensure you have sufficient funds')}</li>
+                <li>{tt('Try using a different payment method')}</li>
+                <li>{tt('Clear your browser cache and try again')}</li>
               </ul>
             </div>
 
@@ -115,7 +116,7 @@ function SubscriptionErrorContent() {
                 className="w-full flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 <RefreshCw className="h-4 w-4 mr-2" />
-                Try Again
+                {tt('Try Again')}
               </button>
 
               <Link
@@ -123,14 +124,14 @@ function SubscriptionErrorContent() {
                 className="w-full flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Subscription
+                {tt('Back to Subscription')}
               </Link>
 
               <Link
                 href="/dashboard"
                 className="w-full flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
-                Go to Dashboard
+                {tt('Go to Dashboard')}
               </Link>
             </div>
 
@@ -143,7 +144,7 @@ function SubscriptionErrorContent() {
                   href="/contact"
                   className="text-sm text-blue-600 hover:text-blue-500 font-medium"
                 >
-                  Get Help
+                  {tt('Get Help')}
                 </Link>
               </div>
             </div>
@@ -161,10 +162,10 @@ function SubscriptionErrorLoading() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Subscription Error
+            {tt('Subscription Error')}
           </h1>
           <p className="text-gray-600">
-            Loading error details...
+            {tt('Loading error details...')}
           </p>
         </div>
       </div>

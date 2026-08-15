@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useMemo } from "react";
 import { DollarSign, Calendar, Play, Download, Eye, CheckCircle, AlertCircle, Edit, FileText, Trash2, Receipt, FileBarChart, Undo2 } from "lucide-react";
@@ -931,7 +932,7 @@ export default function PayrollProcessing() {
           <>
             <PosStyleHeaderButton as={Link} href="/hr/payroll/paye-summary">
               <FileBarChart size={20} className="mr-2" />
-              PAYE Summary
+              {tt('PAYE Summary')}
             </PosStyleHeaderButton>
             <button
               onClick={async () => {
@@ -942,7 +943,7 @@ export default function PayrollProcessing() {
               className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md"
             >
               <Play size={20} className="mr-2" />
-              Process Payroll
+              {tt('Process Payroll')}
             </button>
           </>
         }
@@ -983,7 +984,7 @@ export default function PayrollProcessing() {
       {/* Payroll Runs Table */}
       <PosStylePanel className="overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b bg-white">
-          <div className="text-sm font-medium text-gray-700">Runs</div>
+          <div className="text-sm font-medium text-gray-700">{tt('Runs')}</div>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -994,7 +995,7 @@ export default function PayrollProcessing() {
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
-              Active
+              {tt('Active')}
             </button>
             <button
               type="button"
@@ -1005,7 +1006,7 @@ export default function PayrollProcessing() {
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
-              Reversed
+              {tt('Reversed')}
             </button>
             <button
               type="button"
@@ -1016,7 +1017,7 @@ export default function PayrollProcessing() {
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
-              All
+              {tt('All')}
             </button>
           </div>
         </div>
@@ -1024,15 +1025,15 @@ export default function PayrollProcessing() {
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employees</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Pay</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Period')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Payment Date')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Employees')}</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{tt('Gross Pay')}</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">PAYE</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">NPS</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Pay</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{tt('Net Pay')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{tt('Status')}</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">{tt('Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -1081,8 +1082,8 @@ export default function PayrollProcessing() {
         {filteredRuns.length === 0 && !loading && (
           <div className="text-center py-12">
             <DollarSign size={48} className="mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-1">No payroll runs found</h3>
-            <p className="text-gray-600 mb-4">Get started by processing your first payroll</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-1">{tt('No payroll runs found')}</h3>
+            <p className="text-gray-600 mb-4">{tt('Get started by processing your first payroll')}</p>
             <button
               onClick={async () => {
                 await loadAccounts();
@@ -1091,7 +1092,7 @@ export default function PayrollProcessing() {
               }}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
-              Process First Payroll
+              {tt('Process First Payroll')}
             </button>
           </div>
         )}
@@ -1099,7 +1100,7 @@ export default function PayrollProcessing() {
         {loading && (
           <div className="text-center py-12">
             <div className="h-10 w-10 border-4 border-t-blue-600 border-r-transparent border-l-transparent border-b-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading payroll runs...</p>
+            <p className="text-gray-600">{tt('Loading payroll runs...')}</p>
           </div>
         )}
       </PosStylePanel>
@@ -1109,12 +1110,12 @@ export default function PayrollProcessing() {
         <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Process Payroll</h2>
+              <h2 className="text-xl font-semibold mb-4">{tt('Process Payroll')}</h2>
               
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Month *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Month *')}</label>
                     <select
                       value={formData.payrollMonth}
                       onChange={(e) => setFormData({ ...formData, payrollMonth: parseInt(e.target.value) })}
@@ -1130,7 +1131,7 @@ export default function PayrollProcessing() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Year *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Year *')}</label>
                     <select
                       value={formData.payrollYear}
                       onChange={(e) => setFormData({ ...formData, payrollYear: parseInt(e.target.value) })}
@@ -1150,7 +1151,7 @@ export default function PayrollProcessing() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Payment Date *')}</label>
                   <input
                     type="date"
                     value={formData.paymentDate}
@@ -1160,10 +1161,10 @@ export default function PayrollProcessing() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Salary Cost Account</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Salary Cost Account')}</label>
                   {accountsLoading ? (
                     <div className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
-                      Loading accounts...
+                      {tt('Loading accounts...')}
                     </div>
                   ) : (
                     <div className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
@@ -1178,7 +1179,7 @@ export default function PayrollProcessing() {
                     </div>
                   )}
                   <p className="text-xs text-gray-500 mt-1">
-                    Payroll salary cost is always posted to 5200 - Salaries & Wages.
+                    {tt('Payroll salary cost is always posted to 5200 - Salaries & Wages.')}
                   </p>
                   {accountsError && (
                     <p className="text-xs text-red-500 mt-1">Failed to load accounts: {accountsError}</p>
@@ -1186,20 +1187,20 @@ export default function PayrollProcessing() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cash / Bank Account for Net Pay</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Cash / Bank Account for Net Pay')}</label>
                   <select
                     value={formData.paymentAccountId || ''}
                     onChange={(e) => setFormData({ ...formData, paymentAccountId: e.target.value })}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                     disabled={paymentAccountsLoading || paymentAccountOptions.length === 0}
                   >
-                    {paymentAccountsLoading && <option>Loading payment accounts...</option>}
+                    {paymentAccountsLoading && <option>{tt('Loading payment accounts...')}</option>}
                     {!paymentAccountsLoading && paymentAccountOptions.length === 0 && (
-                      <option value="">No cash/bank accounts available</option>
+                      <option value="">{tt('No cash/bank accounts available')}</option>
                     )}
                     {!paymentAccountsLoading && paymentAccountOptions.length > 0 && (
                       <>
-                        <option value="">Select payment account</option>
+                        <option value="">{tt('Select payment account')}</option>
                         {paymentAccountOptions.map((account) => (
                           <option key={account.id} value={account.id}>
                             {formatAccountOption(account)}
@@ -1223,12 +1224,12 @@ export default function PayrollProcessing() {
                     className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
                   <label htmlFor="sendEmails" className="text-sm font-medium text-gray-700 cursor-pointer">
-                    Send payslips via email to employees
+                    {tt('Send payslips via email to employees')}
                   </label>
                 </div>
                 {formData.sendEmails && (
                   <p className="text-xs text-gray-500 ml-7 -mt-2">
-                    Payslips will be sent as PDF attachments. Employees without email addresses will be skipped.
+                    {tt('Payslips will be sent as PDF attachments. Employees without email addresses will be skipped.')}
                   </p>
                 )}
               </div>
@@ -1239,7 +1240,7 @@ export default function PayrollProcessing() {
                   disabled={processing}
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   onClick={handleProcessPayroll}
@@ -1269,29 +1270,29 @@ export default function PayrollProcessing() {
           <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">Payroll Entries</h2>
+                <h2 className="text-xl font-semibold">{tt('Payroll Entries')}</h2>
                 <button className="text-gray-500 hover:text-gray-700" onClick={() => setShowViewModal(false)}>×</button>
               </div>
               {viewLoading ? (
-                <div className="py-12 text-center text-gray-600">Loading...</div>
+                <div className="py-12 text-center text-gray-600">{tt('Loading...')}</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Gross</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{tt('Employee')}</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">{tt('Gross')}</th>
                         <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">PAYE</th>
                         <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">NPS</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Net</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">{tt('Net')}</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{tt('Status')}</th>
+                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">{tt('Actions')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {viewEntries.length === 0 ? (
                         <tr>
-                          <td className="px-4 py-6 text-center text-gray-500" colSpan="7">No entries for this period.</td>
+                          <td className="px-4 py-6 text-center text-gray-500" colSpan="7">{tt('No entries for this period.')}</td>
                         </tr>
                       ) : (
                         viewEntries.map(entry => (
@@ -1314,7 +1315,7 @@ export default function PayrollProcessing() {
                                     title="Reverse posted journal or mark unposted payroll reversed (requires reason)"
                                   >
                                     <Undo2 size={14} />
-                                    Reverse / remove
+                                    {tt('Reverse / remove')}
                                   </button>
                                 )}
                                 {entry.status === 'Draft' && (
@@ -1324,7 +1325,7 @@ export default function PayrollProcessing() {
                                     title="Edit Payroll"
                                   >
                                     <Edit size={14} />
-                                    Edit
+                                    {tt('Edit')}
                                   </button>
                                 )}
                                 {(entry.status === 'Processed' || entry.status === 'Posted') && (
@@ -1334,7 +1335,7 @@ export default function PayrollProcessing() {
                                     title="Generate Payslip"
                                   >
                                     <Receipt size={14} />
-                                    Payslip
+                                    {tt('Payslip')}
                                   </button>
                                 )}
                                 {entry.status === 'Processed' && (
@@ -1343,11 +1344,11 @@ export default function PayrollProcessing() {
                                     className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border"
                                     title="Mark as Draft"
                                   >
-                                    Draft
+                                    {tt('Draft')}
                                   </button>
                                 )}
                                 {entry.status !== 'Draft' && entry.status !== 'Processed' && entry.status !== 'Posted' && entry.status !== 'Reversed' && (
-                                  <button type="button" onClick={() => markDraft(entry.id)} className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border">Mark Draft</button>
+                                  <button type="button" onClick={() => markDraft(entry.id)} className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border">{tt('Mark Draft')}</button>
                                 )}
                               </div>
                             </td>
@@ -1375,7 +1376,7 @@ export default function PayrollProcessing() {
           >
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">Reverse or remove payroll</h2>
+                <h2 className="text-xl font-semibold text-gray-900">{tt('Reverse or remove payroll')}</h2>
                 <button
                   type="button"
                   className="text-gray-500 hover:text-gray-700"
@@ -1394,7 +1395,7 @@ export default function PayrollProcessing() {
                   : 'When a journal is posted, this reverses it (salary expense, PAYE, liabilities, net pay/cash, etc.) and restores related balances.'}
               </p>
               {reversePreflight?.pending && (
-                <div className="mb-4 text-sm text-gray-600">Checking eligibility…</div>
+                <div className="mb-4 text-sm text-gray-600">{tt('Checking eligibility…')}</div>
               )}
               {reversePreflight && !reversePreflight.pending && !reversePreflight.eligible && (
                 <div className="mb-4 p-3 rounded-md bg-red-50 text-red-800 text-sm border border-red-200">
@@ -1415,7 +1416,7 @@ export default function PayrollProcessing() {
                 disabled={reverseLoading || reversePreflight?.pending || !(reversePreflight?.eligible)}
                 rows={4}
                 className="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-amber-500"
-                placeholder="e.g. Incorrect overtime hours for this period — reversing to re-run payroll."
+                placeholder={tt('e.g. Incorrect overtime hours for this period — reversing to re-run payroll.')}
               />
               <div className="flex justify-end gap-2 mt-6">
                 <button
@@ -1424,7 +1425,7 @@ export default function PayrollProcessing() {
                   disabled={reverseLoading}
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   type="button"
@@ -1492,7 +1493,7 @@ export default function PayrollProcessing() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Other Deductions</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{tt('Other Deductions')}</label>
                   
                   {/* Add New Deduction Form */}
                   <div className="mb-3 p-3 bg-blue-50 rounded-md border border-blue-200">
@@ -1513,7 +1514,7 @@ export default function PayrollProcessing() {
                       />
                       <input
                         type="number"
-                        placeholder="Amount"
+                        placeholder={tt('Amount')}
                         value={newDeductionAmount}
                         onChange={(e) => setNewDeductionAmount(e.target.value)}
                         className="w-32 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1533,7 +1534,7 @@ export default function PayrollProcessing() {
                         disabled={isSaving || !newDeductionName.trim() || !newDeductionAmount || parseFloat(newDeductionAmount) <= 0}
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                       >
-                        Add
+                        {tt('Add')}
                       </button>
                     </div>
                   </div>
@@ -1541,7 +1542,7 @@ export default function PayrollProcessing() {
                   {/* Existing Deductions List */}
                   <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-md p-2">
                     {Object.keys(editFormData.deductions).length === 0 ? (
-                      <p className="text-sm text-gray-500 text-center py-2">No other deductions added yet</p>
+                      <p className="text-sm text-gray-500 text-center py-2">{tt('No other deductions added yet')}</p>
                     ) : (
                       Object.entries(editFormData.deductions).map(([key, value]) => (
                         <div key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
@@ -1582,7 +1583,7 @@ export default function PayrollProcessing() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Notes')}</label>
                   <textarea
                     value={editFormData.notes}
                     onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
@@ -1594,10 +1595,10 @@ export default function PayrollProcessing() {
 
                 {/* Calculation Preview */}
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Calculation Preview</h3>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">{tt('Calculation Preview')}</h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Basic Salary:</span>
+                      <span className="text-gray-600">{tt('Basic Salary:')}</span>
                       <span className="font-medium">MWK {editFormData.basicSalary.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
@@ -1632,7 +1633,7 @@ export default function PayrollProcessing() {
                       )}
                     </div>
                     <div className="flex justify-between border-t pt-2 mt-2">
-                      <span className="text-gray-700 font-medium">Net Pay:</span>
+                      <span className="text-gray-700 font-medium">{tt('Net Pay:')}</span>
                       <span className="font-bold text-green-600">MWK {Math.max(0, editPayrollPreview.netPay).toLocaleString()}</span>
                     </div>
                     <div className="text-xs text-gray-500 mt-2 italic">
@@ -1648,7 +1649,7 @@ export default function PayrollProcessing() {
                   disabled={isSaving}
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   onClick={handleSaveEdit}
@@ -1672,7 +1673,7 @@ export default function PayrollProcessing() {
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-red-600">Remove payroll run</h2>
+                <h2 className="text-xl font-semibold text-red-600">{tt('Remove payroll run')}</h2>
                 <button 
                   className="text-gray-500 hover:text-gray-700"
                   onClick={() => !isDeleting && setShowDeleteModal(false)}
@@ -1684,19 +1685,18 @@ export default function PayrollProcessing() {
               
               <div className="mb-6">
                 <p className="text-gray-700 mb-4">
-                  Reverse or cancel every payroll row in this period in one step: rows without a posted journal are
-                  marked <strong>Reversed</strong> (audited); rows with a posted payroll journal get a full GL reversal
+                  {tt('Reverse or cancel every payroll row in this period in one step: rows without a posted journal are marked')} <strong>{tt('Reversed')}</strong> (audited); rows with a posted payroll journal get a full GL reversal
                   (same as the dedicated payroll reversal flow).
                 </p>
                 <div className="bg-gray-50 p-4 rounded-md">
                   <p className="text-sm text-gray-600">
-                    <strong>Period:</strong> {formatDate(payrollToDelete.periodStart)} - {formatDate(payrollToDelete.periodEnd)}
+                    <strong>{tt('Period:')}</strong> {formatDate(payrollToDelete.periodStart)} - {formatDate(payrollToDelete.periodEnd)}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
-                    <strong>Employees:</strong> {payrollToDelete.employees}
+                    <strong>{tt('Employees:')}</strong> {payrollToDelete.employees}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
-                    <strong>Total Net Pay:</strong> {formatCurrency(payrollToDelete.totalNet)}
+                    <strong>{tt('Total Net Pay:')}</strong> {formatCurrency(payrollToDelete.totalNet)}
                   </p>
                 </div>
                 <p className="text-sm text-amber-700 mt-4 font-medium">
@@ -1711,7 +1711,7 @@ export default function PayrollProcessing() {
                   disabled={isDeleting}
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   onClick={handleDeleteConfirm}

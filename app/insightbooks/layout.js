@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import AdminShell from '@/components/shell/AdminShell';
@@ -50,7 +51,7 @@ export default function AdminLayout({ children }) {
         <div
           className="h-12 w-12 animate-spin rounded-full border-b-2 border-[var(--action-primary)]"
           role="status"
-          aria-label="Loading"
+          aria-label={tt('Loading')}
         />
       </div>
     );

@@ -1,0 +1,1 @@
+"use strict";exports.id=73778,exports.ids=[73778],exports.modules={473778:(a,b,c)=>{c.d(b,{tt:()=>d});function d(a,b){return function(a,b={}){return null==a?"":"string"==typeof a&&a.trim()?function(a,b={}){return"string"!=typeof a?a:a.replace(/\{\{\s*(\w+)\s*\}\}/g,(a,c)=>null==b[c]?"":String(b[c]))}(a,b):a}(a,b)}}};

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Plus, Trash2, User, UserPlus, X } from "lucide-react";
@@ -99,7 +100,7 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
           </h3>
           {workflow.enabled && (
             <span className="ml-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-              Enabled
+              {tt('Enabled')}
             </span>
           )}
         </div>
@@ -114,12 +115,12 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Workflow Name
+                  {tt('Workflow Name')}
                 </label>
                 <input
                   type="text"
                   className="border-gray-300 rounded-md px-3 py-2 w-full"
-                  placeholder="e.g., Invoice Approval Process"
+                  placeholder={tt('e.g., Invoice Approval Process')}
                   value={workflow.name}
                   onChange={(e) => updateWorkflowField("name", e.target.value)}
                 />
@@ -143,12 +144,12 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
+                {tt('Description')}
               </label>
               <textarea
                 className="border-gray-300 rounded-md px-3 py-2 w-full"
                 rows="2"
-                placeholder="Describe the purpose of this approval workflow"
+                placeholder={tt('Describe the purpose of this approval workflow')}
                 value={workflow.description}
                 onChange={(e) => updateWorkflowField("description", e.target.value)}
               ></textarea>
@@ -157,7 +158,7 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Trigger Type
+                  {tt('Trigger Type')}
                 </label>
                 <select
                   className="border-gray-300 rounded-md px-3 py-2 w-full"
@@ -175,7 +176,7 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
               {workflow.triggerType === "amount" && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Amount Threshold
+                    {tt('Amount Threshold')}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -190,7 +191,7 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Transactions above this amount will require approval
+                    {tt('Transactions above this amount will require approval')}
                   </p>
                 </div>
               )}
@@ -198,16 +199,16 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
               {workflow.triggerType === "type" && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Transaction Types
+                    {tt('Transaction Types')}
                   </label>
                   <select
                     className="border-gray-300 rounded-md px-3 py-2 w-full"
                     defaultValue="expense"
                   >
-                    <option value="expense">Expenses</option>
-                    <option value="invoice">Invoices</option>
-                    <option value="purchase_order">Purchase Orders</option>
-                    <option value="all">All Transaction Types</option>
+                    <option value="expense">{tt('Expenses')}</option>
+                    <option value="invoice">{tt('Invoices')}</option>
+                    <option value="purchase_order">{tt('Purchase Orders')}</option>
+                    <option value="all">{tt('All Transaction Types')}</option>
                   </select>
                 </div>
               )}
@@ -215,12 +216,12 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
               {workflow.triggerType === "vendor" && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Specific Vendors
+                    {tt('Specific Vendors')}
                   </label>
                   <input
                     type="text"
                     className="border-gray-300 rounded-md px-3 py-2 w-full"
-                    placeholder="Enter vendor names separated by commas"
+                    placeholder={tt('Enter vendor names separated by commas')}
                   />
                 </div>
               )}
@@ -229,13 +230,13 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
 
           <div className="p-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-medium text-gray-900">Approval Steps</h3>
+              <h3 className="font-medium text-gray-900">{tt('Approval Steps')}</h3>
               <button
                 className="bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1 rounded-md text-sm flex items-center"
                 onClick={addApprovalStep}
               >
                 <Plus size={16} className="mr-1" />
-                Add Step
+                {tt('Add Step')}
               </button>
             </div>
 
@@ -252,7 +253,7 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
                     <input
                       type="text"
                       className="border-0 bg-transparent font-medium p-0 focus:ring-0"
-                      placeholder="Step Name"
+                      placeholder={tt('Step Name')}
                       value={step.name}
                       onChange={(e) => updateStepField(index, "name", e.target.value)}
                     />
@@ -270,30 +271,30 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Approver Type
+                      {tt('Approver Type')}
                     </label>
                     <select
                       className="border-gray-300 rounded-md px-3 py-2 w-full"
                       value={step.approverType}
                       onChange={(e) => updateStepField(index, "approverType", e.target.value)}
                     >
-                      <option value="role">Role</option>
-                      <option value="specific_user">Specific User</option>
-                      <option value="department_head">Department Head</option>
+                      <option value="role">{tt('Role')}</option>
+                      <option value="specific_user">{tt('Specific User')}</option>
+                      <option value="department_head">{tt('Department Head')}</option>
                     </select>
                   </div>
 
                   {step.approverType === "role" && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Role
+                        {tt('Role')}
                       </label>
                       <select
                         className="border-gray-300 rounded-md px-3 py-2 w-full"
                         value={step.approverValue}
                         onChange={(e) => updateStepField(index, "approverValue", e.target.value)}
                       >
-                        <option value="">Select Role</option>
+                        <option value="">{tt('Select Role')}</option>
                         {availableRoles.map((role) => (
                           <option key={role.id} value={role.id}>
                             {role.name}
@@ -306,7 +307,7 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
                   {step.approverType === "specific_user" && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Select User
+                        {tt('Select User')}
                       </label>
                       <div className="relative">
                         <select
@@ -314,7 +315,7 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
                           value={step.approverValue}
                           onChange={(e) => updateStepField(index, "approverValue", e.target.value)}
                         >
-                          <option value="">Select User</option>
+                          <option value="">{tt('Select User')}</option>
                           <option value="user1">John Doe (Finance)</option>
                           <option value="user2">Jane Smith (Management)</option>
                           <option value="user3">David Wilson (Accounting)</option>
@@ -326,18 +327,18 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
                   {step.approverType === "department_head" && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Department
+                        {tt('Department')}
                       </label>
                       <select
                         className="border-gray-300 rounded-md px-3 py-2 w-full"
                         value={step.approverValue}
                         onChange={(e) => updateStepField(index, "approverValue", e.target.value)}
                       >
-                        <option value="">Select Department</option>
-                        <option value="finance">Finance</option>
-                        <option value="operations">Operations</option>
+                        <option value="">{tt('Select Department')}</option>
+                        <option value="finance">{tt('Finance')}</option>
+                        <option value="operations">{tt('Operations')}</option>
                         <option value="sales">POS</option>
-                        <option value="marketing">Marketing</option>
+                        <option value="marketing">{tt('Marketing')}</option>
                       </select>
                     </div>
                   )}
@@ -354,7 +355,7 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
                       onChange={(e) => updateStepField(index, "timeLimit", parseInt(e.target.value))}
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Escalate to next level if no response within this timeframe
+                      {tt('Escalate to next level if no response within this timeframe')}
                     </p>
                   </div>
 
@@ -366,7 +367,7 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
                       <input
                         type="text"
                         className="border-0 flex-1 px-3 py-2 rounded-l-md focus:ring-0"
-                        placeholder="Add backup approver"
+                        placeholder={tt('Add backup approver')}
                       />
                       <button className="bg-gray-100 px-3 border-l border-gray-300 text-gray-500">
                         <UserPlus size={16} />
@@ -399,7 +400,7 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-yellow-700">
-                    All approval steps must be completed in sequence before a transaction is approved.
+                    {tt('All approval steps must be completed in sequence before a transaction is approved.')}
                   </p>
                 </div>
               </div>
@@ -411,13 +412,13 @@ const ApprovalWorkflowForm = ({ initialWorkflow, onSave, onCancel }) => {
               className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md mr-2"
               onClick={onCancel}
             >
-              Cancel
+              {tt('Cancel')}
             </button>
             <button 
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
               onClick={() => onSave?.(workflow)}
             >
-              Save Workflow
+              {tt('Save Workflow')}
             </button>
           </div>
         </>

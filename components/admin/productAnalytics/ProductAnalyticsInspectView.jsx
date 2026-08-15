@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -115,7 +116,7 @@ export default function ProductAnalyticsInspectView({ kind }) {
             className={inputCls}
             value={tenantId}
             onChange={(e) => setTenantId(e.target.value)}
-            placeholder="tenant_…"
+            placeholder={tt('tenant_…')}
             required
           />
         </label>
@@ -125,7 +126,7 @@ export default function ProductAnalyticsInspectView({ kind }) {
             className={inputCls}
             value={featureCode}
             onChange={(e) => setFeatureCode(e.target.value)}
-            placeholder="invoices.post"
+            placeholder={tt('invoices.post')}
             required
           />
         </label>

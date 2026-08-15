@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -97,9 +98,9 @@ export default function AffiliateDashboard() {
           <div
             className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-[var(--action-primary)]"
             role="status"
-            aria-label="Loading"
+            aria-label={tt('Loading')}
           />
-          <p className="text-[var(--text-secondary)]">Loading your dashboard...</p>
+          <p className="text-[var(--text-secondary)]">{tt('Loading your dashboard...')}</p>
         </div>
       </div>
     );
@@ -115,7 +116,7 @@ export default function AffiliateDashboard() {
                 <Users className="h-6 w-6 text-[var(--action-primary)]" aria-hidden="true" />
               </div>
               <div className="ml-3 min-w-0">
-                <h1 className="truncate text-2xl font-bold text-[var(--text-primary)]">Affiliate Dashboard</h1>
+                <h1 className="truncate text-2xl font-bold text-[var(--text-primary)]">{tt('Affiliate Dashboard')}</h1>
                 <p className="truncate text-sm text-[var(--text-muted)]">Welcome back, {affiliate?.name}</p>
               </div>
             </div>
@@ -125,21 +126,21 @@ export default function AffiliateDashboard() {
                 className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
               >
                 <User className="h-4 w-4 mr-2" />
-                Profile
+                {tt('Profile')}
               </button>
               <button
                 onClick={copyReferralLink}
                 className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
               >
                 <Copy className="h-4 w-4 mr-2" />
-                Copy Link
+                {tt('Copy Link')}
               </button>
               <button
                 onClick={handleLogout}
                 className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700"
               >
                 <LogOut className="h-4 w-4 mr-2" />
-                Logout
+                {tt('Logout')}
               </button>
             </div>
           </div>
@@ -155,7 +156,7 @@ export default function AffiliateDashboard() {
                 <Users className="h-6 w-6 text-blue-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Referrals</p>
+                <p className="text-sm font-medium text-gray-600">{tt('Total Referrals')}</p>
                 <p className="text-2xl font-bold text-gray-900">{stats.totalReferrals}</p>
               </div>
             </div>
@@ -167,7 +168,7 @@ export default function AffiliateDashboard() {
                 <CheckCircle className="h-6 w-6 text-green-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Completed</p>
+                <p className="text-sm font-medium text-gray-600">{tt('Completed')}</p>
                 <p className="text-2xl font-bold text-green-600">{stats.completedReferrals}</p>
               </div>
             </div>
@@ -179,7 +180,7 @@ export default function AffiliateDashboard() {
                 <DollarSign className="h-6 w-6 text-purple-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Commissions</p>
+                <p className="text-sm font-medium text-gray-600">{tt('Total Commissions')}</p>
                 <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-purple-600 sm:text-2xl">MWK {stats.totalCommissions.toLocaleString()}</p>
               </div>
             </div>
@@ -191,7 +192,7 @@ export default function AffiliateDashboard() {
                 <Clock className="h-6 w-6 text-yellow-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Pending Payouts</p>
+                <p className="text-sm font-medium text-gray-600">{tt('Pending Payouts')}</p>
                 <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-yellow-600 sm:text-2xl">MWK {stats.pendingPayouts.toLocaleString()}</p>
               </div>
             </div>
@@ -200,7 +201,7 @@ export default function AffiliateDashboard() {
 
         {/* Referral Link Section */}
         <div className="bg-white p-6 rounded-lg border border-gray-200 mb-8">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Your Referral Link</h2>
+          <h2 className="text-lg font-medium text-gray-900 mb-4">{tt('Your Referral Link')}</h2>
           <div className="flex items-center space-x-4">
             <div className="flex-1">
               <input
@@ -215,18 +216,18 @@ export default function AffiliateDashboard() {
               className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
             >
               <Copy className="h-4 w-4 mr-2" />
-              Copy
+              {tt('Copy')}
             </button>
             <button
               onClick={() => window.open(`/ref/${affiliate?.referralCode}`, '_blank')}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
             >
               <ExternalLink className="h-4 w-4 mr-2" />
-              Preview
+              {tt('Preview')}
             </button>
           </div>
           <p className="text-sm text-gray-500 mt-2">
-            Share this link with potential customers to earn commissions on their subscriptions.
+            {tt('Share this link with potential customers to earn commissions on their subscriptions.')}
           </p>
         </div>
 
@@ -234,7 +235,7 @@ export default function AffiliateDashboard() {
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">Your Referrals</h3>
+              <h3 className="text-lg font-medium text-gray-900">{tt('Your Referrals')}</h3>
               <button
                 onClick={() => setShowReferrals(!showReferrals)}
                 className="text-sm text-indigo-600 hover:text-indigo-900"
@@ -250,16 +251,16 @@ export default function AffiliateDashboard() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tenant
+                      {tt('Tenant')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
+                      {tt('Status')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Commission
+                      {tt('Commission')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
+                      {tt('Date')}
                     </th>
                   </tr>
                 </thead>
@@ -285,7 +286,7 @@ export default function AffiliateDashboard() {
                             MWK {(referral.commissionAmount || 0).toLocaleString()}
                           </div>
                           {referral.status === 'pending' && (
-                            <div className="text-xs text-gray-500">Pending payment</div>
+                            <div className="text-xs text-gray-500">{tt('Pending payment')}</div>
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -296,7 +297,7 @@ export default function AffiliateDashboard() {
                   ) : (
                     <tr>
                       <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
-                        No referrals yet. Start sharing your referral link to earn commissions!
+                        {tt('No referrals yet. Start sharing your referral link to earn commissions!')}
                       </td>
                     </tr>
                   )}
@@ -308,41 +309,41 @@ export default function AffiliateDashboard() {
 
         {/* Commission Information */}
         <div className="bg-white p-6 rounded-lg border border-gray-200 mt-8">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Commission Structure</h2>
+          <h2 className="text-lg font-medium text-gray-900 mb-4">{tt('Commission Structure')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h3 className="font-medium text-gray-900 mb-2">How It Works</h3>
+              <h3 className="font-medium text-gray-900 mb-2">{tt('How It Works')}</h3>
               <ul className="space-y-2 text-sm text-gray-600">
                 <li className="flex items-start">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                  Share your referral link with potential customers
+                  {tt('Share your referral link with potential customers')}
                 </li>
                 <li className="flex items-start">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                  When they register using your link, you get credit
+                  {tt('When they register using your link, you get credit')}
                 </li>
                 <li className="flex items-start">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                  Earn 20% commission on their first subscription payment
+                  {tt('Earn 20% commission on their first subscription payment')}
                 </li>
                 <li className="flex items-start">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                  Commissions are paid out monthly
+                  {tt('Commissions are paid out monthly')}
                 </li>
               </ul>
             </div>
             <div>
-              <h3 className="font-medium text-gray-900 mb-2">Commission Rates</h3>
+              <h3 className="font-medium text-gray-900 mb-2">{tt('Commission Rates')}</h3>
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="text-center">
                   <div className="text-3xl font-bold text-indigo-600">20%</div>
-                  <div className="text-sm text-gray-600">Commission Rate</div>
-                  <div className="text-xs text-gray-500 mt-1">On first subscription payment</div>
+                  <div className="text-sm text-gray-600">{tt('Commission Rate')}</div>
+                  <div className="text-xs text-gray-500 mt-1">{tt('On first subscription payment')}</div>
                 </div>
                 <div className="mt-4 text-center">
                   <div className="text-sm text-gray-600">
-                    <strong>Example:</strong> When someone subscribes to Pro Plan (MWK 399,000), 
-                    you earn <span className="font-semibold text-indigo-600">MWK 79,800</span>
+                    <strong>{tt('Example:')}</strong> When someone subscribes to Pro Plan (MWK 399,000), 
+                    you earn <span className="font-semibold text-indigo-600">{tt('MWK 79,800')}</span>
                   </div>
                 </div>
               </div>
@@ -355,7 +356,7 @@ export default function AffiliateDashboard() {
             <div className="flex">
               <AlertCircle className="h-5 w-5 text-red-400" />
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <h3 className="text-sm font-medium text-red-800">{tt('Error')}</h3>
                 <div className="mt-2 text-sm text-red-700">{error}</div>
               </div>
             </div>

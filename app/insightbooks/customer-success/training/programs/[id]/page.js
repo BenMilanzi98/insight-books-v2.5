@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -19,45 +20,45 @@ export default function CustomerSuccessTrainingProgramDetailPage() {
       </p>
       <TrainingContextBar population="training-program-detail" />
       <h1 style={{ fontSize: '1.35rem', marginBottom: '0.5rem' }}>
-        Training Program
+        {tt('Training Program')}
       </h1>
       <p style={{ color: '#555', marginBottom: '1rem' }}>
-        Program <code>{id}</code>. Wave 4 hubs + Wave 3 completion/certs. Phase 17 feed does
+        {tt('Program')} <code>{id}</code>. Wave 4 hubs + Wave 3 completion/certs. Phase 17 feed does
         not auto-complete onboarding. Recording / rich banks remain optional gaps.
       </p>
       <ul style={{ lineHeight: 1.8, columns: 2, maxWidth: 720 }}>
         <li>
-          <Link href={`${base}/cohorts`}>Cohorts</Link>
+          <Link href={`${base}/cohorts`}>{tt('Cohorts')}</Link>
         </li>
         <li>
-          <Link href={`${base}/participants`}>Participants</Link>
+          <Link href={`${base}/participants`}>{tt('Participants')}</Link>
         </li>
         <li>
-          <Link href={`${base}/trainers`}>Trainers</Link>
+          <Link href={`${base}/trainers`}>{tt('Trainers')}</Link>
         </li>
         <li>
-          <Link href={`${base}/sessions`}>Sessions</Link>
+          <Link href={`${base}/sessions`}>{tt('Sessions')}</Link>
         </li>
         <li>
-          <Link href={`${base}/attendance`}>Attendance</Link>
+          <Link href={`${base}/attendance`}>{tt('Attendance')}</Link>
         </li>
         <li>
-          <Link href={`${base}/exercises`}>Exercises</Link>
+          <Link href={`${base}/exercises`}>{tt('Exercises')}</Link>
         </li>
         <li>
-          <Link href={`${base}/assessments`}>Assessments</Link>
+          <Link href={`${base}/assessments`}>{tt('Assessments')}</Link>
         </li>
         <li>
-          <Link href={`${base}/completion`}>Completion</Link>
+          <Link href={`${base}/completion`}>{tt('Completion')}</Link>
         </li>
         <li>
-          <Link href={`${base}/certificates`}>Certificates</Link>
+          <Link href={`${base}/certificates`}>{tt('Certificates')}</Link>
         </li>
         <li>
-          <Link href={`${base}/materials`}>Materials</Link>
+          <Link href={`${base}/materials`}>{tt('Materials')}</Link>
         </li>
         <li>
-          <Link href={`${base}/environment`}>Environment</Link>
+          <Link href={`${base}/environment`}>{tt('Environment')}</Link>
         </li>
       </ul>
     </div>

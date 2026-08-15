@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -421,8 +422,8 @@ const handleDeleteEntry = async (entryId) => {
           {roleDenied && (
             <div className="rounded-2xl bg-rose-50 border border-rose-200 p-6 sm:p-8 text-center shadow-sm">
               <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-rose-800 mb-2">Access Denied</h3>
-              <p className="text-rose-600">You need journal entry access to use this page.</p>
+              <h3 className="text-lg font-semibold text-rose-800 mb-2">{tt('Access Denied')}</h3>
+              <p className="text-rose-600">{tt('You need journal entry access to use this page.')}</p>
             </div>
           )}
           {!roleDenied && (
@@ -456,13 +457,13 @@ const handleDeleteEntry = async (entryId) => {
                         className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md"
                       >
                         <Plus size={18} className="mr-2" />
-                        New Entry
+                        {tt('New Entry')}
                       </Link>
                     )}
                     {pagePermissions.canExportJournal && (
                       <PosStyleHeaderButton type="button" onClick={() => handleExport('csv')}>
                         <Download size={18} className="mr-2" />
-                        Export
+                        {tt('Export')}
                       </PosStyleHeaderButton>
                     )}
                   </>
@@ -476,7 +477,7 @@ const handleDeleteEntry = async (entryId) => {
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                       <input
                         type="text"
-                        placeholder="Search journal entries..."
+                        placeholder={tt('Search journal entries...')}
                         className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 focus:bg-white"
                         value={searchTerm}
                         onChange={handleSearchChange}
@@ -521,7 +522,7 @@ const handleDeleteEntry = async (entryId) => {
                 {isLoading ? (
                   <div className="flex flex-col items-center justify-center py-20">
                     <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mb-4" />
-                    <p className="text-slate-500 font-medium">Loading entries...</p>
+                    <p className="text-slate-500 font-medium">{tt('Loading entries...')}</p>
                   </div>
                 ) : error ? (
                   <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-800 p-4 flex items-center gap-2">
@@ -531,25 +532,25 @@ const handleDeleteEntry = async (entryId) => {
                 ) : entries.length === 0 ? (
                   <div className="text-center py-16">
                     <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-600 font-medium">No journal entries found</p>
-                    <p className="text-slate-500 text-sm mt-1">Create your first entry or adjust filters</p>
+                    <p className="text-slate-600 font-medium">{tt('No journal entries found')}</p>
+                    <p className="text-slate-500 text-sm mt-1">{tt('Create your first entry or adjust filters')}</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-xl border border-slate-200">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
-                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Entry #</th>
-                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
-                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Reference</th>
-                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Source Type</th>
-                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
-                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Account</th>
-                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Line Description</th>
-                          <th className="px-4 py-3.5 text-right text-xs font-semibold text-amber-600 uppercase tracking-wider">Debit</th>
-                          <th className="px-4 py-3.5 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider">Credit</th>
-                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
-                          <th className="px-4 py-3.5 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Entry #')}</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Date')}</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Reference')}</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Source Type')}</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Description')}</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Account')}</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Line Description')}</th>
+                          <th className="px-4 py-3.5 text-right text-xs font-semibold text-amber-600 uppercase tracking-wider">{tt('Debit')}</th>
+                          <th className="px-4 py-3.5 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider">{tt('Credit')}</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Status')}</th>
+                          <th className="px-4 py-3.5 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Actions')}</th>
                         </tr>
                       </thead>
               <tbody>
@@ -699,7 +700,7 @@ const handleDeleteEntry = async (entryId) => {
                 onClick={() => handlePageChange(page - 1)}
                 disabled={page === 1}
               >
-                Previous
+                {tt('Previous')}
               </button>
               {Array.from({ length: Math.min(5, totalPages) }).map((_, index) => {
                 const pageNumber = page > 2 ? page - 2 + index : index + 1;
@@ -727,7 +728,7 @@ const handleDeleteEntry = async (entryId) => {
                 onClick={() => handlePageChange(page + 1)}
                 disabled={page === totalPages}
               >
-                Next
+                {tt('Next')}
               </button>
             </div>
           </div>
@@ -740,7 +741,7 @@ const handleDeleteEntry = async (entryId) => {
           <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200">
               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Journal Entry Details</h2>
+                <h2 className="text-xl font-semibold">{tt('Journal Entry Details')}</h2>
                 <button 
                   onClick={() => setShowViewModal(false)}
                   className="text-gray-500 hover:text-gray-700"
@@ -752,12 +753,12 @@ const handleDeleteEntry = async (entryId) => {
             <div className="p-6">
               {(viewEntry.status === "Posted" || viewEntry.status === "posted") && (
                 <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                  Posted entries are read-only. Corrections must be made via reversal or a new adjusting entry.
+                  {tt('Posted entries are read-only. Corrections must be made via reversal or a new adjusting entry.')}
                 </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Date</p>
+                  <p className="text-sm text-gray-500 mb-1">{tt('Date')}</p>
                   <p className="font-medium">{(() => {
                     const date = new Date(viewEntry.date);
                     const day = String(date.getDate()).padStart(2, '0');
@@ -767,29 +768,29 @@ const handleDeleteEntry = async (entryId) => {
                   })()}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500 mb-1">Entry Type</p>
+                  <p className="text-sm text-gray-500 mb-1">{tt('Entry Type')}</p>
                   <p className="font-medium">{viewEntry.entryType || "Correction"}</p>
                 </div>
                 <div className="md:col-span-2">
-                  <p className="text-sm text-gray-500 mb-1">Description</p>
+                  <p className="text-sm text-gray-500 mb-1">{tt('Description')}</p>
                   <p className="font-medium">{viewEntry.description}</p>
                 </div>
                 <div className="md:col-span-2">
-                  <p className="text-sm text-gray-500 mb-1">Internal Reference / Tag</p>
+                  <p className="text-sm text-gray-500 mb-1">{tt('Internal Reference / Tag')}</p>
                   <p className="font-medium">{viewEntry.notes || "—"}</p>
                 </div>
               </div>
               
               <div className="mt-6">
-                <h3 className="text-sm font-semibold mb-3">Entry Lines</h3>
+                <h3 className="text-sm font-semibold mb-3">{tt('Entry Lines')}</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 text-left">
-                        <th className="p-3 font-medium">Account</th>
-                        <th className="p-3 font-medium">Description</th>
-                        <th className="p-3 font-medium text-right">Debit</th>
-                        <th className="p-3 font-medium text-right">Credit</th>
+                        <th className="p-3 font-medium">{tt('Account')}</th>
+                        <th className="p-3 font-medium">{tt('Description')}</th>
+                        <th className="p-3 font-medium text-right">{tt('Debit')}</th>
+                        <th className="p-3 font-medium text-right">{tt('Credit')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -802,7 +803,7 @@ const handleDeleteEntry = async (entryId) => {
                         </tr>
                       ))}
                       <tr className="border-t border-gray-200 bg-gray-50 font-medium">
-                        <td colSpan="2" className="p-3 text-right">Totals</td>
+                        <td colSpan="2" className="p-3 text-right">{tt('Totals')}</td>
                         <td className="p-3 text-right">
                           {formatCurrency(viewEntry.lines.reduce((sum, line) => sum + coerceJournalAmount(line.debit ?? line.debitAmount), 0))}
                         </td>
@@ -821,7 +822,7 @@ const handleDeleteEntry = async (entryId) => {
                 className="px-4 py-2 border border-gray-200 rounded"
                 onClick={() => setShowViewModal(false)}
               >
-                Close
+                {tt('Close')}
               </button>
             </div>
           </div>

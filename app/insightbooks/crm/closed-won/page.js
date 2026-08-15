@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { CrmStubView } from '@/components/admin';
@@ -19,17 +20,17 @@ export default function CrmClosedWonAliasPage() {
       <ul style={{ marginTop: '1rem', lineHeight: 1.8 }}>
         <li>
           <Link href="/insightbooks/crm/conversions/overview">
-            Conversion overview
+            {tt('Conversion overview')}
           </Link>
         </li>
         <li>
           <Link href="/insightbooks/crm/conversions/queues">
-            Conversion queues
+            {tt('Conversion queues')}
           </Link>
         </li>
         <li>
           <Link href="/insightbooks/crm/closed-won/queues">
-            Closed-Won queues alias
+            {tt('Closed-Won queues alias')}
           </Link>
         </li>
       </ul>

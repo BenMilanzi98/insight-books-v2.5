@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { 
@@ -223,8 +224,8 @@ export default function TaxAccountsBalances() {
     return (
       <div className="container mx-auto px-4 py-6">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <h3 className="text-lg font-medium text-red-800 mb-2">Access Denied</h3>
-          <p className="text-red-600">You don't have permission to access this feature.</p>
+          <h3 className="text-lg font-medium text-red-800 mb-2">{tt('Access Denied')}</h3>
+          <p className="text-red-600">{tt("You don't have permission to access this feature.")}</p>
         </div>
       </div>
     );
@@ -269,7 +270,7 @@ export default function TaxAccountsBalances() {
               className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 text-sm"
             >
               <CreditCard size={16} />
-              Settle
+              {tt('Settle')}
             </button>
           )}
           <Link
@@ -278,21 +279,21 @@ export default function TaxAccountsBalances() {
             className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
           >
             <Eye size={18} />
-            View Details
+            {tt('View Details')}
           </Link>
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
         <div>
-          <p className="text-xs text-gray-500 mb-1">Collected</p>
+          <p className="text-xs text-gray-500 mb-1">{tt('Collected')}</p>
           <p className="text-lg font-semibold text-blue-600">{formatCurrency(account.totalCollected)}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-500 mb-1">Paid</p>
+          <p className="text-xs text-gray-500 mb-1">{tt('Paid')}</p>
           <p className="text-lg font-semibold text-red-600">{formatCurrency(account.totalPaid)}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-500 mb-1">Reversed / voided</p>
+          <p className="text-xs text-gray-500 mb-1">{tt('Reversed / voided')}</p>
           <p className="text-lg font-semibold text-yellow-600">{formatCurrency(account.totalRefunded)}</p>
         </div>
         <div>
@@ -309,9 +310,9 @@ export default function TaxAccountsBalances() {
     <div className="container mx-auto px-4 py-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tax Accounts Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{tt('Tax Accounts Dashboard')}</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Track and manage all tax obligations across multiple tax accounts
+            {tt('Track and manage all tax obligations across multiple tax accounts')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -321,7 +322,7 @@ export default function TaxAccountsBalances() {
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
             >
               <CreditCard size={18} />
-              Settle Tax
+              {tt('Settle Tax')}
             </button>
           )}
           <button
@@ -329,7 +330,7 @@ export default function TaxAccountsBalances() {
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
           >
             <RefreshCw size={18} />
-            Refresh
+            {tt('Refresh')}
           </button>
         </div>
       </div>
@@ -345,7 +346,7 @@ export default function TaxAccountsBalances() {
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Period</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Period')}</label>
             <select
               className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={selectedPeriod}
@@ -356,21 +357,21 @@ export default function TaxAccountsBalances() {
                 }
               }}
             >
-              <option value="today">Today</option>
-              <option value="thisWeek">This Week</option>
-              <option value="thisMonth">This Month</option>
-              <option value="lastMonth">Last Month</option>
-              <option value="thisQuarter">This Quarter</option>
-              <option value="lastQuarter">Last Quarter</option>
-              <option value="thisYear">This Year</option>
-              <option value="custom">Custom Range</option>
+              <option value="today">{tt('Today')}</option>
+              <option value="thisWeek">{tt('This Week')}</option>
+              <option value="thisMonth">{tt('This Month')}</option>
+              <option value="lastMonth">{tt('Last Month')}</option>
+              <option value="thisQuarter">{tt('This Quarter')}</option>
+              <option value="lastQuarter">{tt('Last Quarter')}</option>
+              <option value="thisYear">{tt('This Year')}</option>
+              <option value="custom">{tt('Custom Range')}</option>
             </select>
           </div>
           
           {selectedPeriod === 'custom' && (
             <>
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Start Date')}</label>
                 <input
                   type="date"
                   className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -379,7 +380,7 @@ export default function TaxAccountsBalances() {
                 />
               </div>
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{tt('End Date')}</label>
                 <input
                   type="date"
                   className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -391,14 +392,14 @@ export default function TaxAccountsBalances() {
           )}
           
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Group By</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Group By')}</label>
             <select
               className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={groupBy}
               onChange={(e) => setGroupBy(e.target.value)}
             >
-              <option value="day">Daily</option>
-              <option value="month">Monthly</option>
+              <option value="day">{tt('Daily')}</option>
+              <option value="month">{tt('Monthly')}</option>
             </select>
           </div>
         </div>
@@ -420,12 +421,12 @@ export default function TaxAccountsBalances() {
           <div className="bg-emerald-50 rounded-lg px-3 py-2.5 border border-emerald-100">
             <span className="text-xs font-medium text-emerald-700 uppercase tracking-wide">Tax inflow (collected)</span>
             <p className="text-sm font-medium text-gray-900 mt-0.5">2041 – Tax Inflow (Collected)</p>
-            <p className="text-xs text-gray-500 mt-0.5">VAT output, PAYE, WHT, excise — child accounts 2041-01+</p>
+            <p className="text-xs text-gray-500 mt-0.5">{tt('VAT output, PAYE, WHT, excise — child accounts 2041-01+')}</p>
           </div>
           <div className="bg-orange-50 rounded-lg px-3 py-2.5 border border-orange-100">
             <span className="text-xs font-medium text-orange-700 uppercase tracking-wide">Tax outflow (paid)</span>
             <p className="text-sm font-medium text-gray-900 mt-0.5">2045 – Tax Outflow (Paid)</p>
-            <p className="text-xs text-gray-500 mt-0.5">Input VAT, CIT, levies — child accounts 2045-01+</p>
+            <p className="text-xs text-gray-500 mt-0.5">{tt('Input VAT, CIT, levies — child accounts 2045-01+')}</p>
           </div>
         </div>
       </div>
@@ -436,7 +437,7 @@ export default function TaxAccountsBalances() {
           <div className="bg-blue-50 rounded-lg p-6">
             <div className="flex items-center gap-2 mb-2">
               <DollarSign className="text-blue-600" size={24} />
-              <h3 className="text-sm font-medium text-gray-700">Total Collected</h3>
+              <h3 className="text-sm font-medium text-gray-700">{tt('Total Collected')}</h3>
             </div>
             <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-blue-600 sm:text-2xl">
               {formatCurrency(summary.totalCollected || 0)}
@@ -449,26 +450,26 @@ export default function TaxAccountsBalances() {
           <div className="bg-red-50 rounded-lg p-6">
             <div className="flex items-center gap-2 mb-2">
               <TrendingDown className="text-red-600" size={24} />
-              <h3 className="text-sm font-medium text-gray-700">Total Paid</h3>
+              <h3 className="text-sm font-medium text-gray-700">{tt('Total Paid')}</h3>
             </div>
             <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-red-600 sm:text-2xl">
               {formatCurrency(summary.totalPaid || 0)}
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              Payments to tax authorities
+              {tt('Payments to tax authorities')}
             </p>
           </div>
           
           <div className="bg-yellow-50 rounded-lg p-6">
             <div className="flex items-center gap-2 mb-2">
               <Info className="text-yellow-600" size={24} />
-              <h3 className="text-sm font-medium text-gray-700">Total Refunded</h3>
+              <h3 className="text-sm font-medium text-gray-700">{tt('Total Refunded')}</h3>
             </div>
             <p className="min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-yellow-600 sm:text-2xl">
               {formatCurrency(summary.totalRefunded || 0)}
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              Tax refunds and adjustments
+              {tt('Tax refunds and adjustments')}
             </p>
           </div>
           
@@ -502,19 +503,19 @@ export default function TaxAccountsBalances() {
       {/* Tax Accounts List */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Tax Accounts</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{tt('Tax Accounts')}</h2>
         </div>
         
         {taxAccounts.length === 0 ? (
           <div className="p-12 text-center">
             <Info className="mx-auto text-gray-400 mb-4" size={48} />
-            <p className="text-gray-500">No tax accounts found. Create tax types to get started.</p>
+            <p className="text-gray-500">{tt('No tax accounts found. Create tax types to get started.')}</p>
             <Link
               href="/tax-management/accounts?tab=codes"
 
               className="mt-4 inline-block text-blue-600 hover:text-blue-700 font-medium"
             >
-              Go to Tax codes →
+              {tt('Go to Tax codes →')}
             </Link>
           </div>
         ) : (
@@ -562,7 +563,7 @@ export default function TaxAccountsBalances() {
       {settlementSuccess && (
         <div className="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50">
           <Info size={20} />
-          <span>Tax settlement recorded successfully!</span>
+          <span>{tt('Tax settlement recorded successfully!')}</span>
         </div>
       )}
     </div>

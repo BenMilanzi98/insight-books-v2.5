@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Upload, X, Paperclip, Image, FileText, Download, Send, Bold, Italic, Underline, List, AlignLeft, AlignCenter, AlignRight, Link, Quote, Type, Palette, AlignJustify } from 'lucide-react';
 
@@ -258,36 +259,36 @@ const UltimateEmailComposer = ({
       {setSelectedTemplate && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Email Template
+            {tt('Email Template')}
           </label>
           <select
             value={selectedTemplate}
             onChange={(e) => setSelectedTemplate(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            <option value="custom">Custom Email</option>
-            <option value="subscription-reminder">Subscription Reminder</option>
-            <option value="announcement">Announcement</option>
-            <option value="welcome">Welcome Email</option>
-            <option value="maintenance-notice">Maintenance Notice</option>
-            <option value="feature-update">Feature Update</option>
-            <option value="password-reset">Password Reset</option>
+            <option value="custom">{tt('Custom Email')}</option>
+            <option value="subscription-reminder">{tt('Subscription Reminder')}</option>
+            <option value="announcement">{tt('Announcement')}</option>
+            <option value="welcome">{tt('Welcome Email')}</option>
+            <option value="maintenance-notice">{tt('Maintenance Notice')}</option>
+            <option value="feature-update">{tt('Feature Update')}</option>
+            <option value="password-reset">{tt('Password Reset')}</option>
           </select>
-          <p className="mt-1 text-xs text-gray-500">Select a template to pre-fill subject and content</p>
+          <p className="mt-1 text-xs text-gray-500">{tt('Select a template to pre-fill subject and content')}</p>
         </div>
       )}
 
       {/* Subject Field */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Subject *
+          {tt('Subject *')}
         </label>
         <input
           type="text"
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Enter email subject..."
+          placeholder={tt('Enter email subject...')}
           required
         />
       </div>
@@ -298,9 +299,9 @@ const UltimateEmailComposer = ({
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Show Priority Badge
+                {tt('Show Priority Badge')}
               </label>
-              <p className="text-xs text-gray-500">Display a priority indicator in the email</p>
+              <p className="text-xs text-gray-500">{tt('Display a priority indicator in the email')}</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -317,17 +318,17 @@ const UltimateEmailComposer = ({
           {showPriority && setPriority && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Priority Level
+                {tt('Priority Level')}
               </label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="low">Low</option>
-                <option value="normal">Normal</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
+                <option value="low">{tt('Low')}</option>
+                <option value="normal">{tt('Normal')}</option>
+                <option value="high">{tt('High')}</option>
+                <option value="urgent">{tt('Urgent')}</option>
               </select>
             </div>
           )}
@@ -337,7 +338,7 @@ const UltimateEmailComposer = ({
       {/* Professional WYSIWYG Editor */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Message *
+          {tt('Message *')}
         </label>
         
         {/* Advanced Toolbar */}
@@ -352,7 +353,7 @@ const UltimateEmailComposer = ({
                   className="p-2 hover:bg-gray-200 rounded-md transition-colors text-sm font-bold"
                   title="Heading 1"
                 >
-                  H1
+                  {tt('H1')}
                 </button>
                 <button
                   type="button"
@@ -360,7 +361,7 @@ const UltimateEmailComposer = ({
                   className="p-2 hover:bg-gray-200 rounded-md transition-colors text-sm font-bold"
                   title="Heading 2"
                 >
-                  H2
+                  {tt('H2')}
                 </button>
                 <button
                   type="button"
@@ -368,7 +369,7 @@ const UltimateEmailComposer = ({
                   className="p-2 hover:bg-gray-200 rounded-md transition-colors text-sm font-bold"
                   title="Heading 3"
                 >
-                  H3
+                  {tt('H3')}
                 </button>
               </div>
 
@@ -488,7 +489,7 @@ const UltimateEmailComposer = ({
                   className="p-2 hover:bg-gray-200 rounded-md transition-colors text-xs"
                   title="Font Family"
                 >
-                  Aa
+                  {tt('Aa')}
                 </button>
                 <button
                   type="button"
@@ -574,7 +575,7 @@ const UltimateEmailComposer = ({
             lineHeight: '1.6',
             color: selectedColor
           }}
-          data-placeholder="Compose your professional email message here..."
+          data-placeholder={tt('Compose your professional email message here...')}
         />
 
         {/* Enhanced CSS for proper formatting display */}
@@ -664,7 +665,7 @@ const UltimateEmailComposer = ({
       {/* File Attachments */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Attachments
+          {tt('Attachments')}
         </label>
         
         {/* Upload Area */}
@@ -680,17 +681,17 @@ const UltimateEmailComposer = ({
         >
           <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
           <p className="text-sm text-gray-600 mb-2">
-            Drag and drop files here, or click to select
+            {tt('Drag and drop files here, or click to select')}
           </p>
           <p className="text-xs text-gray-500 mb-3">
-            Images will be inserted inline • Other files will be attached
+            {tt('Images will be inserted inline • Other files will be attached')}
           </p>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="text-blue-600 hover:text-blue-700 text-sm font-medium"
           >
-            Choose Files
+            {tt('Choose Files')}
           </button>
           <input
             ref={fileInputRef}
@@ -705,7 +706,7 @@ const UltimateEmailComposer = ({
         {/* Attachments List */}
         {attachments.length > 0 && (
           <div className="mt-4 space-y-2">
-            <h4 className="text-sm font-medium text-gray-700">Attached Files:</h4>
+            <h4 className="text-sm font-medium text-gray-700">{tt('Attached Files:')}</h4>
             {attachments.map((attachment) => (
               <div
                 key={attachment.id}
@@ -754,12 +755,12 @@ const UltimateEmailComposer = ({
           {isSending ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              <span>Sending...</span>
+              <span>{tt('Sending...')}</span>
             </>
           ) : (
             <>
               <Send className="h-4 w-4" />
-              <span>Send Professional Email</span>
+              <span>{tt('Send Professional Email')}</span>
             </>
           )}
         </button>
@@ -770,7 +771,7 @@ const UltimateEmailComposer = ({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Insert Image</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{tt('Insert Image')}</h3>
               <button
                 onClick={() => setShowImageUpload(false)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -781,7 +782,7 @@ const UltimateEmailComposer = ({
             
             <div className="space-y-4">
               <p className="text-sm text-gray-600">
-                Select images to insert directly into your email body.
+                {tt('Select images to insert directly into your email body.')}
               </p>
               
               <button
@@ -789,7 +790,7 @@ const UltimateEmailComposer = ({
                 className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors flex items-center justify-center space-x-2"
               >
                 <Image className="h-6 w-6 text-gray-400" />
-                <span className="text-gray-600">Choose Images</span>
+                <span className="text-gray-600">{tt('Choose Images')}</span>
               </button>
             </div>
           </div>

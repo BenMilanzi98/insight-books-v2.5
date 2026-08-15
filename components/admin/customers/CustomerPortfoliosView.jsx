@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -258,7 +259,7 @@ export default function CustomerPortfoliosView() {
                   className={`${inputCls} mt-1`}
                   value={newCode}
                   onChange={(e) => setNewCode(e.target.value)}
-                  placeholder="CS-EAST"
+                  placeholder={tt('CS-EAST')}
                 />
               </label>
               <label className="block text-xs text-[var(--admin-text-muted)]">

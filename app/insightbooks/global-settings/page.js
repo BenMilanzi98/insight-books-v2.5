@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -109,7 +110,7 @@ export default function AdminGlobalSettingsPage() {
               className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--border-default)] px-3 py-2 text-sm"
             >
               <RefreshCw className="h-4 w-4" aria-hidden />
-              Reload
+              {tt('Reload')}
             </button>
             <button
               type="button"
@@ -126,7 +127,7 @@ export default function AdminGlobalSettingsPage() {
 
       {version != null ? (
         <p className="mb-4 text-xs text-[var(--text-muted)]">
-          Settings version <AdminStatusBadge tone="info">v{version}</AdminStatusBadge>
+          {tt('Settings version')} <AdminStatusBadge tone="info">v{version}</AdminStatusBadge>
         </p>
       ) : null}
 
@@ -143,7 +144,7 @@ export default function AdminGlobalSettingsPage() {
       {!loading && !error ? (
         <div className="space-y-6">
           <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4 sm:p-6">
-            <h2 className="text-base font-semibold text-[var(--admin-text)]">Platform</h2>
+            <h2 className="text-base font-semibold text-[var(--admin-text)]">{tt('Platform')}</h2>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <AdminField label="Application name" required>
                 <AdminField.Input
@@ -174,7 +175,7 @@ export default function AdminGlobalSettingsPage() {
           </section>
 
           <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4 sm:p-6">
-            <h2 className="text-base font-semibold text-[var(--admin-text)]">Security</h2>
+            <h2 className="text-base font-semibold text-[var(--admin-text)]">{tt('Security')}</h2>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <AdminField label="Session timeout (minutes)">
                 <AdminField.Input
@@ -204,7 +205,7 @@ export default function AdminGlobalSettingsPage() {
           </section>
 
           <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4 sm:p-6">
-            <h2 className="text-base font-semibold text-[var(--admin-text)]">Email</h2>
+            <h2 className="text-base font-semibold text-[var(--admin-text)]">{tt('Email')}</h2>
             <p className="mt-1 text-xs text-[var(--admin-text-muted)]">
               SMTP password shows as {SECRET_MASK} when set. Leave unchanged to keep the stored secret.
             </p>
@@ -249,7 +250,7 @@ export default function AdminGlobalSettingsPage() {
           </section>
 
           <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4 sm:p-6">
-            <h2 className="text-base font-semibold text-[var(--admin-text)]">Feature flags</h2>
+            <h2 className="text-base font-semibold text-[var(--admin-text)]">{tt('Feature flags')}</h2>
             <ul className="mt-4 space-y-3">
               {Object.keys(featureFlags).map((key) => (
                 <li key={key}>
@@ -262,7 +263,7 @@ export default function AdminGlobalSettingsPage() {
                 </li>
               ))}
               {Object.keys(featureFlags).length === 0 ? (
-                <li className="text-sm text-[var(--admin-text-muted)]">No feature flags configured.</li>
+                <li className="text-sm text-[var(--admin-text-muted)]">{tt('No feature flags configured.')}</li>
               ) : null}
             </ul>
           </section>

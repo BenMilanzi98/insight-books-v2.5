@@ -1,113 +1,83 @@
-# Task 1 Report: Source tags + operator labels
+# Task 1 Report: Lock, codes, and document numbers (pure)
 
-**Status:** DONE  
-**Date:** 2026-08-11  
-**Commits:** none (WORKING_TREE)
+## What was implemented
 
----
+Pure desktop offline-sync helpers with no I/O:
 
-## Summary
+- **`lib/desktop/codes.js`** — `DESKTOP_CODES` constant object with five error/status codes (`SYNC_REQUIRED`, `ONLINE_ONLY`, `SUBSCRIPTION_INACTIVE`, `DEVICE_BOUND`, `NOT_BOUND`).
+- **`lib/desktop/lock.js`** — Time thresholds (`LOCK_MS` 24h, `WARN_MS` 20h, `CLOCK_BACKSHIFT_MS` 5m) and `evaluateDesktopLock()` returning `{ locked, warning, hoursSinceSync, reason }` with reasons `'stale' | 'clock' | 'subscription' | null`.
+- **`lib/desktop/documentNumbers.js`** — `formatDesktopDocNumber({ prefix, type, seq })` and `nextSeq(lastIssued)`.
 
-Implemented outbound invoice source tagging (`RENTAL_SPACE` / `CUSTOMER_HIRE`), stable rental trace event constants, operator-facing label rename for quantity pool (`Customer hire`), and rental invoice title/notes stamping on create via `resolveOutboundInvoiceSource`. No schema migration.
+## What was tested and test results
 
----
+Two Vitest suites, 8 tests total:
+
+| Suite | Tests |
+|-------|-------|
+| `test/desktop/lock.test.js` | 6 — unlock under 20h, warn 20–24h, lock at 24h, clock backshift lock/no-lock, subscription inactive |
+| `test/desktop/documentNumbers.test.js` | 2 — format `TILL1-SALE-12`, `nextSeq` increment |
+
+**Final run:** `npx vitest run test/desktop/lock.test.js test/desktop/documentNumbers.test.js` — **2 files passed, 8 tests passed**.
 
 ## TDD Evidence
 
-### RED (Step 2)
+### RED (before implementation)
 
-Command:
-```bash
-npx vitest run test/rentalSourceTags.test.js test/rentalKinds.test.js
+**Command:**
+```
+npx vitest run test/desktop/lock.test.js test/desktop/documentNumbers.test.js
 ```
 
-Result: **FAIL** (exit code 1)
+**Relevant output:**
+```
+ FAIL  test/desktop/documentNumbers.test.js
+Error: Cannot find module '../../lib/desktop/documentNumbers.js' imported from .../test/desktop/documentNumbers.test.js
 
-- `test/rentalSourceTags.test.js` — suite failed: `Cannot find module '../lib/rentalSourceTags.js'`
-- `test/rentalKinds.test.js` — 1 failed: `expected 'Quantity rental' to be 'Customer hire'`
+ FAIL  test/desktop/lock.test.js
+Error: Cannot find module '../../lib/desktop/lock.js' imported from .../test/desktop/lock.test.js
 
-### GREEN (Step 4)
-
-Command:
-```bash
-npx vitest run test/rentalSourceTags.test.js test/rentalKinds.test.js
+ Test Files  2 failed (2)
+      Tests  no tests
 ```
 
-Result: **PASS** — 2 files, 8 tests, all passed (951ms)
+**Why expected:** Tests were written first; implementation modules did not exist yet, so Vitest failed at import resolution before any assertions ran.
 
----
+### GREEN (after implementation)
 
-## Files Changed
-
-| File | Action | Purpose |
-|------|--------|---------|
-| `lib/rentalSourceTags.js` | Created | `OUTBOUND_INVOICE_SOURCE`, `RENTAL_TRACE_EVENT`, `resolveOutboundInvoiceSource()` |
-| `test/rentalSourceTags.test.js` | Created | Unit tests for source resolution and trace constants |
-| `lib/rentalKinds.js` | Modified | `outboundKindLabel()` returns `'Customer hire'` for quantity pool |
-| `test/rentalKinds.test.js` | Modified | Updated label expectation |
-| `app/api/rentals/route.js` | Modified | Invoice create uses source tags for title/notes |
-
----
-
-## Implementation Notes
-
-### `lib/rentalSourceTags.js`
-
-- Delegates kind normalization to existing `normalizeOutboundRentalKind` / `OUTBOUND_RENTAL_KIND` from `rentalKinds.js`.
-- `resolveOutboundInvoiceSource('rental'|'space')` → `RENTAL_SPACE`
-- `resolveOutboundInvoiceSource('hiring'|'quantity_pool')` → `CUSTOMER_HIRE`
-- Unknown/inbound kinds (`supplier_hire`, `null`) → `null`
-- `RENTAL_TRACE_EVENT` exports all eight constants per brief (REVENUE, TAX, REVERSAL, DAMAGE, DAMAGE_LOSS, REPAIR, SUPPLIER_HIRE_SPEND, UTILIZATION)
-
-### `lib/rentalKinds.js`
-
-- Single-line change: quantity pool operator label `'Quantity rental'` → `'Customer hire'`
-
-### `app/api/rentals/route.js`
-
-- Imports `resolveOutboundInvoiceSource`, `OUTBOUND_INVOICE_SOURCE`
-- Invoice title:
-  - `RENTAL_SPACE` → `'Room / space rental'`
-  - otherwise → `'Customer hire (equipment pool)'`
-- Notes append `source=<SOURCE>` on second line when source resolves; user notes preserved
-- `isRentalInvoice: true` unchanged
-- No new Prisma fields
-
----
-
-## Self-Review
-
-| Check | Result |
-|-------|--------|
-| Matches brief interfaces verbatim | Yes |
-| TDD order (fail → implement → pass) | Yes |
-| No schema migration | Yes |
-| `isRentalInvoice: true` preserved | Yes |
-| Linter errors on touched files | None |
-| Downstream deps (`resolveOutboundInvoiceSource`, `RENTAL_TRACE_EVENT`) exported | Yes |
-
-### Route behaviour delta
-
-- Quantity-pool invoice title changed from `'Quantity rental (equipment pool)'` to `'Customer hire (equipment pool)'` — intentional per brief.
-- Notes now include `source=RENTAL_SPACE` or `source=CUSTOMER_HIRE` when applicable; previously notes were user-only.
-
-### Out of scope (later tasks)
-
-- No API route tests for invoice create stamping (brief only specified unit tests).
-- `RENTAL_TRACE_EVENT` constants exported but not yet consumed — expected for Task 2+.
-
----
-
-## Concerns
-
-None blocking. Minor note: any UI or docs still referencing `'Quantity rental'` operator label may need alignment in later tasks; grep of `test/` and `lib/` shows no remaining references.
-
----
-
-## Verification Commands
-
-```bash
-npx vitest run test/rentalSourceTags.test.js test/rentalKinds.test.js
+**Command:**
+```
+npx vitest run test/desktop/lock.test.js test/desktop/documentNumbers.test.js
 ```
 
-Expected: 8/8 pass.
+**Relevant output:**
+```
+ Test Files  2 passed (2)
+      Tests  8 passed (8)
+   Duration  780ms
+```
+
+## Files changed
+
+| File | Action |
+|------|--------|
+| `lib/desktop/codes.js` | Created |
+| `lib/desktop/lock.js` | Created |
+| `lib/desktop/documentNumbers.js` | Created |
+| `test/desktop/lock.test.js` | Created |
+| `test/desktop/documentNumbers.test.js` | Created |
+
+**Commit:** `b017e2507` — `feat(desktop): add lock thresholds and document number helpers`
+
+## Self-review findings
+
+1. **Matches brief verbatim** — Signatures, constants, and logic follow the task brief exactly; no extra files or refactors.
+2. **`evaluateDesktopLock` priority order** — Subscription inactive is checked first, then clock backshift, then stale lock (≥24h), then warning (≥20h). Matches specified implementation.
+3. **Stale lock sets `warning: true`** — At exactly 24h, both `locked: true` and `warning: true` are returned (brief implementation); tests only assert `locked` and `reason` for that case.
+4. **`WARN_MS` import unused in tests** — `lock.test.js` imports `WARN_MS` per brief but does not reference it; harmless, matches brief test file.
+5. **`codes.js` has no tests** — Brief specifies the file and constants but no dedicated test suite; acceptable for this task scope.
+6. **`nextSeq(0)`** — Uses `Number(lastIssued || 0) + 1`; correctly returns `1` for input `0`.
+
+## Issues or concerns
+
+- None blocking. `DESKTOP_CODES` is untested in this task; later tasks may import and validate usage.
+- Stale-lock path returns `warning: true` alongside `locked: true`; consumers should treat `locked` as authoritative if they need a single boolean gate.

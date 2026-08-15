@@ -1,5 +1,6 @@
 // components/COGSSettlementModal.js
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from 'react';
 import { X, DollarSign, Calendar, CreditCard, FileText, AlertCircle, Loader } from 'lucide-react';
 import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
@@ -99,8 +100,8 @@ const COGSSettlementModal = ({ isOpen, onClose, onSettle, isLoading, totalCOGS =
               <DollarSign className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Record Total COGS as Expense</h2>
-              <p className="text-sm text-gray-500">Record the accumulative COGS total as an expense</p>
+              <h2 className="text-lg font-semibold text-gray-900">{tt('Record Total COGS as Expense')}</h2>
+              <p className="text-sm text-gray-500">{tt('Record the accumulative COGS total as an expense')}</p>
             </div>
           </div>
           <button
@@ -117,7 +118,7 @@ const COGSSettlementModal = ({ isOpen, onClose, onSettle, isLoading, totalCOGS =
           {/* Amount */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Settlement Amount *
+              {tt('Settlement Amount *')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -148,7 +149,7 @@ const COGSSettlementModal = ({ isOpen, onClose, onSettle, isLoading, totalCOGS =
           {/* Description */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
+              {tt('Description')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -160,7 +161,7 @@ const COGSSettlementModal = ({ isOpen, onClose, onSettle, isLoading, totalCOGS =
                 value={formData.description}
                 onChange={handleInputChange}
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="COGS Settlement Description"
+                placeholder={tt('COGS Settlement Description')}
                 disabled={isLoading}
               />
             </div>
@@ -169,7 +170,7 @@ const COGSSettlementModal = ({ isOpen, onClose, onSettle, isLoading, totalCOGS =
           {/* Date */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Settlement Date *
+              {tt('Settlement Date *')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -197,7 +198,7 @@ const COGSSettlementModal = ({ isOpen, onClose, onSettle, isLoading, totalCOGS =
           {/* Payment Method */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Payment Method *
+              {tt('Payment Method *')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -231,7 +232,7 @@ const COGSSettlementModal = ({ isOpen, onClose, onSettle, isLoading, totalCOGS =
           {/* Notes */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Notes
+              {tt('Notes')}
             </label>
             <textarea
               name="notes"
@@ -239,7 +240,7 @@ const COGSSettlementModal = ({ isOpen, onClose, onSettle, isLoading, totalCOGS =
               onChange={handleInputChange}
               rows={3}
               className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Additional notes about this COGS settlement..."
+              placeholder={tt('Additional notes about this COGS settlement...')}
               disabled={isLoading}
             />
           </div>
@@ -252,7 +253,7 @@ const COGSSettlementModal = ({ isOpen, onClose, onSettle, isLoading, totalCOGS =
               className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               disabled={isLoading}
             >
-              Cancel
+              {tt('Cancel')}
             </button>
             <button
               type="submit"
@@ -262,7 +263,7 @@ const COGSSettlementModal = ({ isOpen, onClose, onSettle, isLoading, totalCOGS =
               {isLoading ? (
                 <div className="flex items-center justify-center">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Recording...
+                  {tt('Recording...')}
                 </div>
               ) : (
                 'Record as Expense'

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from "react";
 import { DollarSign, Check, Edit2, Download, Eye, Copy } from "lucide-react";
@@ -25,14 +26,14 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
       <div className="p-4 border-b bg-gray-50">
-        <h2 className="text-lg font-semibold">Edit Invoice Template</h2>
+        <h2 className="text-lg font-semibold">{tt('Edit Invoice Template')}</h2>
       </div>
       
       <div className="p-4 border-b">
         <div className="flex flex-col md:flex-row md:items-center mb-4">
           <div className="w-full md:w-1/2 mb-4 md:mb-0 md:mr-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Template Name
+              {tt('Template Name')}
             </label>
             <input
               type="text"
@@ -51,7 +52,7 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
               onChange={() => setIsDefault(!isDefault)}
             />
             <label htmlFor="isDefault" className="text-sm font-medium text-gray-700">
-              Set as default template
+              {tt('Set as default template')}
             </label>
           </div>
         </div>
@@ -67,7 +68,7 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
             }`}
             onClick={() => setActiveTab("design")}
           >
-            Design
+            {tt('Design')}
           </button>
           <button
             className={`py-3 px-4 font-medium ${
@@ -77,7 +78,7 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
             }`}
             onClick={() => setActiveTab("content")}
           >
-            Content
+            {tt('Content')}
           </button>
           <button
             className={`py-3 px-4 font-medium ${
@@ -87,7 +88,7 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
             }`}
             onClick={() => setActiveTab("preview")}
           >
-            Preview
+            {tt('Preview')}
           </button>
         </div>
       </div>
@@ -95,11 +96,11 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
       <div className="p-4">
         {activeTab === "design" && (
           <div>
-            <h3 className="font-medium text-gray-900 mb-3">Design Options</h3>
+            <h3 className="font-medium text-gray-900 mb-3">{tt('Design Options')}</h3>
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Color Scheme
+                {tt('Color Scheme')}
               </label>
               <div className="flex flex-wrap gap-2">
                 {colorOptions.map((option) => (
@@ -122,7 +123,7 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Layout Options
+                {tt('Layout Options')}
               </label>
               <div className="space-y-2">
                 <div className="flex items-center">
@@ -134,7 +135,7 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
                     onChange={() => setShowLogo(!showLogo)}
                   />
                   <label htmlFor="showLogo" className="text-sm text-gray-700">
-                    Show Company Logo
+                    {tt('Show Company Logo')}
                   </label>
                 </div>
                 
@@ -147,7 +148,7 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
                     onChange={() => setShowFooter(!showFooter)}
                   />
                   <label htmlFor="showFooter" className="text-sm text-gray-700">
-                    Show Footer with Company Information
+                    {tt('Show Footer with Company Information')}
                   </label>
                 </div>
                 
@@ -160,7 +161,7 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
                     onChange={() => setIncludeTerms(!includeTerms)}
                   />
                   <label htmlFor="includeTerms" className="text-sm text-gray-700">
-                    Include Terms & Conditions
+                    {tt('Include Terms & Conditions')}
                   </label>
                 </div>
               </div>
@@ -170,11 +171,11 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
         
         {activeTab === "content" && (
           <div>
-            <h3 className="font-medium text-gray-900 mb-3">Content Options</h3>
+            <h3 className="font-medium text-gray-900 mb-3">{tt('Content Options')}</h3>
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Invoice Title Format
+                {tt('Invoice Title Format')}
               </label>
               <input
                 type="text"
@@ -182,13 +183,13 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
                 defaultValue="INVOICE #[Number]"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Use [Number] as placeholder for the invoice number
+                {tt('Use [Number] as placeholder for the invoice number')}
               </p>
             </div>
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Default Terms & Conditions
+                {tt('Default Terms & Conditions')}
               </label>
               <textarea
                 className="border-gray-300 rounded-md px-3 py-2 w-full"
@@ -199,7 +200,7 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
             
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Custom Thank You Message
+                {tt('Custom Thank You Message')}
               </label>
               <input
                 type="text"
@@ -217,13 +218,13 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
                 <div>
                   {showLogo && (
                     <div className="w-40 h-16 bg-white rounded border flex items-center justify-center text-gray-400 mb-2">
-                      Company Logo
+                      {tt('Company Logo')}
                     </div>
                   )}
                   <div className="text-gray-700">
-                    <p className="font-medium">Your Company Name</p>
-                    <p className="text-sm">123 Business Street</p>
-                    <p className="text-sm">City, Country, ZIP</p>
+                    <p className="font-medium">{tt('Your Company Name')}</p>
+                    <p className="text-sm">{tt('123 Business Street')}</p>
+                    <p className="text-sm">{tt('City, Country, ZIP')}</p>
                   </div>
                 </div>
                 
@@ -232,19 +233,19 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
                     className="text-2xl font-bold mb-2"
                     style={{ color: colorOptions.find(c => c.id === selectedColor)?.color }}
                   >
-                    INVOICE #12345
+                    {tt('INVOICE #12345')}
                   </h1>
-                  <p className="text-gray-600 text-sm">Date: 07/03/2025</p>
-                  <p className="text-gray-600 text-sm">Due Date: 21/03/2025</p>
+                  <p className="text-gray-600 text-sm">{tt('Date: 07/03/2025')}</p>
+                  <p className="text-gray-600 text-sm">{tt('Due Date: 21/03/2025')}</p>
                 </div>
               </div>
               
               <div className="mb-6">
-                <h2 className="font-medium mb-2">Bill To:</h2>
+                <h2 className="font-medium mb-2">{tt('Bill To:')}</h2>
                 <div className="text-gray-700">
-                  <p>Client Name</p>
-                  <p className="text-sm">Client Address</p>
-                  <p className="text-sm">City, Country, ZIP</p>
+                  <p>{tt('Client Name')}</p>
+                  <p className="text-sm">{tt('Client Address')}</p>
+                  <p className="text-sm">{tt('City, Country, ZIP')}</p>
                 </div>
               </div>
               
@@ -255,24 +256,24 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
                     style={{ backgroundColor: colorOptions.find(c => c.id === selectedColor)?.color, color: 'white' }}
                   >
                     <tr>
-                      <th className="px-4 py-2">Item</th>
-                      <th className="px-4 py-2 text-right">Quantity</th>
-                      <th className="px-4 py-2 text-right">Price</th>
-                      <th className="px-4 py-2 text-right">Amount</th>
+                      <th className="px-4 py-2">{tt('Item')}</th>
+                      <th className="px-4 py-2 text-right">{tt('Quantity')}</th>
+                      <th className="px-4 py-2 text-right">{tt('Price')}</th>
+                      <th className="px-4 py-2 text-right">{tt('Amount')}</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     <tr>
-                      <td className="px-4 py-3">Product/Service Name</td>
+                      <td className="px-4 py-3">{tt('Product/Service Name')}</td>
                       <td className="px-4 py-3 text-right">1</td>
-                      <td className="px-4 py-3 text-right">MK 100.00</td>
-                      <td className="px-4 py-3 text-right">MK 100.00</td>
+                      <td className="px-4 py-3 text-right">{tt('MK 100.00')}</td>
+                      <td className="px-4 py-3 text-right">{tt('MK 100.00')}</td>
                     </tr>
                     <tr>
-                      <td className="px-4 py-3">Product/Service Name</td>
+                      <td className="px-4 py-3">{tt('Product/Service Name')}</td>
                       <td className="px-4 py-3 text-right">2</td>
-                      <td className="px-4 py-3 text-right">MK 75.00</td>
-                      <td className="px-4 py-3 text-right">MK 150.00</td>
+                      <td className="px-4 py-3 text-right">{tt('MK 75.00')}</td>
+                      <td className="px-4 py-3 text-right">{tt('MK 150.00')}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -281,34 +282,34 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
               <div className="flex justify-end">
                 <div className="w-64">
                   <div className="flex justify-between py-2">
-                    <span>Subtotal:</span>
-                    <span>MK 250.00</span>
+                    <span>{tt('Subtotal:')}</span>
+                    <span>{tt('MK 250.00')}</span>
                   </div>
                   <div className="flex justify-between py-2">
                     <span>Tax (17.5%):</span>
-                    <span>MK 41.25</span>
+                    <span>{tt('MK 41.25')}</span>
                   </div>
                   <div 
                     className="flex justify-between py-2 font-bold"
                     style={{ color: colorOptions.find(c => c.id === selectedColor)?.color }}
                   >
-                    <span>Total:</span>
-                    <span>MK 291.25</span>
+                    <span>{tt('Total:')}</span>
+                    <span>{tt('MK 291.25')}</span>
                   </div>
                 </div>
               </div>
               
               {includeTerms && (
                 <div className="mt-6 pt-4 border-t text-xs text-gray-600">
-                  <h3 className="font-medium mb-1">Terms & Conditions:</h3>
-                  <p>Payment is due within 14 days from the date of invoice. Late payment is subject to interest charges at 2% per month.</p>
+                  <h3 className="font-medium mb-1">{tt('Terms & Conditions:')}</h3>
+                  <p>{tt('Payment is due within 14 days from the date of invoice. Late payment is subject to interest charges at 2% per month.')}</p>
                 </div>
               )}
               
               {showFooter && (
                 <div className="mt-6 pt-4 border-t text-xs text-gray-500 text-center">
                   <p>Your Company Name • Phone: (123) 456-7890 • Email: info@yourcompany.com</p>
-                  <p>Thank you for your business!</p>
+                  <p>{tt('Thank you for your business!')}</p>
                 </div>
               )}
             </div>
@@ -316,11 +317,11 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
             <div className="flex justify-center space-x-2">
               <button className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1 rounded text-sm flex items-center">
                 <Download size={14} className="mr-1" />
-                Download PDF
+                {tt('Download PDF')}
               </button>
               <button className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1 rounded text-sm flex items-center">
                 <Copy size={14} className="mr-1" />
-                Duplicate
+                {tt('Duplicate')}
               </button>
             </div>
           </div>
@@ -329,7 +330,7 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
       
       <div className="p-4 border-t bg-gray-50 flex justify-end">
         <button className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md mr-2">
-          Cancel
+          {tt('Cancel')}
         </button>
         <button 
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
@@ -342,7 +343,7 @@ const InvoiceTemplateEditor = ({ template, onSave }) => {
             includeTerms
           })}
         >
-          Save Template
+          {tt('Save Template')}
         </button>
       </div>
     </div>

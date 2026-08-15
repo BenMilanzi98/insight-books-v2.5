@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -59,11 +60,11 @@ export default function MraEisPhase21Page() {
       <header className="space-y-2">
         <p className="text-sm text-slate-600">
           <Link href="/settings/integrations/mra-eis/centre" className="underline">
-            EIS Admin Centre
+            {tt('EIS Admin Centre')}
           </Link>{' '}
           / Phase 21 Rollout
         </p>
-        <h1 className="text-2xl font-semibold text-slate-900">MRA EIS Certification & Rollout</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">{tt('MRA EIS Certification & Rollout')}</h1>
         <p className="text-sm text-slate-700">
           Controlled certification, pilot, cohort rollout and Hypercare. Sandbox success is not Production
           certification. Tenants and Businesses are never enabled automatically.
@@ -79,7 +80,7 @@ export default function MraEisPhase21Page() {
       {meta?.invariants && (
         <section className="border border-slate-200 p-4" aria-labelledby="inv-h">
           <h2 id="inv-h" className="font-medium mb-2">
-            Programme invariants
+            {tt('Programme invariants')}
           </h2>
           <ul className="text-sm grid gap-1 sm:grid-cols-2">
             {Object.entries(meta.invariants).map(([k, v]) => (
@@ -92,21 +93,21 @@ export default function MraEisPhase21Page() {
       )}
 
       <section className="border border-slate-200 p-4 space-y-3">
-        <h2 className="font-medium">Controls</h2>
+        <h2 className="font-medium">{tt('Controls')}</h2>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             className="border border-slate-800 bg-slate-900 text-white px-3 py-1.5 text-sm"
             onClick={revalidateGate}
           >
-            Revalidate Phase 20 Release Gate
+            {tt('Revalidate Phase 20 Release Gate')}
           </button>
           <button
             type="button"
             className="border border-slate-400 px-3 py-1.5 text-sm"
             onClick={programmeStatus}
           >
-            Evaluate programme status
+            {tt('Evaluate programme status')}
           </button>
         </div>
         <p className="text-xs text-slate-600">
@@ -117,7 +118,7 @@ export default function MraEisPhase21Page() {
 
       {gate && (
         <section className="border border-slate-200 p-4" aria-live="polite">
-          <h2 className="font-medium mb-2">Release Gate</h2>
+          <h2 className="font-medium mb-2">{tt('Release Gate')}</h2>
           <pre className="text-xs overflow-x-auto whitespace-pre-wrap bg-slate-50 p-3">
             {JSON.stringify(
               {
@@ -134,7 +135,7 @@ export default function MraEisPhase21Page() {
 
       {programme && (
         <section className="border border-slate-200 p-4" aria-live="polite">
-          <h2 className="font-medium mb-2">Programme status</h2>
+          <h2 className="font-medium mb-2">{tt('Programme status')}</h2>
           <pre className="text-xs overflow-x-auto whitespace-pre-wrap bg-slate-50 p-3">
             {JSON.stringify(programme, null, 2)}
           </pre>
@@ -143,7 +144,7 @@ export default function MraEisPhase21Page() {
 
       {meta?.cohorts && (
         <section className="border border-slate-200 p-4">
-          <h2 className="font-medium mb-2">Rollout cohorts</h2>
+          <h2 className="font-medium mb-2">{tt('Rollout cohorts')}</h2>
           <ul className="text-sm space-y-1">
             {meta.cohorts.map((c) => (
               <li key={c.id} className="font-mono text-xs border border-slate-200 px-2 py-1">

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -171,7 +172,7 @@ export default function AdminBillingReconciliationPage() {
         description="Verifies platform invoice line math, payment allocations, and period uniqueness. Failures require remediation — never silent."
         actions={
           <button type="button" onClick={load} className={btnGhost}>
-            <RefreshCw className="h-4 w-4" aria-hidden /> Run checks
+            <RefreshCw className="h-4 w-4" aria-hidden /> {tt('Run checks')}
           </button>
         }
       />
@@ -211,7 +212,7 @@ export default function AdminBillingReconciliationPage() {
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-[var(--admin-text)]">
-              PayChangu ledger backfill
+              {tt('PayChangu ledger backfill')}
             </h2>
             <p className="mt-1 max-w-2xl text-sm text-[var(--admin-text-muted)]">
               Dry-run scans paid account/branch subscriptions for missing or unlinked

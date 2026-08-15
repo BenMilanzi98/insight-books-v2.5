@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -79,7 +80,7 @@ export default function AnalyticsPipelinePage() {
         description={t('admin-pages.analyticsPipeline.description')}
         actions={
           <button type="button" className={btnGhost} onClick={load} disabled={loading || Boolean(busy)}>
-            Refresh
+            {tt('Refresh')}
           </button>
         }
       />
@@ -157,7 +158,7 @@ export default function AnalyticsPipelinePage() {
           ) : null}
 
           <h2 className="mb-2 text-sm font-semibold text-[var(--admin-text)]">
-            Recent reconciliation
+            {tt('Recent reconciliation')}
           </h2>
           <AdminDataTable
             columns={[

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
@@ -58,11 +59,10 @@ export default function TerminalConfigurationPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <header className="mb-6">
-        <p className="text-sm font-medium text-slate-500">MRA EIS · Phase 8</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Configuration health</h1>
+        <p className="text-sm font-medium text-slate-500">{tt('MRA EIS · Phase 8')}</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{tt('Configuration health')}</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Immutable versioned snapshots. Credentials never displayed. MRA tax definitions do not change local
-          Chart of Accounts tax rates.
+          {tt('Immutable versioned snapshots. Credentials never displayed. MRA tax definitions do not change local Chart of Accounts tax rates.')}
         </p>
       </header>
 
@@ -75,23 +75,23 @@ export default function TerminalConfigurationPage() {
         <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-slate-500">Freshness</dt>
+              <dt className="text-slate-500">{tt('Freshness')}</dt>
               <dd className="font-medium">{health.freshnessStatus}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Processing paused</dt>
+              <dt className="text-slate-500">{tt('Processing paused')}</dt>
               <dd className="font-medium">{health.processingPaused ? 'Yes' : 'No'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Global version</dt>
+              <dt className="text-slate-500">{tt('Global version')}</dt>
               <dd className="font-medium">{health.activeGlobalVersion || '—'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Terminal version</dt>
+              <dt className="text-slate-500">{tt('Terminal version')}</dt>
               <dd className="font-medium">{health.activeTerminalVersion || '—'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Taxpayer version</dt>
+              <dt className="text-slate-500">{tt('Taxpayer version')}</dt>
               <dd className="font-medium">{health.activeTaxpayerVersion || '—'}</dd>
             </div>
             <div>
@@ -101,11 +101,11 @@ export default function TerminalConfigurationPage() {
               </dd>
             </div>
             <div>
-              <dt className="text-slate-500">Last sync</dt>
+              <dt className="text-slate-500">{tt('Last sync')}</dt>
               <dd className="font-medium">{health.lastSuccessfulSyncAt || '—'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Next required</dt>
+              <dt className="text-slate-500">{tt('Next required')}</dt>
               <dd className="font-medium">{health.nextRequiredSyncAt || '—'}</dd>
             </div>
           </dl>
@@ -128,7 +128,7 @@ export default function TerminalConfigurationPage() {
       )}
 
       <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold">Snapshot history</h2>
+        <h2 className="text-lg font-semibold">{tt('Snapshot history')}</h2>
         <ul className="mt-3 space-y-2 text-sm">
           {(data?.snapshots || []).map((s) => (
             <li key={s.id} className="rounded border border-slate-100 px-3 py-2">
@@ -140,7 +140,7 @@ export default function TerminalConfigurationPage() {
               </div>
             </li>
           ))}
-          {(data?.snapshots || []).length === 0 && <li className="text-slate-500">No snapshots yet.</li>}
+          {(data?.snapshots || []).length === 0 && <li className="text-slate-500">{tt('No snapshots yet.')}</li>}
         </ul>
       </section>
 

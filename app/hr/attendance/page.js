@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from "react";
 import { Plus, Search, X, Clock, CheckCircle, XCircle, Calendar, User, Edit, Trash2, FileText, Download, FileSpreadsheet } from "lucide-react";
@@ -830,7 +831,7 @@ export default function AttendancePage() {
               className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md"
             >
               <Plus size={18} className="mr-2" />
-              Add Record
+              {tt('Add Record')}
             </button>
           </>
         }
@@ -840,7 +841,7 @@ export default function AttendancePage() {
       {showReportSection && (
         <PosStylePanel className="p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Attendance Report</h2>
+            <h2 className="text-xl font-bold">{tt('Attendance Report')}</h2>
             <button
               onClick={() => setShowReportSection(false)}
               className="text-gray-500 hover:text-gray-700"
@@ -852,7 +853,7 @@ export default function AttendancePage() {
           {/* Report Filters */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Start Date')}</label>
               <input
                 type="date"
                 value={reportStartDate}
@@ -861,7 +862,7 @@ export default function AttendancePage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('End Date')}</label>
               <input
                 type="date"
                 value={reportEndDate}
@@ -870,13 +871,13 @@ export default function AttendancePage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Employee')}</label>
               <select
                 value={reportEmployeeId}
                 onChange={(e) => setReportEmployeeId(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
               >
-                <option value="all">All Employees</option>
+                <option value="all">{tt('All Employees')}</option>
                 {employees.map(emp => (
                   <option key={emp.id} value={emp.id}>{emp.name}</option>
                 ))}
@@ -891,12 +892,12 @@ export default function AttendancePage() {
                 {reportLoading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Loading...
+                    {tt('Loading...')}
                   </>
                 ) : (
                   <>
                     <Search size={18} />
-                    Generate Report
+                    {tt('Generate Report')}
                   </>
                 )}
               </button>
@@ -911,14 +912,14 @@ export default function AttendancePage() {
                 className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2"
               >
                 <FileText size={18} />
-                Export PDF
+                {tt('Export PDF')}
               </button>
               <button
                 onClick={exportReportExcel}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
               >
                 <FileSpreadsheet size={18} />
-                Export Excel
+                {tt('Export Excel')}
               </button>
             </div>
           )}
@@ -929,15 +930,15 @@ export default function AttendancePage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Clock In</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Clock Out</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Overtime</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Date')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee ID')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Department')}</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Clock In')}</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Clock Out')}</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Hours')}</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Overtime')}</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -983,10 +984,10 @@ export default function AttendancePage() {
               </table>
             </div>
           ) : reportLoading ? (
-            <div className="text-center py-12 text-gray-600">Loading report data...</div>
+            <div className="text-center py-12 text-gray-600">{tt('Loading report data...')}</div>
           ) : (
             <div className="text-center py-12 text-gray-500">
-              Click "Generate Report" to view attendance data
+              {tt('Click "Generate Report" to view attendance data')}
             </div>
           )}
         </PosStylePanel>
@@ -998,7 +999,7 @@ export default function AttendancePage() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
           <input
             type="text"
-            placeholder="Search employees by name, ID, or department..."
+            placeholder={tt('Search employees by name, ID, or department...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1008,7 +1009,7 @@ export default function AttendancePage() {
 
       {/* Attendance List */}
       {loading ? (
-        <div className="text-center py-12 text-gray-600">Loading attendance...</div>
+        <div className="text-center py-12 text-gray-600">{tt('Loading attendance...')}</div>
       ) : error ? (
         <div className="text-center py-12 text-red-600">{error}</div>
       ) : (
@@ -1017,20 +1018,20 @@ export default function AttendancePage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Clock In</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Clock Out</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Department')}</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Clock In')}</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Clock Out')}</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Hours')}</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredEmployees.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
-                      No employees found
+                      {tt('No employees found')}
                     </td>
                   </tr>
                 ) : (
@@ -1062,7 +1063,7 @@ export default function AttendancePage() {
                             </span>
                           ) : (
                             <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
-                              Not Recorded
+                              {tt('Not Recorded')}
                             </span>
                           )}
                         </td>
@@ -1202,7 +1203,7 @@ export default function AttendancePage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Employee <span className="text-red-500">*</span>
+                    {tt('Employee')} <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={formData.employeeId}
@@ -1211,7 +1212,7 @@ export default function AttendancePage() {
                     required
                     disabled={!!editingRecord}
                   >
-                    <option value="">Select employee</option>
+                    <option value="">{tt('Select employee')}</option>
                     {employees.map(emp => (
                       <option key={emp.id} value={emp.id}>
                         {emp.name} {emp.employeeId ? `(${emp.employeeId})` : ''}
@@ -1223,7 +1224,7 @@ export default function AttendancePage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Date
+                      {tt('Date')}
                     </label>
                     <input
                       type="date"
@@ -1235,7 +1236,7 @@ export default function AttendancePage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Status <span className="text-red-500">*</span>
+                      {tt('Status')} <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={formData.status}
@@ -1243,10 +1244,10 @@ export default function AttendancePage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                       required
                     >
-                      <option value="Present">Present</option>
-                      <option value="Absent">Absent</option>
-                      <option value="Late">Late</option>
-                      <option value="Leave">Leave</option>
+                      <option value="Present">{tt('Present')}</option>
+                      <option value="Absent">{tt('Absent')}</option>
+                      <option value="Late">{tt('Late')}</option>
+                      <option value="Leave">{tt('Leave')}</option>
                     </select>
                   </div>
                 </div>
@@ -1254,7 +1255,7 @@ export default function AttendancePage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Clock In
+                      {tt('Clock In')}
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -1273,13 +1274,13 @@ export default function AttendancePage() {
                         className="px-3 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-md hover:bg-blue-100 text-sm whitespace-nowrap"
                         title="Set to current time"
                       >
-                        Now
+                        {tt('Now')}
                       </button>
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Clock Out
+                      {tt('Clock Out')}
                     </label>
                     <div className="flex gap-2">
                       <input
@@ -1298,7 +1299,7 @@ export default function AttendancePage() {
                         className="px-3 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-md hover:bg-blue-100 text-sm whitespace-nowrap"
                         title="Set to current time"
                       >
-                        Now
+                        {tt('Now')}
                       </button>
                     </div>
                   </div>
@@ -1349,14 +1350,14 @@ export default function AttendancePage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Notes
+                    {tt('Notes')}
                   </label>
                   <textarea
                     rows={3}
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    placeholder="Optional notes..."
+                    placeholder={tt('Optional notes...')}
                   />
                 </div>
 
@@ -1366,7 +1367,7 @@ export default function AttendancePage() {
                     onClick={() => setShowModal(false)}
                     className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"

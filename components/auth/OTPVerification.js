@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -238,12 +239,12 @@ const OTPVerification = ({ email, userId, onBackToSignIn }) => {
         <div className="mx-auto w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
           <Mail className="w-8 h-8 text-indigo-600" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Verify Your Email</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">{tt('Verify Your Email')}</h2>
         <p className="text-gray-600">
-          We've sent a 6-digit verification code to <span className="font-semibold">{email}</span>
+          {tt("We've sent a 6-digit verification code to")} <span className="font-semibold">{email}</span>
         </p>
         <p className="text-sm text-gray-500 mt-2">
-          Check your inbox and spam folder. The code expires in 10 minutes.
+          {tt('Check your inbox and spam folder. The code expires in 10 minutes.')}
         </p>
       </div>
 
@@ -268,7 +269,7 @@ const OTPVerification = ({ email, userId, onBackToSignIn }) => {
       <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Enter the 6-digit code
+            {tt('Enter the 6-digit code')}
           </label>
           <div className="flex gap-2 justify-center">
             {otp.map((digit, index) => (

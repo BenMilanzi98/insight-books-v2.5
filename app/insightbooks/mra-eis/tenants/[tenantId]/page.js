@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { adminFetch } from '@/lib/admin/adminApi';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -133,10 +134,10 @@ export default function AdminMraEisTenantDetailPage() {
       {data ? (
         <>
           <section className={sectionCls}>
-            <h2 className="text-base font-semibold text-[var(--admin-text)]">Current entitlement</h2>
+            <h2 className="text-base font-semibold text-[var(--admin-text)]">{tt('Current entitlement')}</h2>
             <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-[var(--admin-text-muted)]">Status</dt>
+                <dt className="text-[var(--admin-text-muted)]">{tt('Status')}</dt>
                 <dd className="mt-1">
                   <AdminStatusBadge tone={statusTone(data?.entitlement?.status)}>
                     {data?.entitlement?.status || 'NOT_ENTITLED'}
@@ -144,19 +145,19 @@ export default function AdminMraEisTenantDetailPage() {
                 </dd>
               </div>
               <div>
-                <dt className="text-[var(--admin-text-muted)]">Production allowed</dt>
+                <dt className="text-[var(--admin-text-muted)]">{tt('Production allowed')}</dt>
                 <dd className="mt-1 font-medium text-[var(--admin-text)]">
                   {data?.entitlement?.productionAllowed ? 'Yes' : 'No'}
                 </dd>
               </div>
               <div>
-                <dt className="text-[var(--admin-text-muted)]">Effective from</dt>
+                <dt className="text-[var(--admin-text-muted)]">{tt('Effective from')}</dt>
                 <dd className="mt-1 text-[var(--admin-text)]">
                   {data?.entitlement?.effectiveFrom || '—'}
                 </dd>
               </div>
               <div>
-                <dt className="text-[var(--admin-text-muted)]">Effective until</dt>
+                <dt className="text-[var(--admin-text-muted)]">{tt('Effective until')}</dt>
                 <dd className="mt-1 text-[var(--admin-text)]">
                   {data?.entitlement?.effectiveUntil || 'No expiry'}
                 </dd>
@@ -165,7 +166,7 @@ export default function AdminMraEisTenantDetailPage() {
           </section>
 
           <section className={sectionCls}>
-            <h2 className="text-base font-semibold text-[var(--admin-text)]">Readiness / blockers</h2>
+            <h2 className="text-base font-semibold text-[var(--admin-text)]">{tt('Readiness / blockers')}</h2>
             <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-[var(--admin-text)]">
               {(data?.capability?.blockers || []).map((b) => (
                 <li key={b.code}>
@@ -174,15 +175,15 @@ export default function AdminMraEisTenantDetailPage() {
                 </li>
               ))}
               {(data?.capability?.blockers || []).length === 0 && (
-                <li>No blockers for VIEW_EIS.</li>
+                <li>{tt('No blockers for VIEW_EIS.')}</li>
               )}
             </ul>
           </section>
 
           <section className="mb-6 rounded-[var(--admin-radius)] border border-amber-200 bg-amber-50 p-4 sm:p-5">
-            <h2 className="text-base font-semibold text-amber-950">Control actions</h2>
+            <h2 className="text-base font-semibold text-amber-950">{tt('Control actions')}</h2>
             <label className="mt-3 block text-sm">
-              <span className="mb-1 block font-medium text-amber-950">Reason</span>
+              <span className="mb-1 block font-medium text-amber-950">{tt('Reason')}</span>
               <textarea
                 className={inputCls}
                 rows={3}
@@ -192,22 +193,22 @@ export default function AdminMraEisTenantDetailPage() {
             </label>
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" className={btnPrimary} onClick={() => runAction('upgrade')}>
-                Upgrade to production
+                {tt('Upgrade to production')}
               </button>
               <button type="button" className={btnWarn} onClick={() => runAction('suspend')}>
-                Suspend
+                {tt('Suspend')}
               </button>
               <button type="button" className={btnGhost} onClick={() => runAction('resume')}>
-                Resume
+                {tt('Resume')}
               </button>
               <button type="button" className={btnDanger} onClick={() => runAction('revoke')}>
-                Revoke
+                {tt('Revoke')}
               </button>
             </div>
           </section>
 
           <section className={sectionCls}>
-            <h2 className="text-base font-semibold text-[var(--admin-text)]">Audit history</h2>
+            <h2 className="text-base font-semibold text-[var(--admin-text)]">{tt('Audit history')}</h2>
             {(data?.audit || []).length === 0 ? (
               <div className="mt-3">
                 <AdminEmptyState title="No audit entries" description="Actions will appear here." />

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useId, useRef } from 'react';
 import { cn } from '@/lib/utils';
@@ -40,7 +41,7 @@ export default function AdminConfirmationDialog({
       <button
         type="button"
         className="ib-modal-backdrop absolute inset-0"
-        aria-label="Dismiss dialog"
+        aria-label={tt('Dismiss dialog')}
         onClick={onCancel}
       />
       <div

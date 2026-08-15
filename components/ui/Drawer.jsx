@@ -1,4 +1,5 @@
 'use client';
+import { tt, tx } from '@/lib/i18n/runtime';
 
 import { useEffect } from 'react';
 import {
@@ -63,13 +64,13 @@ export default function Drawer({
             >
               <div className="flex items-center justify-between border-b border-[var(--border-default)] px-4 py-3">
                 <DialogTitle className="text-base font-semibold text-[var(--text-primary)]">
-                  {title}
+                  {tx(title)}
                 </DialogTitle>
                 <Button
                   variant="ghost"
                   size="compact"
                   className="min-h-10 min-w-10 px-0"
-                  aria-label="Close drawer"
+                  aria-label={tt('Close drawer')}
                   onClick={onClose}
                 >
                   <X className="h-4 w-4" />

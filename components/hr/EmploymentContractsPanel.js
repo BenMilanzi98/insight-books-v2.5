@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { FileText, Plus, RefreshCw } from 'lucide-react';
@@ -95,7 +96,7 @@ export default function EmploymentContractsPanel({ employeeId, formatCurrency })
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <FileText size={20} />
-          Employment Contracts
+          {tt('Employment Contracts')}
         </h3>
         <div className="flex gap-2">
           <button
@@ -103,7 +104,7 @@ export default function EmploymentContractsPanel({ employeeId, formatCurrency })
             onClick={load}
             className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-100"
           >
-            <RefreshCw size={12} /> Refresh
+            <RefreshCw size={12} /> {tt('Refresh')}
           </button>
           <button
             type="button"
@@ -116,8 +117,7 @@ export default function EmploymentContractsPanel({ employeeId, formatCurrency })
       </div>
 
       <p className="mb-3 text-xs text-gray-600">
-        Payroll uses the Active contract effective for the pay period. Creating an Active contract
-        supersedes prior Active contracts.
+        {tt('Payroll uses the Active contract effective for the pay period. Creating an Active contract supersedes prior Active contracts.')}
       </p>
 
       {error ? (
@@ -130,19 +130,19 @@ export default function EmploymentContractsPanel({ employeeId, formatCurrency })
         <form onSubmit={createContract} className="mb-4 space-y-3 rounded border border-gray-200 bg-white p-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="text-xs text-gray-600">
-              Pay basis
+              {tt('Pay basis')}
               <select
                 className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm"
                 value={form.payBasis}
                 onChange={(ev) => setForm((f) => ({ ...f, payBasis: ev.target.value }))}
               >
-                <option value="MONTHLY_SALARY">Monthly salary</option>
-                <option value="HOURLY_RATE">Hourly rate</option>
-                <option value="DAILY_RATE">Daily rate</option>
+                <option value="MONTHLY_SALARY">{tt('Monthly salary')}</option>
+                <option value="HOURLY_RATE">{tt('Hourly rate')}</option>
+                <option value="DAILY_RATE">{tt('Daily rate')}</option>
               </select>
             </label>
             <label className="text-xs text-gray-600">
-              Effective from
+              {tt('Effective from')}
               <input
                 type="date"
                 required
@@ -152,7 +152,7 @@ export default function EmploymentContractsPanel({ employeeId, formatCurrency })
               />
             </label>
             <label className="text-xs text-gray-600">
-              Basic / monthly salary
+              {tt('Basic / monthly salary')}
               <input
                 type="number"
                 min="0"
@@ -160,11 +160,11 @@ export default function EmploymentContractsPanel({ employeeId, formatCurrency })
                 className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm"
                 value={form.basicSalary}
                 onChange={(ev) => setForm((f) => ({ ...f, basicSalary: ev.target.value }))}
-                placeholder="Uses employee gross if blank"
+                placeholder={tt('Uses employee gross if blank')}
               />
             </label>
             <label className="text-xs text-gray-600">
-              Hourly rate
+              {tt('Hourly rate')}
               <input
                 type="number"
                 min="0"
@@ -184,7 +184,7 @@ export default function EmploymentContractsPanel({ employeeId, formatCurrency })
             Activate immediately (supersede prior Active)
           </label>
           <label className="block text-xs text-gray-600">
-            Notes
+            {tt('Notes')}
             <textarea
               className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm"
               rows={2}
@@ -203,20 +203,20 @@ export default function EmploymentContractsPanel({ employeeId, formatCurrency })
       ) : null}
 
       {loading ? (
-        <p className="text-sm text-gray-500">Loading contracts…</p>
+        <p className="text-sm text-gray-500">{tt('Loading contracts…')}</p>
       ) : contracts.length === 0 ? (
-        <p className="text-sm text-gray-500">No contracts yet. Payroll will use the employee salary fields until one is activated.</p>
+        <p className="text-sm text-gray-500">{tt('No contracts yet. Payroll will use the employee salary fields until one is activated.')}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b text-xs uppercase text-gray-500">
-                <th className="py-2 pr-3">Ver</th>
-                <th className="py-2 pr-3">Status</th>
-                <th className="py-2 pr-3">Basis</th>
-                <th className="py-2 pr-3">Basic</th>
-                <th className="py-2 pr-3">From</th>
-                <th className="py-2 pr-3">To</th>
+                <th className="py-2 pr-3">{tt('Ver')}</th>
+                <th className="py-2 pr-3">{tt('Status')}</th>
+                <th className="py-2 pr-3">{tt('Basis')}</th>
+                <th className="py-2 pr-3">{tt('Basic')}</th>
+                <th className="py-2 pr-3">{tt('From')}</th>
+                <th className="py-2 pr-3">{tt('To')}</th>
               </tr>
             </thead>
             <tbody>

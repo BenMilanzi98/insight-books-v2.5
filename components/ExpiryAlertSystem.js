@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -213,7 +214,7 @@ const ExpiryAlertSystem = ({
     return (
       <div className="flex items-center justify-center py-16 text-gray-600 gap-2">
         <Loader2 className="animate-spin" size={22} />
-        Loading expiry alerts…
+        {tt('Loading expiry alerts…')}
       </div>
     );
   }
@@ -227,7 +228,7 @@ const ExpiryAlertSystem = ({
           onClick={load}
           className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-white border border-red-300 text-sm"
         >
-          <RefreshCw size={14} /> Retry
+          <RefreshCw size={14} /> {tt('Retry')}
         </button>
       </div>
     );
@@ -254,14 +255,14 @@ const ExpiryAlertSystem = ({
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white hover:bg-gray-50"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          Refresh
+          {tt('Refresh')}
         </button>
       </div>
 
       <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-blue-950">Expiry alert window</h3>
+            <h3 className="text-sm font-semibold text-blue-950">{tt('Expiry alert window')}</h3>
             <p className="mt-1 text-xs text-blue-800">
               Default early warning is 60 days (about 2 months). Adjust this tenant-wide for
               goods received into expiring batches.
@@ -269,7 +270,7 @@ const ExpiryAlertSystem = ({
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-xs font-medium text-blue-950">
-              Early warning days
+              {tt('Early warning days')}
               <input
                 type="number"
                 min="1"
@@ -282,7 +283,7 @@ const ExpiryAlertSystem = ({
               />
             </label>
             <label className="text-xs font-medium text-blue-950">
-              Urgent days
+              {tt('Urgent days')}
               <input
                 type="number"
                 min="1"
@@ -309,19 +310,19 @@ const ExpiryAlertSystem = ({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="rounded-lg border border-red-200 bg-red-50 p-4">
           <div className="flex items-center gap-2 text-red-800 font-semibold">
-            <XCircle size={18} /> Expired batches
+            <XCircle size={18} /> {tt('Expired batches')}
           </div>
           <div className="text-2xl font-bold text-red-900 mt-1">{summary?.expired ?? 0}</div>
         </div>
         <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
           <div className="flex items-center gap-2 text-orange-800 font-semibold">
-            <AlertTriangle size={18} /> Urgent
+            <AlertTriangle size={18} /> {tt('Urgent')}
           </div>
           <div className="text-2xl font-bold text-orange-900 mt-1">{summary?.urgent ?? 0}</div>
         </div>
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-center gap-2 text-amber-900 font-semibold">
-            <Clock size={18} /> Early warning
+            <Clock size={18} /> {tt('Early warning')}
           </div>
           <div className="text-2xl font-bold text-amber-950 mt-1">{summary?.early ?? 0}</div>
         </div>
@@ -330,7 +331,7 @@ const ExpiryAlertSystem = ({
       {rows?.length === 0 ? (
         <div className="rounded-lg border border-green-200 bg-green-50 p-8 text-center text-green-800">
           <Package className="mx-auto mb-2 opacity-70" size={40} />
-          <p className="font-medium">No batch expiry alerts</p>
+          <p className="font-medium">{tt('No batch expiry alerts')}</p>
           <p className="text-sm mt-1 opacity-90">
             No batches with expiry in the next {thresholds?.earlyDays ?? 60} days (or expired), or
             batches have no expiry date set.
@@ -341,15 +342,15 @@ const ExpiryAlertSystem = ({
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase text-gray-600">
               <tr>
-                <th className="px-3 py-2">Product</th>
+                <th className="px-3 py-2">{tt('Product')}</th>
                 <th className="px-3 py-2">SKU</th>
-                <th className="px-3 py-2 text-right">Qty</th>
-                <th className="px-3 py-2">Expiry</th>
-                <th className="px-3 py-2 text-right">Days</th>
-                <th className="px-3 py-2 text-right">Unit cost</th>
-                <th className="px-3 py-2 text-right">Value</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Actions</th>
+                <th className="px-3 py-2 text-right">{tt('Qty')}</th>
+                <th className="px-3 py-2">{tt('Expiry')}</th>
+                <th className="px-3 py-2 text-right">{tt('Days')}</th>
+                <th className="px-3 py-2 text-right">{tt('Unit cost')}</th>
+                <th className="px-3 py-2 text-right">{tt('Value')}</th>
+                <th className="px-3 py-2">{tt('Status')}</th>
+                <th className="px-3 py-2">{tt('Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -374,7 +375,7 @@ const ExpiryAlertSystem = ({
                         className="text-xs px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50"
                         onClick={() => onViewProduct?.({ id: r.productId })}
                       >
-                        Product
+                        {tt('Product')}
                       </button>
                       {canAdjustStock && (
                         <>
@@ -386,7 +387,7 @@ const ExpiryAlertSystem = ({
                               setWriteOffQty(String(r.qtyRemaining));
                             }}
                           >
-                            Write off
+                            {tt('Write off')}
                           </button>
                           <button
                             type="button"
@@ -417,7 +418,7 @@ const ExpiryAlertSystem = ({
       {writeOffBatch && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-4">
-            <h3 className="font-semibold text-lg">Write off batch</h3>
+            <h3 className="font-semibold text-lg">{tt('Write off batch')}</h3>
             <p className="text-sm text-gray-600">
               {writeOffBatch.productName} — line value {formatCurrency(writeOffBatch.lineValue)}.
               Posts DR Inventory Adjustment Loss / CR Inventory for qty × unit cost.
@@ -437,7 +438,7 @@ const ExpiryAlertSystem = ({
                 className="px-4 py-2 rounded-md border border-gray-300"
                 onClick={() => setWriteOffBatch(null)}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="button"
@@ -455,11 +456,11 @@ const ExpiryAlertSystem = ({
       {restockCtx && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-3">
-            <h3 className="font-semibold text-lg">Restock — new batch only</h3>
+            <h3 className="font-semibold text-lg">{tt('Restock — new batch only')}</h3>
             <p className="text-sm text-gray-600">
               Creates a new FIFO batch (does not merge). Link recorded in expiry audit.
             </p>
-            <label className="block text-sm font-medium">Quantity</label>
+            <label className="block text-sm font-medium">{tt('Quantity')}</label>
             <input
               type="number"
               className="w-full border rounded-md px-3 py-2"
@@ -468,7 +469,7 @@ const ExpiryAlertSystem = ({
               min={0}
               step="any"
             />
-            <label className="block text-sm font-medium">Unit cost</label>
+            <label className="block text-sm font-medium">{tt('Unit cost')}</label>
             <input
               type="number"
               className="w-full border rounded-md px-3 py-2"
@@ -497,7 +498,7 @@ const ExpiryAlertSystem = ({
                 className="px-4 py-2 rounded-md border border-gray-300"
                 onClick={() => setRestockCtx(null)}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="button"

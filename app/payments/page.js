@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState, useEffect } from "react";
 import {
@@ -148,21 +149,21 @@ const PaymentAccountsPage = () => {
     if (s.toLowerCase() === "completed") {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-50 text-emerald-800">
-          <CheckCircle size={12} /> Completed
+          <CheckCircle size={12} /> {tt('Completed')}
         </span>
       );
     }
     if (s.toLowerCase() === "pending") {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-800">
-          Pending
+          {tt('Pending')}
         </span>
       );
     }
     if (s.toLowerCase() === "failed") {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-800">
-          <XCircle size={12} /> Failed
+          <XCircle size={12} /> {tt('Failed')}
         </span>
       );
     }
@@ -193,9 +194,9 @@ const PaymentAccountsPage = () => {
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Payment Accounts</h1>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{tt('Payment Accounts')}</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Active cash, bank, and mobile accounts. Add or activate channels under Manage accounts.
+              {tt('Active cash, bank, and mobile accounts. Add or activate channels under Manage accounts.')}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -205,7 +206,7 @@ const PaymentAccountsPage = () => {
               onClick={() => router.push("/payments/management")}
             >
               <Settings size={16} />
-              Manage accounts
+              {tt('Manage accounts')}
             </button>
             <button
               type="button"
@@ -223,7 +224,7 @@ const PaymentAccountsPage = () => {
                 onClick={() => setIsModalOpen(true)}
               >
                 <PlusCircle size={18} />
-                Transfer Funds
+                {tt('Transfer Funds')}
               </button>
             )}
           </div>
@@ -257,7 +258,7 @@ const PaymentAccountsPage = () => {
                     {historyAccount?.name}
                   </h3>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Payments, POS deposits, and ledger lines on the linked account · newest first
+                    {tt('Payments, POS deposits, and ledger lines on the linked account · newest first')}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -275,7 +276,7 @@ const PaymentAccountsPage = () => {
                     onClick={() => downloadHistoryExport("xlsx")}
                     className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 inline-flex items-center gap-1 disabled:opacity-50"
                   >
-                    <FileDown size={14} /> Excel
+                    <FileDown size={14} /> {tt('Excel')}
                   </button>
                   <button
                     type="button"
@@ -293,7 +294,7 @@ const PaymentAccountsPage = () => {
                       setHistoryRows([]);
                     }}
                     className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
-                    aria-label="Close"
+                    aria-label={tt('Close')}
                   >
                     <X size={22} />
                   </button>
@@ -303,19 +304,19 @@ const PaymentAccountsPage = () => {
                 {historyLoading ? (
                   <div className="flex items-center justify-center py-16 gap-2 text-gray-500">
                     <Loader className="h-5 w-5 animate-spin" />
-                    Loading…
+                    {tt('Loading…')}
                   </div>
                 ) : historyRows.length === 0 ? (
-                  <p className="text-center text-sm text-gray-500 py-12">No transactions found for this account.</p>
+                  <p className="text-center text-sm text-gray-500 py-12">{tt('No transactions found for this account.')}</p>
                 ) : (
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-left text-xs uppercase tracking-wide text-gray-400 border-b border-gray-100">
-                        <th className="py-2 pr-2">Date</th>
-                        <th className="py-2 pr-2">Category</th>
-                        <th className="py-2 pr-2">Summary</th>
-                        <th className="py-2 pr-2 text-right">Amount</th>
-                        <th className="py-2">Status</th>
+                        <th className="py-2 pr-2">{tt('Date')}</th>
+                        <th className="py-2 pr-2">{tt('Category')}</th>
+                        <th className="py-2 pr-2">{tt('Summary')}</th>
+                        <th className="py-2 pr-2 text-right">{tt('Amount')}</th>
+                        <th className="py-2">{tt('Status')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">

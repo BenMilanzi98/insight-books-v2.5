@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -34,11 +35,11 @@ export default function RentalReconcilePage() {
             Rental &amp; Hiring
           </Link>
           <span className="mx-2">/</span>
-          Reconciliation
+          {tt('Reconciliation')}
         </div>
         <h1 className="text-2xl font-semibold">Rental &amp; hiring reconciliation</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Open deposit liabilities, unbilled charges, hire accruals awaiting supplier bill clear.
+          {tt('Open deposit liabilities, unbilled charges, hire accruals awaiting supplier bill clear.')}
         </p>
         {error ? (
           <div className="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -49,33 +50,33 @@ export default function RentalReconcilePage() {
         {s ? (
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="rounded border p-3 text-sm">
-              <div className="text-xs uppercase text-gray-500">Contracts</div>
+              <div className="text-xs uppercase text-gray-500">{tt('Contracts')}</div>
               <div className="text-xl font-semibold">{s.contractCount}</div>
             </div>
             <div className="rounded border p-3 text-sm">
-              <div className="text-xs uppercase text-gray-500">Deposit liability open</div>
+              <div className="text-xs uppercase text-gray-500">{tt('Deposit liability open')}</div>
               <div className="text-xl font-semibold">{money(s.depositLiabilityOpen)}</div>
             </div>
             <div className="rounded border p-3 text-sm">
-              <div className="text-xs uppercase text-gray-500">Unbilled charges</div>
+              <div className="text-xs uppercase text-gray-500">{tt('Unbilled charges')}</div>
               <div className="text-xl font-semibold">{money(s.unbilledChargeTotal)}</div>
             </div>
             <div className="rounded border p-3 text-sm">
-              <div className="text-xs uppercase text-gray-500">Hire accruals open</div>
+              <div className="text-xs uppercase text-gray-500">{tt('Hire accruals open')}</div>
               <div className="text-xl font-semibold">{money(s.accruedHireOpen)}</div>
             </div>
             <div className="rounded border p-3 text-sm">
-              <div className="text-xs uppercase text-gray-500">Invoiced periods</div>
+              <div className="text-xs uppercase text-gray-500">{tt('Invoiced periods')}</div>
               <div className="text-xl font-semibold">{s.invoicedPeriodCount}</div>
             </div>
             <div className="rounded border p-3 text-sm">
-              <div className="text-xs uppercase text-gray-500">Issues</div>
+              <div className="text-xs uppercase text-gray-500">{tt('Issues')}</div>
               <div className="text-xl font-semibold">{s.issueCount}</div>
             </div>
           </div>
         ) : null}
 
-        <h2 className="mt-8 text-sm font-semibold uppercase text-gray-500">Issues</h2>
+        <h2 className="mt-8 text-sm font-semibold uppercase text-gray-500">{tt('Issues')}</h2>
         <ul className="mt-2 divide-y rounded border">
           {(report?.issues || []).map((issue) => (
             <li key={`${issue.type}-${issue.id}`} className="px-3 py-2 text-sm">
@@ -92,19 +93,19 @@ export default function RentalReconcilePage() {
             </li>
           ))}
           {report && !report.issues?.length ? (
-            <li className="px-3 py-4 text-sm text-gray-500">No open issues</li>
+            <li className="px-3 py-4 text-sm text-gray-500">{tt('No open issues')}</li>
           ) : null}
         </ul>
 
         <div className="mt-6 flex flex-wrap gap-3 text-sm">
           <Link href="/rentals/contracts-v2" className="text-blue-600 underline">
-            Contracts V2
+            {tt('Contracts V2')}
           </Link>
           <Link href="/rentals/inbound-hiring" className="text-blue-600 underline">
-            Supplier hiring
+            {tt('Supplier hiring')}
           </Link>
           <Link href="/rentals/quotations-v2" className="text-blue-600 underline">
-            Quotations
+            {tt('Quotations')}
           </Link>
         </div>
       </div>

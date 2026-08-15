@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -159,7 +160,7 @@ export default function AdminPlatformPaymentsPage() {
         actions={
           <button type="button" onClick={load} className={btnPrimary}>
             <RefreshCw className="h-4 w-4" aria-hidden />
-            Refresh
+            {tt('Refresh')}
           </button>
         }
       />
@@ -187,10 +188,10 @@ export default function AdminPlatformPaymentsPage() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="all">All statuses</option>
-            <option value="PENDING">Pending</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="FAILED">Failed</option>
+            <option value="all">{tt('All statuses')}</option>
+            <option value="PENDING">{tt('Pending')}</option>
+            <option value="COMPLETED">{tt('Completed')}</option>
+            <option value="FAILED">{tt('Failed')}</option>
           </AdminField.Select>
         </AdminField>
       </AdminFilterBar>

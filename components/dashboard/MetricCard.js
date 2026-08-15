@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/dashboard/MetricCard.jsx
 import React from 'react';
 import { PercentageChange } from '../FinancialReportComponents';
@@ -77,7 +78,7 @@ export const MetricCard = ({
       {calculatedPercentChange !== undefined && !loading && (
         <div className="mt-2">
           <PercentageChange value={calculatedPercentChange} />
-          <span className="text-xs text-gray-500 ml-1">vs previous period</span>
+          <span className="text-xs text-gray-500 ml-1">{tt('vs previous period')}</span>
         </div>
       )}
     </div>
@@ -137,7 +138,7 @@ export const FinancialSummaryPanel = ({
   if (!data) {
     return (
       <div className="p-6 text-center">
-        <p className="text-gray-500">No financial data available</p>
+        <p className="text-gray-500">{tt('No financial data available')}</p>
       </div>
     );
   }
@@ -238,7 +239,7 @@ export const FinancialSummaryPanel = ({
       {/* KPI row - conditionally shown if data exists */}
       {data.keyPerformanceIndicators && (
         <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm mt-8">
-          <h3 className="text-lg font-medium text-gray-800 mb-4">Key Performance Indicators</h3>
+          <h3 className="text-lg font-medium text-gray-800 mb-4">{tt('Key Performance Indicators')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {data.keyPerformanceIndicators.map((kpi, index) => (
               <div key={index} className="bg-gray-50 p-4 rounded-lg">
@@ -292,7 +293,7 @@ export const PerformanceSnapshot = ({
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-medium text-gray-800">Performance Snapshot</h3>
+        <h3 className="text-lg font-medium text-gray-800">{tt('Performance Snapshot')}</h3>
         <div className="flex items-center text-sm text-gray-500">
           <Calendar size={14} className="mr-1" />
           <span>{timeframe}</span>
@@ -305,7 +306,7 @@ export const PerformanceSnapshot = ({
             <TrendingUp size={20} />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Revenue</p>
+            <p className="text-sm text-gray-500">{tt('Revenue')}</p>
             <p className="min-w-0 break-words text-lg font-semibold leading-tight tabular-nums text-gray-800 sm:text-xl">{formatCurrency(revenue)}</p>
           </div>
         </div>
@@ -315,7 +316,7 @@ export const PerformanceSnapshot = ({
             <TrendingDown size={20} />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Expenses</p>
+            <p className="text-sm text-gray-500">{tt('Expenses')}</p>
             <p className="min-w-0 break-words text-lg font-semibold leading-tight tabular-nums text-gray-800 sm:text-xl">{formatCurrency(expenses)}</p>
           </div>
         </div>
@@ -325,7 +326,7 @@ export const PerformanceSnapshot = ({
             <DollarSign size={20} />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Profit</p>
+            <p className="text-sm text-gray-500">{tt('Profit')}</p>
             <p className="min-w-0 break-words text-lg font-semibold leading-tight tabular-nums text-gray-800 sm:text-xl">{formatCurrency(profit)}</p>
             <p className="text-xs text-gray-500">{profitMargin.toFixed(2)}% margin</p>
           </div>
@@ -339,7 +340,7 @@ export const PerformanceSnapshot = ({
         >
           <div className="flex items-center">
             <BarChart size={16} className="text-blue-600 mr-2" />
-            <span className="text-gray-700">View Profit & Loss Report</span>
+            <span className="text-gray-700">{tt('View Profit & Loss Report')}</span>
           </div>
           <ArrowRight size={16} className="text-gray-400" />
         </div>
@@ -350,7 +351,7 @@ export const PerformanceSnapshot = ({
         >
           <div className="flex items-center">
             <TrendingDown size={16} className="text-red-600 mr-2" />
-            <span className="text-gray-700">Analyze Expenses</span>
+            <span className="text-gray-700">{tt('Analyze Expenses')}</span>
           </div>
           <ArrowRight size={16} className="text-gray-400" />
         </div>
@@ -361,7 +362,7 @@ export const PerformanceSnapshot = ({
         >
           <div className="flex items-center">
             <Share2 size={16} className="text-blue-600 mr-2" />
-            <span className="text-gray-700">View Financial Ratios</span>
+            <span className="text-gray-700">{tt('View Financial Ratios')}</span>
           </div>
           <ArrowRight size={16} className="text-gray-400" />
         </div>

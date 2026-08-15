@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -59,7 +60,7 @@ export default function AdminSummaryCard({
           </p>
           {error ? (
             <p className="mt-2 text-sm font-medium text-[var(--admin-danger)]" role="alert">
-              Unavailable
+              {tt('Unavailable')}
             </p>
           ) : (
             <p className="mt-2 break-words text-xl font-bold leading-tight tabular-nums tracking-tight text-[var(--admin-text)] sm:text-2xl">

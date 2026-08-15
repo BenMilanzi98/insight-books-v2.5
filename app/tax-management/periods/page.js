@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/shell/PageHeader";
@@ -97,7 +98,7 @@ export default function TaxPeriodsPage() {
                 onClick={() => act(r.id, "close")}
                 className="text-sm text-[var(--brand-primary)] underline-offset-2 hover:underline"
               >
-                Close
+                {tt('Close')}
               </button>
             ) : null}
             {r.status === "CLOSED" ? (
@@ -107,7 +108,7 @@ export default function TaxPeriodsPage() {
                 onClick={() => act(r.id, "reopen")}
                 className="text-sm text-[var(--brand-primary)] underline-offset-2 hover:underline"
               >
-                Reopen
+                {tt('Reopen')}
               </button>
             ) : null}
           </div>
@@ -128,7 +129,7 @@ export default function TaxPeriodsPage() {
               onClick={rollForward}
               className="rounded-[var(--radius-sm)] bg-[var(--brand-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              Roll forward month
+              {tt('Roll forward month')}
             </button>
           ) : null
         }

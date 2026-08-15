@@ -1,109 +1,45 @@
-﻿# Rentals & Hiring Three Hubs SDD Progress Ledger
+﻿# Desktop offline sync — SDD progress
 
-Branch: v2.5
-Workspace: in-place (dirty tree; same pattern as prior goods-receipt SDD)
-Plan: docs/superpowers/plans/2026-08-11-rentals-hirings-three-hubs.md
-Started HEAD: 836ef49cc82a389548e91360e3fc2b686814bee0
-Note: Do NOT git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" unless user explicitly asks — track WORKING_TREE diffs.
-Commits disabled per plan Global Constraints + user rule.
+Branch: `feat/desktop-offline-sync`
+Plan: `docs/superpowers/plans/2026-08-15-desktop-offline-sync.md`
+Spec: `docs/superpowers/specs/2026-08-15-desktop-offline-sync-design.md`
 
+Notes:
+- Working in the current checkout (not a linked worktree): HEAD was `main` with large uncommitted i18n/UI diffs that later tasks need; a worktree from HEAD would drop them.
+- Implementers commit **only** files listed in their task. Never stage unrelated dirty files (`.next`, i18n page rewires, etc.).
+- User selected Subagent-Driven Development, so task-scoped commits on this feature branch are allowed.
 
-Task 1: complete (WORKING_TREE, review clean; Minor: route stamp untested, partial TRACE const coverage)
+## Ledger
 
+- Task 1: complete (commits 94a4713..b017e25, review clean)
+  - Minor: unused WARN_MS import in lock.test.js; codes.js untested; document locked vs warning for Task 12
+- Task 2: complete (commits b017e25..8828a81, review clean)
+  - Deviation: nextPushItem skips synced; failure test pre-syncs `a` (brief test vs Step 3 were inconsistent). Spec-correct.
+  - Minor: no assertions on errorMessage/serverId; extra canPullSnapshot cases
+- Task 3: complete (commits 8828a81..b404f4e, review clean)
+- Task 4: complete (commits b404f4e..8dfc7b6, review clean)
+  - Minor: smoke test is presence-only; redundant @@unique on receipts (plan-mandated)
+- Task 5: complete (commits 8dfc7b6..1fb9b32, review clean after 3 fix rounds)
+  - Minor: cross-tenant bind has no code field; no prefix-exhaustion test; no HTTP integration tests
+- Task 6: complete (commits 1fb9b32..d4ed19d, review clean after membership fix)
+  - ⚠️ route 401/403: controller verified route.js uses getUserFromSession 401 + assertBoundDesktopDevice 403
+- Task 7: complete (commits d4ed19d..cd5c34b, review approved after P2002/batch/RBAC fixes)
+  - Deviation: some kinds use callRouteHandler (controller-accepted)
+  - Minor: concurrent double-post window; invoice dup check outside tx; coarse outbox perms
+- Task 8: complete (commits cd5c34b..db1ffd5, review conditional pass)
+  - Minor: no test that replaceSnapshot leaves lastSuccessfulSyncAt unset; unused test imports
+- Task 9: complete (commits db1ffd5..8a128f4; invoice mutations added after review)
+- Task 10: complete (commits 8a128f4..760b08f, review approved with caveats)
+  - Minor: duplicated session token parse; OnboardingGate tt() extra; cookie vs DESKTOP_RUNTIME pairing
+- Task 11: complete (commits 760b08f..8375c33, review clean)
+  - Minor: ok:true when outbox blocked; syncStatusFromDb untested
+- Task 12: complete (commits 8375c33..8146fbb, review clean)
+  - Minor: extra locale keys; banner not gated by hide; duplicate poll
+- Task 13: complete (commits 8146fbb..8918064, review approved after P1 electron fixes)
+  - Follow-up: post-unbind redirect re-attach; IPC re-registration; spawn idempotency; manual smoke + electron-builder not run
 
-Task 2: complete (WORKING_TREE, review clean after fixes; Minor: invoiceVoidService.test.js omitted from first pkg)
+## Branch status
 
-
-Task 3: complete (WORKING_TREE, review Conditional PASS; Minor: customer placeholder until T4, manual smoke deferred)
-
-
-Task 4: complete (WORKING_TREE, review Approved; Minor residual: auth smoke deferred)
-
-
-Task 5: complete (WORKING_TREE, review Approved after P1/P2 fixes; Minor: auto-fetch UX, revenue restatement note)
-
-
-Task 6: complete (WORKING_TREE, review Approved after fixes; Minor: CoA mapping prerequisite, repair 5380, no route tests)
-
-
-Task 7: complete (WORKING_TREE, 38/38 automated PASS; 8 manual DEFERRED operator smoke)
-
-
-Final review: Ready with caveats
-Final fix: OTHER_INCOME 409 + REPAIRS_AND_MAINTENANCE purpose (WORKING_TREE)
-
-
-# POS Till Float Funding SDD Progress Ledger
-
-Branch: v2.5
-Workspace: in-place (dirty tree; same pattern as rentals SDD)
-Plan: docs/superpowers/plans/2026-08-11-pos-till-float-funding.md
-Started HEAD: 836ef49cc82a389548e91360e3fc2b686814bee0
-Note: Do NOT git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" unless user explicitly asks — track WORKING_TREE diffs.
-Commits disabled per plan Global Constraints + user rule.
-
-
-Task 1 (POS till): complete (WORKING_TREE, review Approved; Minor: capital-only/zero-close tests optional)
-
-
-Task 2 (POS till): complete (WORKING_TREE, review Approved; generate EPERM env note)
-
-
-Task 3 (POS till): complete (WORKING_TREE, review Approved after capital catch fix; PETTY_CASH vs HEAD pre-existing)
-
-
-Task 4 (POS till): complete (WORKING_TREE, review Approved after compensation fix; Minor: silent rollback fail, orphan journal if meta update fails)
-
-
-Task 5 (POS till): complete (WORKING_TREE, Approved after actor-guard fix)
-Task 6 (POS till): complete (WORKING_TREE, review Approved)
-
-
-Task 7 (POS till): complete (WORKING_TREE, review Approved; manual /pos smoke DEFERRED; sidebar prefill Minor)
-Task 8 (POS till): complete (WORKING_TREE, 31/31 automated PASS; 4 manual DEFERRED)
-
-
-Final review: Ready with fixes
-Final fix wave: sidebar open→0; compensation error annotations + orphan journal flag (WORKING_TREE)
-Automated: 33/33 focused tests PASS
-Manual /pos smoke: DEFERRED
-
-
-# Tenant POS Theming Unification SDD Progress Ledger
-
-Branch: v2.5
-Workspace: in-place (dirty tree)
-Plan: docs/superpowers/plans/2026-08-12-tenant-pos-theming-unification.md
-Started HEAD: 836ef49cc82a389548e91360e3fc2b686814bee0
-Note: Do NOT git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" unless user explicitly asks — track WORKING_TREE diffs.
-Commits disabled per plan Global Constraints + user rule.
-
-
-Theme Task 0: complete (WORKING_TREE, colors ✅; smoke DEFERRED accepted; PortalPopover pre-existing)
-
-
-Theme Task 1: complete (WORKING_TREE, review Approved)
-Theme Task 2: complete (WORKING_TREE, review deferred-light; invoice/quotations fixed; CDN skipped as matched)
-
-
-Theme Task 3: complete (WORKING_TREE)
-
-
-Theme Task 4: complete (WORKING_TREE)
-
-
-Theme Task 5: complete (WORKING_TREE)
-
-
-Theme Task 6: complete (WORKING_TREE)
-
-
-Theme Task 7: complete (WORKING_TREE)
-
-
-Theme Task 8: complete (WORKING_TREE)
-Final review: Ready with fixes
-Final fix wave: tax purple→blue, RefundSaleModal icon, broadened purple scan, Badge/MetricCard/AI/Premium; out-of-scope documented
-In-scope chrome Fix residual: 0
-Accepted exceptions + public/marketing out of scope documented in theming-drift-log.md
-
+All 13 plan tasks complete on `feat/desktop-offline-sync`.
+- Final review: Critical/Important 1–5 fixed in 369e4f439 (91 desktop tests)
+  Remaining Important (not blocking this session): GET detail routes, local invoice stock decrement, customer.archive, Electron spawn/IPC lifecycle, installer/smoke

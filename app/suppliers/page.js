@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -280,7 +281,7 @@ export default function SuppliersPage() {
       return (
         <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-300">
           <XCircle size={12} />
-          Inactive
+          {tt('Inactive')}
         </span>
       );
     }
@@ -288,7 +289,7 @@ export default function SuppliersPage() {
     return (
       <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
         <CheckCircle size={12} />
-        Active
+        {tt('Active')}
       </span>
     );
   };
@@ -307,9 +308,9 @@ export default function SuppliersPage() {
       <div className="p-6 bg-gray-50 min-h-screen">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Supplier Management</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{tt('Supplier Management')}</h1>
             <p className="text-sm text-gray-600">
-              Manage your suppliers, track purchases, and monitor accounts payable.
+              {tt('Manage your suppliers, track purchases, and monitor accounts payable.')}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -318,7 +319,7 @@ export default function SuppliersPage() {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
             >
               <BarChart3 size={18} />
-              Reports
+              {tt('Reports')}
             </Link>
             <button
               type="button"
@@ -383,7 +384,7 @@ export default function SuppliersPage() {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search suppliers..."
+                  placeholder={tt('Search suppliers...')}
                   className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -393,9 +394,9 @@ export default function SuppliersPage() {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="">All Suppliers</option>
-                <option value="active">Active Only</option>
-                <option value="inactive">Inactive Only</option>
+                <option value="">{tt('All Suppliers')}</option>
+                <option value="active">{tt('Active Only')}</option>
+                <option value="inactive">{tt('Inactive Only')}</option>
               </select>
             </div>
             
@@ -405,35 +406,35 @@ export default function SuppliersPage() {
               className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
             >
               <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-              Refresh
+              {tt('Refresh')}
             </button>
           </div>
 
           {loading ? (
             <div className="p-8 flex items-center justify-center text-gray-600">
               <Loader2 size={24} className="animate-spin mr-2 text-blue-600" />
-              Loading suppliers...
+              {tt('Loading suppliers...')}
             </div>
           ) : filteredSuppliers.length === 0 ? (
             <div className="p-10 text-center text-gray-600">
               <div className="mx-auto w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mb-3">
                 <Users size={22} className="text-blue-600" />
               </div>
-              <div className="font-medium text-gray-800">No suppliers found</div>
-              <div className="text-sm text-gray-500 mt-1">Add your first supplier to start managing your supply chain.</div>
+              <div className="font-medium text-gray-800">{tt('No suppliers found')}</div>
+              <div className="text-sm text-gray-500 mt-1">{tt('Add your first supplier to start managing your supply chain.')}</div>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Supplier</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Contact</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Location</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Terms</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Balance</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{tt('Supplier')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{tt('Contact')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{tt('Location')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{tt('Terms')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{tt('Balance')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{tt('Status')}</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">{tt('Actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -494,7 +495,7 @@ export default function SuppliersPage() {
                             title="View Details"
                           >
                             <ChevronRight size={14} />
-                            View
+                            {tt('View')}
                           </Link>
                           
                           {pagePermissions.canUpdate && (
@@ -548,8 +549,8 @@ export default function SuppliersPage() {
             >
               <div className="p-4 sm:p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-start justify-between gap-3 flex-shrink-0">
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Add New Supplier</h2>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-1">Enter supplier details to create a new supplier record.</p>
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">{tt('Add New Supplier')}</h2>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-1">{tt('Enter supplier details to create a new supplier record.')}</p>
                 </div>
                 <button className="text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0" onClick={resetCreate}>
                   <X size={22} />
@@ -561,12 +562,12 @@ export default function SuppliersPage() {
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <Info size={16} className="text-blue-600" />
-                    Basic Information
+                    {tt('Basic Information')}
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Supplier Name <span className="text-red-500">*</span>
+                        {tt('Supplier Name')} <span className="text-red-500">*</span>
                       </label>
                       <input
                         value={form.supplierName}
@@ -574,7 +575,7 @@ export default function SuppliersPage() {
                           setForm((p) => ({ ...p, supplierName: e.target.value }));
                           if (formErrors.supplierName) setFormErrors((prev) => ({ ...prev, supplierName: null }));
                         }}
-                        placeholder="e.g., ABC Supplies Ltd."
+                        placeholder={tt('e.g., ABC Supplies Ltd.')}
                         className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                           formErrors.supplierName ? "border-red-300 bg-red-50" : "border-gray-300"
                         }`}
@@ -585,21 +586,21 @@ export default function SuppliersPage() {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Contact Person')}</label>
                       <input
                         value={form.contactPerson}
                         onChange={(e) => setForm((p) => ({ ...p, contactPerson: e.target.value }))}
-                        placeholder="e.g., John Smith"
+                        placeholder={tt('e.g., John Smith')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Tax ID / TIN</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Tax ID / TIN')}</label>
                       <input
                         value={form.taxId}
                         onChange={(e) => setForm((p) => ({ ...p, taxId: e.target.value }))}
-                        placeholder="e.g., TAX-123456"
+                        placeholder={tt('e.g., TAX-123456')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
@@ -610,11 +611,11 @@ export default function SuppliersPage() {
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <Phone size={16} className="text-blue-600" />
-                    Contact Information
+                    {tt('Contact Information')}
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Email')}</label>
                       <input
                         type="email"
                         value={form.email}
@@ -622,7 +623,7 @@ export default function SuppliersPage() {
                           setForm((p) => ({ ...p, email: e.target.value }));
                           if (formErrors.email) setFormErrors((prev) => ({ ...prev, email: null }));
                         }}
-                        placeholder="supplier@example.com"
+                        placeholder={tt('supplier@example.com')}
                         className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                           formErrors.email ? "border-red-300 bg-red-50" : "border-gray-300"
                         }`}
@@ -633,7 +634,7 @@ export default function SuppliersPage() {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Phone')}</label>
                       <input
                         value={form.phone}
                         onChange={(e) => {
@@ -651,7 +652,7 @@ export default function SuppliersPage() {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Mobile</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Mobile')}</label>
                       <input
                         value={form.mobile}
                         onChange={(e) => setForm((p) => ({ ...p, mobile: e.target.value }))}
@@ -661,7 +662,7 @@ export default function SuppliersPage() {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Website')}</label>
                       <input
                         value={form.website}
                         onChange={(e) => setForm((p) => ({ ...p, website: e.target.value }))}
@@ -671,47 +672,47 @@ export default function SuppliersPage() {
                     </div>
                     
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Address')}</label>
                       <input
                         value={form.address}
                         onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
-                        placeholder="Street address"
+                        placeholder={tt('Street address')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('City')}</label>
                       <input
                         value={form.city}
                         onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
-                        placeholder="e.g., Lilongwe"
+                        placeholder={tt('e.g., Lilongwe')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Country')}</label>
                       <select
                         value={form.country}
                         onChange={(e) => setForm((p) => ({ ...p, country: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
-                        <option value="Malawi">Malawi</option>
-                        <option value="Zambia">Zambia</option>
-                        <option value="Mozambique">Mozambique</option>
-                        <option value="Tanzania">Tanzania</option>
-                        <option value="South Africa">South Africa</option>
-                        <option value="Other">Other</option>
+                        <option value="Malawi">{tt('Malawi')}</option>
+                        <option value="Zambia">{tt('Zambia')}</option>
+                        <option value="Mozambique">{tt('Mozambique')}</option>
+                        <option value="Tanzania">{tt('Tanzania')}</option>
+                        <option value="South Africa">{tt('South Africa')}</option>
+                        <option value="Other">{tt('Other')}</option>
                       </select>
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Postal Code</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Postal Code')}</label>
                       <input
                         value={form.postalCode}
                         onChange={(e) => setForm((p) => ({ ...p, postalCode: e.target.value }))}
-                        placeholder="e.g., P.O. Box 123"
+                        placeholder={tt('e.g., P.O. Box 123')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
@@ -722,7 +723,7 @@ export default function SuppliersPage() {
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <CreditCard size={16} className="text-blue-600" />
-                    Financial Terms
+                    {tt('Financial Terms')}
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
@@ -743,20 +744,20 @@ export default function SuppliersPage() {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Currency')}</label>
                       <select
                         value={form.currency}
                         onChange={(e) => setForm((p) => ({ ...p, currency: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
-                        <option value="MWK">MWK - Malawian Kwacha</option>
-                        <option value="USD">USD - US Dollar</option>
-                        <option value="ZAR">ZAR - South African Rand</option>
+                        <option value="MWK">{tt('MWK - Malawian Kwacha')}</option>
+                        <option value="USD">{tt('USD - US Dollar')}</option>
+                        <option value="ZAR">{tt('ZAR - South African Rand')}</option>
                       </select>
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Credit Limit</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Credit Limit')}</label>
                       <input
                         type="number"
                         min="0"
@@ -783,31 +784,31 @@ export default function SuppliersPage() {
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Bank Name')}</label>
                       <input
                         value={form.bankName}
                         onChange={(e) => setForm((p) => ({ ...p, bankName: e.target.value }))}
-                        placeholder="e.g., National Bank"
+                        placeholder={tt('e.g., National Bank')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Account Number')}</label>
                       <input
                         value={form.bankAccountNumber}
                         onChange={(e) => setForm((p) => ({ ...p, bankAccountNumber: e.target.value }))}
-                        placeholder="Account number"
+                        placeholder={tt('Account number')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Branch')}</label>
                       <input
                         value={form.bankBranch}
                         onChange={(e) => setForm((p) => ({ ...p, bankBranch: e.target.value }))}
-                        placeholder="e.g., Main Branch"
+                        placeholder={tt('e.g., Main Branch')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
@@ -818,13 +819,13 @@ export default function SuppliersPage() {
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <FileText size={16} className="text-blue-600" />
-                    Notes
+                    {tt('Notes')}
                   </h3>
                   <textarea
                     rows={3}
                     value={form.notes}
                     onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-                    placeholder="Any additional notes about this supplier..."
+                    placeholder={tt('Any additional notes about this supplier...')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -838,7 +839,7 @@ export default function SuppliersPage() {
                     className="w-full sm:w-auto px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
                     disabled={creating}
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="button"
@@ -849,12 +850,12 @@ export default function SuppliersPage() {
                     {creating ? (
                       <>
                         <Loader2 size={18} className="animate-spin" />
-                        Creating...
+                        {tt('Creating...')}
                       </>
                     ) : (
                       <>
                         <Plus size={18} />
-                        Create Supplier
+                        {tt('Create Supplier')}
                       </>
                     )}
                   </button>

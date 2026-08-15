@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from "react";
 import Link from "next/link";
@@ -179,15 +180,15 @@ const FinancialSetupPage = () => {
       <div className="border-b border-gray-200 px-6 py-4">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Financial Setup</h1>
-            <p className="mt-1 text-sm text-gray-600">Configure your organization's financial settings, tax rules, and payment methods.</p>
+            <h1 className="text-2xl font-semibold text-gray-900">{tt('Financial Setup')}</h1>
+            <p className="mt-1 text-sm text-gray-600">{tt("Configure your organization's financial settings, tax rules, and payment methods.")}</p>
           </div>
           <button 
             onClick={saveConfigurations}
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             <Save className="mr-2 h-4 w-4" />
-            Save Configuration
+            {tt('Save Configuration')}
           </button>
         </div>
       </div>
@@ -200,13 +201,13 @@ const FinancialSetupPage = () => {
           </div>
           <div className="ml-3 flex-1">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-blue-800">Setup Progress: 2/4 Completed</h3>
-              <p className="text-sm text-blue-700">50% Complete</p>
+              <h3 className="text-sm font-medium text-blue-800">{tt('Setup Progress: 2/4 Completed')}</h3>
+              <p className="text-sm text-blue-700">{tt('50% Complete')}</p>
             </div>
             <div className="mt-2 w-full bg-blue-200 rounded-full h-2">
               <div className="bg-blue-600 h-2 rounded-full" style={{ width: '50%' }}></div>
             </div>
-            <p className="mt-2 text-xs text-blue-700">Complete all configuration steps to ensure optimal system functionality.</p>
+            <p className="mt-2 text-xs text-blue-700">{tt('Complete all configuration steps to ensure optimal system functionality.')}</p>
           </div>
         </div>
       </div>
@@ -224,7 +225,7 @@ const FinancialSetupPage = () => {
               } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center`}
             >
               <Receipt className="mr-2 h-5 w-5" />
-              Tax Rules
+              {tt('Tax Rules')}
             </button>
             <button
               onClick={() => setActiveTab('invoices')}
@@ -235,7 +236,7 @@ const FinancialSetupPage = () => {
               } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center`}
             >
               <FileText className="mr-2 h-5 w-5" />
-              Invoice Templates
+              {tt('Invoice Templates')}
             </button>
             <button
               onClick={() => setActiveTab('payments')}
@@ -246,7 +247,7 @@ const FinancialSetupPage = () => {
               } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center`}
             >
               <CreditCard className="mr-2 h-5 w-5" />
-              Payment Integrations
+              {tt('Payment Integrations')}
             </button>
             <Link
               href="/financial-setup/opening-balances"
@@ -257,7 +258,7 @@ const FinancialSetupPage = () => {
               } whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center`}
             >
               <DollarSign className="mr-2 h-5 w-5" />
-              Opening Balances
+              {tt('Opening Balances')}
             </Link>
 
           </nav>
@@ -270,13 +271,13 @@ const FinancialSetupPage = () => {
         {activeTab === 'tax' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">Tax Rules Configuration</h2>
+              <h2 className="text-lg font-medium text-gray-900">{tt('Tax Rules Configuration')}</h2>
               <button 
                 onClick={addTaxRule}
                 className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 <Plus className="mr-1.5 h-4 w-4" />
-                Add Tax Rule
+                {tt('Add Tax Rule')}
               </button>
             </div>
             
@@ -285,16 +286,16 @@ const FinancialSetupPage = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tax Name
+                      {tt('Tax Name')}
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Rate (%)
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Default
+                      {tt('Default')}
                     </th>
                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
+                      {tt('Actions')}
                     </th>
                   </tr>
                 </thead>
@@ -307,7 +308,7 @@ const FinancialSetupPage = () => {
                           className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
                           value={rule.name}
                           onChange={(e) => updateTaxRule(rule.id, 'name', e.target.value)}
-                          placeholder="Tax rule name"
+                          placeholder={tt('Tax rule name')}
                         />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -335,7 +336,7 @@ const FinancialSetupPage = () => {
                             onChange={() => setDefaultTaxRule(rule.id)}
                           />
                           {rule.isDefault && (
-                            <span className="ml-2 text-xs font-medium text-blue-600">Default</span>
+                            <span className="ml-2 text-xs font-medium text-blue-600">{tt('Default')}</span>
                           )}
                         </div>
                       </td>
@@ -356,7 +357,7 @@ const FinancialSetupPage = () => {
             <div className="flex items-start space-x-2 text-sm text-gray-500 bg-gray-50 p-4 rounded-md border border-gray-200">
               <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">About Tax Rules</p>
+                <p className="font-medium text-gray-900">{tt('About Tax Rules')}</p>
                 <p className="mt-1">Tax rules are applied to invoices and financial transactions. The default rule will be automatically applied to new invoices, but can be changed during invoice creation.</p>
               </div>
             </div>
@@ -367,13 +368,13 @@ const FinancialSetupPage = () => {
         {activeTab === 'invoices' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">Invoice Template Management</h2>
+              <h2 className="text-lg font-medium text-gray-900">{tt('Invoice Template Management')}</h2>
               <button 
                 onClick={addInvoiceTemplate}
                 className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 <Plus className="mr-1.5 h-4 w-4" />
-                Add Template
+                {tt('Add Template')}
               </button>
             </div>
             
@@ -385,14 +386,14 @@ const FinancialSetupPage = () => {
                     {template.isDefault ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                         <Check className="mr-1 h-3 w-3" />
-                        Default
+                        {tt('Default')}
                       </span>
                     ) : (
                       <button 
                         onClick={() => setDefaultInvoiceTemplate(template.id)}
                         className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                       >
-                        Set as Default
+                        {tt('Set as Default')}
                       </button>
                     )}
                   </div>
@@ -404,11 +405,11 @@ const FinancialSetupPage = () => {
                     <div className="grid grid-cols-2 gap-2">
                       <button className="inline-flex justify-center items-center px-3 py-2 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                         <Eye className="mr-1 h-3 w-3" />
-                        Preview
+                        {tt('Preview')}
                       </button>
                       <button className="inline-flex justify-center items-center px-3 py-2 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                         <Edit className="mr-1 h-3 w-3" />
-                        Edit
+                        {tt('Edit')}
                       </button>
                     </div>
                   </div>
@@ -420,14 +421,14 @@ const FinancialSetupPage = () => {
                 className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center text-gray-500 hover:border-gray-400 hover:bg-gray-50 focus:outline-none"
               >
                 <Plus className="h-8 w-8 mb-2" />
-                <span className="text-sm font-medium">Add New Template</span>
+                <span className="text-sm font-medium">{tt('Add New Template')}</span>
               </button>
             </div>
             
             <div className="flex items-start space-x-2 text-sm text-gray-500 bg-gray-50 p-4 rounded-md border border-gray-200">
               <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">About Invoice Templates</p>
+                <p className="font-medium text-gray-900">{tt('About Invoice Templates')}</p>
                 <p className="mt-1">Templates determine how your invoices appear to clients. The default template will be used for new invoices unless another is selected during invoice creation.</p>
               </div>
             </div>
@@ -438,13 +439,13 @@ const FinancialSetupPage = () => {
         {activeTab === 'payments' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">Payment Method Configuration</h2>
+              <h2 className="text-lg font-medium text-gray-900">{tt('Payment Method Configuration')}</h2>
               <button 
                 onClick={addPaymentMethod}
                 className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 <Plus className="mr-1.5 h-4 w-4" />
-                Add Payment Method
+                {tt('Add Payment Method')}
               </button>
             </div>
             
@@ -461,7 +462,7 @@ const FinancialSetupPage = () => {
                         className="ml-3 border-0 bg-transparent focus:ring-0 focus:outline-none font-medium placeholder-gray-400"
                         value={method.name}
                         onChange={(e) => updatePaymentMethod(method.id, 'name', e.target.value)}
-                        placeholder="Payment Method Name"
+                        placeholder={tt('Payment Method Name')}
                       />
                     </div>
                     <div className="flex items-center ml-4 space-x-2">
@@ -485,29 +486,29 @@ const FinancialSetupPage = () => {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label htmlFor={`api-key-${method.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                            API Key
+                            {tt('API Key')}
                           </label>
                           <input 
                             id={`api-key-${method.id}`}
                             type="text" 
                             className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                            placeholder="pk_test_..."
+                            placeholder={tt('pk_test_...')}
                             value={method.apiKey || ''}
                             onChange={(e) => updatePaymentMethod(method.id, 'apiKey', e.target.value)}
                           />
-                          <p className="mt-1 text-xs text-gray-500">Find this in your PayChangu dashboard</p>
+                          <p className="mt-1 text-xs text-gray-500">{tt('Find this in your PayChangu dashboard')}</p>
                         </div>
                         <div>
                           <label htmlFor={`secret-key-${method.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                            Secret Key
+                            {tt('Secret Key')}
                           </label>
                           <input 
                             id={`secret-key-${method.id}`}
                             type="password" 
                             className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                            placeholder="sk_test_..."
+                            placeholder={tt('sk_test_...')}
                           />
-                          <p className="mt-1 text-xs text-gray-500">Keep this confidential and secure</p>
+                          <p className="mt-1 text-xs text-gray-500">{tt('Keep this confidential and secure')}</p>
                         </div>
                       </div>
                     )}
@@ -515,24 +516,24 @@ const FinancialSetupPage = () => {
                     {method.name === 'Bank Transfer' && (
                       <div>
                         <label htmlFor={`account-details-${method.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                          Account Details
+                          {tt('Account Details')}
                         </label>
                         <textarea 
                           id={`account-details-${method.id}`}
                           className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
                           rows="3"
-                          placeholder="Bank name, account number, branch code, etc."
+                          placeholder={tt('Bank name, account number, branch code, etc.')}
                           value={method.accountDetails || ''}
                           onChange={(e) => updatePaymentMethod(method.id, 'accountDetails', e.target.value)}
                         ></textarea>
-                        <p className="mt-1 text-xs text-gray-500">These details will appear on your invoices</p>
+                        <p className="mt-1 text-xs text-gray-500">{tt('These details will appear on your invoices')}</p>
                       </div>
                     )}
                     
                     {method.name === 'Mobile Money' && (
                       <div>
                         <label htmlFor={`provider-${method.id}`} className="block text-sm font-medium text-gray-700 mb-1">
-                          Provider
+                          {tt('Provider')}
                         </label>
                         <select 
                           id={`provider-${method.id}`}
@@ -540,11 +541,11 @@ const FinancialSetupPage = () => {
                           value={method.provider || ''}
                           onChange={(e) => updatePaymentMethod(method.id, 'provider', e.target.value)}
                         >
-                          <option value="">Select Provider</option>
-                          <option value="airtel">Airtel Money</option>
-                          <option value="tnm">TNM Mpamba</option>
+                          <option value="">{tt('Select Provider')}</option>
+                          <option value="airtel">{tt('Airtel Money')}</option>
+                          <option value="tnm">{tt('TNM Mpamba')}</option>
                         </select>
-                        <p className="mt-1 text-xs text-gray-500">Select the mobile money provider you use</p>
+                        <p className="mt-1 text-xs text-gray-500">{tt('Select the mobile money provider you use')}</p>
                       </div>
                     )}
                     
@@ -554,7 +555,7 @@ const FinancialSetupPage = () => {
                         className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                       >
                         <Trash2 className="mr-1.5 h-3 w-3" />
-                        Remove
+                        {tt('Remove')}
                       </button>
                     </div>
                   </div>
@@ -565,8 +566,8 @@ const FinancialSetupPage = () => {
             <div className="flex items-start space-x-2 text-sm text-gray-500 bg-gray-50 p-4 rounded-md border border-gray-200">
               <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">About Payment Methods</p>
-                <p className="mt-1">Configure the payment methods your business accepts. Clients will be able to choose from enabled payment methods when paying invoices.</p>
+                <p className="font-medium text-gray-900">{tt('About Payment Methods')}</p>
+                <p className="mt-1">{tt('Configure the payment methods your business accepts. Clients will be able to choose from enabled payment methods when paying invoices.')}</p>
               </div>
             </div>
           </div>
@@ -579,12 +580,12 @@ const FinancialSetupPage = () => {
         <div className="flex items-center">
           <Link href="/account?tab=business" className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
             <ChevronRight className="mr-1.5 h-4 w-4 transform rotate-180" />
-            Previous: Account & business
+            {tt('Previous: Account & business')}
           </Link>
         </div>
         <div className="flex items-center">
           <Link href="/users" className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-            Next: User Management
+            {tt('Next: User Management')}
             <ChevronRight className="ml-1.5 h-4 w-4" />
           </Link>
         </div>

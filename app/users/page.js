@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef } from "react";
 import { 
@@ -372,7 +373,7 @@ const UsersTable = ({
           className="px-4 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
           onClick={() => onRefresh()}
         >
-          Retry
+          {tt('Retry')}
         </button>
       </div>
     );
@@ -384,14 +385,14 @@ const UsersTable = ({
         <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-4">
           <User size={28} className="text-gray-400" />
         </div>
-        <p className="text-gray-600 font-medium mb-1">No users found</p>
-        <p className="text-sm text-gray-500 mb-5">Try adjusting your search or filters</p>
+        <p className="text-gray-600 font-medium mb-1">{tt('No users found')}</p>
+        <p className="text-sm text-gray-500 mb-5">{tt('Try adjusting your search or filters')}</p>
         <button 
           className="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
           onClick={onAddUser}
         >
           <Plus size={18} className="mr-2" />
-          Add User
+          {tt('Add User')}
         </button>
       </div>
     );
@@ -414,7 +415,7 @@ const UsersTable = ({
                 </div>
               </th>
             ))}
-            <th className="sticky right-0 z-20 px-4 py-3.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50/80 shadow-[-6px_0_12px_-4px_rgba(15,23,42,0.12)] min-w-[4.5rem]">Actions</th>
+            <th className="sticky right-0 z-20 px-4 py-3.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50/80 shadow-[-6px_0_12px_-4px_rgba(15,23,42,0.12)] min-w-[4.5rem]">{tt('Actions')}</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-100">
@@ -499,7 +500,7 @@ const UsersTable = ({
                     onClick={() => onToggleActionMenu(user.id)}
                     aria-haspopup="true"
                     aria-expanded={actionMenuOpen === user.id}
-                    aria-label="Open user actions"
+                    aria-label={tt('Open user actions')}
                   >
                     <MoreVertical size={16} />
                   </button>
@@ -623,7 +624,7 @@ const RolesTable = ({
           className="px-4 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
           onClick={() => onRefresh()}
         >
-          Retry
+          {tt('Retry')}
         </button>
       </div>
     );
@@ -635,14 +636,14 @@ const RolesTable = ({
         <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-4">
           <Shield size={28} className="text-gray-400" />
         </div>
-        <p className="text-gray-600 font-medium mb-1">No roles found</p>
-        <p className="text-sm text-gray-500 mb-5">Create a role to assign permissions to users.</p>
+        <p className="text-gray-600 font-medium mb-1">{tt('No roles found')}</p>
+        <p className="text-sm text-gray-500 mb-5">{tt('Create a role to assign permissions to users.')}</p>
         <button 
           className="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
           onClick={onAddRole}
         >
           <Plus size={16} className="mr-2" />
-          Add Role
+          {tt('Add Role')}
         </button>
       </div>
     );
@@ -665,7 +666,7 @@ const RolesTable = ({
                 </div>
               </th>
             ))}
-            <th className="sticky right-0 z-20 px-4 py-3.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50/80 shadow-[-6px_0_12px_-4px_rgba(15,23,42,0.12)] min-w-[4.5rem]">Actions</th>
+            <th className="sticky right-0 z-20 px-4 py-3.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50/80 shadow-[-6px_0_12px_-4px_rgba(15,23,42,0.12)] min-w-[4.5rem]">{tt('Actions')}</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-100">
@@ -719,7 +720,7 @@ const RolesTable = ({
                     onClick={() => onToggleActionMenu(role.id)}
                     aria-haspopup="true"
                     aria-expanded={actionMenuOpen === role.id}
-                    aria-label="Open role actions"
+                    aria-label={tt('Open role actions')}
                   >
                     <MoreVertical size={16} />
                   </button>
@@ -2409,7 +2410,7 @@ const toggleModulePermissions = (module) => {
               </div>
               <input
                 type="text"
-                placeholder="Search users..."
+                placeholder={tt('Search users...')}
                 className="block w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50/50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white sm:text-sm transition-colors"
                 value={searchTerm}
                 onChange={handleSearchChange}
@@ -2421,7 +2422,7 @@ const toggleModulePermissions = (module) => {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-600 flex items-center gap-1.5">
                     <Filter size={16} className="text-gray-400" />
-                    Status
+                    {tt('Status')}
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     {mergedConfig.filters.status.options.map(status => (
@@ -2445,7 +2446,7 @@ const toggleModulePermissions = (module) => {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-600 flex items-center gap-1.5">
                     <Shield size={16} className="text-gray-400" />
-                    Role
+                    {tt('Role')}
                   </span>
                   <div className="relative">
                     <select
@@ -2453,7 +2454,7 @@ const toggleModulePermissions = (module) => {
                       value={filterRole}
                       onChange={(e) => handleFilterChange("role", e.target.value)}
                     >
-                      <option value="all">All Roles</option>
+                      <option value="all">{tt('All Roles')}</option>
                       {rolesData.map(role => (
                         <option key={role.id} value={role.id}>
                           {role.name}
@@ -2523,7 +2524,7 @@ const toggleModulePermissions = (module) => {
                 disabled={currentPage === 1 || loading}
                 onClick={() => handlePageChange(currentPage - 1)}
               >
-                Previous
+                {tt('Previous')}
               </button>
               <div className="order-1 sm:order-2 text-sm text-gray-600">
                 {loading ? (
@@ -2543,7 +2544,7 @@ const toggleModulePermissions = (module) => {
                 disabled={currentPage === totalPages || loading}
                 onClick={() => handlePageChange(currentPage + 1)}
               >
-                Next
+                {tt('Next')}
               </button>
             </div>
           )}
@@ -2563,7 +2564,7 @@ const toggleModulePermissions = (module) => {
               </div>
               <input
                 type="text"
-                placeholder="Search roles..."
+                placeholder={tt('Search roles...')}
                 className="block w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50/50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white sm:text-sm transition-colors"
                 value={searchTerm}
                 onChange={handleSearchChange}
@@ -2639,7 +2640,7 @@ const toggleModulePermissions = (module) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="col-span-1">
               <label htmlFor="firstName" className="block text-sm font-medium mb-1">
-                First Name <span className="text-red-500">*</span>
+                {tt('First Name')} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -2650,7 +2651,7 @@ const toggleModulePermissions = (module) => {
                     ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' 
                     : 'border-gray-200 focus:ring-blue-500 focus:border-blue-500'
                 } rounded`}
-                placeholder="Enter first name"
+                placeholder={tt('Enter first name')}
                 value={userFormData.firstName}
                 onChange={handleUserFormChange}
               />
@@ -2661,7 +2662,7 @@ const toggleModulePermissions = (module) => {
             
             <div className="col-span-1">
               <label htmlFor="lastName" className="block text-sm font-medium mb-1">
-                Last Name <span className="text-red-500">*</span>
+                {tt('Last Name')} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -2672,7 +2673,7 @@ const toggleModulePermissions = (module) => {
                     ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' 
                     : 'border-gray-200 focus:ring-blue-500 focus:border-blue-500'
                 } rounded`}
-                placeholder="Enter last name"
+                placeholder={tt('Enter last name')}
                 value={userFormData.lastName}
                 onChange={handleUserFormChange}
               />
@@ -2683,7 +2684,7 @@ const toggleModulePermissions = (module) => {
             
             <div className="col-span-2">
               <label htmlFor="email" className="block text-sm font-medium mb-1">
-                Email Address <span className="text-red-500">*</span>
+                {tt('Email Address')} <span className="text-red-500">*</span>
               </label>
               <input
                 type="email"
@@ -2694,7 +2695,7 @@ const toggleModulePermissions = (module) => {
                     ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' 
                     : 'border-gray-200 focus:ring-blue-500 focus:border-blue-500'
                 } rounded`}
-                placeholder="Enter email address"
+                placeholder={tt('Enter email address')}
                 value={userFormData.email}
                 onChange={handleUserFormChange}
               />
@@ -2705,7 +2706,7 @@ const toggleModulePermissions = (module) => {
             
             <div className="col-span-1">
               <label htmlFor="role" className="block text-sm font-medium mb-1">
-                Role <span className="text-red-500">*</span>
+                {tt('Role')} <span className="text-red-500">*</span>
               </label>
               <select
                 id="role"
@@ -2718,7 +2719,7 @@ const toggleModulePermissions = (module) => {
                 value={userFormData.role}
                 onChange={handleUserFormChange}
               >
-                <option value="">Select role</option>
+                <option value="">{tt('Select role')}</option>
                 {rolesData.map(role => (
                   <option key={role.id} value={role.id}>
                     {role.name}
@@ -2735,7 +2736,7 @@ const toggleModulePermissions = (module) => {
                 Businesses (assign one or more)
               </label>
               {availableTenants.length === 0 ? (
-                <div className="text-sm text-gray-500">Loading businesses...</div>
+                <div className="text-sm text-gray-500">{tt('Loading businesses...')}</div>
               ) : (
                 <div className="space-y-2 border border-gray-200 rounded p-3 bg-gray-50">
                   {availableTenants.map((t) => {
@@ -2760,7 +2761,7 @@ const toggleModulePermissions = (module) => {
                             value={selectedRoleId}
                             onChange={(e) => setMembershipRole(t.id, e.target.value)}
                           >
-                            <option value="">Select role</option>
+                            <option value="">{tt('Select role')}</option>
                             {(Array.isArray(tenantRoles) ? tenantRoles : []).map((r) => (
                               <option key={r.id} value={r.id}>{r.name}</option>
                             ))}
@@ -2772,7 +2773,7 @@ const toggleModulePermissions = (module) => {
                 </div>
               )}
               <p className="mt-2 text-xs text-gray-500">
-                Users can switch between assigned businesses. Roles can differ per business.
+                {tt('Users can switch between assigned businesses. Roles can differ per business.')}
               </p>
             </div>
 
@@ -2796,7 +2797,7 @@ const toggleModulePermissions = (module) => {
                   }
                 }}
               >
-                <option value="">No department</option>
+                <option value="">{tt('No department')}</option>
                 {departments.map((d) => (
                   <option key={d.id} value={d.name}>{d.name}</option>
                 ))}
@@ -2808,7 +2809,7 @@ const toggleModulePermissions = (module) => {
                     type="text"
                     value={newDepartmentName}
                     onChange={(e) => setNewDepartmentName(e.target.value)}
-                    placeholder="New department name"
+                    placeholder={tt('New department name')}
                     className="flex-1 p-2 border border-gray-200 rounded"
                   />
                   <button
@@ -2825,7 +2826,7 @@ const toggleModulePermissions = (module) => {
 
             <div className="col-span-1">
               <label htmlFor="status" className="block text-sm font-medium mb-1">
-                Status
+                {tt('Status')}
               </label>
               <select
                 id="status"
@@ -2834,9 +2835,9 @@ const toggleModulePermissions = (module) => {
                 value={userFormData.status}
                 onChange={handleUserFormChange}
               >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="pending">Pending</option>
+                <option value="active">{tt('Active')}</option>
+                <option value="inactive">{tt('Inactive')}</option>
+                <option value="pending">{tt('Pending')}</option>
               </select>
             </div>
             
@@ -2851,7 +2852,7 @@ const toggleModulePermissions = (module) => {
                     checked={userFormData.sendEmail} 
                     onChange={handleUserFormChange}
                   />
-                  <span className="ml-2 text-sm text-gray-700">Send Welcome Email</span>
+                  <span className="ml-2 text-sm text-gray-700">{tt('Send Welcome Email')}</span>
                 </label>
               </div>
             </div>
@@ -2872,7 +2873,7 @@ const toggleModulePermissions = (module) => {
             onClick={() => setShowAddUserModal(false)}
             disabled={loading}
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="submit"
@@ -2882,7 +2883,7 @@ const toggleModulePermissions = (module) => {
             {loading ? (
               <>
                 <Loader size={16} className="animate-spin mr-2" />
-                Creating...
+                {tt('Creating...')}
               </>
             ) : "Add User"}
           </button>
@@ -2913,7 +2914,7 @@ const toggleModulePermissions = (module) => {
           <div className="space-y-4">
             <div>
               <label htmlFor="name" className="block text-sm font-medium mb-1">
-                Role Name <span className="text-red-500">*</span>
+                {tt('Role Name')} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -2924,7 +2925,7 @@ const toggleModulePermissions = (module) => {
                     ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' 
                     : 'border-gray-200 focus:ring-blue-500 focus:border-blue-500'
                 } rounded`}
-                placeholder="Enter role name"
+                placeholder={tt('Enter role name')}
                 value={roleFormData.name}
                 onChange={handleRoleFormChange}
               />
@@ -2935,7 +2936,7 @@ const toggleModulePermissions = (module) => {
             
             <div>
               <label htmlFor="description" className="block text-sm font-medium mb-1">
-                Description <span className="text-red-500">*</span>
+                {tt('Description')} <span className="text-red-500">*</span>
               </label>
               <textarea
                 id="description"
@@ -2945,7 +2946,7 @@ const toggleModulePermissions = (module) => {
                     ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' 
                     : 'border-gray-200 focus:ring-blue-500 focus:border-blue-500'
                 } rounded`}
-                placeholder="Enter role description"
+                placeholder={tt('Enter role description')}
                 value={roleFormData.description}
                 onChange={handleRoleFormChange}
                 rows={3}
@@ -2957,7 +2958,7 @@ const toggleModulePermissions = (module) => {
           </div>
           
           <div className="mt-6">
-  <h3 className="text-lg font-medium mb-4">Set Permissions</h3>
+  <h3 className="text-lg font-medium mb-4">{tt('Set Permissions')}</h3>
   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
     {Object.entries(permissionModules).map(([module, { label, actions }]) => (
       <div key={module} className="bg-gray-50 p-4 rounded">
@@ -3004,7 +3005,7 @@ const toggleModulePermissions = (module) => {
             className="px-4 py-2 border border-gray-200 rounded"
             onClick={() => setShowAddRoleModal(false)}
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="submit"
@@ -3014,7 +3015,7 @@ const toggleModulePermissions = (module) => {
             {loading ? (
               <>
                 <Loader size={16} className="animate-spin mr-2" />
-                Creating...
+                {tt('Creating...')}
               </>
             ) : "Add Role"}
           </button>
@@ -3059,33 +3060,33 @@ const toggleModulePermissions = (module) => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div className="bg-gray-50 p-3 rounded">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Department</div>
+            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{tt('Department')}</div>
             <div className="text-sm font-medium">{selectedUser.department || "—"}</div>
           </div>
           <div className="bg-gray-50 p-3 rounded">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Last Login</div>
+            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{tt('Last Login')}</div>
             <div className="text-sm font-medium">{formatTimeAgo(selectedUser.lastLogin)}</div>
           </div>
           <div className="bg-gray-50 p-3 rounded">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Created</div>
+            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{tt('Created')}</div>
             <div className="text-sm font-medium">{formatDate(selectedUser.createdAt)}</div>
           </div>
           <div className="bg-gray-50 p-3 rounded">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">User ID</div>
+            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{tt('User ID')}</div>
             <div className="text-sm font-medium">{selectedUser.id}</div>
           </div>
           <div className="bg-gray-50 p-3 rounded">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Email Verified</div>
+            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{tt('Email Verified')}</div>
             <div className="text-sm font-medium">
               {selectedUser.isEmailVerified ? (
                 <span className="inline-flex items-center text-green-700">
                   <CheckCircle size={14} className="mr-1" />
-                  Verified
+                  {tt('Verified')}
                 </span>
               ) : (
                 <span className="inline-flex items-center text-red-700">
                   <XCircle size={14} className="mr-1" />
-                  Not Verified
+                  {tt('Not Verified')}
                 </span>
               )}
             </div>
@@ -3111,7 +3112,7 @@ const toggleModulePermissions = (module) => {
                 } catch (e) {
                   return (
                     <div className="text-sm text-gray-500">
-                      Unable to display permissions. The data format is not supported.
+                      {tt('Unable to display permissions. The data format is not supported.')}
                     </div>
                   );
                 }
@@ -3157,7 +3158,7 @@ const toggleModulePermissions = (module) => {
             } else {
               return (
                 <div className="text-sm text-gray-500">
-                  No detailed permissions information available for this role.
+                  {tt('No detailed permissions information available for this role.')}
                 </div>
               );
             }
@@ -3170,7 +3171,7 @@ const toggleModulePermissions = (module) => {
           className="px-4 py-2 border border-gray-200 rounded"
           onClick={() => setShowUserDetailsModal(false)}
         >
-          Close
+          {tt('Close')}
         </button>
         <button 
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -3179,7 +3180,7 @@ const toggleModulePermissions = (module) => {
             handleEditUser(selectedUser);
           }}
         >
-          Edit User
+          {tt('Edit User')}
         </button>
       </div>
     </div>
@@ -3214,7 +3215,7 @@ const toggleModulePermissions = (module) => {
         </div>
         
         <div className="mb-4 bg-gray-50 p-3 rounded">
-          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Users with this role</div>
+          <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{tt('Users with this role')}</div>
           <div className="text-xl font-semibold">
             {typeof selectedRole.users === 'number' ? selectedRole.users : 
              Array.isArray(selectedRole.users) ? selectedRole.users.length : 
@@ -3224,14 +3225,14 @@ const toggleModulePermissions = (module) => {
         
         <div className="mb-6">
           <h4 className="font-medium mb-3 pb-2 border-b border-gray-200">
-            Permissions
+            {tt('Permissions')}
           </h4>
           
           {(() => {
             if (!selectedRole.permissions) {
               return (
                 <div className="text-sm text-gray-500">
-                  No permissions information available.
+                  {tt('No permissions information available.')}
                 </div>
               );
             }
@@ -3245,7 +3246,7 @@ const toggleModulePermissions = (module) => {
               } catch (e) {
                 return (
                   <div className="text-sm text-gray-500">
-                    Unable to display permissions. The data format is not supported.
+                    {tt('Unable to display permissions. The data format is not supported.')}
                   </div>
                 );
               }
@@ -3259,9 +3260,9 @@ const toggleModulePermissions = (module) => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Permission</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Access</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Category')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Permission')}</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Access')}</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -3327,7 +3328,7 @@ const toggleModulePermissions = (module) => {
         {Array.isArray(selectedRole.assignedUsers) && selectedRole.assignedUsers.length > 0 && (
           <div className="mb-6">
             <h4 className="font-medium mb-3 pb-2 border-b border-gray-200">
-              Assigned Users
+              {tt('Assigned Users')}
             </h4>
             <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
               {selectedRole.assignedUsers.map(user => (
@@ -3354,7 +3355,7 @@ const toggleModulePermissions = (module) => {
           className="px-4 py-2 border border-gray-200 rounded"
           onClick={() => setShowRoleDetailsModal(false)}
         >
-          Close
+          {tt('Close')}
         </button>
         <button 
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -3363,7 +3364,7 @@ const toggleModulePermissions = (module) => {
             handleEditRole(selectedRole);
           }}
         >
-          Edit Role
+          {tt('Edit Role')}
         </button>
       </div>
     </div>
@@ -3393,7 +3394,7 @@ const toggleModulePermissions = (module) => {
     <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
       <div className="p-6 border-b border-gray-200">
         <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Edit User</h2>
+          <h2 className="text-xl font-semibold">{tt('Edit User')}</h2>
           <button
             onClick={() => {
               setShowEditUserModal(false);
@@ -3411,7 +3412,7 @@ const toggleModulePermissions = (module) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="col-span-1">
               <label htmlFor="edit-firstName" className="block text-sm font-medium mb-1">
-                First Name <span className="text-red-500">*</span>
+                {tt('First Name')} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -3422,7 +3423,7 @@ const toggleModulePermissions = (module) => {
                     ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' 
                     : 'border-gray-200 focus:ring-blue-500 focus:border-blue-500'
                 } rounded`}
-                placeholder="Enter first name"
+                placeholder={tt('Enter first name')}
                 value={editingUser.firstName}
                 onChange={(e) => setEditingUser({...editingUser, firstName: e.target.value})}
               />
@@ -3433,7 +3434,7 @@ const toggleModulePermissions = (module) => {
             
             <div className="col-span-1">
               <label htmlFor="edit-lastName" className="block text-sm font-medium mb-1">
-                Last Name <span className="text-red-500">*</span>
+                {tt('Last Name')} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -3444,7 +3445,7 @@ const toggleModulePermissions = (module) => {
                     ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' 
                     : 'border-gray-200 focus:ring-blue-500 focus:border-blue-500'
                 } rounded`}
-                placeholder="Enter last name"
+                placeholder={tt('Enter last name')}
                 value={editingUser.lastName}
                 onChange={(e) => setEditingUser({...editingUser, lastName: e.target.value})}
               />
@@ -3455,7 +3456,7 @@ const toggleModulePermissions = (module) => {
             
             <div className="col-span-2">
               <label htmlFor="edit-email" className="block text-sm font-medium mb-1">
-                Email Address <span className="text-red-500">*</span>
+                {tt('Email Address')} <span className="text-red-500">*</span>
               </label>
               <input
                 type="email"
@@ -3466,7 +3467,7 @@ const toggleModulePermissions = (module) => {
                     ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' 
                     : 'border-gray-200 focus:ring-blue-500 focus:border-blue-500'
                 } rounded`}
-                placeholder="Enter email address"
+                placeholder={tt('Enter email address')}
                 value={editingUser.email}
                 onChange={(e) => setEditingUser({...editingUser, email: e.target.value})}
               />
@@ -3477,7 +3478,7 @@ const toggleModulePermissions = (module) => {
             
             <div className="col-span-1">
               <label htmlFor="edit-role" className="block text-sm font-medium mb-1">
-                Role <span className="text-red-500">*</span>
+                {tt('Role')} <span className="text-red-500">*</span>
               </label>
               <select
                 id="edit-role"
@@ -3490,7 +3491,7 @@ const toggleModulePermissions = (module) => {
                 value={editingUser.role}
                 onChange={(e) => setEditingUser({...editingUser, role: e.target.value})}
               >
-                <option value="">Select role</option>
+                <option value="">{tt('Select role')}</option>
                 {rolesData.map(role => (
                   <option key={role.id} value={role.id}>
                     {role.name}
@@ -3507,7 +3508,7 @@ const toggleModulePermissions = (module) => {
                 Businesses (assign one or more)
               </label>
               {availableTenants.length === 0 ? (
-                <div className="text-sm text-gray-500">Loading businesses...</div>
+                <div className="text-sm text-gray-500">{tt('Loading businesses...')}</div>
               ) : (
                 <div className="space-y-2 border border-gray-200 rounded p-3 bg-gray-50">
                   {availableTenants.map((t) => {
@@ -3544,7 +3545,7 @@ const toggleModulePermissions = (module) => {
                               await ensureTenantRolesLoaded(t.id);
                             }}
                           >
-                            <option value="">Select role</option>
+                            <option value="">{tt('Select role')}</option>
                             {(Array.isArray(tenantRoles) ? tenantRoles : []).map((r) => (
                               <option key={r.id} value={r.id}>{r.name}</option>
                             ))}
@@ -3559,14 +3560,14 @@ const toggleModulePermissions = (module) => {
 
             <div className="col-span-1">
               <label htmlFor="edit-department" className="block text-sm font-medium mb-1">
-                Department
+                {tt('Department')}
               </label>
               <input
                 type="text"
                 id="edit-department"
                 name="department"
                 className="w-full p-2 border border-gray-200 rounded"
-                placeholder="Enter department"
+                placeholder={tt('Enter department')}
                 value={editingUser.department}
                 onChange={(e) => setEditingUser({...editingUser, department: e.target.value})}
               />
@@ -3574,7 +3575,7 @@ const toggleModulePermissions = (module) => {
             
             <div className="col-span-1">
               <label htmlFor="edit-status" className="block text-sm font-medium mb-1">
-                Status
+                {tt('Status')}
               </label>
               <select
                 id="edit-status"
@@ -3583,10 +3584,10 @@ const toggleModulePermissions = (module) => {
                 value={editingUser.status}
                 onChange={(e) => setEditingUser({...editingUser, status: e.target.value})}
               >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="deleted">Deleted</option>
-                <option value="pending">Pending</option>
+                <option value="active">{tt('Active')}</option>
+                <option value="inactive">{tt('Inactive')}</option>
+                <option value="deleted">{tt('Deleted')}</option>
+                <option value="pending">{tt('Pending')}</option>
               </select>
             </div>
           </div>
@@ -3602,7 +3603,7 @@ const toggleModulePermissions = (module) => {
             }}
             disabled={loading}
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="submit"
@@ -3612,7 +3613,7 @@ const toggleModulePermissions = (module) => {
             {loading ? (
               <>
                 <Loader size={16} className="animate-spin mr-2" />
-                Updating...
+                {tt('Updating...')}
               </>
             ) : "Update User"}
           </button>
@@ -3628,7 +3629,7 @@ const toggleModulePermissions = (module) => {
     <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
       <div className="p-6 border-b border-gray-200">
         <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Edit Role</h2>
+          <h2 className="text-xl font-semibold">{tt('Edit Role')}</h2>
           <button
             onClick={() => {
               setShowEditRoleModal(false);
@@ -3646,7 +3647,7 @@ const toggleModulePermissions = (module) => {
           <div className="space-y-4">
             <div>
               <label htmlFor="edit-role-name" className="block text-sm font-medium mb-1">
-                Role Name <span className="text-red-500">*</span>
+                {tt('Role Name')} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -3657,7 +3658,7 @@ const toggleModulePermissions = (module) => {
                     ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' 
                     : 'border-gray-200 focus:ring-blue-500 focus:border-blue-500'
                 } rounded`}
-                placeholder="Enter role name"
+                placeholder={tt('Enter role name')}
                 value={editingRole.name}
                 onChange={(e) => setEditingRole({...editingRole, name: e.target.value})}
               />
@@ -3668,7 +3669,7 @@ const toggleModulePermissions = (module) => {
             
             <div>
               <label htmlFor="edit-role-description" className="block text-sm font-medium mb-1">
-                Description <span className="text-red-500">*</span>
+                {tt('Description')} <span className="text-red-500">*</span>
               </label>
               <textarea
                 id="edit-role-description"
@@ -3678,7 +3679,7 @@ const toggleModulePermissions = (module) => {
                     ? 'border-red-300 text-red-900 placeholder-red-300 focus:outline-none focus:ring-red-500 focus:border-red-500' 
                     : 'border-gray-200 focus:ring-blue-500 focus:border-blue-500'
                 } rounded`}
-                placeholder="Enter role description"
+                placeholder={tt('Enter role description')}
                 value={editingRole.description}
                 onChange={(e) => setEditingRole({...editingRole, description: e.target.value})}
                 rows={3}
@@ -3690,7 +3691,7 @@ const toggleModulePermissions = (module) => {
           </div>
           
           <div className="mt-6">
-            <h3 className="text-lg font-medium mb-4">Update Permissions</h3>
+            <h3 className="text-lg font-medium mb-4">{tt('Update Permissions')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Object.entries(permissionModules).map(([module, { label, actions }]) => (
                 <div key={module} className="bg-gray-50 p-4 rounded">
@@ -3753,7 +3754,7 @@ const toggleModulePermissions = (module) => {
               setEditingRole(null);
             }}
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="submit"
@@ -3763,7 +3764,7 @@ const toggleModulePermissions = (module) => {
             {loading ? (
               <>
                 <Loader size={16} className="animate-spin mr-2" />
-                Updating...
+                {tt('Updating...')}
               </>
             ) : "Update Role"}
           </button>

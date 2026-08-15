@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
@@ -42,7 +43,7 @@ export default function ProductSearchSelect({
   products = [],
   value,
   onChange,
-  placeholder = "Search products…",
+  placeholder = tt('Search products…'),
   required = false,
   disabled = false,
   className = "",
@@ -108,7 +109,7 @@ export default function ProductSearchSelect({
       {open && !disabled && (
         <div className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
           {filteredProducts.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-gray-500">No products match your search</p>
+            <p className="px-3 py-2 text-sm text-gray-500">{tt('No products match your search')}</p>
           ) : (
             filteredProducts.map((product) => (
               <button

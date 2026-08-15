@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState } from 'react';
 import { CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, BookOpen } from 'lucide-react';
@@ -40,7 +41,7 @@ export function ReportReconciliationBadge({ reconciliationMeta, className = '' }
               {glBacked && (
                 <span className="inline-flex items-center gap-1">
                   <BookOpen size={12} />
-                  Ledger-backed
+                  {tt('Ledger-backed')}
                 </span>
               )}
               {ledgerSource && <span>Source: {ledgerSource.replace(/_/g, ' ')}</span>}
@@ -66,11 +67,11 @@ export function ReportReconciliationBadge({ reconciliationMeta, className = '' }
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left opacity-70">
-                <th className="pb-1 pr-3 font-medium">Line</th>
-                <th className="pb-1 pr-3 font-medium text-right">GL</th>
-                <th className="pb-1 pr-3 font-medium text-right">Operational</th>
-                <th className="pb-1 pr-3 font-medium text-right">Variance</th>
-                <th className="pb-1 font-medium">Status</th>
+                <th className="pb-1 pr-3 font-medium">{tt('Line')}</th>
+                <th className="pb-1 pr-3 font-medium text-right">{tt('GL')}</th>
+                <th className="pb-1 pr-3 font-medium text-right">{tt('Operational')}</th>
+                <th className="pb-1 pr-3 font-medium text-right">{tt('Variance')}</th>
+                <th className="pb-1 font-medium">{tt('Status')}</th>
               </tr>
             </thead>
             <tbody>

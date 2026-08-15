@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef } from "react"; 
 import { useSearchParams } from "next/navigation";
@@ -90,7 +91,7 @@ const StatusBadge = ({ status }) => {
   return (
     <span className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 ${config.class}`}>
       <Icon size={14} className={config.iconClass} />
-      {status}
+      {tt(status)}
     </span>
   );
 };
@@ -105,7 +106,7 @@ const TabButton = ({ active, onClick, label, count }) => (
         : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
     }`}
   >
-    {label}
+    {tt(label)}
     {count !== undefined && (
       <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${active ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}>
         {count}
@@ -762,9 +763,9 @@ const InvoicingPage = () => {
                     const selected = invoiceTemplates.find(t => t.id === e.target.value);
                     setSelectedTemplate(selected || null);
                   }}
-                  aria-label="Invoice template"
+                  aria-label={tt('Invoice template')}
                 >
-                  <option value="" disabled>Select Template</option>
+                  <option value="" disabled>{tt('Select Template')}</option>
                   {invoiceTemplates.map((template) => (
                     <option key={template.id} value={template.id}>
                       {template.name} {template.isDefault ? '(Default)' : ''}
@@ -782,7 +783,7 @@ const InvoicingPage = () => {
                   onClick={openCreateInvoiceModal}
                 >
                   <PlusCircle size={18} className="mr-2" aria-hidden="true" />
-                  New Invoice
+                  {tt('New Invoice')}
                 </button>
               )}
             </>
@@ -825,7 +826,7 @@ const InvoicingPage = () => {
             <div className="w-full md:w-96 relative">
               <input 
                 type="text" 
-                placeholder="Search by invoice number or client..." 
+                placeholder={tt('Search by invoice number or client...')} 
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 value={searchQuery}
                 onChange={handleSearchChange}
@@ -842,7 +843,7 @@ const InvoicingPage = () => {
                   onClick={() => { setFilterOpen(!filterOpen); setSortOpen(false); }}
                 >
                   <Filter size={16} className="mr-2 text-gray-500" />
-                  Filter
+                  {tt('Filter')}
                   <ChevronDown size={16} className="ml-2 text-gray-500" />
                 </button>
                 
@@ -857,7 +858,7 @@ const InvoicingPage = () => {
                   className="w-80"
                 >
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-semibold text-gray-900">Filter Invoices</h3>
+                    <h3 className="font-semibold text-gray-900">{tt('Filter Invoices')}</h3>
                     <button type="button" className="text-gray-400 hover:text-gray-600" onClick={() => setFilterOpen(false)}>
                       <X size={18} />
                     </button>
@@ -865,28 +866,28 @@ const InvoicingPage = () => {
                   
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">{tt('Status')}</label>
                       <select 
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={filterOptions.status}
                         onChange={(e) => handleFilterChange('status', e.target.value)}
                       >
-                        <option value="all">All Statuses</option>
-                        <option value="draft">Draft</option>
-                        <option value="pending">Pending</option>
-                        <option value="paid">Paid</option>
-                        <option value="overdue">Overdue</option>
+                        <option value="all">{tt('All Statuses')}</option>
+                        <option value="draft">{tt('Draft')}</option>
+                        <option value="pending">{tt('Pending')}</option>
+                        <option value="paid">{tt('Paid')}</option>
+                        <option value="overdue">{tt('Overdue')}</option>
                       </select>
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Client</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">{tt('Client')}</label>
                       <select 
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={filterOptions.client}
                         onChange={(e) => handleFilterChange('client', e.target.value)}
                       >
-                        <option value="">All Clients</option>
+                        <option value="">{tt('All Clients')}</option>
                         {clients.map(client => (
                           <option key={client.id} value={client.id}>{client.name}</option>
                         ))}
@@ -895,7 +896,7 @@ const InvoicingPage = () => {
                     
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">From Date</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">{tt('From Date')}</label>
                         <input 
                           type="date"
                           className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -904,7 +905,7 @@ const InvoicingPage = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">To Date</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">{tt('To Date')}</label>
                         <input 
                           type="date"
                           className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -921,14 +922,14 @@ const InvoicingPage = () => {
                       className="px-4 py-2 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                       onClick={resetFilters}
                     >
-                      Reset
+                      {tt('Reset')}
                     </button>
                     <button 
                       type="button"
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                       onClick={applyFilters}
                     >
-                      Apply Filters
+                      {tt('Apply Filters')}
                     </button>
                   </div>
                 </PortalPopover>
@@ -943,7 +944,7 @@ const InvoicingPage = () => {
                   onClick={() => { setSortOpen(!sortOpen); setFilterOpen(false); }}
                 >
                   <ArrowUpDown size={16} className="mr-2 text-gray-500" />
-                  Sort
+                  {tt('Sort')}
                   <ChevronDown size={16} className="ml-2 text-gray-500" />
                 </button>
                 
@@ -969,7 +970,7 @@ const InvoicingPage = () => {
                       active={sortBy === option.field}
                       onClick={() => handleSortChange(option.field)}
                     >
-                      <span>{option.label}</span>
+                      <span>{tt(option.label)}</span>
                       {sortBy === option.field && (
                         <span className="text-xs font-medium">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                       )}
@@ -985,7 +986,7 @@ const InvoicingPage = () => {
                   onClick={() => handleExport('csv')}
                 >
                   <Download size={16} className="mr-2 text-gray-500" />
-                  Export
+                  {tt('Export')}
                 </button>
               )}
             </div>
@@ -995,7 +996,7 @@ const InvoicingPage = () => {
           {isLoading ? (
             <div className="p-12 text-center">
               <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-3"></div>
-              <p className="text-gray-500">Loading invoices...</p>
+              <p className="text-gray-500">{tt('Loading invoices...')}</p>
             </div>
           ) : error ? (
             <div className="p-12 text-center">
@@ -1005,13 +1006,13 @@ const InvoicingPage = () => {
                 className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 onClick={loadInvoices}
               >
-                Try Again
+                {tt('Try Again')}
               </button>
             </div>
           ) : invoices.length === 0 ? (
             <div className="p-12 text-center">
               <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No invoices found</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">{tt('No invoices found')}</h3>
               <p className="text-gray-500 mb-6">
                 {activeTab !== "all" || searchQuery 
                   ? "Try adjusting your filters or search query"
@@ -1023,7 +1024,7 @@ const InvoicingPage = () => {
                   onClick={openCreateInvoiceModal}
                 >
                   <PlusCircle className="w-4 h-4 mr-2" />
-                  Create Invoice
+                  {tt('Create Invoice')}
                 </button>
               )}
             </div>
@@ -1033,13 +1034,13 @@ const InvoicingPage = () => {
                 <table className="w-full">
                   <thead className="bg-gray-50/50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice #</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Due Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Client</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Status</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{tt('Invoice #')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">{tt('Date')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">{tt('Due Date')}</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{tt('Client')}</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">{tt('Amount')}</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">{tt('Status')}</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
@@ -1064,7 +1065,7 @@ const InvoicingPage = () => {
                                 <div className="text-sm font-bold text-gray-900">
                                   MWK {formatInvoiceMoney(total)}
                                 </div>
-                                <div className="text-xs text-gray-500">Total</div>
+                                <div className="text-xs text-gray-500">{tt('Total')}</div>
                                 <div className="text-xs text-emerald-600">
                                   Paid: MWK {formatInvoiceMoney(paid)}
                                 </div>
@@ -1172,7 +1173,7 @@ const InvoicingPage = () => {
               {!isLoading && !error && invoices.length > 0 && (
                 <div className="px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-100">
                   <div className="text-sm text-gray-600 order-2 sm:order-1">
-                    Showing <span className="font-semibold">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="font-semibold">{Math.min(pagination.page * pagination.limit, pagination.totalCount)}</span> of <span className="font-semibold">{pagination.totalCount}</span> invoices
+                    {tt('Showing')} <span className="font-semibold">{(pagination.page - 1) * pagination.limit + 1}</span> {tt('to')} <span className="font-semibold">{Math.min(pagination.page * pagination.limit, pagination.totalCount)}</span> {tt('of')} <span className="font-semibold">{pagination.totalCount}</span> {tt('invoices')}
                   </div>
                   <div className="flex items-center gap-2 order-1 sm:order-2">
                     <button 
@@ -1180,7 +1181,7 @@ const InvoicingPage = () => {
                       disabled={pagination.page === 1}
                       onClick={() => handlePageChange(pagination.page - 1)}
                     >
-                      Previous
+                      {tt('Previous')}
                     </button>
                     
                     {[...Array(Math.min(pagination.totalPages, 5))].map((_, i) => {
@@ -1209,7 +1210,7 @@ const InvoicingPage = () => {
                       disabled={pagination.page === pagination.totalPages}
                       onClick={() => handlePageChange(pagination.page + 1)}
                     >
-                      Next
+                      {tt('Next')}
                     </button>
                   </div>
                 </div>
@@ -1238,7 +1239,7 @@ const InvoicingPage = () => {
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
               <div className="flex justify-between items-center p-5 border-b border-gray-100">
-                <h2 className="text-xl font-bold text-gray-900">Invoice Preview</h2>
+                <h2 className="text-xl font-bold text-gray-900">{tt('Invoice Preview')}</h2>
                 <div className="flex items-center gap-3">
                   <div className="relative">
                     <select
@@ -1264,7 +1265,7 @@ const InvoicingPage = () => {
                     onClick={() => handleDownload(invoiceForPreview.id)}
                   >
                     <Download size={16} className="mr-2" />
-                    Download
+                    {tt('Download')}
                   </button>
                   <button
                     className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -1366,8 +1367,8 @@ const InvoicingPage = () => {
               <div className="flex items-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-4"></div>
                 <div>
-                  <p className="font-medium text-gray-900">Preparing invoice...</p>
-                  <p className="text-sm text-gray-500">This may take a few seconds</p>
+                  <p className="font-medium text-gray-900">{tt('Preparing invoice...')}</p>
+                  <p className="text-sm text-gray-500">{tt('This may take a few seconds')}</p>
                 </div>
               </div>
             </div>

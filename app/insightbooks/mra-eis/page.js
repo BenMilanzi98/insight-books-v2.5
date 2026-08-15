@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -179,7 +180,7 @@ export default function AdminMraEisPage() {
           className="text-sm text-[var(--action-primary)] underline"
           href={`/insightbooks/mra-eis/tenants/${row.tenantId}`}
         >
-          Open detail
+          {tt('Open detail')}
         </Link>
       ),
     },
@@ -192,7 +193,7 @@ export default function AdminMraEisPage() {
         description="Platform and tenant control plane. Terminal activation is under Terminals (metadata only — credentials are never displayed). This screen does not submit fiscal transactions."
         actions={
           <button type="button" onClick={load} className={btnGhost} disabled={loading}>
-            <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+            <RefreshCw className="h-4 w-4" aria-hidden /> {tt('Refresh')}
           </button>
         }
       />
@@ -217,7 +218,7 @@ export default function AdminMraEisPage() {
       <section className={sectionCls} aria-labelledby="platform-heading">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="platform-heading" className="text-base font-semibold text-[var(--admin-text)]">
-            Platform status
+            {tt('Platform status')}
           </h2>
           {platform ? (
             <AdminStatusBadge tone={statusTone(platform.status)}>
@@ -227,17 +228,17 @@ export default function AdminMraEisPage() {
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="block text-sm">
-            <span className="mb-1 block font-medium text-[var(--admin-text)]">Status</span>
+            <span className="mb-1 block font-medium text-[var(--admin-text)]">{tt('Status')}</span>
             <select
               className={inputCls}
               value={platformForm.status}
               onChange={(e) => setPlatformForm((f) => ({ ...f, status: e.target.value }))}
             >
-              <option value="DISABLED">Disabled</option>
-              <option value="ENABLED">Enabled</option>
-              <option value="EMERGENCY_PAUSED">Emergency paused</option>
-              <option value="MAINTENANCE">Maintenance</option>
-              <option value="RETIRED">Retired</option>
+              <option value="DISABLED">{tt('Disabled')}</option>
+              <option value="ENABLED">{tt('Enabled')}</option>
+              <option value="EMERGENCY_PAUSED">{tt('Emergency paused')}</option>
+              <option value="MAINTENANCE">{tt('Maintenance')}</option>
+              <option value="RETIRED">{tt('Retired')}</option>
             </select>
           </label>
           <label className="block text-sm">
@@ -252,20 +253,20 @@ export default function AdminMraEisPage() {
           </label>
         </div>
         <button type="button" onClick={savePlatform} className={`${btnPrimary} mt-4`}>
-          Update platform status
+          {tt('Update platform status')}
         </button>
       </section>
 
       <section className={sectionCls} aria-labelledby="grant-heading">
         <h2 id="grant-heading" className="text-base font-semibold text-[var(--admin-text)]">
-          Grant tenant entitlement
+          {tt('Grant tenant entitlement')}
         </h2>
         <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
-          Tenants cannot self-entitle. Production does not imply certification or operational readiness.
+          {tt('Tenants cannot self-entitle. Production does not imply certification or operational readiness.')}
         </p>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="block text-sm">
-            <span className="mb-1 block font-medium text-[var(--admin-text)]">Tenant ID</span>
+            <span className="mb-1 block font-medium text-[var(--admin-text)]">{tt('Tenant ID')}</span>
             <input
               className={inputCls}
               value={grant.tenantId}
@@ -273,7 +274,7 @@ export default function AdminMraEisPage() {
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block font-medium text-[var(--admin-text)]">Reason</span>
+            <span className="mb-1 block font-medium text-[var(--admin-text)]">{tt('Reason')}</span>
             <input
               className={inputCls}
               value={grant.reason}
@@ -290,7 +291,7 @@ export default function AdminMraEisPage() {
           Grant production entitlement (still requires certification)
         </label>
         <button type="button" onClick={grantEntitlement} className={`${btnPrimary} mt-4`}>
-          Grant entitlement
+          {tt('Grant entitlement')}
         </button>
       </section>
 
@@ -300,32 +301,32 @@ export default function AdminMraEisPage() {
       >
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <h2 id="list-heading" className="text-base font-semibold text-[var(--admin-text)]">
-            Tenant entitlements
+            {tt('Tenant entitlements')}
           </h2>
           <div className="flex flex-wrap gap-2">
             <input
-              aria-label="Search tenants"
-              placeholder="Search name or ID"
+              aria-label={tt('Search tenants')}
+              placeholder={tt('Search name or ID')}
               className={`${inputCls} w-auto min-w-[10rem]`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             <select
-              aria-label="Filter status"
+              aria-label={tt('Filter status')}
               className={`${inputCls} w-auto`}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option value="">All statuses</option>
-              <option value="ENTITLED_SANDBOX_ONLY">Sandbox</option>
-              <option value="ENTITLED_PRODUCTION">Production</option>
-              <option value="SUSPENDED">Suspended</option>
-              <option value="REVOKED">Revoked</option>
-              <option value="EXPIRED">Expired</option>
+              <option value="">{tt('All statuses')}</option>
+              <option value="ENTITLED_SANDBOX_ONLY">{tt('Sandbox')}</option>
+              <option value="ENTITLED_PRODUCTION">{tt('Production')}</option>
+              <option value="SUSPENDED">{tt('Suspended')}</option>
+              <option value="REVOKED">{tt('Revoked')}</option>
+              <option value="EXPIRED">{tt('Expired')}</option>
             </select>
             <button type="button" onClick={load} className={btnGhost}>
               <RefreshCw className="h-4 w-4" aria-hidden />
-              Refresh
+              {tt('Refresh')}
             </button>
           </div>
         </div>

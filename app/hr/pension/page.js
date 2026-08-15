@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useMemo, useState } from "react";
 import { Download, FileSpreadsheet, Search, User, Loader } from "lucide-react";
@@ -397,7 +398,7 @@ export default function PensionManagementPage() {
             </button>
           </div>
           <p className="text-sm text-gray-600 mb-4">
-            Set the NPS contribution rates. These rates are used when NPS is enabled for an employee.
+            {tt('Set the NPS contribution rates. These rates are used when NPS is enabled for an employee.')}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -425,7 +426,7 @@ export default function PensionManagementPage() {
               />
             </div>
             <div className="bg-gray-50 border border-gray-200 rounded-md p-3 flex flex-col justify-center">
-              <div className="text-sm text-gray-600">Total Rate</div>
+              <div className="text-sm text-gray-600">{tt('Total Rate')}</div>
               <div className="text-lg font-semibold text-gray-900">
                 {(Number(npsEmployeeRatePercent || 0) + Number(npsEmployerRatePercent || 0)).toFixed(1)}%
               </div>
@@ -435,7 +436,7 @@ export default function PensionManagementPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Start Date')}</label>
             <input
               type="date"
               value={reportStartDate}
@@ -444,7 +445,7 @@ export default function PensionManagementPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('End Date')}</label>
             <input
               type="date"
               value={reportEndDate}
@@ -453,14 +454,14 @@ export default function PensionManagementPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Employee')}</label>
             <select
               value={reportEmployeeId}
               onChange={(e) => setReportEmployeeId(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
               disabled={loadingEmployees}
             >
-              <option value="all">All Employees</option>
+              <option value="all">{tt('All Employees')}</option>
               {employees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
                   {emp.name}
@@ -477,12 +478,12 @@ export default function PensionManagementPage() {
               {reportLoading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Loading...
+                  {tt('Loading...')}
                 </>
               ) : (
                 <>
                   <Search size={18} />
-                  Generate Report
+                  {tt('Generate Report')}
                 </>
               )}
             </button>
@@ -497,7 +498,7 @@ export default function PensionManagementPage() {
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <Download size={18} />
-            Export PDF
+            {tt('Export PDF')}
           </button>
           <button
             onClick={exportExcel}
@@ -505,7 +506,7 @@ export default function PensionManagementPage() {
             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <FileSpreadsheet size={18} />
-            Export Excel
+            {tt('Export Excel')}
           </button>
 
           {reportEmployeeId === "all" && reportByEmployee.length > 0 && (
@@ -524,15 +525,15 @@ export default function PensionManagementPage() {
         {reportSummary && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-              <div className="text-sm text-blue-700">Employee Contributions</div>
+              <div className="text-sm text-blue-700">{tt('Employee Contributions')}</div>
               <div className="text-xl font-semibold text-blue-900">{formatCurrency(reportSummary.npsEmployeeTotal)}</div>
             </div>
             <div className="bg-sky-50 border border-sky-100 rounded-lg p-4">
-              <div className="text-sm text-sky-700">Employer Contributions</div>
+              <div className="text-sm text-sky-700">{tt('Employer Contributions')}</div>
               <div className="text-xl font-semibold text-sky-900">{formatCurrency(reportSummary.npsEmployerTotal)}</div>
             </div>
             <div className="bg-green-50 border border-green-100 rounded-lg p-4">
-              <div className="text-sm text-green-700">Total Pension</div>
+              <div className="text-sm text-green-700">{tt('Total Pension')}</div>
               <div className="text-xl font-semibold text-green-900">{formatCurrency(reportSummary.npsTotal)}</div>
             </div>
           </div>
@@ -551,16 +552,16 @@ export default function PensionManagementPage() {
                         checked={selectedClearEmployeeIds.length > 0 && selectedClearEmployeeIds.length === reportByEmployee.length}
                         onChange={toggleClearSelectAll}
                         className="h-4 w-4"
-                        aria-label="Select all employees for clearing"
+                        aria-label={tt('Select all employees for clearing')}
                       />
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Employer</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Last Period</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee ID')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Department')}</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee')}</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employer')}</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Total')}</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Last Period')}</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -588,19 +589,19 @@ export default function PensionManagementPage() {
               </table>
             </div>
           ) : (
-            <div className="text-center py-10 text-gray-500">Generate a report to view pension totals.</div>
+            <div className="text-center py-10 text-gray-500">{tt('Generate a report to view pension totals.')}</div>
           )
         ) : reportEntries.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Date</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Employer</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Period')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Payment Date')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employer')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Total')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -636,12 +637,12 @@ export default function PensionManagementPage() {
             <div className="relative bg-white w-full max-w-lg rounded-lg shadow-lg p-6">
               <div className="text-lg font-semibold text-gray-900 mb-1">Clear Pension (Employer)</div>
               <div className="text-sm text-gray-600 mb-4">
-                This will create a <span className="font-medium">Pension</span> expense for each selected employee and mark payroll records as cleared for this period.
+                {tt('This will create a')} <span className="font-medium">{tt('Pension')}</span> {tt('expense for each selected employee and mark payroll records as cleared for this period.')}
               </div>
 
               <div className="grid grid-cols-1 gap-3 mb-4">
                 <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
-                  <div className="text-xs text-gray-500">Selected Employees</div>
+                  <div className="text-xs text-gray-500">{tt('Selected Employees')}</div>
                   <div className="text-sm font-medium text-gray-900">{selectedClearEmployeeIds.length}</div>
                 </div>
                 <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
@@ -649,13 +650,13 @@ export default function PensionManagementPage() {
                   <div className="text-sm font-semibold text-gray-900">{formatCurrency(selectedClearEmployerTotal)}</div>
                 </div>
                 <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
-                  <div className="text-xs text-gray-500">Period</div>
+                  <div className="text-xs text-gray-500">{tt('Period')}</div>
                   <div className="text-sm font-medium text-gray-900">
                     {formatDate(reportStartDate)} - {formatDate(reportEndDate)}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Payment Method')}</label>
                   <select
                     value={clearPaymentMethod}
                     onChange={(e) => setClearPaymentMethod(e.target.value)}
@@ -678,7 +679,7 @@ export default function PensionManagementPage() {
                   disabled={clearingPension}
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   onClick={confirmClearPension}

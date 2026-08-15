@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import {
@@ -152,7 +153,7 @@ export default function BenefitsPage() {
             className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 hover:shadow-md"
           >
             <Plus size={18} className="mr-2" />
-            Add benefit
+            {tt('Add benefit')}
           </button>
         }
       />
@@ -174,23 +175,23 @@ export default function BenefitsPage() {
 
         {loading ? (
           <PosStylePanel className="p-8 text-center text-gray-500">
-            Loading benefits…
+            {tt('Loading benefits…')}
           </PosStylePanel>
         ) : (
           <PosStylePanel className="overflow-hidden">
             {benefits.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 <Gift className="mx-auto mb-3 text-gray-400" size={48} />
-                <p>No benefits defined yet.</p>
+                <p>{tt('No benefits defined yet.')}</p>
                 <p className="text-sm mt-1">
-                  Add House Allowance, Airtime, or other perks to assign to employees.
+                  {tt('Add House Allowance, Airtime, or other perks to assign to employees.')}
                 </p>
                 <button
                   type="button"
                   onClick={openCreate}
                   className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
-                  Add benefit
+                  {tt('Add benefit')}
                 </button>
               </div>
             ) : (
@@ -222,7 +223,7 @@ export default function BenefitsPage() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {!b.isActive && (
                         <span className="text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded">
-                          Inactive
+                          {tt('Inactive')}
                         </span>
                       )}
                       <button
@@ -276,13 +277,13 @@ export default function BenefitsPage() {
                 )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Name *
+                    {tt('Name *')}
                   </label>
                   <input
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    placeholder="e.g. House Allowance, Airtime"
+                    placeholder={tt('e.g. House Allowance, Airtime')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -294,7 +295,7 @@ export default function BenefitsPage() {
                     type="text"
                     value={form.description}
                     onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                    placeholder="Short description"
+                    placeholder={tt('Short description')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -342,7 +343,7 @@ export default function BenefitsPage() {
                     }
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-700">Active</span>
+                  <span className="text-sm text-gray-700">{tt('Active')}</span>
                 </label>
                 <div className="flex justify-end gap-2 pt-2">
                   <button
@@ -350,7 +351,7 @@ export default function BenefitsPage() {
                     onClick={() => setModalOpen(false)}
                     className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                   >
-                    Cancel
+                    {tt('Cancel')}
                   </button>
                   <button
                     type="submit"

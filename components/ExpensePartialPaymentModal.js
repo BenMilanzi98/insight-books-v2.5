@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 import React, { useState, useEffect } from 'react';
 import { X, CreditCard, DollarSign, Calendar, FileText, AlertCircle, Loader } from 'lucide-react';
 import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
@@ -208,7 +209,7 @@ const ExpensePartialPaymentModal = ({
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900 flex items-center">
             <CreditCard className="h-5 w-5 mr-2 text-green-600" />
-            Add Payment
+            {tt('Add Payment')}
           </h2>
           <button
             onClick={onClose}
@@ -221,11 +222,11 @@ const ExpensePartialPaymentModal = ({
         <div className="p-6">
           {/* Expense Info */}
           <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="font-medium text-gray-900 mb-2">Expense Details</h3>
+            <h3 className="font-medium text-gray-900 mb-2">{tt('Expense Details')}</h3>
             <div className="space-y-1 text-sm text-gray-600">
-              <div><span className="font-medium">Description:</span> {expense.description}</div>
-              <div><span className="font-medium">Amount:</span> {formatCurrency(expense.amount)}</div>
-              <div><span className="font-medium">Current Status:</span> 
+              <div><span className="font-medium">{tt('Description:')}</span> {expense.description}</div>
+              <div><span className="font-medium">{tt('Amount:')}</span> {formatCurrency(expense.amount)}</div>
+              <div><span className="font-medium">{tt('Current Status:')}</span> 
                 <span className={`ml-1 px-2 py-1 rounded-full text-xs font-medium ${
                   expense.paymentStatus === 'Fully paid' ? 'bg-green-100 text-green-800' :
                   expense.paymentStatus === 'Partially' ? 'bg-yellow-100 text-yellow-800' :
@@ -235,9 +236,9 @@ const ExpensePartialPaymentModal = ({
                 </span>
               </div>
               {expense.paymentStatus === 'Partially' && (
-                <div><span className="font-medium">Paid:</span> {formatCurrency(expense.paidAmount || 0)}</div>
+                <div><span className="font-medium">{tt('Paid:')}</span> {formatCurrency(expense.paidAmount || 0)}</div>
               )}
-              <div><span className="font-medium">Remaining:</span> 
+              <div><span className="font-medium">{tt('Remaining:')}</span> 
                 <span className="ml-1 font-semibold text-red-600">
                   {formatCurrency(remainingBalance)}
                 </span>
@@ -250,7 +251,7 @@ const ExpensePartialPaymentModal = ({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <DollarSign className="h-4 w-4 inline mr-1" />
-                Payment Amount *
+                {tt('Payment Amount *')}
               </label>
               <input
                 type="number"
@@ -258,7 +259,7 @@ const ExpensePartialPaymentModal = ({
                 value={formData.amount}
                 onChange={handleAmountChange}
                 className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                placeholder="Enter payment amount"
+                placeholder={tt('Enter payment amount')}
                 step="0.01"
                 min="0.01"
                 max={remainingBalance}
@@ -274,7 +275,7 @@ const ExpensePartialPaymentModal = ({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <CreditCard className="h-4 w-4 inline mr-1" />
-                Payment Method *
+                {tt('Payment Method *')}
               </label>
               <select
                 name="paymentMethod"
@@ -316,7 +317,7 @@ const ExpensePartialPaymentModal = ({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <Calendar className="h-4 w-4 inline mr-1" />
-                Payment Date *
+                {tt('Payment Date *')}
               </label>
               <input
                 type="date"
@@ -333,7 +334,7 @@ const ExpensePartialPaymentModal = ({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <FileText className="h-4 w-4 inline mr-1" />
-                Payment Reference
+                {tt('Payment Reference')}
               </label>
               <input
                 type="text"
@@ -341,7 +342,7 @@ const ExpensePartialPaymentModal = ({
                 value={formData.reference}
                 onChange={handleInputChange}
                 className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                placeholder="Check number, transaction ID, etc."
+                placeholder={tt('Check number, transaction ID, etc.')}
                 disabled={isSubmitting}
               />
             </div>
@@ -349,14 +350,14 @@ const ExpensePartialPaymentModal = ({
             {/* Notes */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Notes
+                {tt('Notes')}
               </label>
               <textarea
                 name="notes"
                 value={formData.notes}
                 onChange={handleInputChange}
                 className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                placeholder="Additional notes about this payment"
+                placeholder={tt('Additional notes about this payment')}
                 rows={3}
                 disabled={isSubmitting}
               />
@@ -378,7 +379,7 @@ const ExpensePartialPaymentModal = ({
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                 disabled={isSubmitting}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="submit"

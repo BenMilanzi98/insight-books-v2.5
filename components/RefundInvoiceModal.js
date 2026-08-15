@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState, useEffect } from 'react';
 import { X, DollarSign, AlertTriangle, FileText, Calculator } from 'lucide-react';
@@ -112,7 +113,7 @@ export default function RefundInvoiceModal({
                 <DollarSign className="h-6 w-6 text-blue-600" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 ml-3">
-                Process Refund
+                {tt('Process Refund')}
               </h3>
             </div>
             <button
@@ -133,9 +134,9 @@ export default function RefundInvoiceModal({
               </span>
             </div>
             <div className="space-y-2 text-sm text-gray-600">
-              <p><strong>Client:</strong> {invoice?.client?.name}</p>
-                              <p><strong>Invoice Total:</strong> MWK {invoice?.total?.toFixed(2)}</p>
-              <p><strong>Status:</strong> 
+              <p><strong>{tt('Client:')}</strong> {invoice?.client?.name}</p>
+                              <p><strong>{tt('Invoice Total:')}</strong> MWK {invoice?.total?.toFixed(2)}</p>
+              <p><strong>{tt('Status:')}</strong> 
                 <span className={`ml-1 px-2 py-1 text-xs rounded-full ${
                   invoice?.status === 'paid' ? 'bg-green-100 text-green-800' :
                   invoice?.status === 'partially_refunded' ? 'bg-yellow-100 text-yellow-800' :
@@ -145,7 +146,7 @@ export default function RefundInvoiceModal({
                   {invoice?.status}
                 </span>
               </p>
-                              <p><strong>Available for Refund:</strong> 
+                              <p><strong>{tt('Available for Refund:')}</strong> 
                   <span className="font-semibold text-green-600 ml-1">
                     MWK {availableForRefund.toFixed(2)}
                   </span>
@@ -158,12 +159,12 @@ export default function RefundInvoiceModal({
             <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
               <div className="flex items-center mb-2">
                 <Calculator className="h-4 w-4 text-blue-500 mr-2" />
-                <h4 className="text-sm font-medium text-blue-800">Payment Summary</h4>
+                <h4 className="text-sm font-medium text-blue-800">{tt('Payment Summary')}</h4>
               </div>
               <div className="text-sm text-blue-700">
-                <p><strong>Total Paid:</strong> MWK {invoice.payments.reduce((sum, p) => addMoney(sum, p.amount), 0).toFixed(2)}</p>
-                <p><strong>Total Refunded:</strong> MWK {(invoice.refunds?.reduce((sum, r) => addMoney(sum, r.refundAmount), 0) || 0).toFixed(2)}</p>
-                <p><strong>Available for Refund:</strong> <span className="font-semibold">MWK {availableForRefund.toFixed(2)}</span></p>
+                <p><strong>{tt('Total Paid:')}</strong> MWK {invoice.payments.reduce((sum, p) => addMoney(sum, p.amount), 0).toFixed(2)}</p>
+                <p><strong>{tt('Total Refunded:')}</strong> MWK {(invoice.refunds?.reduce((sum, r) => addMoney(sum, r.refundAmount), 0) || 0).toFixed(2)}</p>
+                <p><strong>{tt('Available for Refund:')}</strong> <span className="font-semibold">MWK {availableForRefund.toFixed(2)}</span></p>
               </div>
             </div>
           )}
@@ -175,7 +176,7 @@ export default function RefundInvoiceModal({
             <div className="space-y-4">
               <div>
                 <label htmlFor="refundAmount" className="block text-sm font-medium text-gray-700 mb-2">
-                  Refund Amount *
+                  {tt('Refund Amount *')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -204,7 +205,7 @@ export default function RefundInvoiceModal({
 
               <div>
                 <label htmlFor="refundMethod" className="block text-sm font-medium text-gray-700 mb-2">
-                  Refund Method *
+                  {tt('Refund Method *')}
                 </label>
                 <select
                   id="refundMethod"
@@ -215,7 +216,7 @@ export default function RefundInvoiceModal({
                   required
                   disabled={loading}
                 >
-                  <option value="">Select method</option>
+                  <option value="">{tt('Select method')}</option>
                   {refundMethods.map(method => (
                     <option key={method.value} value={method.value}>
                       {method.label}
@@ -227,7 +228,7 @@ export default function RefundInvoiceModal({
 
             <div>
               <label htmlFor="refundReason" className="block text-sm font-medium text-gray-700 mb-2">
-                Refund Reason *
+                {tt('Refund Reason *')}
               </label>
               <textarea
                 id="refundReason"
@@ -236,18 +237,18 @@ export default function RefundInvoiceModal({
                 value={formData.refundReason}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Explain why this refund is being processed..."
+                placeholder={tt('Explain why this refund is being processed...')}
                 required
                 disabled={loading}
               />
               <p className="mt-1 text-xs text-gray-500">
-                Minimum 3 characters required
+                {tt('Minimum 3 characters required')}
               </p>
             </div>
 
             <div>
               <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-2">
-                Additional Notes
+                {tt('Additional Notes')}
               </label>
               <textarea
                 id="notes"
@@ -256,7 +257,7 @@ export default function RefundInvoiceModal({
                 value={formData.notes}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Any additional information about this refund..."
+                placeholder={tt('Any additional information about this refund...')}
                 disabled={loading}
               />
             </div>
@@ -267,7 +268,7 @@ export default function RefundInvoiceModal({
                 <div className="flex">
                   <AlertTriangle className="h-5 w-5 text-red-400" />
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">Error</h3>
+                    <h3 className="text-sm font-medium text-red-800">{tt('Error')}</h3>
                     <div className="mt-2 text-sm text-red-700">{error}</div>
                   </div>
                 </div>
@@ -282,7 +283,7 @@ export default function RefundInvoiceModal({
                 disabled={loading}
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="submit"
@@ -292,7 +293,7 @@ export default function RefundInvoiceModal({
                 {loading ? (
                   <div className="flex items-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Processing...
+                    {tt('Processing...')}
                   </div>
                 ) : (
                   'Process Refund'

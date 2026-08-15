@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -65,7 +66,7 @@ export default function AdminEmailManagementPage() {
         />
         <div className="mt-4">
           <button type="button" onClick={() => router.push('/insightbooks/login')} className={btnPrimary}>
-            Go to Login
+            {tt('Go to Login')}
           </button>
         </div>
       </AdminPageContainer>

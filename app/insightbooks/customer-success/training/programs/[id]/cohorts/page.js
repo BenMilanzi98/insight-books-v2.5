@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -12,7 +13,7 @@ export default function TrainingProgramCohortsTab() {
           ← Program
         </Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem' }}>Cohorts</h1>
+      <h1 style={{ fontSize: '1.25rem' }}>{tt('Cohorts')}</h1>
       <p style={{ color: '#555' }}>
         COH-YYYY-###### with capacity. API actions via training-sessions route (Wave 2).
       </p>

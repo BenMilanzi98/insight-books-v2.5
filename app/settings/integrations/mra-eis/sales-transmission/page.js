@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -67,11 +68,11 @@ export default function MraEisSalesTransmissionPage() {
       <p className="text-sm text-slate-600">
         <Link href="/settings/integrations/mra-eis">← MRA EIS settings</Link>
         {' · '}
-        <Link href="/settings/integrations/mra-eis/fiscal-snapshots">Fiscal snapshots</Link>
+        <Link href="/settings/integrations/mra-eis/fiscal-snapshots">{tt('Fiscal snapshots')}</Link>
         {' · '}
-        <Link href="/settings/integrations/mra-eis/fiscal-receipts">Fiscal receipts</Link>
+        <Link href="/settings/integrations/mra-eis/fiscal-receipts">{tt('Fiscal receipts')}</Link>
       </p>
-      <h1 className="mt-2 text-2xl font-semibold text-slate-900">Sales transmission</h1>
+      <h1 className="mt-2 text-2xl font-semibold text-slate-900">{tt('Sales transmission')}</h1>
       <p className="mt-2 max-w-2xl text-slate-700">
         Phase 13 maps immutable fiscal snapshots to the MRA Sales request and submits securely (mock /
         provisional). HTTP 200 alone is not acceptance. No QR image and no final fiscal receipt are
@@ -87,14 +88,14 @@ export default function MraEisSalesTransmissionPage() {
 
       <div className="mt-6 flex flex-wrap gap-3">
         <button type="button" onClick={load} className="rounded border border-slate-300 bg-white px-3 py-2 text-sm">
-          Refresh
+          {tt('Refresh')}
         </button>
         <button
           type="button"
           onClick={processOutbox}
           className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
         >
-          Process sales outbox
+          {tt('Process sales outbox')}
         </button>
       </div>
 
@@ -103,7 +104,7 @@ export default function MraEisSalesTransmissionPage() {
           {error}
         </p>
       )}
-      {loading && <p className="mt-4 text-sm text-slate-600">Loading…</p>}
+      {loading && <p className="mt-4 text-sm text-slate-600">{tt('Loading…')}</p>}
 
       {workerResult && (
         <pre className="mt-4 overflow-auto rounded border bg-slate-50 p-3 text-xs">
@@ -113,17 +114,17 @@ export default function MraEisSalesTransmissionPage() {
 
       <section className="mt-8" aria-labelledby="tx-heading">
         <h2 id="tx-heading" className="text-lg font-medium">
-          Recent transmissions
+          {tt('Recent transmissions')}
         </h2>
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b text-slate-600">
-                <th className="py-2 pr-3">Status</th>
-                <th className="py-2 pr-3">Environment</th>
-                <th className="py-2 pr-3">App status</th>
-                <th className="py-2 pr-3">Attempts</th>
-                <th className="py-2">Action</th>
+                <th className="py-2 pr-3">{tt('Status')}</th>
+                <th className="py-2 pr-3">{tt('Environment')}</th>
+                <th className="py-2 pr-3">{tt('App status')}</th>
+                <th className="py-2 pr-3">{tt('Attempts')}</th>
+                <th className="py-2">{tt('Action')}</th>
               </tr>
             </thead>
             <tbody>
@@ -137,7 +138,7 @@ export default function MraEisSalesTransmissionPage() {
                   <td className="py-2 pr-3">{t.attemptCount}</td>
                   <td className="py-2">
                     <button type="button" className="text-blue-700 underline" onClick={() => openTransmission(t.id)}>
-                      Open
+                      {tt('Open')}
                     </button>
                   </td>
                 </tr>
@@ -145,7 +146,7 @@ export default function MraEisSalesTransmissionPage() {
               {!transmissions.length && !loading && (
                 <tr>
                   <td colSpan={5} className="py-4 text-slate-500">
-                    No transmissions yet. Process Phase 12 sales-payload outbox events.
+                    {tt('No transmissions yet. Process Phase 12 sales-payload outbox events.')}
                   </td>
                 </tr>
               )}
@@ -157,23 +158,23 @@ export default function MraEisSalesTransmissionPage() {
       {selected?.transmission && (
         <section className="mt-8 rounded border border-slate-200 p-4" aria-labelledby="detail-heading">
           <h2 id="detail-heading" className="text-lg font-medium">
-            Transmission detail
+            {tt('Transmission detail')}
           </h2>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-slate-500">Status</dt>
+              <dt className="text-slate-500">{tt('Status')}</dt>
               <dd>{selected.transmission.status}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">MRA application status</dt>
+              <dt className="text-slate-500">{tt('MRA application status')}</dt>
               <dd>{selected.transmission.mraApplicationStatus || '—'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Validation URL</dt>
+              <dt className="text-slate-500">{tt('Validation URL')}</dt>
               <dd className="break-all text-xs">{selected.transmission.validationUrl || '—'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Config refresh / Terminal block</dt>
+              <dt className="text-slate-500">{tt('Config refresh / Terminal block')}</dt>
               <dd>
                 {selected.transmission.shouldRefreshConfiguration ? 'Refresh required' : 'No refresh'}
                 {' · '}
@@ -192,7 +193,7 @@ export default function MraEisSalesTransmissionPage() {
           </p>
           {selected.attempts?.length > 0 && (
             <div className="mt-4">
-              <h3 className="font-medium">Attempts</h3>
+              <h3 className="font-medium">{tt('Attempts')}</h3>
               <ul className="mt-2 space-y-1 text-sm">
                 {selected.attempts.map((a) => (
                   <li key={a.id}>
@@ -205,12 +206,12 @@ export default function MraEisSalesTransmissionPage() {
           )}
           {selected.response && (
             <div className="mt-4">
-              <h3 className="font-medium">Response evidence</h3>
+              <h3 className="font-medium">{tt('Response evidence')}</h3>
               <p className="mt-1 text-sm text-slate-700">
                 Category: {selected.response.responseCategory} · checksum{' '}
                 <span className="break-all font-mono text-xs">{selected.response.sourceChecksum}</span>
               </p>
-              <p className="mt-1 text-xs text-slate-500">QR data is not rendered in Phase 13.</p>
+              <p className="mt-1 text-xs text-slate-500">{tt('QR data is not rendered in Phase 13.')}</p>
             </div>
           )}
         </section>

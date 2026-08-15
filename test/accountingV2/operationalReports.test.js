@@ -111,6 +111,7 @@ describe('operational JE reports (Slice 3)', () => {
     });
     expect(pa.totals.netProfit.minor).toBe(is.totals.netProfit.minor);
     expect(pa.lines.some((l) => l.lineId === 'gross-margin')).toBe(true);
+    expect(pa.lines.filter((l) => l.lineId === 'gross-margin').length).toBe(1);
   });
 
   it('EXPENSES sums JE expense accounts only', async () => {

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import TrainingContextBar from '@/components/admin/customerSuccess/TrainingContextBar';
@@ -14,11 +15,11 @@ export default function CustomerSuccessTrainingRequestsPage() {
       </p>
       <TrainingContextBar population="training-requests" />
       <h1 style={{ fontSize: '1.35rem', marginBottom: '0.5rem' }}>
-        Training Requests
+        {tt('Training Requests')}
       </h1>
       <p style={{ color: '#555' }}>
         TRQ-YYYY-###### spine. List is portfolio fail-closed via{' '}
-        <code>listTrainingRequests</code>. Handoff ≠ Request ≠ Program.
+        <code>{tt('listTrainingRequests')}</code>. Handoff ≠ Request ≠ Program.
       </p>
     </div>
   );

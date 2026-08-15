@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import OnboardingContextBar from '@/components/admin/customerSuccess/OnboardingContextBar';
@@ -16,7 +17,7 @@ export default function CustomerSuccessOnboardingPage() {
         permissionScope="customerSuccess.read"
       />
       <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
-        Customer Onboarding
+        {tt('Customer Onboarding')}
       </h1>
       <p style={{ color: '#555', marginBottom: '1.25rem' }}>
         Phase 21 (PRD) / tree-17 — Overview, My Work, queues, requests, projects, reports.
@@ -25,49 +26,49 @@ export default function CustomerSuccessOnboardingPage() {
       </p>
 
       <section style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Queues</h2>
+        <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>{tt('Queues')}</h2>
         <ul style={{ lineHeight: 1.8, columns: 2, maxWidth: 640 }}>
-          <li>New requests</li>
-          <li>Ready for kick-off</li>
-          <li>In progress</li>
-          <li>At risk / blocked</li>
-          <li>Go-live / stabilisation</li>
-          <li>Handover / completion</li>
+          <li>{tt('New requests')}</li>
+          <li>{tt('Ready for kick-off')}</li>
+          <li>{tt('In progress')}</li>
+          <li>{tt('At risk / blocked')}</li>
+          <li>{tt('Go-live / stabilisation')}</li>
+          <li>{tt('Handover / completion')}</li>
         </ul>
         <p style={{ fontSize: '0.875rem', color: '#777' }}>
-          Card counts load via <code>getOnboardingOverviewCards</code> — gate fail →
+          {tt('Card counts load via')} <code>{tt('getOnboardingOverviewCards')}</code> — gate fail →
           UNAVAILABLE / null (never false zero).
         </p>
       </section>
 
       <ul style={{ lineHeight: 1.8 }}>
         <li>
-          <Link href="/insightbooks/customer-success/onboarding/my-work">My Work</Link>
+          <Link href="/insightbooks/customer-success/onboarding/my-work">{tt('My Work')}</Link>
         </li>
         <li>
-          <Link href="/insightbooks/customer-success/onboarding/queues">Queues</Link>
+          <Link href="/insightbooks/customer-success/onboarding/queues">{tt('Queues')}</Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/onboarding/requests">
-            Onboarding Requests
+            {tt('Onboarding Requests')}
           </Link>
         </li>
         <li>
           <Link href="/insightbooks/customer-success/onboarding/projects">
-            Onboarding Projects
+            {tt('Onboarding Projects')}
           </Link>
         </li>
         <li>
-          <Link href="/insightbooks/customer-success/onboarding/templates">Templates</Link>
+          <Link href="/insightbooks/customer-success/onboarding/templates">{tt('Templates')}</Link>
         </li>
         <li>
-          <Link href="/insightbooks/customer-success/onboarding/reports">Reports</Link>
+          <Link href="/insightbooks/customer-success/onboarding/reports">{tt('Reports')}</Link>
         </li>
         <li>
-          <Link href="/insightbooks/customer-success/onboarding/team">Team</Link>
+          <Link href="/insightbooks/customer-success/onboarding/team">{tt('Team')}</Link>
         </li>
         <li>
-          <Link href="/insightbooks/customer-success/onboarding/calendar">Calendar</Link>
+          <Link href="/insightbooks/customer-success/onboarding/calendar">{tt('Calendar')}</Link>
         </li>
       </ul>
     </div>

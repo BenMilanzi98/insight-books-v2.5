@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
@@ -56,16 +57,16 @@ export default function MraEisTerminalDetailPage() {
   }
 
   if (loading) {
-    return <div className="p-8 text-slate-600">Loading terminal health…</div>;
+    return <div className="p-8 text-slate-600">{tt('Loading terminal health…')}</div>;
   }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
       <header className="mb-6">
-        <p className="text-sm font-medium text-slate-500">MRA EIS terminal</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Health & lifecycle</h1>
+        <p className="text-sm font-medium text-slate-500">{tt('MRA EIS terminal')}</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{tt('Health & lifecycle')}</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Credential values are never returned. JWT / terminal secret status is metadata only.
+          {tt('Credential values are never returned. JWT / terminal secret status is metadata only.')}
         </p>
       </header>
 
@@ -76,35 +77,35 @@ export default function MraEisTerminalDetailPage() {
         <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-slate-500">Terminal ID</dt>
+              <dt className="text-slate-500">{tt('Terminal ID')}</dt>
               <dd className="font-mono text-xs">{health.terminalId}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Status</dt>
+              <dt className="text-slate-500">{tt('Status')}</dt>
               <dd className="font-medium">{health.status}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Environment</dt>
+              <dt className="text-slate-500">{tt('Environment')}</dt>
               <dd className="font-medium">{health.environment}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Activation confirmed</dt>
+              <dt className="text-slate-500">{tt('Activation confirmed')}</dt>
               <dd className="font-medium">{health.activationConfirmed ? 'Yes' : 'No'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">JWT status</dt>
+              <dt className="text-slate-500">{tt('JWT status')}</dt>
               <dd className="font-medium">{health.jwtStatus}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Terminal secret status</dt>
+              <dt className="text-slate-500">{tt('Terminal secret status')}</dt>
               <dd className="font-medium">{health.terminalSecretStatus}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Configuration</dt>
+              <dt className="text-slate-500">{tt('Configuration')}</dt>
               <dd className="font-medium">{health.configurationStatus}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Token expiring</dt>
+              <dt className="text-slate-500">{tt('Token expiring')}</dt>
               <dd className="font-medium">{health.tokenExpiring ? 'Yes' : 'No'}</dd>
             </div>
           </dl>
@@ -126,9 +127,9 @@ export default function MraEisTerminalDetailPage() {
       )}
 
       <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold">Lifecycle requests</h2>
+        <h2 className="text-lg font-semibold">{tt('Lifecycle requests')}</h2>
         <label className="mt-3 block text-sm">
-          <span className="mb-1 block font-medium">Reason</span>
+          <span className="mb-1 block font-medium">{tt('Reason')}</span>
           <textarea
             className="w-full rounded border border-slate-300 px-3 py-2"
             rows={3}
@@ -138,24 +139,24 @@ export default function MraEisTerminalDetailPage() {
         </label>
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className="rounded bg-amber-800 px-3 py-2 text-sm text-white" onClick={() => requestAction('reactivate')}>
-            Request reactivation
+            {tt('Request reactivation')}
           </button>
           <button type="button" className="rounded border border-slate-300 px-3 py-2 text-sm" onClick={() => requestAction('replace')}>
-            Request replacement
+            {tt('Request replacement')}
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          Production actions may require approval. Historical activation evidence is never deleted.
+          {tt('Production actions may require approval. Historical activation evidence is never deleted.')}
         </p>
       </section>
 
       <div className="flex flex-wrap gap-4 text-sm">
         <Link className="font-medium text-blue-700 underline underline-offset-2" href={`/settings/integrations/mra-eis/terminals/${id}/configuration`}>
-          Configuration health & sync
+          {tt('Configuration health & sync')}
         </Link>
         {!['ACTIVE', 'REVOKED'].includes(health?.status) && (
           <Link className="font-medium text-blue-700 underline underline-offset-2" href={`/settings/integrations/mra-eis/terminals/onboarding?terminalId=${id}`}>
-            Resume onboarding
+            {tt('Resume onboarding')}
           </Link>
         )}
         <Link className="text-slate-600 underline" href="/settings/integrations/mra-eis/terminals">

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -13,10 +14,10 @@ export default function OnboardingTasksTabPage() {
       <p>
         <Link href={`/insightbooks/customer-success/onboarding/projects/${id}`}>← Project</Link>
       </p>
-      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>Tasks & evidence</h1>
+      <h1 style={{ fontSize: '1.25rem', margin: '1rem 0 0.5rem' }}>{tt('Tasks & evidence')}</h1>
       <p style={{ color: '#555' }}>
         Customer Tasks require admin attestation evidence (or authorised waiver) before completion.
-        Portal path reserved as <code>CUSTOMER_PORTAL_NOT_CONFIGURED</code>. Reject retains reason.
+        Portal path reserved as <code>{tt('CUSTOMER_PORTAL_NOT_CONFIGURED')}</code>. Reject retains reason.
       </p>
     </div>
   );

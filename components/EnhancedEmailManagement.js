@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Mail, 
@@ -67,28 +68,28 @@ const EnhancedEmailManagement = () => {
   const emailTemplates = {
     'custom': { subject: '', content: '' },
     'subscription-reminder': {
-      subject: 'Subscription Renewal Reminder',
-      content: '<p>Dear Valued Customer,</p><p>This is a friendly reminder that your subscription will be expiring soon. To continue enjoying uninterrupted service, please renew your subscription before the expiration date.</p><p>If you have any questions or need assistance, please don\'t hesitate to contact our support team.</p><p>Thank you for being a valued member!</p><p>Best regards,<br>InsightBooks Team</p>'
+      subject: tt('Subscription Renewal Reminder'),
+      content: `<p>${tt('Dear Valued Customer,')}</p><p>${tt('This is a friendly reminder that your subscription will be expiring soon. To continue enjoying uninterrupted service, please renew your subscription before the expiration date.')}</p><p>${tt("If you have any questions or need assistance, please don't hesitate to contact our support team.")}</p><p>${tt('Thank you for being a valued member!')}</p><p>${tt('Best regards,')}<br>${tt('InsightBooks Team')}</p>`
     },
     'announcement': {
-      subject: 'Important Announcement',
-      content: '<p>Dear Team,</p><p>We have an important announcement to share with you.</p><p>Please review the details below and let us know if you have any questions.</p><p>Thank you for your attention.</p><p>Best regards,<br>Management</p>'
+      subject: tt('Important Announcement'),
+      content: `<p>${tt('Dear Team,')}</p><p>${tt('We have an important announcement to share with you.')}</p><p>${tt('Please review the details below and let us know if you have any questions.')}</p><p>${tt('Thank you for your attention.')}</p><p>${tt('Best regards,')}<br>${tt('Management')}</p>`
     },
     'welcome': {
-      subject: 'Welcome to InsightBooks!',
-      content: '<p>Dear New User,</p><p>Welcome to InsightBooks! We\'re excited to have you on board.</p><p>Your account has been successfully created and you can now start using our platform. Here are some quick tips to get you started:</p><ul><li>Explore the dashboard to see your overview</li><li>Set up your profile and preferences</li><li>Check out our help documentation</li></ul><p>If you need any assistance, our support team is here to help.</p><p>Welcome aboard!</p><p>Best regards,<br>InsightBooks Team</p>'
+      subject: tt('Welcome to InsightBooks!'),
+      content: `<p>${tt('Dear New User,')}</p><p>${tt("Welcome to InsightBooks! We're excited to have you on board.")}</p><p>${tt('Your account has been successfully created and you can now start using our platform. Here are some quick tips to get you started:')}</p><ul><li>${tt('Explore the dashboard to see your overview')}</li><li>${tt('Set up your profile and preferences')}</li><li>${tt('Check out our help documentation')}</li></ul><p>${tt('If you need any assistance, our support team is here to help.')}</p><p>${tt('Welcome aboard!')}</p><p>${tt('Best regards,')}<br>${tt('InsightBooks Team')}</p>`
     },
     'maintenance-notice': {
-      subject: 'Scheduled Maintenance Notice',
-      content: '<p>Dear Users,</p><p>We would like to inform you that we will be performing scheduled maintenance on our system.</p><p><strong>Maintenance Window:</strong> [Date and Time]</p><p>During this time, the system may be temporarily unavailable. We apologize for any inconvenience this may cause.</p><p>Thank you for your understanding.</p><p>Best regards,<br>Technical Team</p>'
+      subject: tt('Scheduled Maintenance Notice'),
+      content: `<p>${tt('Dear Users,')}</p><p>${tt('We would like to inform you that we will be performing scheduled maintenance on our system.')}</p><p><strong>${tt('Maintenance Window:')}</strong> [Date and Time]</p><p>${tt('During this time, the system may be temporarily unavailable. We apologize for any inconvenience this may cause.')}</p><p>${tt('Thank you for your understanding.')}</p><p>${tt('Best regards,')}<br>${tt('Technical Team')}</p>`
     },
     'feature-update': {
-      subject: 'New Feature Available!',
-      content: '<p>Dear Users,</p><p>We\'re excited to announce a new feature that we\'ve added to improve your experience!</p><p><strong>New Feature:</strong> [Feature Name]</p><p>This feature will help you [benefit]. To learn more, please check out our documentation or contact support.</p><p>We hope you enjoy this new addition!</p><p>Best regards,<br>Product Team</p>'
+      subject: tt('New Feature Available!'),
+      content: `<p>${tt('Dear Users,')}</p><p>${tt("We're excited to announce a new feature that we've added to improve your experience!")}</p><p><strong>${tt('New Feature:')}</strong> [Feature Name]</p><p>${tt('This feature will help you [benefit]. To learn more, please check out our documentation or contact support.')}</p><p>${tt('We hope you enjoy this new addition!')}</p><p>${tt('Best regards,')}<br>${tt('Product Team')}</p>`
     },
     'password-reset': {
-      subject: 'Password Reset Request',
-      content: '<p>Dear User,</p><p>We received a request to reset your password. If you made this request, please click the link below to reset your password:</p><p><a href="#">Reset Password</a></p><p>If you did not request a password reset, please ignore this email or contact support if you have concerns.</p><p>This link will expire in 24 hours for security reasons.</p><p>Best regards,<br>Security Team</p>'
+      subject: tt('Password Reset Request'),
+      content: `<p>${tt('Dear User,')}</p><p>${tt('We received a request to reset your password. If you made this request, please click the link below to reset your password:')}</p><p><a href="#">${tt('Reset Password')}</a></p><p>${tt('If you did not request a password reset, please ignore this email or contact support if you have concerns.')}</p><p>${tt('This link will expire in 24 hours for security reasons.')}</p><p>${tt('Best regards,')}<br>${tt('Security Team')}</p>`
     }
   };
 
@@ -365,7 +366,7 @@ const EnhancedEmailManagement = () => {
             className={btnPrimary}
           >
             <Mail className="h-4 w-4" aria-hidden />
-            Send email
+            {tt('Send email')}
           </button>
         </div>
       </div>
@@ -392,10 +393,10 @@ const EnhancedEmailManagement = () => {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="pending">Pending</option>
+            <option value="all">{tt('All Status')}</option>
+            <option value="active">{tt('Active')}</option>
+            <option value="inactive">{tt('Inactive')}</option>
+            <option value="pending">{tt('Pending')}</option>
           </AdminField.Select>
         </AdminField>
         <AdminField label="Role" htmlFor="email-role-filter">
@@ -404,10 +405,10 @@ const EnhancedEmailManagement = () => {
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
           >
-            <option value="all">All Roles</option>
-            <option value="admin">Admin</option>
-            <option value="user">User</option>
-            <option value="manager">Manager</option>
+            <option value="all">{tt('All Roles')}</option>
+            <option value="admin">{tt('Admin')}</option>
+            <option value="user">{tt('User')}</option>
+            <option value="manager">{tt('Manager')}</option>
           </AdminField.Select>
         </AdminField>
         <AdminField label="Tenant" htmlFor="email-tenant-filter">
@@ -416,7 +417,7 @@ const EnhancedEmailManagement = () => {
             value={tenantFilter}
             onChange={(e) => setTenantFilter(e.target.value)}
           >
-            <option value="all">All Tenants</option>
+            <option value="all">{tt('All Tenants')}</option>
             {Array.from(new Set(users.map((user) => user.tenant).filter(Boolean))).map((tenant) => (
               <option key={tenant} value={tenant}>
                 {tenant}
@@ -442,7 +443,7 @@ const EnhancedEmailManagement = () => {
         className="max-w-4xl"
       >
         <div className="mb-4 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface-muted)] p-3 text-sm text-[var(--admin-text)]">
-          <strong>Recipients:</strong> {selectedUsers.length} user(s) selected
+          <strong>{tt('Recipients:')}</strong> {selectedUsers.length} user(s) selected
         </div>
         <UltimateEmailComposer
           subject={emailData.subject}

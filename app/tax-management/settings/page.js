@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/shell/PageHeader";
@@ -98,7 +99,7 @@ export default function TaxSettingsHubPage() {
           className="mb-6 grid gap-3 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-muted)] p-4 md:grid-cols-4"
         >
           <label className="text-sm">
-            <span className="mb-1 block text-[var(--text-secondary)]">Purpose</span>
+            <span className="mb-1 block text-[var(--text-secondary)]">{tt('Purpose')}</span>
             <select
               className="w-full rounded border border-[var(--border-default)] bg-white px-2 py-2"
               value={form.purpose}
@@ -114,14 +115,14 @@ export default function TaxSettingsHubPage() {
             </select>
           </label>
           <label className="text-sm md:col-span-2">
-            <span className="mb-1 block text-[var(--text-secondary)]">Account</span>
+            <span className="mb-1 block text-[var(--text-secondary)]">{tt('Account')}</span>
             <select
               className="w-full rounded border border-[var(--border-default)] bg-white px-2 py-2"
               value={form.accountId}
               onChange={(e) => setForm((f) => ({ ...f, accountId: e.target.value }))}
               required
             >
-              <option value="">Select account…</option>
+              <option value="">{tt('Select account…')}</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.code ? `${a.code} — ` : ""}
@@ -146,24 +147,23 @@ export default function TaxSettingsHubPage() {
         <table className="min-w-full text-left text-sm">
           <thead className="bg-[var(--surface-muted)] text-[var(--text-secondary)]">
             <tr>
-              <th className="px-4 py-2 font-medium">Purpose</th>
-              <th className="px-4 py-2 font-medium">Account</th>
-              <th className="px-4 py-2 font-medium">Effective from</th>
-              <th className="px-4 py-2 font-medium">Status</th>
+              <th className="px-4 py-2 font-medium">{tt('Purpose')}</th>
+              <th className="px-4 py-2 font-medium">{tt('Account')}</th>
+              <th className="px-4 py-2 font-medium">{tt('Effective from')}</th>
+              <th className="px-4 py-2 font-medium">{tt('Status')}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
                 <td className="px-4 py-6 text-[var(--text-secondary)]" colSpan={4}>
-                  Loading…
+                  {tt('Loading…')}
                 </td>
               </tr>
             ) : mappings.length === 0 ? (
               <tr>
                 <td className="px-4 py-6 text-[var(--text-secondary)]" colSpan={4}>
-                  No purpose mappings yet. Until configured, posting falls back to
-                  TaxType.accountId and fixed 2041/2045 accounts.
+                  {tt('No purpose mappings yet. Until configured, posting falls back to TaxType.accountId and fixed 2041/2045 accounts.')}
                 </td>
               </tr>
             ) : (

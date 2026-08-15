@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 import { useState } from 'react';
 import { AlertTriangle, X, Trash2, FileText, ShoppingCart, Receipt } from 'lucide-react';
 
@@ -47,8 +48,8 @@ const ProductDeletionWarningModal = ({
               <AlertTriangle className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Delete Product</h3>
-              <p className="text-sm text-gray-500">This action cannot be undone</p>
+              <h3 className="text-lg font-semibold text-gray-900">{tt('Delete Product')}</h3>
+              <p className="text-sm text-gray-500">{tt('This action cannot be undone')}</p>
             </div>
           </div>
           <button
@@ -93,7 +94,7 @@ const ProductDeletionWarningModal = ({
                 <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
                   <h4 className="font-medium text-amber-800 mb-2">
-                    Warning: Product is in use
+                    {tt('Warning: Product is in use')}
                   </h4>
                   <p className="text-sm text-amber-700 mb-3">
                     This product is currently being used in {usageDetails.totalUsage} record(s). 
@@ -129,7 +130,7 @@ const ProductDeletionWarningModal = ({
           {/* Confirmation Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Type <span className="font-mono bg-gray-100 px-1 rounded">{requiredConfirmText}</span> to confirm deletion:
+              {tt('Type')} <span className="font-mono bg-gray-100 px-1 rounded">{requiredConfirmText}</span> {tt('to confirm deletion:')}
             </label>
             <input
               type="text"
@@ -143,12 +144,12 @@ const ProductDeletionWarningModal = ({
 
           {/* Additional Warning */}
           <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
-            <strong>What happens when you delete this product:</strong>
+            <strong>{tt('What happens when you delete this product:')}</strong>
             <ul className="mt-2 space-y-1 list-disc list-inside">
-              <li>The product will be permanently removed from inventory</li>
-              <li>Historical records will remain but show "Deleted Product"</li>
-              <li>Reports may show incomplete product information</li>
-              <li>This action cannot be undone</li>
+              <li>{tt('The product will be permanently removed from inventory')}</li>
+              <li>{tt('Historical records will remain but show "Deleted Product"')}</li>
+              <li>{tt('Reports may show incomplete product information')}</li>
+              <li>{tt('This action cannot be undone')}</li>
             </ul>
           </div>
         </div>
@@ -160,7 +161,7 @@ const ProductDeletionWarningModal = ({
             disabled={isDeleting}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             onClick={handleConfirm}
@@ -170,12 +171,12 @@ const ProductDeletionWarningModal = ({
             {isDeleting ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Deleting...</span>
+                <span>{tt('Deleting...')}</span>
               </>
             ) : (
               <>
                 <Trash2 size={16} />
-                <span>Delete Product</span>
+                <span>{tt('Delete Product')}</span>
               </>
             )}
           </button>

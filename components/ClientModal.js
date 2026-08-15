@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 import { useState } from "react";
 import { X, Save } from "lucide-react";
 
@@ -59,10 +60,10 @@ const ClientModal = ({ isOpen, onClose, onClientCreated }) => {
         >
           <X className="w-6 h-6" />
         </button>
-        <h2 className="text-xl font-bold mb-4">Add New Client</h2>
+        <h2 className="text-xl font-bold mb-4">{tt('Add New Client')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name*</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Name*')}</label>
             <input
               type="text"
               name="name"
@@ -72,11 +73,11 @@ const ClientModal = ({ isOpen, onClose, onClientCreated }) => {
               required
             />
             {touched.name && !formData.name.trim() && (
-              <div className="text-red-500 text-xs mt-1">Name is required.</div>
+              <div className="text-red-500 text-xs mt-1">{tt('Name is required.')}</div>
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{tt('Contact Person')}</label>
             <input
               type="text"
               name="contactPerson"
@@ -93,7 +94,7 @@ const ClientModal = ({ isOpen, onClose, onClientCreated }) => {
               value={formData.email}
               onChange={handleChange}
               className="w-full p-2 border border-gray-300 rounded-md"
-              placeholder="customer@example.com"
+              placeholder={tt('customer@example.com')}
             />
           </div>
           <div>
@@ -115,7 +116,7 @@ const ClientModal = ({ isOpen, onClose, onClientCreated }) => {
               className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-100"
               disabled={loading}
             >
-              Cancel
+              {tt('Cancel')}
             </button>
             <button
               type="submit"

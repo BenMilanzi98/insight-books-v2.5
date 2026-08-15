@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Plus,
@@ -649,19 +650,19 @@ const ChartOfAccountsPage = () => {
                 title="Creates missing standard GL accounts, default payment accounts, and tax accounts"
               >
                 <CheckCircle size={16} strokeWidth={2} className="mr-2 text-emerald-600" />
-                Sync
+                {tt('Sync')}
               </PosStyleHeaderButton>
               <PosStyleHeaderButton type="button" onClick={() => handleImportTemplate('retail')}>
                 <Upload size={16} strokeWidth={2} className="mr-2" />
-                Templates
+                {tt('Templates')}
               </PosStyleHeaderButton>
               <PosStyleHeaderButton type="button" onClick={handleExportExcel}>
                 <FileSpreadsheet size={16} strokeWidth={2} className="mr-2" />
-                Export
+                {tt('Export')}
               </PosStyleHeaderButton>
               <PosStyleHeaderButton as="label" className="cursor-pointer">
                 <Upload size={16} strokeWidth={2} className="mr-2" />
-                Import
+                {tt('Import')}
                 <input type="file" accept=".json,.csv" onChange={handleImport} className="hidden" />
               </PosStyleHeaderButton>
               <button
@@ -673,7 +674,7 @@ const ChartOfAccountsPage = () => {
                 className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.99]"
               >
                 <Plus size={16} strokeWidth={2.5} />
-                Add account
+                {tt('Add account')}
               </button>
               </>
             }
@@ -693,7 +694,7 @@ const ChartOfAccountsPage = () => {
                 />
                 <input
                   type="search"
-                  placeholder="Search by code, name, or description…"
+                  placeholder={tt('Search by code, name, or description…')}
                   className="w-full rounded-xl border-0 bg-slate-50 py-2.5 pl-10 pr-10 text-sm text-slate-900 ring-1 ring-slate-200/80 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900/10"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -703,7 +704,7 @@ const ChartOfAccountsPage = () => {
                     type="button"
                     onClick={() => setSearchQuery('')}
                     className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-200/60 hover:text-slate-700"
-                    aria-label="Clear search"
+                    aria-label={tt('Clear search')}
                   >
                     <X size={15} strokeWidth={2} />
                   </button>
@@ -716,7 +717,7 @@ const ChartOfAccountsPage = () => {
                 <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
                   <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
                     <SlidersHorizontal size={13} strokeWidth={2} />
-                    Type
+                    {tt('Type')}
                   </span>
                   <div className="overflow-x-auto rounded-xl bg-slate-100/80 p-1">
                     <div className="flex w-max gap-0.5">
@@ -725,7 +726,7 @@ const ChartOfAccountsPage = () => {
                         onClick={() => setAccountTypeFilter('All')}
                         className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ${filterPillClass(accountTypeFilter === 'All')}`}
                       >
-                        All
+                        {tt('All')}
                       </button>
                       {accountTypes.map((type) => (
                         <button
@@ -742,7 +743,7 @@ const ChartOfAccountsPage = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Status</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{tt('Status')}</span>
                   <div className="rounded-xl bg-slate-100/80 p-1">
                     <div className="flex gap-0.5">
                       <button
@@ -750,14 +751,14 @@ const ChartOfAccountsPage = () => {
                         onClick={() => setActiveFilter(true)}
                         className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${filterPillClass(activeFilter)}`}
                       >
-                        Active
+                        {tt('Active')}
                       </button>
                       <button
                         type="button"
                         onClick={() => setActiveFilter(false)}
                         className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${filterPillClass(!activeFilter)}`}
                       >
-                        All
+                        {tt('All')}
                       </button>
                     </div>
                   </div>
@@ -768,7 +769,7 @@ const ChartOfAccountsPage = () => {
                 <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
                   <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
                     <Calendar size={13} strokeWidth={2} />
-                    Period
+                    {tt('Period')}
                   </span>
                   <div className="overflow-x-auto rounded-xl bg-slate-100/80 p-1">
                     <div className="flex w-max gap-0.5">
@@ -779,7 +780,7 @@ const ChartOfAccountsPage = () => {
                           onClick={() => setDatePreset(opt.value)}
                           className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ${filterPillClass(datePreset === opt.value)}`}
                         >
-                          {opt.label}
+                          {tt(opt.label)}
                         </button>
                       ))}
                     </div>
@@ -795,9 +796,9 @@ const ChartOfAccountsPage = () => {
                       setDateFrom(e.target.value);
                     }}
                     className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-800 transition focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                    aria-label="Balance from date"
+                    aria-label={tt('Balance from date')}
                   />
-                  <span className="text-xs text-slate-400">to</span>
+                  <span className="text-xs text-slate-400">{tt('to')}</span>
                   <input
                     type="date"
                     value={dateTo}
@@ -806,20 +807,20 @@ const ChartOfAccountsPage = () => {
                       setDateTo(e.target.value);
                     }}
                     className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-800 transition focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-                    aria-label="Balance to date"
+                    aria-label={tt('Balance to date')}
                   />
                 </div>
               </div>
 
               {hasActiveFilters ? (
                 <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                  <p className="text-xs text-slate-500">Filters applied</p>
+                  <p className="text-xs text-slate-500">{tt('Filters applied')}</p>
                   <button
                     type="button"
                     onClick={clearAllFilters}
                     className="text-xs font-semibold text-slate-600 underline decoration-slate-300 underline-offset-2 transition hover:text-slate-900"
                   >
-                    Reset filters
+                    {tt('Reset filters')}
                   </button>
                 </div>
               ) : null}
@@ -848,7 +849,7 @@ const ChartOfAccountsPage = () => {
                       : 'text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm'
                   }`}
                 >
-                  Consolidated
+                  {tt('Consolidated')}
                 </button>
                 {coaByTenant.map((tenant) => (
                   <button
@@ -883,14 +884,14 @@ const ChartOfAccountsPage = () => {
                   onClick={handleInitializeBaseline}
                   className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
                 >
-                  Sync standard CoA
+                  {tt('Sync standard CoA')}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleImportTemplate('retail')}
                   className="rounded-lg border border-amber-300/80 bg-white px-4 py-2 text-xs font-semibold text-amber-950 shadow-sm transition hover:bg-amber-50/80"
                 >
-                  Import retail template
+                  {tt('Import retail template')}
                 </button>
               </>
             }
@@ -965,7 +966,7 @@ const ChartOfAccountsPage = () => {
               <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Merge accounts</h2>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{tt('Merge accounts')}</h2>
                     <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-600">
                       References move to the target account; the source account is deactivated afterward.
                     </p>
@@ -979,7 +980,7 @@ const ChartOfAccountsPage = () => {
                       setMergeError(null);
                     }}
                     className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                    aria-label="Close"
+                    aria-label={tt('Close')}
                   >
                     <X size={22} strokeWidth={2} />
                   </button>
@@ -999,7 +1000,7 @@ const ChartOfAccountsPage = () => {
                 <div className="grid grid-cols-1 gap-5">
                   <div>
                     <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Source account
+                      {tt('Source account')}
                     </label>
                     <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-4 ring-1 ring-slate-900/[0.02]">
                       <div className="font-semibold text-slate-900">
@@ -1015,7 +1016,7 @@ const ChartOfAccountsPage = () => {
 
                   <div>
                     <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Target account
+                      {tt('Target account')}
                     </label>
                     <select
                       value={mergeTargetId}
@@ -1023,7 +1024,7 @@ const ChartOfAccountsPage = () => {
                       className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                       disabled={mergeLoading}
                     >
-                      <option value="">Select target…</option>
+                      <option value="">{tt('Select target…')}</option>
                       {mergeAccounts
                         .filter((a) => a && a.id !== mergeSourceAccount.id)
                         .map((a) => {
@@ -1057,7 +1058,7 @@ const ChartOfAccountsPage = () => {
                       className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                       disabled={mergeLoading}
                     >
-                      Cancel
+                      {tt('Cancel')}
                     </button>
                     <button
                       type="button"
@@ -1135,7 +1136,7 @@ const AccountModal = ({
               type="button"
               onClick={onCancel}
               className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-              aria-label="Close"
+              aria-label={tt('Close')}
             >
               <X size={22} strokeWidth={2} />
             </button>
@@ -1179,7 +1180,7 @@ const AccountModal = ({
                   value={formData.accountCode}
                   onChange={(e) => setFormData({ ...formData, accountCode: e.target.value })}
                   className={field}
-                  placeholder="e.g. 1010"
+                  placeholder={tt('e.g. 1010')}
                   disabled={
                     isEdit &&
                     (account?.transactionCount > 0 ||
@@ -1191,13 +1192,13 @@ const AccountModal = ({
             </div>
 
             <div>
-              <label className={label}>Account name</label>
+              <label className={label}>{tt('Account name')}</label>
               <input
                 type="text"
                 value={formData.accountName}
                 onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
                 className={field}
-                placeholder="e.g. Cash on hand"
+                placeholder={tt('e.g. Cash on hand')}
                 disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
               />
             </div>
@@ -1205,7 +1206,7 @@ const AccountModal = ({
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
-              <label className={label}>Account type</label>
+              <label className={label}>{tt('Account type')}</label>
               <select
                 value={formData.accountType}
                 onChange={(e) => {
@@ -1234,14 +1235,14 @@ const AccountModal = ({
             </div>
 
             <div>
-              <label className={label}>Sub-type</label>
+              <label className={label}>{tt('Sub-type')}</label>
               <select
                 value={formData.accountSubtype}
                 onChange={(e) => setFormData({ ...formData, accountSubtype: e.target.value })}
                 className={field}
                 disabled={!accountSubtypes[formData.accountType] || accountSubtypes[formData.accountType].length === 0}
               >
-                <option value="">None</option>
+                <option value="">{tt('None')}</option>
                 {accountSubtypes[formData.accountType]?.map((subtype) => (
                   <option key={subtype} value={subtype}>
                     {subtype}
@@ -1253,7 +1254,7 @@ const AccountModal = ({
 
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
-              <label className={label}>Normal balance</label>
+              <label className={label}>{tt('Normal balance')}</label>
               <div className="mt-2 flex flex-wrap items-center gap-6">
                 <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
                   <input
@@ -1264,7 +1265,7 @@ const AccountModal = ({
                     className="border-slate-300 text-blue-600 focus:ring-blue-500/30"
                     disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
                   />
-                  Debit
+                  {tt('Debit')}
                 </label>
                 <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
                   <input
@@ -1275,7 +1276,7 @@ const AccountModal = ({
                     className="border-slate-300 text-blue-600 focus:ring-blue-500/30"
                     disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
                   />
-                  Credit
+                  {tt('Credit')}
                 </label>
               </div>
             </div>
@@ -1319,13 +1320,13 @@ const AccountModal = ({
           </div>
 
           <div>
-            <label className={label}>Description</label>
+            <label className={label}>{tt('Description')}</label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className={`${field} min-h-[5.5rem] resize-y`}
               rows={3}
-              placeholder="What this account is used for…"
+              placeholder={tt('What this account is used for…')}
             />
           </div>
 
@@ -1336,7 +1337,7 @@ const AccountModal = ({
               onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
               className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
             />
-            <span className="text-sm font-medium text-slate-800">Account is active</span>
+            <span className="text-sm font-medium text-slate-800">{tt('Account is active')}</span>
           </label>
         </div>
 
@@ -1346,7 +1347,7 @@ const AccountModal = ({
             onClick={onCancel}
             className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="button"
@@ -1581,7 +1582,7 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
         <div className="shrink-0 border-b border-blue-100/80 bg-gradient-to-br from-blue-50/90 via-white to-slate-50 px-5 py-4 sm:px-6 sm:py-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Account details</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">{tt('Account details')}</p>
               <h2 id="coa-view-account-title" className="mt-1 truncate text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
                 {account.accountName || account.name || 'Unnamed account'}
               </h2>
@@ -1601,17 +1602,17 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                     className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900 ring-1 ring-amber-200/70"
                     title="Journals never post to this code. Activity lives on leaf accounts under it (e.g. 4100, 5110)."
                   >
-                    Roll-up header — no direct postings
+                    {tt('Roll-up header — no direct postings')}
                   </span>
                 )}
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-              <button type="button" className={btnExport} onClick={handleExportExcel} aria-label="Export Excel">
+              <button type="button" className={btnExport} onClick={handleExportExcel} aria-label={tt('Export Excel')}>
                 <FileSpreadsheet size={18} strokeWidth={2} className="text-emerald-600" />
-                Excel
+                {tt('Excel')}
               </button>
-              <button type="button" className={btnExport} onClick={handleExportPdf} aria-label="Export PDF">
+              <button type="button" className={btnExport} onClick={handleExportPdf} aria-label={tt('Export PDF')}>
                 <FileDown size={18} strokeWidth={2} className="text-rose-600" />
                 PDF
               </button>
@@ -1619,7 +1620,7 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                 type="button"
                 onClick={onClose}
                 className="rounded-xl p-2 text-slate-400 transition hover:bg-white/80 hover:text-slate-700"
-                aria-label="Close"
+                aria-label={tt('Close')}
               >
                 <X size={22} strokeWidth={2} />
               </button>
@@ -1627,19 +1628,19 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
           </div>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-white/60 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm">
-              <p className={dl}>Chart balance</p>
+              <p className={dl}>{tt('Chart balance')}</p>
               <p className="mt-1 font-mono text-xl font-bold tabular-nums text-slate-900">
                 {formatCurrency(chartBalanceMain)}
               </p>
               <p className="mt-1 text-[11px] leading-snug text-slate-500">As shown on the CoA grid (includes roll-ups).</p>
             </div>
             <div className="rounded-xl border border-white/60 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm">
-              <p className={dl}>Sub-accounts</p>
+              <p className={dl}>{tt('Sub-accounts')}</p>
               <p className="mt-1 font-mono text-xl font-bold tabular-nums text-slate-900">{subtreeRows.length}</p>
-              <p className="mt-1 text-[11px] leading-snug text-slate-500">Direct & nested under this account in the chart.</p>
+              <p className="mt-1 text-[11px] leading-snug text-slate-500">{tt('Direct & nested under this account in the chart.')}</p>
             </div>
             <div className="rounded-xl border border-white/60 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm">
-              <p className={dl}>Posted activity</p>
+              <p className={dl}>{tt('Posted activity')}</p>
               <p className="mt-1 font-mono text-xl font-bold tabular-nums text-slate-900">{account.transactionCount ?? 0}</p>
               <p className="mt-1 text-[11px] leading-snug text-slate-500">
                 {(account.acceptsNewTransactions === false ||
@@ -1658,28 +1659,28 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
           <div className="space-y-6">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className={card}>
-                <p className={dl}>Classification</p>
+                <p className={dl}>{tt('Classification')}</p>
                 <dl className="mt-3 space-y-2 text-sm">
                   <div className="flex justify-between gap-3 border-b border-slate-100 pb-2">
-                    <dt className="text-slate-500">Sub-type</dt>
+                    <dt className="text-slate-500">{tt('Sub-type')}</dt>
                     <dd className="font-medium text-slate-900">{account.accountSubtype || '—'}</dd>
                   </div>
                   <div className="flex justify-between gap-3 border-b border-slate-100 pb-2">
-                    <dt className="text-slate-500">Normal balance</dt>
+                    <dt className="text-slate-500">{tt('Normal balance')}</dt>
                     <dd className="font-medium text-slate-900">{account.normalBalance || '—'}</dd>
                   </div>
                   <div className="flex justify-between gap-3 pt-1">
-                    <dt className="text-slate-500">Status</dt>
+                    <dt className="text-slate-500">{tt('Status')}</dt>
                     <dd>
                       {account.isActive !== false ? (
                         <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
                           <CheckCircle size={16} strokeWidth={2} className="text-emerald-600" />
-                          Active
+                          {tt('Active')}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 font-semibold text-slate-500">
                           <XCircle size={16} strokeWidth={2} />
-                          Inactive
+                          {tt('Inactive')}
                         </span>
                       )}
                     </dd>
@@ -1688,10 +1689,10 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
               </div>
 
               <div className={card}>
-                <p className={dl}>Hierarchy</p>
+                <p className={dl}>{tt('Hierarchy')}</p>
                 {account.parentAccount ? (
                   <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                    <span className="text-slate-500">Parent · </span>
+                    <span className="text-slate-500">{tt('Parent ·')} </span>
                     <span className="font-mono font-semibold text-blue-800">
                       {account.parentAccount.accountCode || account.parentAccount.code || '—'}
                     </span>
@@ -1709,10 +1710,10 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
             <div className={card}>
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className={dl}>Sub-account balances</p>
+                  <p className={dl}>{tt('Sub-account balances')}</p>
                   <p className="mt-1 text-sm text-slate-600">
                     Each row shows its chart-grid balance (children already rolled in). Sum of{' '}
-                    <span className="font-medium text-slate-800">direct</span> sub-accounts only:{' '}
+                    <span className="font-medium text-slate-800">{tt('direct')}</span> sub-accounts only:{' '}
                     <span className="font-mono font-semibold text-slate-900">{formatCurrency(directChildrenTotal)}</span>
                     {' '}(nested rows are listed for detail, not re-added).
                   </p>
@@ -1726,17 +1727,17 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
               </div>
               {subtreeRows.length === 0 ? (
                 <p className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-500">
-                  No sub-accounts in the current chart list for this account.
+                  {tt('No sub-accounts in the current chart list for this account.')}
                 </p>
               ) : (
                 <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200/90">
                   <table className="min-w-full text-left text-sm">
                     <thead className="sticky top-0 z-10 bg-slate-100/95 text-xs font-semibold uppercase tracking-wide text-slate-600 backdrop-blur">
                       <tr>
-                        <th className="px-3 py-2.5">Code</th>
-                        <th className="px-3 py-2.5">Name</th>
-                        <th className="hidden px-3 py-2.5 sm:table-cell">Type</th>
-                        <th className="px-3 py-2.5 text-right">Chart balance</th>
+                        <th className="px-3 py-2.5">{tt('Code')}</th>
+                        <th className="px-3 py-2.5">{tt('Name')}</th>
+                        <th className="hidden px-3 py-2.5 sm:table-cell">{tt('Type')}</th>
+                        <th className="px-3 py-2.5 text-right">{tt('Chart balance')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1774,10 +1775,10 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className={card}>
-                <p className={dl}>Balance vs chart</p>
+                <p className={dl}>{tt('Balance vs chart')}</p>
                 <ul className="mt-3 space-y-2 text-sm text-slate-700">
                   <li>
-                    <span className="text-slate-500">Chart total: </span>
+                    <span className="text-slate-500">{tt('Chart total:')} </span>
                     <span className="font-mono font-semibold">{formatCurrency(chartBalanceMain)}</span>
                   </li>
                   {account.balanceSources &&
@@ -1807,13 +1808,12 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
               <div className={card}>
                 <p className={dl}>Balance composition (detail)</p>
                 <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                  Source: <span className="font-mono text-slate-800">{account.balanceSources.balanceSource}</span>
+                  {tt('Source:')} <span className="font-mono text-slate-800">{account.balanceSources.balanceSource}</span>
                   {account.balanceSources.mergeRollupPostingAccountCount > 1 && (
                     <>
                       {' '}
                       · CoA merge rollup:{' '}
-                      <span className="font-mono">{account.balanceSources.mergeRollupPostingAccountCount}</span> account ids
-                      post into this code
+                      <span className="font-mono">{account.balanceSources.mergeRollupPostingAccountCount}</span> {tt('account ids post into this code')}
                     </>
                   )}
                 </p>
@@ -1824,13 +1824,13 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                   <table className="min-w-[720px] w-full text-left text-sm text-slate-800">
                     <thead className="bg-slate-100/80 text-xs font-semibold uppercase tracking-wide text-slate-600">
                       <tr>
-                        <th className="px-3 py-2">Source</th>
-                        <th className="px-3 py-2 text-right">Debit</th>
-                        <th className="px-3 py-2 text-right">Credit</th>
-                        <th className="px-3 py-2 text-right">Net / amount</th>
-                        <th className="px-3 py-2 text-right">Accumulated</th>
-                        <th className="px-3 py-2 text-right">Running total</th>
-                        <th className="px-3 py-2 text-right">Lines</th>
+                        <th className="px-3 py-2">{tt('Source')}</th>
+                        <th className="px-3 py-2 text-right">{tt('Debit')}</th>
+                        <th className="px-3 py-2 text-right">{tt('Credit')}</th>
+                        <th className="px-3 py-2 text-right">{tt('Net / amount')}</th>
+                        <th className="px-3 py-2 text-right">{tt('Accumulated')}</th>
+                        <th className="px-3 py-2 text-right">{tt('Running total')}</th>
+                        <th className="px-3 py-2 text-right">{tt('Lines')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1882,9 +1882,9 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                   <div className="mt-4 space-y-2">
                     <p className={dl}>Invoice-level detail (AR sub-ledger)</p>
                     <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 border-b border-slate-200/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                      <span>Invoice</span>
-                      <span className="text-right">Accumulated</span>
-                      <span className="text-right">Running total</span>
+                      <span>{tt('Invoice')}</span>
+                      <span className="text-right">{tt('Accumulated')}</span>
+                      <span className="text-right">{tt('Running total')}</span>
                     </div>
                     <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-slate-200/80 border-t-0 bg-white p-2 text-xs">
                       {account.balanceSources.components
@@ -1945,7 +1945,7 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
             onClick={onClose}
             className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-600/20 transition hover:bg-blue-700 min-h-[44px]"
           >
-            Close
+            {tt('Close')}
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from "react";
 import { ArrowRightLeft, ArrowUpRight, ArrowDownRight, Filter, Download, Search, Calendar } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/dateUtils";
@@ -143,13 +144,13 @@ const CapitalAccountTransfersPage = () => {
       <div className="flex w-full items-center justify-center">
         <div className="text-center">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Error Loading Transfers</h2>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">{tt('Error Loading Transfers')}</h2>
           <p className="text-gray-600 mb-4">{error}</p>
           <button 
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
-            Try Again
+            {tt('Try Again')}
           </button>
         </div>
       </div>
@@ -163,9 +164,9 @@ const CapitalAccountTransfersPage = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Capital Account Transfer History</h1>
+              <h1 className="text-2xl font-bold text-gray-900">{tt('Capital Account Transfer History')}</h1>
               <p className="text-sm text-gray-600 mt-1">
-                View and analyze all transfers to and from your capital account
+                {tt('View and analyze all transfers to and from your capital account')}
               </p>
             </div>
             <div className="flex space-x-3">
@@ -174,20 +175,20 @@ const CapitalAccountTransfersPage = () => {
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
               >
                 <ArrowRightLeft className="mr-2 h-4 w-4" />
-                New Transfer
+                {tt('New Transfer')}
               </button>
               <button
                 onClick={handleExport}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center"
               >
                 <Download className="mr-2 h-4 w-4" />
-                Export
+                {tt('Export')}
               </button>
               <a
                 href="/capital-account"
                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
               >
-                Back to Capital Account
+                {tt('Back to Capital Account')}
               </a>
             </div>
           </div>
@@ -196,7 +197,7 @@ const CapitalAccountTransfersPage = () => {
         {/* Capital Account Summary */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Capital Account Summary</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{tt('Capital Account Summary')}</h2>
             <a
               href="/capital-account"
               className="text-sm text-blue-600 hover:text-blue-800 font-medium"
@@ -231,7 +232,7 @@ const CapitalAccountTransfersPage = () => {
 
         {/* Payment account balances (same as /payments/management) */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Available Balances</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">{tt('Available Balances')}</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {paymentAccounts
               .filter((a) => a.isActive !== false)
@@ -253,25 +254,25 @@ const CapitalAccountTransfersPage = () => {
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <div className="flex items-center mb-4">
             <Filter className="h-5 w-5 text-gray-500 mr-2" />
-            <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{tt('Filters')}</h2>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Transfer Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{tt('Transfer Type')}</label>
               <select
                 value={filters.type}
                 onChange={(e) => handleFilterChange('type', e.target.value)}
                 className="w-full p-2 border border-gray-300 rounded-md"
               >
-                <option value="all">All Types</option>
-                <option value="outgoing">Outgoing</option>
-                <option value="incoming">Incoming</option>
+                <option value="all">{tt('All Types')}</option>
+                <option value="outgoing">{tt('Outgoing')}</option>
+                <option value="incoming">{tt('Incoming')}</option>
               </select>
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Date From</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{tt('Date From')}</label>
               <input
                 type="date"
                 value={filters.dateFrom}
@@ -281,7 +282,7 @@ const CapitalAccountTransfersPage = () => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Date To</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{tt('Date To')}</label>
               <input
                 type="date"
                 value={filters.dateTo}
@@ -291,14 +292,14 @@ const CapitalAccountTransfersPage = () => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{tt('Search')}</label>
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
                   value={filters.search}
                   onChange={(e) => handleFilterChange('search', e.target.value)}
-                  placeholder="Reference, notes..."
+                  placeholder={tt('Reference, notes...')}
                   className="w-full pl-10 pr-4 p-2 border border-gray-300 rounded-md"
                 />
               </div>
@@ -309,19 +310,19 @@ const CapitalAccountTransfersPage = () => {
         {/* Transfers Table */}
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Transfer History</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{tt('Transfer History')}</h2>
           </div>
           
           {isLoading ? (
             <div className="p-6 text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="text-gray-500 mt-2">Loading transfers...</p>
+              <p className="text-gray-500 mt-2">{tt('Loading transfers...')}</p>
             </div>
           ) : transfers.length === 0 ? (
             <div className="p-6 text-center">
               <ArrowRightLeft className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500">No transfers found</p>
-              <p className="text-sm text-gray-400 mt-1">Transfers will appear here once you make them</p>
+              <p className="text-gray-500">{tt('No transfers found')}</p>
+              <p className="text-sm text-gray-400 mt-1">{tt('Transfers will appear here once you make them')}</p>
             </div>
           ) : (
             <>
@@ -330,19 +331,19 @@ const CapitalAccountTransfersPage = () => {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Transfer Details
+                        {tt('Transfer Details')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Type
+                        {tt('Type')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount
+                        {tt('Amount')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
+                        {tt('Date')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Reference
+                        {tt('Reference')}
                       </th>
                     </tr>
                   </thead>
@@ -411,14 +412,14 @@ const CapitalAccountTransfersPage = () => {
                         disabled={currentPage === 1}
                         className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                       >
-                        Previous
+                        {tt('Previous')}
                       </button>
                       <button
                         onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                         disabled={currentPage === totalPages}
                         className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                       >
-                        Next
+                        {tt('Next')}
                       </button>
                     </div>
                   </div>

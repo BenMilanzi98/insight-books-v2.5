@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -136,9 +137,9 @@ function RegisterForm() {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900">Create Your Account</h2>
+          <h2 className="text-3xl font-bold text-gray-900">{tt('Create Your Account')}</h2>
           <p className="mt-2 text-sm text-gray-600">
-            Start managing your business with Insight Books
+            {tt('Start managing your business with Insight Books')}
           </p>
         </div>
       </div>
@@ -152,10 +153,9 @@ function RegisterForm() {
                 <div className="flex">
                   <CheckCircle className="h-5 w-5 text-green-400" />
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-green-800">Referral Link Detected!</h3>
+                    <h3 className="text-sm font-medium text-green-800">{tt('Referral Link Detected!')}</h3>
                     <div className="mt-2 text-sm text-green-700">
-                      Your referral code <strong>{formData.referralCode}</strong> has been automatically added. 
-                      You will get special benefits when you complete your registration!
+                      {tt('Your referral code')} <strong>{formData.referralCode}</strong> {tt('has been automatically added. You will get special benefits when you complete your registration!')}
                     </div>
                   </div>
                 </div>
@@ -165,7 +165,7 @@ function RegisterForm() {
             {/* Personal Information */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                Full Name *
+                {tt('Full Name *')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -179,14 +179,14 @@ function RegisterForm() {
                   value={formData.name}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Enter your full name"
+                  placeholder={tt('Enter your full name')}
                 />
               </div>
             </div>
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email Address *
+                {tt('Email Address *')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -200,14 +200,14 @@ function RegisterForm() {
                   value={formData.email}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Enter your email address"
+                  placeholder={tt('Enter your email address')}
                 />
               </div>
             </div>
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password *
+                {tt('Password *')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -221,7 +221,7 @@ function RegisterForm() {
                   value={formData.password}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Create a strong password"
+                  placeholder={tt('Create a strong password')}
                 />
                 <button
                   type="button"
@@ -239,7 +239,7 @@ function RegisterForm() {
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Confirm Password *
+                {tt('Confirm Password *')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -253,7 +253,7 @@ function RegisterForm() {
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Confirm your password"
+                  placeholder={tt('Confirm your password')}
                 />
                 <button
                   type="button"
@@ -272,7 +272,7 @@ function RegisterForm() {
             {/* Business Information */}
             <div>
               <label htmlFor="tenantName" className="block text-sm font-medium text-gray-700">
-                Business/Company Name *
+                {tt('Business/Company Name *')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -286,14 +286,14 @@ function RegisterForm() {
                   value={formData.tenantName}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Enter your business name"
+                  placeholder={tt('Enter your business name')}
                 />
               </div>
             </div>
 
             <div>
               <label htmlFor="subdomain" className="block text-sm font-medium text-gray-700">
-                Subdomain
+                {tt('Subdomain')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -306,14 +306,14 @@ function RegisterForm() {
                   value={formData.subdomain}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="yourbusiness"
+                  placeholder={tt('yourbusiness')}
                 />
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                   <span className="text-gray-500 text-sm">.insightbooks.com</span>
                 </div>
               </div>
               <p className="mt-1 text-xs text-gray-500">
-                This will be your unique URL for accessing the system
+                {tt('This will be your unique URL for accessing the system')}
               </p>
             </div>
 
@@ -338,7 +338,7 @@ function RegisterForm() {
                       ? 'border-green-300 bg-green-50 focus:ring-green-500 focus:border-green-500' 
                       : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
                   }`}
-                  placeholder="Enter referral code if you have one"
+                  placeholder={tt('Enter referral code if you have one')}
                   readOnly={referralSuccess} // Make it read-only if pre-filled from referral
                 />
                 {referralSuccess && (
@@ -361,7 +361,7 @@ function RegisterForm() {
                 <div className="flex">
                   <AlertCircle className="h-5 w-5 text-red-400" />
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">Error</h3>
+                    <h3 className="text-sm font-medium text-red-800">{tt('Error')}</h3>
                     <div className="mt-2 text-sm text-red-700">{error}</div>
                   </div>
                 </div>
@@ -373,7 +373,7 @@ function RegisterForm() {
                 <div className="flex">
                   <CheckCircle className="h-5 w-5 text-green-400" />
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-green-800">Success</h3>
+                    <h3 className="text-sm font-medium text-green-800">{tt('Success')}</h3>
                     <div className="mt-2 text-sm text-green-700">{success}</div>
                   </div>
                 </div>
@@ -407,7 +407,7 @@ function RegisterForm() {
                 onClick={() => router.push('/login')}
                 className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
-                Sign In
+                {tt('Sign In')}
               </button>
             </div>
           </div>
@@ -419,7 +419,7 @@ function RegisterForm() {
 
 export default function RegisterPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div>{tt('Loading...')}</div>}>
       <RegisterForm />
     </Suspense>
   );

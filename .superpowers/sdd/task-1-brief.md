@@ -1,136 +1,198 @@
-### Task 1: Source tags + operator labels
+### Task 1: Lock, codes, and document numbers (pure)
 
 **Files:**
-- Create: `lib/rentalSourceTags.js`
-- Create: `test/rentalSourceTags.test.js`
-- Modify: `lib/rentalKinds.js`
-- Modify: `test/rentalKinds.test.js`
+- Create: `lib/desktop/codes.js`
+- Create: `lib/desktop/lock.js`
+- Create: `lib/desktop/documentNumbers.js`
+- Create: `test/desktop/lock.test.js`
+- Create: `test/desktop/documentNumbers.test.js`
 
 **Interfaces:**
 - Produces:
-  - `OUTBOUND_INVOICE_SOURCE = { RENTAL_SPACE: 'RENTAL_SPACE', CUSTOMER_HIRE: 'CUSTOMER_HIRE' }`
-  - `resolveOutboundInvoiceSource(kind: string|null): 'RENTAL_SPACE'|'CUSTOMER_HIRE'|null`
-  - `RENTAL_TRACE_EVENT = { REVENUE, TAX, REVERSAL, DAMAGE, DAMAGE_LOSS, REPAIR, SUPPLIER_HIRE_SPEND, UTILIZATION }`
-  - `outboundKindLabel(kind)` returns `'Customer hire'` for quantity pool (was `'Quantity rental'`)
+  - `DESKTOP_CODES = { SYNC_REQUIRED: 'DESKTOP_SYNC_REQUIRED', ONLINE_ONLY: 'DESKTOP_ONLINE_ONLY', SUBSCRIPTION_INACTIVE: 'SUBSCRIPTION_INACTIVE', DEVICE_BOUND: 'DEVICE_ALREADY_BOUND', NOT_BOUND: 'DEVICE_NOT_BOUND' }`
+  - `LOCK_MS = 24 * 60 * 60 * 1000`
+  - `WARN_MS = 20 * 60 * 60 * 1000`
+  - `CLOCK_BACKSHIFT_MS = 5 * 60 * 1000`
+  - `evaluateDesktopLock({ lastSuccessfulSyncAt, lastLocalNow, now, subscriptionActive }) → { locked: boolean, warning: boolean, hoursSinceSync: number, reason: 'stale' \| 'clock' \| 'subscription' \| null }`
+  - `formatDesktopDocNumber({ prefix, type, seq }) → string` e.g. `TILL1-SALE-1`
+  - `nextSeq(lastIssued) → number`
 
 - [ ] **Step 1: Write failing tests**
 
-Create `test/rentalSourceTags.test.js`:
+Create `test/desktop/lock.test.js`:
 
 ```js
 import { describe, expect, it } from 'vitest';
-import {
-  OUTBOUND_INVOICE_SOURCE,
-  resolveOutboundInvoiceSource,
-  RENTAL_TRACE_EVENT,
-} from '../lib/rentalSourceTags.js';
+import { evaluateDesktopLock, LOCK_MS, WARN_MS } from '../../lib/desktop/lock.js';
 
-describe('rentalSourceTags', () => {
-  it('maps space rental kind to RENTAL_SPACE', () => {
-    expect(resolveOutboundInvoiceSource('rental')).toBe(OUTBOUND_INVOICE_SOURCE.RENTAL_SPACE);
-    expect(resolveOutboundInvoiceSource('space')).toBe(OUTBOUND_INVOICE_SOURCE.RENTAL_SPACE);
+const HOUR = 60 * 60 * 1000;
+const t0 = Date.parse('2026-08-15T10:00:00.000Z');
+
+describe('evaluateDesktopLock', () => {
+  it('is unlocked under 20h', () => {
+    const r = evaluateDesktopLock({
+      lastSuccessfulSyncAt: t0,
+      lastLocalNow: t0,
+      now: t0 + 19 * HOUR,
+      subscriptionActive: true,
+    });
+    expect(r.locked).toBe(false);
+    expect(r.warning).toBe(false);
+    expect(r.reason).toBeNull();
   });
 
-  it('maps quantity pool / hiring kind to CUSTOMER_HIRE', () => {
-    expect(resolveOutboundInvoiceSource('hiring')).toBe(OUTBOUND_INVOICE_SOURCE.CUSTOMER_HIRE);
-    expect(resolveOutboundInvoiceSource('quantity_pool')).toBe(OUTBOUND_INVOICE_SOURCE.CUSTOMER_HIRE);
+  it('warns between 20h and 24h', () => {
+    const r = evaluateDesktopLock({
+      lastSuccessfulSyncAt: t0,
+      lastLocalNow: t0,
+      now: t0 + 21 * HOUR,
+      subscriptionActive: true,
+    });
+    expect(r.locked).toBe(false);
+    expect(r.warning).toBe(true);
+    expect(r.hoursSinceSync).toBeGreaterThanOrEqual(20);
   });
 
-  it('returns null for unknown / inbound kinds', () => {
-    expect(resolveOutboundInvoiceSource('supplier_hire')).toBeNull();
-    expect(resolveOutboundInvoiceSource(null)).toBeNull();
+  it('locks at 24h', () => {
+    const r = evaluateDesktopLock({
+      lastSuccessfulSyncAt: t0,
+      lastLocalNow: t0,
+      now: t0 + LOCK_MS,
+      subscriptionActive: true,
+    });
+    expect(r.locked).toBe(true);
+    expect(r.reason).toBe('stale');
   });
 
-  it('exports stable trace event constants', () => {
-    expect(RENTAL_TRACE_EVENT.REVERSAL).toBe('REVERSAL');
-    expect(RENTAL_TRACE_EVENT.DAMAGE).toBe('DAMAGE');
-    expect(RENTAL_TRACE_EVENT.REPAIR).toBe('REPAIR');
-    expect(RENTAL_TRACE_EVENT.SUPPLIER_HIRE_SPEND).toBe('SUPPLIER_HIRE_SPEND');
+  it('locks when local clock moves backward more than 5 minutes', () => {
+    const r = evaluateDesktopLock({
+      lastSuccessfulSyncAt: t0,
+      lastLocalNow: t0 + 2 * HOUR,
+      now: t0 + 2 * HOUR - 6 * 60 * 1000,
+      subscriptionActive: true,
+    });
+    expect(r.locked).toBe(true);
+    expect(r.reason).toBe('clock');
+  });
+
+  it('does not lock for a 4-minute backward blip', () => {
+    const r = evaluateDesktopLock({
+      lastSuccessfulSyncAt: t0,
+      lastLocalNow: t0 + HOUR,
+      now: t0 + HOUR - 4 * 60 * 1000,
+      subscriptionActive: true,
+    });
+    expect(r.reason).not.toBe('clock');
+  });
+
+  it('locks when subscription is inactive', () => {
+    const r = evaluateDesktopLock({
+      lastSuccessfulSyncAt: t0,
+      lastLocalNow: t0,
+      now: t0 + HOUR,
+      subscriptionActive: false,
+    });
+    expect(r.locked).toBe(true);
+    expect(r.reason).toBe('subscription');
   });
 });
 ```
 
-Update expectation in `test/rentalKinds.test.js`:
+Create `test/desktop/documentNumbers.test.js`:
 
 ```js
-it('labels quantity pool for operators', () => {
-  expect(outboundKindLabel('hiring')).toBe('Customer hire');
-  expect(isQuantityPoolKind('hiring')).toBe(true);
+import { describe, expect, it } from 'vitest';
+import { formatDesktopDocNumber, nextSeq } from '../../lib/desktop/documentNumbers.js';
+
+describe('formatDesktopDocNumber', () => {
+  it('formats prefix-type-seq', () => {
+    expect(formatDesktopDocNumber({ prefix: 'TILL1', type: 'SALE', seq: 12 })).toBe('TILL1-SALE-12');
+  });
+});
+
+describe('nextSeq', () => {
+  it('increments from lastIssued', () => {
+    expect(nextSeq(0)).toBe(1);
+    expect(nextSeq(7)).toBe(8);
+  });
 });
 ```
 
-- [ ] **Step 2: Run tests — expect FAIL**
+- [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npx vitest run test/rentalSourceTags.test.js test/rentalKinds.test.js`
+Run: `npx vitest run test/desktop/lock.test.js test/desktop/documentNumbers.test.js`
 
-Expected: FAIL — missing module and/or label still `'Quantity rental'`.
+Expected: FAIL with "Cannot find module" for `lib/desktop/lock.js`.
 
-- [ ] **Step 3: Implement**
+- [ ] **Step 3: Write minimal implementation**
 
-Create `lib/rentalSourceTags.js`:
+`lib/desktop/codes.js`:
 
 ```js
-import { normalizeOutboundRentalKind, OUTBOUND_RENTAL_KIND } from '@/lib/rentalKinds';
+export const DESKTOP_CODES = {
+  SYNC_REQUIRED: 'DESKTOP_SYNC_REQUIRED',
+  ONLINE_ONLY: 'DESKTOP_ONLINE_ONLY',
+  SUBSCRIPTION_INACTIVE: 'SUBSCRIPTION_INACTIVE',
+  DEVICE_BOUND: 'DEVICE_ALREADY_BOUND',
+  NOT_BOUND: 'DEVICE_NOT_BOUND',
+};
+```
 
-export const OUTBOUND_INVOICE_SOURCE = Object.freeze({
-  RENTAL_SPACE: 'RENTAL_SPACE',
-  CUSTOMER_HIRE: 'CUSTOMER_HIRE',
-});
+`lib/desktop/lock.js`:
 
-export const RENTAL_TRACE_EVENT = Object.freeze({
-  REVENUE: 'REVENUE',
-  TAX: 'TAX',
-  REVERSAL: 'REVERSAL',
-  DAMAGE: 'DAMAGE',
-  DAMAGE_LOSS: 'DAMAGE_LOSS',
-  REPAIR: 'REPAIR',
-  SUPPLIER_HIRE_SPEND: 'SUPPLIER_HIRE_SPEND',
-  UTILIZATION: 'UTILIZATION',
-});
+```js
+export const LOCK_MS = 24 * 60 * 60 * 1000;
+export const WARN_MS = 20 * 60 * 60 * 1000;
+export const CLOCK_BACKSHIFT_MS = 5 * 60 * 1000;
 
-export function resolveOutboundInvoiceSource(kind) {
-  const normalized = normalizeOutboundRentalKind(kind);
-  if (normalized === OUTBOUND_RENTAL_KIND.RENTAL) return OUTBOUND_INVOICE_SOURCE.RENTAL_SPACE;
-  if (normalized === OUTBOUND_RENTAL_KIND.QUANTITY_POOL) return OUTBOUND_INVOICE_SOURCE.CUSTOMER_HIRE;
-  return null;
+export function evaluateDesktopLock({
+  lastSuccessfulSyncAt,
+  lastLocalNow,
+  now,
+  subscriptionActive,
+}) {
+  const nowMs = Number(now);
+  const syncMs = Number(lastSuccessfulSyncAt);
+  const lastLocalMs = Number(lastLocalNow);
+  const hoursSinceSync = (nowMs - syncMs) / (60 * 60 * 1000);
+
+  if (subscriptionActive === false) {
+    return { locked: true, warning: false, hoursSinceSync, reason: 'subscription' };
+  }
+  if (Number.isFinite(lastLocalMs) && lastLocalMs - nowMs > CLOCK_BACKSHIFT_MS) {
+    return { locked: true, warning: false, hoursSinceSync, reason: 'clock' };
+  }
+  if (nowMs - syncMs >= LOCK_MS) {
+    return { locked: true, warning: true, hoursSinceSync, reason: 'stale' };
+  }
+  if (nowMs - syncMs >= WARN_MS) {
+    return { locked: false, warning: true, hoursSinceSync, reason: null };
+  }
+  return { locked: false, warning: false, hoursSinceSync, reason: null };
 }
 ```
 
-In `lib/rentalKinds.js`, change `outboundKindLabel`:
+`lib/desktop/documentNumbers.js`:
 
 ```js
-export function outboundKindLabel(kind) {
-  return isQuantityPoolKind(kind) ? 'Customer hire' : 'Rental';
+export function formatDesktopDocNumber({ prefix, type, seq }) {
+  return `${prefix}-${type}-${seq}`;
+}
+
+export function nextSeq(lastIssued) {
+  return Number(lastIssued || 0) + 1;
 }
 ```
 
-In `app/api/rentals/route.js` invoice `create` data, set title using tags (keep behaviour, clearer copy):
+- [ ] **Step 4: Run tests to verify they pass**
 
-```js
-import { resolveOutboundInvoiceSource, OUTBOUND_INVOICE_SOURCE } from '@/lib/rentalSourceTags';
-// ...
-const source = resolveOutboundInvoiceSource(kind);
-title:
-  source === OUTBOUND_INVOICE_SOURCE.RENTAL_SPACE
-    ? 'Room / space rental'
-    : 'Customer hire (equipment pool)',
-notes: [notes, source ? `source=${source}` : null].filter(Boolean).join('\n') || null,
-```
-
-Keep `isRentalInvoice: true`. Do not add Prisma fields unless tests prove notes are insufficient for Reports (Reports will join `rentalTransaction.kind`).
-
-- [ ] **Step 4: Run tests — expect PASS**
-
-Run: `npx vitest run test/rentalSourceTags.test.js test/rentalKinds.test.js`
+Run: `npx vitest run test/desktop/lock.test.js test/desktop/documentNumbers.test.js`
 
 Expected: PASS
 
-- [ ] **Step 5: Commit only if user asked**
+- [ ] **Step 5: Commit** (skip unless the user asked)
 
 ```bash
-git add lib/rentalSourceTags.js test/rentalSourceTags.test.js lib/rentalKinds.js test/rentalKinds.test.js app/api/rentals/route.js
-# git commit only when user requests
+git add lib/desktop/codes.js lib/desktop/lock.js lib/desktop/documentNumbers.js test/desktop/lock.test.js test/desktop/documentNumbers.test.js
+git commit -m "feat(desktop): add lock thresholds and document number helpers"
 ```
-
----
-

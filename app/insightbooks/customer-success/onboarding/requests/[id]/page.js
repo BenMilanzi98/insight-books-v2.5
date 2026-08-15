@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -16,8 +17,7 @@ export default function OnboardingRequestDetailPage() {
       <OnboardingContextBar population={`onboarding-request:${id}`} />
       <h1 style={{ fontSize: '1.35rem', margin: '0.5rem 0' }}>Request {id}</h1>
       <p style={{ color: '#555' }}>
-        Detail surface — status history, pins, accept/reject/convert actions via API. One
-        Project per Request.
+        {tt('Detail surface — status history, pins, accept/reject/convert actions via API. One Project per Request.')}
       </p>
     </div>
   );

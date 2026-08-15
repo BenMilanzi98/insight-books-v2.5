@@ -1,5 +1,6 @@
 // app/cogs/page.js
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from "react";
 import { 
   AlertCircle, 
@@ -146,7 +147,7 @@ const COGSManagement = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold">Cost of Goods Sold (COGS) Management</h1>
-          <p className="text-gray-600">Track inventory costs, sales records, and profit margins for each product</p>
+          <p className="text-gray-600">{tt('Track inventory costs, sales records, and profit margins for each product')}</p>
         </div>
       </div>
 
@@ -155,7 +156,7 @@ const COGSManagement = () => {
         <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
           <AlertCircle className="h-5 w-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h3 className="text-red-800 font-medium mb-1">Error Loading COGS Data</h3>
+            <h3 className="text-red-800 font-medium mb-1">{tt('Error Loading COGS Data')}</h3>
             <p className="text-red-600">{error}</p>
           </div>
         </div>
@@ -196,19 +197,19 @@ const COGSManagement = () => {
       {/* Main Content Layout */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold">Product Sales & COGS Tracking</h2>
+          <h2 className="text-xl font-semibold">{tt('Product Sales & COGS Tracking')}</h2>
         </div>
         
         <div className="p-6">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="h-10 w-10 border-4 border-t-blue-600 border-r-transparent border-l-transparent border-b-transparent rounded-full animate-spin mb-4"></div>
-              <p className="text-gray-600">Loading products...</p>
+              <p className="text-gray-600">{tt('Loading products...')}</p>
             </div>
           ) : products.length === 0 ? (
             <div className="text-center py-12">
               <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No products found. Add products to your inventory to start tracking COGS.</p>
+              <p className="text-gray-500">{tt('No products found. Add products to your inventory to start tracking COGS.')}</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -233,15 +234,15 @@ const COGSManagement = () => {
                       </div>
                       <div className="flex items-center space-x-4">
                         <div className="text-right min-w-0">
-                          <p className="text-xs text-gray-500 truncate">Order Price</p>
+                          <p className="text-xs text-gray-500 truncate">{tt('Order Price')}</p>
                           <p className="break-words text-sm font-medium tabular-nums">{formatCurrency(product.cost)}</p>
                         </div>
                         <div className="text-right min-w-0">
-                          <p className="text-xs text-gray-500 truncate">Selling Price</p>
+                          <p className="text-xs text-gray-500 truncate">{tt('Selling Price')}</p>
                           <p className="break-words text-sm font-medium tabular-nums">{formatCurrency(product.price)}</p>
                         </div>
                         <div className="text-right min-w-0">
-                          <p className="text-xs text-gray-500 truncate">Stock</p>
+                          <p className="text-xs text-gray-500 truncate">{tt('Stock')}</p>
                           <p className="text-sm font-medium truncate">{product.stockLevel || 0} units</p>
                         </div>
                         <div className="flex-shrink-0">
@@ -261,28 +262,28 @@ const COGSManagement = () => {
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Product Statistics */}
                         <div>
-                          <h4 className="font-medium text-gray-900 mb-4">Product Statistics</h4>
+                          <h4 className="font-medium text-gray-900 mb-4">{tt('Product Statistics')}</h4>
                           <div className="space-y-2">
                             <div className="flex justify-between items-center">
-                              <span className="text-xs text-gray-600 truncate">Total Sales:</span>
+                              <span className="text-xs text-gray-600 truncate">{tt('Total Sales:')}</span>
                               <span className="text-sm font-medium truncate">{product.totalSales || 0} units</span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-xs text-gray-600 truncate">Total Revenue:</span>
+                              <span className="text-xs text-gray-600 truncate">{tt('Total Revenue:')}</span>
                               <span className="break-words text-sm font-medium tabular-nums text-right">{formatCurrency(product.totalRevenue || 0)}</span>
                             </div>
                             <div className="flex justify-between items-center gap-2">
-                              <span className="text-xs text-gray-600 truncate">Total COGS:</span>
+                              <span className="text-xs text-gray-600 truncate">{tt('Total COGS:')}</span>
                               <span className="break-words text-sm font-medium tabular-nums text-right">{formatCurrency(product.totalCOGS || 0)}</span>
                             </div>
                             <div className="flex justify-between items-center gap-2">
-                              <span className="text-xs text-gray-600 truncate">Gross Profit:</span>
+                              <span className="text-xs text-gray-600 truncate">{tt('Gross Profit:')}</span>
                               <span className="break-words text-sm font-medium tabular-nums text-right text-green-600">
                                 {formatCurrency((product.totalRevenue || 0) - (product.totalCOGS || 0))}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-xs text-gray-600 truncate">Profit Margin:</span>
+                              <span className="text-xs text-gray-600 truncate">{tt('Profit Margin:')}</span>
                               <span className="text-sm font-medium text-green-600 truncate">
                                 {product.totalRevenue > 0 
                                   ? `${(((product.totalRevenue || 0) - (product.totalCOGS || 0)) / product.totalRevenue * 100).toFixed(1)}%`
@@ -301,7 +302,7 @@ const COGSManagement = () => {
                                     className="w-full px-3 py-2 bg-gray-400 text-white text-xs font-medium rounded-md cursor-not-allowed flex items-center justify-center"
                                   >
                                     <CreditCard className="w-3 h-3 mr-1" />
-                                    Recorded as Expense
+                                    {tt('Recorded as Expense')}
                                   </button>
                                 ) : (
                                   // Not recorded yet - show active button
@@ -310,7 +311,7 @@ const COGSManagement = () => {
                                     className="w-full px-3 py-2 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700 transition-colors duration-200 flex items-center justify-center"
                                   >
                                     <CreditCard className="w-3 h-3 mr-1" />
-                                    Record as Expense
+                                    {tt('Record as Expense')}
                                   </button>
                                 )}
                                 <p className="text-xs text-gray-500 mt-1 text-center">
@@ -326,7 +327,7 @@ const COGSManagement = () => {
 
                         {/* Recent Sales */}
                         <div>
-                          <h4 className="font-medium text-gray-900 mb-4">Recent Sales</h4>
+                          <h4 className="font-medium text-gray-900 mb-4">{tt('Recent Sales')}</h4>
                           {product.sales && product.sales.length > 0 ? (
                             <div className="space-y-2 max-h-48 overflow-y-auto">
                               {product.sales.slice(0, 5).map((sale, index) => (
@@ -344,7 +345,7 @@ const COGSManagement = () => {
                                     </div>
                                     <div className="text-right min-w-0">
                                       <p className="break-words text-xs font-medium tabular-nums">{formatCurrency(sale.revenue)}</p>
-                                      <p className="text-xs text-gray-500 truncate">Revenue</p>
+                                      <p className="text-xs text-gray-500 truncate">{tt('Revenue')}</p>
                                     </div>
                                   </div>
                                 </div>
@@ -353,7 +354,7 @@ const COGSManagement = () => {
                           ) : (
                             <div className="text-center py-4">
                               <ShoppingCart className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                              <p className="text-sm text-gray-500">No sales recorded yet</p>
+                              <p className="text-sm text-gray-500">{tt('No sales recorded yet')}</p>
                             </div>
                           )}
                         </div>

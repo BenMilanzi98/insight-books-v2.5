@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { adminFetch } from '@/lib/admin/adminApi';
@@ -138,22 +139,22 @@ export default function SecurityMonitoringPage() {
                 onChange={(e) => setAutoRefresh(e.target.checked)}
                 className="h-4 w-4 rounded border-[var(--admin-border)]"
               />
-              Auto-refresh
+              {tt('Auto-refresh')}
             </label>
             <select
               value={selectedTimeframe}
               onChange={(e) => setSelectedTimeframe(e.target.value)}
               className={inputCls}
-              aria-label="Timeframe"
+              aria-label={tt('Timeframe')}
             >
-              <option value="1h">Last hour</option>
-              <option value="24h">Last 24 hours</option>
-              <option value="7d">Last 7 days</option>
-              <option value="30d">Last 30 days</option>
+              <option value="1h">{tt('Last hour')}</option>
+              <option value="24h">{tt('Last 24 hours')}</option>
+              <option value="7d">{tt('Last 7 days')}</option>
+              <option value="30d">{tt('Last 30 days')}</option>
             </select>
             <button type="button" onClick={fetchSecurityData} className={btnGhost}>
               <RefreshCw className="h-4 w-4" aria-hidden />
-              Refresh
+              {tt('Refresh')}
             </button>
           </div>
         }
@@ -218,7 +219,7 @@ export default function SecurityMonitoringPage() {
             <div className="flex items-center gap-2 border-b border-[var(--admin-border)] px-4 py-3 sm:px-6">
               <Activity className="h-5 w-5 text-[var(--admin-text-muted)]" aria-hidden />
               <h2 className="text-base font-semibold text-[var(--admin-text)]">
-                Recent security events
+                {tt('Recent security events')}
               </h2>
             </div>
             <div className="p-4 sm:p-6">

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from 'react';
 import { toYmdLocal } from '@/lib/dateUtils';
@@ -175,7 +176,7 @@ export default function LeaveManagement() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Leave Policies
+              {tt('Leave Policies')}
             </button>
             <button
               onClick={() => setActiveTab('requests')}
@@ -185,7 +186,7 @@ export default function LeaveManagement() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Leave Requests
+              {tt('Leave Requests')}
             </button>
             <button
               onClick={() => setActiveTab('balances')}
@@ -195,7 +196,7 @@ export default function LeaveManagement() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Leave Balances
+              {tt('Leave Balances')}
             </button>
             <button
               onClick={() => setActiveTab('calendar')}
@@ -205,7 +206,7 @@ export default function LeaveManagement() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Calendar
+              {tt('Calendar')}
             </button>
           </nav>
         </div>
@@ -215,7 +216,7 @@ export default function LeaveManagement() {
       {activeTab === 'policies' && (
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Leave Policies</h2>
+            <h2 className="text-lg font-semibold">{tt('Leave Policies')}</h2>
             <button
               onClick={() => {
                 setEditingPolicy(null);
@@ -224,7 +225,7 @@ export default function LeaveManagement() {
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
               <PlusIcon className="h-4 w-4" />
-              Add Policy
+              {tt('Add Policy')}
             </button>
           </div>
 
@@ -232,11 +233,11 @@ export default function LeaveManagement() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days/Year</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Name')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Type')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Days/Year')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -289,7 +290,7 @@ export default function LeaveManagement() {
       {activeTab === 'requests' && (
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Leave Requests</h2>
+            <h2 className="text-lg font-semibold">{tt('Leave Requests')}</h2>
             <button
               onClick={() => {
                 setEditingRequest(null);
@@ -298,7 +299,7 @@ export default function LeaveManagement() {
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
               <PlusIcon className="h-4 w-4" />
-              New Request
+              {tt('New Request')}
             </button>
           </div>
 
@@ -306,12 +307,12 @@ export default function LeaveManagement() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Leave Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Leave Type')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Period')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Days')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -477,7 +478,7 @@ function LeaveBalancesTab() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold">Leave Balances</h2>
+          <h2 className="text-lg font-semibold">{tt('Leave Balances')}</h2>
           <select
             value={year}
             onChange={(e) => setYear(parseInt(e.target.value))}
@@ -498,9 +499,9 @@ function LeaveBalancesTab() {
       </div>
 
       {loading && balances.length === 0 ? (
-        <div className="text-center py-8">Loading balances...</div>
+        <div className="text-center py-8">{tt('Loading balances...')}</div>
       ) : Object.keys(balancesByEmployee).length === 0 ? (
-        <div className="text-center py-8 text-gray-500">No leave balances found</div>
+        <div className="text-center py-8 text-gray-500">{tt('No leave balances found')}</div>
       ) : (
         <div className="space-y-4">
           {Object.values(balancesByEmployee).map(({ employee, policies }) => (
@@ -514,19 +515,19 @@ function LeaveBalancesTab() {
                     <p className="text-sm font-medium text-gray-700">{balance.leavePolicy.name}</p>
                     <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                       <div>
-                        <span className="text-gray-600">Available:</span>
+                        <span className="text-gray-600">{tt('Available:')}</span>
                         <span className="ml-1 font-semibold text-green-600">{balance.availableDays?.toFixed(1) || 0}</span>
                       </div>
                       <div>
-                        <span className="text-gray-600">Used:</span>
+                        <span className="text-gray-600">{tt('Used:')}</span>
                         <span className="ml-1 font-semibold text-blue-600">{balance.usedDays?.toFixed(1) || 0}</span>
                       </div>
                       <div>
-                        <span className="text-gray-600">Pending:</span>
+                        <span className="text-gray-600">{tt('Pending:')}</span>
                         <span className="ml-1 font-semibold text-yellow-600">{balance.pendingDays?.toFixed(1) || 0}</span>
                       </div>
                       <div>
-                        <span className="text-gray-600">Allocated:</span>
+                        <span className="text-gray-600">{tt('Allocated:')}</span>
                         <span className="ml-1 font-semibold text-gray-900">{balance.allocatedDays?.toFixed(1) || 0}</span>
                       </div>
                     </div>
@@ -580,7 +581,7 @@ function LeaveCalendarTab({ requests }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold">Leave Calendar</h2>
+        <h2 className="text-lg font-semibold">{tt('Leave Calendar')}</h2>
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
@@ -593,7 +594,7 @@ function LeaveCalendarTab({ requests }) {
             }}
             className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
           >
-            Previous
+            {tt('Previous')}
           </button>
           <span className="font-medium">{monthNames[currentMonth]} {currentYear}</span>
           <button
@@ -607,7 +608,7 @@ function LeaveCalendarTab({ requests }) {
             }}
             className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
           >
-            Next
+            {tt('Next')}
           </button>
         </div>
       </div>
@@ -701,7 +702,7 @@ function PolicyModal({ policy, onClose, onSubmit }) {
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Name')}</label>
               <input
                 type="text"
                 value={formData.name}
@@ -712,7 +713,7 @@ function PolicyModal({ policy, onClose, onSubmit }) {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700">Description</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Description')}</label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -722,24 +723,24 @@ function PolicyModal({ policy, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Leave Type</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Leave Type')}</label>
               <select
                 value={formData.leaveType}
                 onChange={(e) => setFormData({ ...formData, leaveType: e.target.value })}
                 className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
                 required
               >
-                <option value="annual">Annual Leave</option>
-                <option value="sick">Sick Leave</option>
-                <option value="maternity">Maternity Leave</option>
-                <option value="paternity">Paternity Leave</option>
-                <option value="emergency">Emergency Leave</option>
-                <option value="unpaid">Unpaid Leave</option>
+                <option value="annual">{tt('Annual Leave')}</option>
+                <option value="sick">{tt('Sick Leave')}</option>
+                <option value="maternity">{tt('Maternity Leave')}</option>
+                <option value="paternity">{tt('Paternity Leave')}</option>
+                <option value="emergency">{tt('Emergency Leave')}</option>
+                <option value="unpaid">{tt('Unpaid Leave')}</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Max Days Per Year</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Max Days Per Year')}</label>
               <input
                 type="number"
                 value={formData.maxDaysPerYear}
@@ -755,7 +756,7 @@ function PolicyModal({ policy, onClose, onSubmit }) {
                 onChange={(e) => setFormData({ ...formData, requiresApproval: e.target.checked })}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
-              <label className="ml-2 block text-sm text-gray-900">Requires Approval</label>
+              <label className="ml-2 block text-sm text-gray-900">{tt('Requires Approval')}</label>
             </div>
 
             <div className="flex items-center">
@@ -765,7 +766,7 @@ function PolicyModal({ policy, onClose, onSubmit }) {
                 onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
-              <label className="ml-2 block text-sm text-gray-900">Active</label>
+              <label className="ml-2 block text-sm text-gray-900">{tt('Active')}</label>
             </div>
 
             <div className="flex justify-end space-x-3 pt-4">
@@ -774,7 +775,7 @@ function PolicyModal({ policy, onClose, onSubmit }) {
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button
                 type="submit"
@@ -868,14 +869,14 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
           <form onSubmit={handleSubmit} className="space-y-4">
             {!request && (
               <div>
-                <label className="block text-sm font-medium text-gray-700">Employee *</label>
+                <label className="block text-sm font-medium text-gray-700">{tt('Employee *')}</label>
                 <select
                   value={formData.employeeId}
                   onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
                   className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
                   required
                 >
-                  <option value="">Select an employee</option>
+                  <option value="">{tt('Select an employee')}</option>
                   {employees.map((employee) => (
                     <option key={employee.id} value={employee.id}>
                       {employee.name} {employee.employeeId ? `(${employee.employeeId})` : ''}
@@ -886,7 +887,7 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Leave Policy *</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Leave Policy *')}</label>
               <select
                 value={formData.leavePolicyId}
                 onChange={(e) => setFormData({ ...formData, leavePolicyId: e.target.value })}
@@ -894,7 +895,7 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
                 required
                 disabled={!!request}
               >
-                <option value="">Select a policy</option>
+                <option value="">{tt('Select a policy')}</option>
                 {policies.filter(p => p.isActive).map((policy) => (
                   <option key={policy.id} value={policy.id}>
                     {policy.name} ({policy.leaveType})
@@ -905,18 +906,18 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
 
             {leaveBalance && !request && (
               <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                <p className="text-sm font-medium text-blue-900">Leave Balance</p>
+                <p className="text-sm font-medium text-blue-900">{tt('Leave Balance')}</p>
                 <div className="mt-1 grid grid-cols-3 gap-2 text-xs">
                   <div>
-                    <span className="text-blue-700">Available:</span>
+                    <span className="text-blue-700">{tt('Available:')}</span>
                     <span className="ml-1 font-semibold text-blue-900">{leaveBalance.availableDays?.toFixed(1) || 0}</span>
                   </div>
                   <div>
-                    <span className="text-blue-700">Used:</span>
+                    <span className="text-blue-700">{tt('Used:')}</span>
                     <span className="ml-1 font-semibold text-blue-900">{leaveBalance.usedDays?.toFixed(1) || 0}</span>
                   </div>
                   <div>
-                    <span className="text-blue-700">Pending:</span>
+                    <span className="text-blue-700">{tt('Pending:')}</span>
                     <span className="ml-1 font-semibold text-blue-900">{leaveBalance.pendingDays?.toFixed(1) || 0}</span>
                   </div>
                 </div>
@@ -924,7 +925,7 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Start Date</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Start Date')}</label>
               <input
                 type="date"
                 value={formData.startDate}
@@ -936,7 +937,7 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">End Date</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('End Date')}</label>
               <input
                 type="date"
                 value={formData.endDate}
@@ -948,7 +949,7 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Reason</label>
+              <label className="block text-sm font-medium text-gray-700">{tt('Reason')}</label>
               <textarea
                 value={formData.reason}
                 onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
@@ -960,7 +961,7 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
 
             {request && (
               <div>
-                <label className="block text-sm font-medium text-gray-700">Status</label>
+                <label className="block text-sm font-medium text-gray-700">{tt('Status')}</label>
                 <div className="mt-1 text-sm text-gray-900 capitalize">{request.status}</div>
               </div>
             )}
@@ -971,14 +972,14 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
               >
-                Close
+                {tt('Close')}
               </button>
               {!request && (
                 <button
                   type="submit"
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
                 >
-                  Submit Request
+                  {tt('Submit Request')}
                 </button>
               )}
             </div>

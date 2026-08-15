@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -245,7 +246,7 @@ export default function BusinessSetupWizard({ initialRun = null }) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center gap-2 text-slate-600">
         <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-        Loading business setup…
+        {tt('Loading business setup…')}
       </div>
     );
   }
@@ -260,8 +261,8 @@ export default function BusinessSetupWizard({ initialRun = null }) {
     return (
       <div className="mx-auto max-w-xl space-y-6 px-4 py-10">
         <div>
-          <p className="text-sm font-medium text-slate-500">InsightBooks</p>
-          <h1 className="mt-1 text-2xl font-semibold text-slate-900">Business Setup Wizard</h1>
+          <p className="text-sm font-medium text-slate-500">{tt('InsightBooks')}</p>
+          <h1 className="mt-1 text-2xl font-semibold text-slate-900">{tt('Business Setup Wizard')}</h1>
           <p className="mt-2 text-sm text-slate-600">
             Configure profile, calendar, accounts, and opening balances. Final posting creates one
             consolidated Opening Journal through the Accounting engine.
@@ -284,8 +285,7 @@ export default function BusinessSetupWizard({ initialRun = null }) {
               onChange={(e) => setConversionApproved(e.target.checked)}
             />
             <span>
-              I confirm controlled conversion mode: backup acknowledged, Finance approval obtained,
-              and I will not duplicate existing opening balances.
+              {tt('I confirm controlled conversion mode: backup acknowledged, Finance approval obtained, and I will not duplicate existing opening balances.')}
             </span>
           </label>
         )}
@@ -308,7 +308,7 @@ export default function BusinessSetupWizard({ initialRun = null }) {
             href="/dashboard"
             className="inline-flex items-center rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700"
           >
-            Back to dashboard
+            {tt('Back to dashboard')}
           </Link>
         </div>
       </div>
@@ -317,9 +317,9 @@ export default function BusinessSetupWizard({ initialRun = null }) {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-4 px-3 py-4 sm:px-6 lg:flex-row lg:py-8">
-      <aside className="w-full shrink-0 rounded-xl border border-slate-200 bg-white p-3 lg:w-72" aria-label="Setup steps">
+      <aside className="w-full shrink-0 rounded-xl border border-slate-200 bg-white p-3 lg:w-72" aria-label={tt('Setup steps')}>
         <div className="mb-3 border-b border-slate-100 pb-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Setup progress</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{tt('Setup progress')}</p>
           <p className="mt-1 text-lg font-semibold text-slate-900">{percent}%</p>
           <div
             className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"
@@ -398,7 +398,7 @@ export default function BusinessSetupWizard({ initialRun = null }) {
             onClick={() => prevDef && selectStep(prevDef.id)}
             className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm disabled:opacity-40"
           >
-            <ArrowLeft className="h-4 w-4" /> Previous
+            <ArrowLeft className="h-4 w-4" /> {tt('Previous')}
           </button>
           <div className="flex flex-wrap gap-2">
             {currentMeta?.optional ? (
@@ -413,7 +413,7 @@ export default function BusinessSetupWizard({ initialRun = null }) {
                 }
                 className="rounded-md border border-slate-300 px-3 py-2 text-sm"
               >
-                Skip optional
+                {tt('Skip optional')}
               </button>
             ) : null}
             {!REVIEW_STEPS.has(currentStepId) ? (
@@ -448,7 +448,7 @@ export default function BusinessSetupWizard({ initialRun = null }) {
                   onClick={() => selectStep(nextDef.id)}
                   className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white"
                 >
-                  Next <ArrowRight className="h-4 w-4" />
+                  {tt('Next')} <ArrowRight className="h-4 w-4" />
                 </button>
               )
             )}
@@ -468,15 +468,14 @@ function StepBody({ stepId, form, setForm, preview, loadPreview, runAction, run,
     return (
       <div className="space-y-3 text-sm text-slate-700">
         <p>
-          Save this step to apply/ensure the default Chart of Accounts for this business. Account
-          sample and count are stored on the step payload.
+          {tt('Save this step to apply/ensure the default Chart of Accounts for this business. Account sample and count are stored on the step payload.')}
         </p>
         {form.accountCount != null ? (
           <p className="rounded-lg bg-slate-50 p-3">
-            Active accounts: <strong>{form.accountCount}</strong>
+            {tt('Active accounts:')} <strong>{form.accountCount}</strong>
           </p>
         ) : (
-          <p className="text-slate-500">Not generated yet — click Save.</p>
+          <p className="text-slate-500">{tt('Not generated yet — click Save.')}</p>
         )}
       </div>
     );
@@ -492,8 +491,7 @@ function StepBody({ stepId, form, setForm, preview, loadPreview, runAction, run,
     return (
       <div className="space-y-3">
         <p className="text-sm text-slate-600">
-          Map system purposes to posting accounts. Saving auto-resolves Opening Balance Equity and
-          common controls when possible.
+          {tt('Map system purposes to posting accounts. Saving auto-resolves Opening Balance Equity and common controls when possible.')}
         </p>
         {[
           "OPENING_BALANCE_EQUITY",
@@ -507,7 +505,7 @@ function StepBody({ stepId, form, setForm, preview, loadPreview, runAction, run,
               className="w-full rounded-md border border-slate-300 px-3 py-2"
               value={mappings[key] || ""}
               onChange={(e) => setMapping(key, e.target.value)}
-              placeholder="Account id"
+              placeholder={tt('Account id')}
             />
           </label>
         ))}
@@ -577,7 +575,7 @@ function FoundationAndMasterForms({ stepId, form, setForm }) {
         <Field label="Legal business name" value={form.legalName || ""} onChange={(v) => set("legalName", v)} />
         <Field label="Trading name" value={form.tradingName || ""} onChange={(v) => set("tradingName", v)} />
         <Field label="Base currency" value={form.baseCurrency || ""} onChange={(v) => set("baseCurrency", v)} placeholder="MWK" />
-        <Field label="Timezone" value={form.timezone || ""} onChange={(v) => set("timezone", v)} placeholder="Africa/Blantyre" />
+        <Field label="Timezone" value={form.timezone || ""} onChange={(v) => set("timezone", v)} placeholder={tt('Africa/Blantyre')} />
         <Field label="Country" value={form.country || ""} onChange={(v) => set("country", v)} />
         <Field label="Phone" value={form.businessPhone || ""} onChange={(v) => set("businessPhone", v)} />
         <Field label="Email" value={form.businessEmail || ""} onChange={(v) => set("businessEmail", v)} />
@@ -590,19 +588,19 @@ function FoundationAndMasterForms({ stepId, form, setForm }) {
     return (
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm sm:col-span-2">
-          <span className="mb-1 block font-medium text-slate-700">Legal structure</span>
+          <span className="mb-1 block font-medium text-slate-700">{tt('Legal structure')}</span>
           <select
             className="w-full rounded-md border border-slate-300 px-3 py-2"
             value={form.legalStructure || ""}
             onChange={(e) => set("legalStructure", e.target.value)}
           >
-            <option value="">Select…</option>
-            <option value="SOLE_PROPRIETORSHIP">Sole proprietorship</option>
-            <option value="PARTNERSHIP">Partnership</option>
-            <option value="PRIVATE_COMPANY">Private company</option>
-            <option value="PUBLIC_COMPANY">Public company</option>
-            <option value="NON_PROFIT">Non-profit</option>
-            <option value="OTHER">Other</option>
+            <option value="">{tt('Select…')}</option>
+            <option value="SOLE_PROPRIETORSHIP">{tt('Sole proprietorship')}</option>
+            <option value="PARTNERSHIP">{tt('Partnership')}</option>
+            <option value="PRIVATE_COMPANY">{tt('Private company')}</option>
+            <option value="PUBLIC_COMPANY">{tt('Public company')}</option>
+            <option value="NON_PROFIT">{tt('Non-profit')}</option>
+            <option value="OTHER">{tt('Other')}</option>
           </select>
         </label>
         <Field label="Primary owner name" value={form.primaryOwnerName || ""} onChange={(v) => set("primaryOwnerName", v)} />
@@ -653,17 +651,17 @@ function FoundationAndMasterForms({ stepId, form, setForm }) {
         <div className="flex flex-wrap gap-2">
           {stepId === "customers" && (
             <Link className="rounded-md border px-3 py-2 hover:bg-slate-50" href="/clients">
-              Open clients
+              {tt('Open clients')}
             </Link>
           )}
           {stepId === "suppliers" && (
             <Link className="rounded-md border px-3 py-2 hover:bg-slate-50" href="/suppliers">
-              Open suppliers
+              {tt('Open suppliers')}
             </Link>
           )}
           {stepId === "inventoryItems" && (
             <Link className="rounded-md border px-3 py-2 hover:bg-slate-50" href="/stock">
-              Open stock
+              {tt('Open stock')}
             </Link>
           )}
         </div>
@@ -671,7 +669,7 @@ function FoundationAndMasterForms({ stepId, form, setForm }) {
           label="Notes"
           value={form.notes || ""}
           onChange={(v) => set("notes", v)}
-          placeholder="Optional setup notes"
+          placeholder={tt('Optional setup notes')}
         />
       </div>
     );
@@ -688,7 +686,7 @@ function FoundationAndMasterForms({ stepId, form, setForm }) {
           label="Evidence reference"
           value={form.evidenceReference || ""}
           onChange={(v) => set("evidenceReference", v)}
-          placeholder="e.g. TB-2025-12 / BOX-A"
+          placeholder={tt('e.g. TB-2025-12 / BOX-A')}
         />
         <Field
           label="Document index notes"
@@ -722,7 +720,7 @@ function ReviewPanel({ stepId, preview, loadPreview, runAction, run, saving }) {
               onClick={() => runAction("submit")}
               className="rounded-md border border-slate-300 px-3 py-2"
             >
-              Submit for review
+              {tt('Submit for review')}
             </button>
             <button
               type="button"
@@ -730,7 +728,7 @@ function ReviewPanel({ stepId, preview, loadPreview, runAction, run, saving }) {
               onClick={() => runAction("approve")}
               className="rounded-md border border-slate-300 px-3 py-2"
             >
-              Approve
+              {tt('Approve')}
             </button>
             <button
               type="button"
@@ -738,7 +736,7 @@ function ReviewPanel({ stepId, preview, loadPreview, runAction, run, saving }) {
               onClick={() => runAction("post")}
               className="rounded-md bg-slate-900 px-3 py-2 font-medium text-white disabled:opacity-40"
             >
-              Post opening journal
+              {tt('Post opening journal')}
             </button>
           </>
         ) : null}
@@ -752,7 +750,7 @@ function ReviewPanel({ stepId, preview, loadPreview, runAction, run, saving }) {
             }}
             className="rounded-md border border-amber-300 px-3 py-2 text-amber-900"
           >
-            Request reopen
+            {tt('Request reopen')}
           </button>
         ) : null}
         {run.status === "REOPEN_REQUESTED" ? (
@@ -768,7 +766,7 @@ function ReviewPanel({ stepId, preview, loadPreview, runAction, run, saving }) {
       </div>
 
       {!preview ? (
-        <p className="text-slate-500">Run validation to preview the consolidated Opening Journal.</p>
+        <p className="text-slate-500">{tt('Run validation to preview the consolidated Opening Journal.')}</p>
       ) : (
         <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -788,7 +786,7 @@ function ReviewPanel({ stepId, preview, loadPreview, runAction, run, saving }) {
           </div>
           {preview.blockers?.length > 0 && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-              <p className="font-medium text-red-900">Blockers</p>
+              <p className="font-medium text-red-900">{tt('Blockers')}</p>
               <ul className="mt-2 list-disc pl-5 text-red-800">
                 {preview.blockers.map((b, i) => (
                   <li key={i}>{b.message}</li>
@@ -800,11 +798,11 @@ function ReviewPanel({ stepId, preview, loadPreview, runAction, run, saving }) {
             <table className="min-w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
-                  <th className="px-2 py-2">Code</th>
-                  <th className="px-2 py-2">Account</th>
-                  <th className="px-2 py-2">Step</th>
-                  <th className="px-2 py-2 text-right">Debit</th>
-                  <th className="px-2 py-2 text-right">Credit</th>
+                  <th className="px-2 py-2">{tt('Code')}</th>
+                  <th className="px-2 py-2">{tt('Account')}</th>
+                  <th className="px-2 py-2">{tt('Step')}</th>
+                  <th className="px-2 py-2 text-right">{tt('Debit')}</th>
+                  <th className="px-2 py-2 text-right">{tt('Credit')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -821,7 +819,7 @@ function ReviewPanel({ stepId, preview, loadPreview, runAction, run, saving }) {
             </table>
           </div>
           <div className="space-y-2">
-            <p className="font-medium text-slate-800">Reconciliations</p>
+            <p className="font-medium text-slate-800">{tt('Reconciliations')}</p>
             {(preview.reconciliations?.results || []).map((r) => (
               <div
                 key={r.control}
@@ -838,7 +836,7 @@ function ReviewPanel({ stepId, preview, loadPreview, runAction, run, saving }) {
           </div>
           {run.journalEntryId ? (
             <p className="text-emerald-800">
-              Posted journal: <strong>{run.journalEntryId}</strong>
+              {tt('Posted journal:')} <strong>{run.journalEntryId}</strong>
             </p>
           ) : null}
         </div>

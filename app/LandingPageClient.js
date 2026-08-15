@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -75,17 +76,17 @@ function NavigationBar() {
           {/* <div className="flex items-center">
             <div className="flex items-center">
               <div className="w-8 h-8 bg-indigo-600 rounded-md flex items-center justify-center mr-3">
-                <span className="text-white font-medium text-sm">IB</span>
+                <span className="text-white font-medium text-sm">{tt('IB')}</span>
               </div>
               <span className={`font-semibold text-lg ${scrolled ? "text-slate-800" : "text-white"}`}>
-                InsightBooks
+                {tt('InsightBooks')}
               </span>
             </div>
           </div> */}
           <Link href="/" className="flex items-center">
             <img
               src="/logo.png"
-              alt="InsightBooks — cloud accounting and business software"
+              alt={tt('InsightBooks — cloud accounting and business software')}
               className="h-10 w-auto object-contain rounded-md"
             />
           </Link>
@@ -95,19 +96,19 @@ function NavigationBar() {
               <>
                 {isLoggedIn ? (
                   <Link href="/dashboard" className={`border ${scrolled ? "border-slate-700 text-slate-700 hover:bg-slate-50" : "border-white text-white hover:bg-white hover:text-indigo-900"} text-sm px-4 py-2 rounded-md transition-colors`}>
-                    Dashboard
+                    {tt('Dashboard')}
                   </Link>
                 ) : (
                   <>
                     <Link href="/auth/login" className={`border ${scrolled ? "border-slate-700 text-slate-700 hover:bg-slate-50" : "border-white text-white hover:bg-white hover:text-indigo-900"} text-sm px-4 py-2 rounded-md transition-colors`}>
-                      Log In
+                      {tt('Log In')}
                     </Link>
                     {showRegisterAndDemo && (
                       <Link
                         href="/auth/signup"
                         className={`border ${scrolled ? 'border-slate-700 text-slate-700 hover:bg-slate-50' : 'border-white text-white hover:bg-white hover:text-indigo-900'} text-sm px-4 py-2 rounded-md transition-all duration-300`}
                       >
-                        Create Account
+                        {tt('Create Account')}
                       </Link>
                     )}
                   </>
@@ -119,7 +120,7 @@ function NavigationBar() {
                     rel="noopener noreferrer"
                     className="bg-blue-600 text-white text-sm px-4 py-2 rounded-md hover:bg-blue-700 transition-all duration-300"
                   >
-                    Book a Demo
+                    {tt('Book a Demo')}
                   </a>
                 )}
               </>
@@ -148,16 +149,16 @@ function NavigationBar() {
               <>
                 {isLoggedIn ? (
                   <Link href="/dashboard" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
-                    Dashboard
+                    {tt('Dashboard')}
                   </Link>
                 ) : (
                   <>
                     <Link href="/auth/login" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
-                      Log In
+                      {tt('Log In')}
                     </Link>
                     {showRegisterAndDemo && (
                       <Link href="/auth/signup" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
-                        Create Account
+                        {tt('Create Account')}
                       </Link>
                     )}
                   </>
@@ -170,7 +171,7 @@ function NavigationBar() {
                     className="block w-full text-center bg-blue-600 text-white py-3 rounded-md"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Book a Demo
+                    {tt('Book a Demo')}
                   </a>
                 )}
               </>
@@ -288,19 +289,18 @@ function HeroSection() {
           <div className="text-center lg:text-left min-w-0">
             <div className="inline-flex max-w-full items-center justify-center gap-2 rounded-full border border-sky-400/20 bg-blue-950/40 px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-medium text-sky-100/90 backdrop-blur-sm mb-6 sm:mb-8 text-center leading-snug">
               <Sparkles className="w-3.5 h-3.5 text-sky-300 shrink-0" aria-hidden />
-              <span className="min-w-0">Invoices, expenses & reports — in one place</span>
+              <span className="min-w-0">{tt('Invoices, expenses & reports — in one place')}</span>
             </div>
 
             <h1 className="text-[clamp(1.65rem,5.5vw,2.25rem)] sm:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-[1.12] sm:leading-[1.08] mb-5 sm:mb-6 text-balance px-0.5 sm:px-0">
               Business Management{' '}
               <span className="bg-gradient-to-r from-sky-200 via-white to-indigo-200 bg-clip-text text-transparent">
-                Simplified
+                {tt('Simplified')}
               </span>
             </h1>
 
             <p className="text-base sm:text-xl text-blue-100/90 max-w-xl mx-auto lg:mx-0 leading-relaxed mb-8 sm:mb-10 text-balance px-0.5 sm:px-0">
-              One platform to manage your invoices, expenses, and financial reports. Built for growing
-              businesses.
+              {tt('One platform to manage your invoices, expenses, and financial reports. Built for growing businesses.')}
             </p>
 
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 justify-center lg:justify-start mb-10 sm:mb-12 max-w-md mx-auto lg:max-w-none lg:mx-0">
@@ -308,7 +308,7 @@ function HeroSection() {
                 href="/auth/signup"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-blue-950 px-5 py-3.5 min-h-[48px] sm:min-h-0 text-sm font-semibold shadow-lg shadow-blue-950/50 hover:bg-sky-50 transition-colors w-full sm:w-auto"
               >
-                Try for Free
+                {tt('Try for Free')}
                 <ArrowRight className="w-4 h-4" aria-hidden />
               </Link>
               <a
@@ -317,7 +317,7 @@ function HeroSection() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center rounded-xl border border-sky-300/25 bg-blue-950/30 text-sky-50 px-5 py-3.5 min-h-[48px] sm:min-h-0 text-sm font-semibold backdrop-blur-sm hover:bg-blue-900/40 transition-colors w-full sm:w-auto"
               >
-                Book a demo
+                {tt('Book a demo')}
               </a>
               <a
                 href={ANDROID_APP_DOWNLOAD_URL}
@@ -326,7 +326,7 @@ function HeroSection() {
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-500/15 text-emerald-50 px-5 py-3.5 min-h-[48px] sm:min-h-0 text-sm font-semibold backdrop-blur-sm hover:bg-emerald-500/25 transition-colors w-full sm:w-auto"
               >
                 <Smartphone className="w-4 h-4" aria-hidden />
-                Download Android App
+                {tt('Download Android App')}
               </a>
             </div>
 
@@ -336,13 +336,13 @@ function HeroSection() {
                   <MapPin className="w-4 h-4 text-sky-300" aria-hidden />
                 </span>
                 <span className="text-blue-100/90 pt-0.5 sm:pt-0">
-                  Trusted by growing businesses in <span className="text-white font-medium">Malawi</span>
+                  {tt('Trusted by growing businesses in')} <span className="text-white font-medium">{tt('Malawi')}</span>
                 </span>
               </div>
               <div className="hidden sm:block h-4 w-px shrink-0 bg-sky-400/20" aria-hidden />
               <div className="flex w-full sm:w-auto items-start sm:items-center gap-1.5 text-sky-300/95 text-left sm:text-center">
                 <Check className="w-4 h-4 shrink-0 mt-0.5 sm:mt-0" strokeWidth={2.5} aria-hidden />
-                <span className="leading-snug">Bank-grade security & multi-user access</span>
+                <span className="leading-snug">{tt('Bank-grade security & multi-user access')}</span>
               </div>
             </div>
           </div>
@@ -361,8 +361,8 @@ function HeroSection() {
                 </div>
                 <div className="flex-1 flex justify-center min-w-0">
                   <span className="text-[10px] sm:text-[11px] text-blue-300/70 font-mono truncate px-1 sm:px-2 text-center">
-                    <span className="sm:hidden">insightbooksafrica.com/…</span>
-                    <span className="hidden sm:inline">www.insightbooksafrica.com/dashboard</span>
+                    <span className="sm:hidden">{tt('insightbooksafrica.com/…')}</span>
+                    <span className="hidden sm:inline">{tt('www.insightbooksafrica.com/dashboard')}</span>
                   </span>
                 </div>
                 <span className="flex shrink-0 items-center gap-1 rounded-md bg-sky-500/15 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-medium text-sky-300 border border-sky-400/25">
@@ -370,20 +370,20 @@ function HeroSection() {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-60" />
                     <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-sky-400" />
                   </span>
-                  Live
+                  {tt('Live')}
                 </span>
               </div>
 
               <div className="p-4 sm:p-6">
                 <div className="flex items-center justify-between gap-2 mb-4 sm:mb-5 min-w-0">
-                  <h3 className="text-sm font-semibold text-white truncate">Overview</h3>
-                  <span className="text-[10px] sm:text-[11px] text-blue-300/60 shrink-0">Last 30 days</span>
+                  <h3 className="text-sm font-semibold text-white truncate">{tt('Overview')}</h3>
+                  <span className="text-[10px] sm:text-[11px] text-blue-300/60 shrink-0">{tt('Last 30 days')}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-4 sm:mb-5">
                   <div className="rounded-xl border border-blue-400/20 bg-gradient-to-br from-blue-600/25 to-blue-950/20 p-3 sm:p-4 min-w-0">
                     <p className="text-[11px] font-medium uppercase tracking-wide text-indigo-200/90 mb-1">
-                      Revenue
+                      {tt('Revenue')}
                     </p>
                     <p className="text-lg sm:text-2xl font-semibold text-white tabular-nums tracking-tight break-words leading-tight">
                       K{dashboardData.revenue.toLocaleString()}
@@ -400,7 +400,7 @@ function HeroSection() {
                   </div>
                   <div className="rounded-xl border border-blue-400/20 bg-gradient-to-br from-blue-600/25 to-indigo-950/20 p-3 sm:p-4 min-w-0">
                     <p className="text-[11px] font-medium uppercase tracking-wide text-sky-200/90 mb-1">
-                      Expenses
+                      {tt('Expenses')}
                     </p>
                     <p className="text-lg sm:text-2xl font-semibold text-white tabular-nums tracking-tight break-words leading-tight">
                       K{dashboardData.expenses.toLocaleString()}
@@ -419,15 +419,15 @@ function HeroSection() {
 
                 <div className="rounded-xl border border-blue-500/20 bg-blue-950/70 p-3 sm:p-4 overflow-hidden">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-semibold text-blue-100/90">Cash performance</span>
+                    <span className="text-xs font-semibold text-blue-100/90">{tt('Cash performance')}</span>
                     <span className="flex items-center gap-3 text-[10px] text-blue-300/70">
                       <span className="flex items-center gap-1">
                         <span className="h-2 w-2 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.6)]" />
-                        Net trend
+                        {tt('Net trend')}
                       </span>
                     </span>
                   </div>
-                  <svg viewBox="0 0 400 120" className="w-full h-auto min-w-0 max-w-full" role="img" aria-label="Demo chart of monthly performance">
+                  <svg viewBox="0 0 400 120" className="w-full h-auto min-w-0 max-w-full" role="img" aria-label={tt('Demo chart of monthly performance')}>
                     <defs>
                       <linearGradient id="heroLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%" stopColor="#2563eb" />
@@ -681,17 +681,16 @@ function FeaturesSection() {
         <div className="mx-auto max-w-3xl text-center mb-14 md:mb-16">
           <div className="inline-flex items-center gap-2 rounded-full border border-blue-200/80 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-blue-800/90 shadow-sm backdrop-blur-sm mb-6">
             <BarChart3 className="h-3.5 w-3.5 text-blue-600" aria-hidden />
-            Platform capabilities
+            {tt('Platform capabilities')}
           </div>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-slate-900 mb-5">
             Everything to run your{' '}
             <span className="bg-gradient-to-r from-blue-700 via-indigo-600 to-sky-600 bg-clip-text text-transparent">
-              finances in one place
+              {tt('finances in one place')}
             </span>
           </h2>
           <p className="text-lg text-slate-600 leading-relaxed">
-            Invoicing, stock, payroll, accounting, and reporting — designed for teams that outgrow
-            spreadsheets.
+            {tt('Invoicing, stock, payroll, accounting, and reporting — designed for teams that outgrow spreadsheets.')}
           </p>
         </div>
 
@@ -730,7 +729,7 @@ function FeaturesSection() {
                     </div>
                     {isComingSoon && (
                       <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-amber-200/80">
-                        Soon
+                        {tt('Soon')}
                       </span>
                     )}
                   </div>
@@ -745,7 +744,7 @@ function FeaturesSection() {
                     {feature.description}
                   </p>
                   <p className="mt-4 text-xs font-medium text-blue-600/80">
-                    Hover or focus for details
+                    {tt('Hover or focus for details')}
                   </p>
                 </div>
 
@@ -802,9 +801,9 @@ function VideoShowcaseSection() {
     <section className="py-24 bg-slate-50">
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-slate-900 mb-4">See InsightBooks in Action</h2>
+          <h2 className="text-3xl font-bold text-slate-900 mb-4">{tt('See InsightBooks in Action')}</h2>
           <p className="text-slate-600 max-w-2xl mx-auto">
-            Watch short videos to see how InsightBooks can streamline your financial workflows.
+            {tt('Watch short videos to see how InsightBooks can streamline your financial workflows.')}
           </p>
         </div>
         
@@ -863,10 +862,10 @@ function TestimonialsSection() {
     <section className="relative border-y border-blue-100/80 bg-gradient-to-r from-slate-50 via-white to-blue-50/40 py-14">
       <div className="mx-auto max-w-7xl px-6">
         <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-blue-600/80 mb-2">
-          Business categories
+          {tt('Business categories')}
         </p>
         <h2 className="text-center text-lg font-semibold text-slate-800 mb-8 sm:text-xl">
-          Built for shops and teams like yours
+          {tt('Built for shops and teams like yours')}
         </h2>
         <div className="flex flex-wrap justify-center gap-x-10 gap-y-4">
           {businessCategories.map((name) => (
@@ -972,7 +971,7 @@ function PricingSection() {
             href="/contact"
             className="flex-1 rounded-xl border border-slate-200 py-3 text-center text-sm font-semibold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50/50"
           >
-            Talk to us
+            {tt('Talk to us')}
           </Link>
         </div>
       </div>
@@ -1000,24 +999,23 @@ function PricingSection() {
         <div className="mx-auto mb-14 max-w-3xl text-center md:mb-16">
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200/80 bg-white/90 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-blue-800 shadow-sm backdrop-blur-sm">
             <DollarSign className="h-3.5 w-3.5 text-blue-600" aria-hidden />
-            Simple pricing
+            {tt('Simple pricing')}
           </div>
           <h2 className="mb-5 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl md:text-5xl">
             Our pricing —{' '}
             <span className="bg-gradient-to-r from-blue-700 via-indigo-600 to-sky-600 bg-clip-text text-transparent">
-              platform + MRA EIS
+              {tt('platform + MRA EIS')}
             </span>
           </h2>
           <p className="text-lg leading-relaxed text-slate-600">
-            Choose InsightBooks core access, then add MRA Electronic Invoicing when you need fiscal
-            compliance.
+            {tt('Choose InsightBooks core access, then add MRA Electronic Invoicing when you need fiscal compliance.')}
           </p>
         </div>
 
         {corePlans.length > 0 ? (
           <div className="mb-16">
             <h3 className="mb-6 text-center text-lg font-semibold text-slate-800">
-              InsightBooks subscriptions
+              {tt('InsightBooks subscriptions')}
             </h3>
             <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-2">
               {corePlans.map(renderPlanCard)}
@@ -1028,11 +1026,10 @@ function PricingSection() {
         {eisPlans.length > 0 ? (
           <div>
             <h3 className="mb-2 text-center text-lg font-semibold text-slate-800">
-              MRA EIS plans
+              {tt('MRA EIS plans')}
             </h3>
             <p className="mx-auto mb-6 max-w-2xl text-center text-sm text-slate-600">
-              Commercial MRA EIS subscription. Operational setup still requires InsightBooks entitlement
-              review after payment.
+              {tt('Commercial MRA EIS subscription. Operational setup still requires InsightBooks entitlement review after payment.')}
             </p>
             <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-2">
               {eisPlans.map(renderPlanCard)}
@@ -1072,7 +1069,7 @@ function CtaSection() {
       <div className="relative mx-auto max-w-4xl px-6 text-center">
         <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-sky-400/25 bg-blue-950/40 px-3 py-1.5 text-xs font-medium text-sky-100/90 backdrop-blur-sm">
           <Sparkles className="h-3.5 w-3.5 text-sky-300" aria-hidden />
-          <span>Join businesses across Malawi</span>
+          <span>{tt('Join businesses across Malawi')}</span>
         </div>
         <h2 className="mb-6 text-3xl font-bold tracking-tight text-white sm:text-4xl md:text-5xl">
           Ready to simplify your{' '}
@@ -1081,15 +1078,14 @@ function CtaSection() {
           </span>
         </h2>
         <p className="mx-auto mb-10 max-w-xl text-lg leading-relaxed text-blue-100/90">
-          One platform for invoices, expenses, payroll, and reporting — built for teams that want clarity
-          without the spreadsheet chaos.
+          {tt('One platform for invoices, expenses, payroll, and reporting — built for teams that want clarity without the spreadsheet chaos.')}
         </p>
         <div className="flex flex-col justify-center gap-3 sm:flex-row sm:gap-4">
           <Link
             href="/auth/signup"
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-3.5 text-sm font-semibold text-blue-950 shadow-lg shadow-blue-950/40 transition-colors hover:bg-sky-50"
           >
-            Create Account
+            {tt('Create Account')}
             <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
           <a
@@ -1098,7 +1094,7 @@ function CtaSection() {
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center rounded-xl border border-sky-300/30 bg-blue-950/40 px-8 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-blue-900/50"
           >
-            Book a demo
+            {tt('Book a demo')}
           </a>
         </div>
       </div>
@@ -1127,19 +1123,19 @@ function Footer() {
             <Link href="/" className="inline-flex items-center">
               <img
                 src="/logo.png"
-                alt="InsightBooks — cloud accounting and business software"
+                alt={tt('InsightBooks — cloud accounting and business software')}
                 className="h-11 w-auto object-contain rounded-md"
               />
             </Link>
             <p className="mt-6 max-w-md text-sm leading-relaxed text-slate-400">
-              Business Management Simplified.
+              {tt('Business Management Simplified.')}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/auth/signup"
                 className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-900/30 transition-opacity hover:opacity-95"
               >
-                Try for Free
+                {tt('Try for Free')}
               </Link>
               <a
                 href={WHATSAPP_DEMO_URL}
@@ -1147,7 +1143,7 @@ function Footer() {
                 rel="noopener noreferrer"
                 className="rounded-lg border border-sky-400/30 bg-blue-950/50 px-4 py-2 text-sm font-semibold text-sky-100 transition-colors hover:border-sky-400/50 hover:bg-blue-900/50"
               >
-                Book a demo
+                {tt('Book a demo')}
               </a>
               <a
                 href={ANDROID_APP_DOWNLOAD_URL}
@@ -1156,7 +1152,7 @@ function Footer() {
                 className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition-colors hover:border-emerald-300/60 hover:bg-emerald-500/20"
               >
                 <Download className="h-4 w-4" aria-hidden />
-                Android App
+                {tt('Android App')}
               </a>
             </div>
           </div>
@@ -1165,7 +1161,7 @@ function Footer() {
             <div>
               <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-200/90">
                 <Mail className="h-4 w-4 text-sky-400" aria-hidden />
-                Email
+                {tt('Email')}
               </h3>
               <ul className="space-y-3 text-sm">
                 <li>
@@ -1173,7 +1169,7 @@ function Footer() {
                     href="mailto:insightinnovationsltd@gmail.com"
                     className="text-slate-400 transition-colors hover:text-white"
                   >
-                    insightinnovationsltd@gmail.com
+                    {tt('insightinnovationsltd@gmail.com')}
                   </a>
                 </li>
                 <li>
@@ -1181,7 +1177,7 @@ function Footer() {
                     href="mailto:info@insightbooksafrica.com"
                     className="text-slate-400 transition-colors hover:text-white"
                   >
-                    info@insightbooksafrica.com
+                    {tt('info@insightbooksafrica.com')}
                   </a>
                 </li>
               </ul>
@@ -1190,7 +1186,7 @@ function Footer() {
             <div>
               <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-200/90">
                 <Phone className="h-4 w-4 text-sky-400" aria-hidden />
-                Phone
+                {tt('Phone')}
               </h3>
               <ul className="space-y-3 text-sm">
                 <li>
@@ -1207,7 +1203,7 @@ function Footer() {
             </div>
 
             <div>
-              <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-sky-200/90">Links</h3>
+              <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-sky-200/90">{tt('Links')}</h3>
               <ul className="space-y-3 text-sm">
                 <li>
                   <a
@@ -1217,17 +1213,17 @@ function Footer() {
                     className="inline-flex items-center gap-2 text-emerald-200 transition-colors hover:text-emerald-100"
                   >
                     <Smartphone className="h-4 w-4" aria-hidden />
-                    Download Android App
+                    {tt('Download Android App')}
                   </a>
                 </li>
                 <li>
                   <Link href="/privacy" className="text-slate-400 transition-colors hover:text-white">
-                    Privacy Policy
+                    {tt('Privacy Policy')}
                   </Link>
                 </li>
                 <li>
                   <Link href="/terms" className="text-slate-400 transition-colors hover:text-white">
-                    Terms of Service
+                    {tt('Terms of Service')}
                   </Link>
                 </li>
               </ul>
@@ -1237,7 +1233,7 @@ function Footer() {
 
         <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-blue-900/60 pt-8 text-sm text-slate-500 sm:flex-row">
           <p>© {new Date().getFullYear()} InsightBooks. All rights reserved.</p>
-          <p className="text-slate-600">Built for businesses in Malawi and beyond.</p>
+          <p className="text-slate-600">{tt('Built for businesses in Malawi and beyond.')}</p>
         </div>
       </div>
     </footer>

@@ -10,6 +10,8 @@ import {
   ALL_NAMESPACES,
   formatCurrency,
   translateStatus,
+  setI18nRuntime,
+  tt,
 } from '../lib/i18n/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -61,9 +63,9 @@ describe('i18n catalogues', () => {
   });
 });
 
-describe('critical key English fallback', () => {
-  it('forces English for unreviewed accounting keys in ny', () => {
-    expect(shouldUseEnglishForKey('accounting.debit', 'ny')).toBe(true);
+describe('critical keys are translated in Chichewa', () => {
+  it('does not force English for accounting keys in ny', () => {
+    expect(shouldUseEnglishForKey('accounting.debit', 'ny')).toBe(false);
     const messages = loadAllLocaleMessages();
     const s = translate({
       key: 'accounting.debit',
@@ -71,8 +73,7 @@ describe('critical key English fallback', () => {
       messages,
       englishMessages: messages.en,
     });
-    // English source text while FINANCIAL_REVIEW_REQUIRED
-    expect(s).toBe('Debit');
+    expect(s).toBe('Debiti');
   });
 
   it('allows approved navigation keys in ny', () => {
@@ -99,6 +100,36 @@ describe('status labels', () => {
         englishMessages: messages.en,
       })
     ).toBe('Posted');
+  });
+
+  it('translates Paid in Chichewa', () => {
+    const messages = loadAllLocaleMessages();
+    expect(
+      translateStatus('Paid', {
+        locale: 'ny',
+        messages,
+        englishMessages: messages.en,
+      })
+    ).toBe('Zalipidwa');
+  });
+});
+
+describe('English UI literals', () => {
+  it('translates common button labels in Chichewa', () => {
+    const nyPhrases = JSON.parse(
+      readFileSync(join(process.cwd(), 'locales/phrases/ny.json'), 'utf8')
+    );
+    setI18nRuntime({ locale: 'ny', phrasesNy: nyPhrases });
+    expect(tt('Cancel')).toBe('Letsani');
+    expect(tt('Save')).toBe('Sungani');
+    expect(tt('Send Invoice to Client')).toBe('Tumizani inivoisi kwa kasitomala');
+    expect(tt('Client Management')).toBe('Kuwongolera makasitomala');
+    expect(tt('Active Clients')).toBe('Makasitomala ogwira');
+  });
+
+  it('leaves English unchanged when locale is en', () => {
+    setI18nRuntime({ locale: 'en' });
+    expect(tt('Cancel')).toBe('Cancel');
   });
 });
 

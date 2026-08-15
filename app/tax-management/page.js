@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
@@ -305,7 +306,7 @@ export default function TaxManagement() {
           }`}
           onClick={() => setActiveTab("summary")}
         >
-          Tax Summary
+          {tt('Tax Summary')}
         </button>
         <button
           className={`py-3 px-4 font-medium text-sm ${
@@ -315,7 +316,7 @@ export default function TaxManagement() {
           }`}
           onClick={() => setActiveTab("collected")}
         >
-          Collected Taxes
+          {tt('Collected Taxes')}
         </button>
         <button
           className={`py-3 px-4 font-medium text-sm ${
@@ -325,7 +326,7 @@ export default function TaxManagement() {
           }`}
           onClick={() => setActiveTab("paid")}
         >
-          Paid Taxes
+          {tt('Paid Taxes')}
         </button>
      
       </div>
@@ -337,7 +338,7 @@ export default function TaxManagement() {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Search tax items..."
+                  placeholder={tt('Search tax items...')}
                   className="border border-gray-300 pl-10 pr-4 py-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -354,7 +355,7 @@ export default function TaxManagement() {
                 >
                   {dateRangeOptions.map(option => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {tt(option.label)}
                     </option>
                   ))}
                 </select>
@@ -365,7 +366,7 @@ export default function TaxManagement() {
                 onClick={refreshData}
               >
                 <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
-                Refresh
+                {tt('Refresh')}
               </button>
             </div>
           </div>
@@ -375,7 +376,7 @@ export default function TaxManagement() {
             <div className="flex flex-col md:flex-row gap-4 mb-6 p-4 bg-gray-50 rounded">
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Start Date
+                  {tt('Start Date')}
                 </label>
                 <input
                   type="date"
@@ -386,7 +387,7 @@ export default function TaxManagement() {
               </div>
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  End Date
+                  {tt('End Date')}
                 </label>
                 <input
                   type="date"
@@ -400,7 +401,7 @@ export default function TaxManagement() {
                   onClick={applyCustomDateRange}
                   className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                 >
-                  Apply
+                  {tt('Apply')}
                 </button>
               </div>
             </div>
@@ -472,7 +473,7 @@ export default function TaxManagement() {
                       barClassName="from-emerald-400 via-green-500 to-teal-500"
                     >
                       <span className="block text-sm text-green-600">
-                        Due to tax authority for this period
+                        {tt('Due to tax authority for this period')}
                       </span>
                     </ClickableStatCard>
                   </div>
@@ -480,7 +481,7 @@ export default function TaxManagement() {
                   {/* VAT Summary: Purchase taxes → Input VAT, Sales taxes → Output VAT, Net VAT payable */}
                   {taxData.vatSummary != null && (
                     <div className="mb-6">
-                      <h3 className="text-sm font-semibold text-gray-700 mb-3">VAT Summary</h3>
+                      <h3 className="text-sm font-semibold text-gray-700 mb-3">{tt('VAT Summary')}</h3>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                           <p className="text-xs font-medium text-slate-600 uppercase">Input VAT (Purchases)</p>
@@ -497,16 +498,16 @@ export default function TaxManagement() {
                             {formatCurrency(taxData.vatSummary.outputVat)}
                           </p>
                           <p className="text-xs text-slate-500 mt-1">
-                            Tax collected on sales/invoices
+                            {tt('Tax collected on sales/invoices')}
                           </p>
                         </div>
                         <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                          <p className="text-xs font-medium text-blue-700 uppercase">Net VAT Payable</p>
+                          <p className="text-xs font-medium text-blue-700 uppercase">{tt('Net VAT Payable')}</p>
                           <p className="text-xl font-bold text-blue-800 mt-1">
                             {formatCurrency(taxData.vatSummary.netVatPayable)}
                           </p>
                           <p className="text-xs text-blue-600 mt-1">
-                            Output VAT − Input VAT
+                            {tt('Output VAT − Input VAT')}
                           </p>
                         </div>
                       </div>
@@ -541,13 +542,13 @@ export default function TaxManagement() {
                       <div className="flex justify-between items-center">
                         <div>
                           <h3 className="text-lg font-semibold text-orange-800 mb-2">
-                            Outstanding Tax Liability
+                            {tt('Outstanding Tax Liability')}
                           </h3>
                           <p className="mb-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-orange-700 sm:text-2xl">
                             {formatCurrency(taxData.netTaxLiability)}
                           </p>
                           <p className="text-sm text-orange-600">
-                            This amount needs to be settled with the tax authority
+                            {tt('This amount needs to be settled with the tax authority')}
                           </p>
                         </div>
                         <div>
@@ -557,7 +558,7 @@ export default function TaxManagement() {
                               className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 font-medium transition-colors"
                             >
                               <FaHandHoldingUsd className="text-lg" />
-                              Settle Tax
+                              {tt('Settle Tax')}
                             </button>
                           </PermissionGuard>
                         </div>
@@ -569,13 +570,13 @@ export default function TaxManagement() {
                       <div className="flex items-center">
                         <div>
                           <h3 className="text-lg font-semibold text-green-800 mb-2">
-                            Tax Credit Available
+                            {tt('Tax Credit Available')}
                           </h3>
                           <p className="mb-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-green-700 sm:text-2xl">
                             {formatCurrency(Math.abs(taxData.netTaxLiability))}
                           </p>
                           <p className="text-sm text-green-600">
-                            You have overpaid taxes. This credit can be applied to future tax liabilities or requested as a refund.
+                            {tt('You have overpaid taxes. This credit can be applied to future tax liabilities or requested as a refund.')}
                           </p>
                         </div>
                       </div>
@@ -586,13 +587,13 @@ export default function TaxManagement() {
                       <div className="flex items-center">
                         <div>
                           <h3 className="text-lg font-semibold text-blue-800 mb-2">
-                            Tax Status: Up to Date
+                            {tt('Tax Status: Up to Date')}
                           </h3>
                           <p className="mb-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums text-blue-700 sm:text-2xl">
                             {formatCurrency(0)}
                           </p>
                           <p className="text-sm text-blue-600">
-                            No outstanding tax liability for this period.
+                            {tt('No outstanding tax liability for this period.')}
                           </p>
                         </div>
                       </div>
@@ -609,9 +610,9 @@ export default function TaxManagement() {
           ) : (
             <div className="text-center py-12">
               <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Tax Data Available</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">{tt('No Tax Data Available')}</h3>
               <p className="text-gray-500 max-w-md mx-auto">
-                Select a date range to view tax information or try a different period.
+                {tt('Select a date range to view tax information or try a different period.')}
               </p>
             </div>
           )}

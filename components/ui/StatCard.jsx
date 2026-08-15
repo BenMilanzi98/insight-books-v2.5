@@ -1,4 +1,5 @@
 'use client';
+import { tt, tx } from '@/lib/i18n/runtime';
 
 import { cn } from '@/lib/utils';
 
@@ -25,7 +26,7 @@ export default function StatCard({
 }) {
   const isInteractive = Boolean(interactive);
   const Comp = isInteractive ? 'button' : 'div';
-  const hint = active ? 'Click again to clear' : 'Click to open';
+  const hint = active ? tt('Click again to clear') : tt('Click to open');
 
   const hasMeta = count != null || countLabel || helper || children;
 
@@ -34,12 +35,12 @@ export default function StatCard({
         {count != null ? (
           <span>
             <span className="font-semibold text-gray-700">{count}</span>
-            {countLabel ? ` ${countLabel}` : ''}
+            {countLabel ? ` ${tx(countLabel)}` : ''}
           </span>
         ) : countLabel && !helper ? (
-          <span>{countLabel}</span>
+          <span>{tx(countLabel)}</span>
         ) : null}
-        {helper ? <p className="mt-1 text-xs text-gray-500">{helper}</p> : null}
+        {helper ? <p className="mt-1 text-xs text-gray-500">{tx(helper)}</p> : null}
         {children}
         {isInteractive ? (
           <span className="mt-1 block text-[11px] text-gray-400">{hint}</span>
@@ -57,9 +58,9 @@ export default function StatCard({
       title={
         title ||
         (isInteractive
-          ? active
-            ? `Clear ${label} filter`
-            : `Show ${label}`
+            ? active
+              ? tt('Clear {{label}} filter', { label: tx(label) })
+              : tt('Show {{label}}', { label: tx(label) })
           : undefined)
       }
       className={cn(
@@ -80,11 +81,11 @@ export default function StatCard({
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex items-start justify-between gap-2">
             <p className="text-xs font-medium uppercase tracking-wide text-gray-600 sm:text-sm">
-              {label}
+              {tx(label)}
             </p>
             {isInteractive && active ? (
               <span className="shrink-0 rounded-full bg-[var(--admin-accent-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--primary-color)]">
-                Active
+                {tt('Active')}
               </span>
             ) : null}
           </div>

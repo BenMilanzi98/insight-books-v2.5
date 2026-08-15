@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/EnhancedBalanceSheet.jsx
 import React from 'react';
 import { formatCurrency } from '@/lib/currencyUtils';
@@ -18,7 +19,7 @@ const EnhancedBalanceSheet = ({
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-8 flex flex-col items-center justify-center">
         <Loader2 size={32} className="animate-spin text-blue-600 mb-4" />
-        <p className="text-gray-600">Loading balance sheet data...</p>
+        <p className="text-gray-600">{tt('Loading balance sheet data...')}</p>
       </div>
     );
   }
@@ -34,7 +35,7 @@ const EnhancedBalanceSheet = ({
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
           onClick={onRefresh}
         >
-          Try Again
+          {tt('Try Again')}
         </button>
       </div>
     );
@@ -45,13 +46,13 @@ const EnhancedBalanceSheet = ({
       <div className="bg-white rounded-lg border border-gray-200 p-8 flex flex-col items-center justify-center">
         <div className="p-3 bg-yellow-50 text-yellow-700 rounded-md inline-flex items-center mb-4">
           <Info size={20} className="mr-2" />
-          <span>No balance sheet data available</span>
+          <span>{tt('No balance sheet data available')}</span>
         </div>
         <button 
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
           onClick={onRefresh}
         >
-          Refresh Data
+          {tt('Refresh Data')}
         </button>
       </div>
     );
@@ -70,17 +71,17 @@ const EnhancedBalanceSheet = ({
       <div className="p-4">
         {/* Assets Section */}
         <div className="mb-6">
-          <h5 className="font-medium text-gray-800 mb-3">Assets</h5>
+          <h5 className="font-medium text-gray-800 mb-3">{tt('Assets')}</h5>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-y border-gray-200">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Account')}</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Amount')}</th>
                   {showComparison && (
                     <>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Previous</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Change</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Previous')}</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Change')}</th>
                     </>
                   )}
                 </tr>
@@ -88,7 +89,7 @@ const EnhancedBalanceSheet = ({
               <tbody className="divide-y divide-gray-200">
                 {/* Current Assets Section */}
                 <tr className="bg-gray-50">
-                  <td colSpan={showComparison ? 4 : 2} className="px-4 py-2 text-sm font-medium text-gray-700">Current Assets</td>
+                  <td colSpan={showComparison ? 4 : 2} className="px-4 py-2 text-sm font-medium text-gray-700">{tt('Current Assets')}</td>
                 </tr>
                 
                 {balanceSheet.assets.current && balanceSheet.assets.current.map((asset, index) => (
@@ -115,7 +116,7 @@ const EnhancedBalanceSheet = ({
                 ))}
                 
                 <tr className="bg-gray-50">
-                  <td className="px-4 py-2 text-sm font-medium text-gray-700">Total Current Assets</td>
+                  <td className="px-4 py-2 text-sm font-medium text-gray-700">{tt('Total Current Assets')}</td>
                   <td className="px-4 py-2 text-sm font-medium text-gray-700 text-right">{formatCurrency(balanceSheet.assets.currentTotal || 0)}</td>
                   
                   {showComparison && comparisonData.assets && (
@@ -135,7 +136,7 @@ const EnhancedBalanceSheet = ({
                 
                 {/* Fixed Assets Section */}
                 <tr className="bg-gray-50">
-                  <td colSpan={showComparison ? 4 : 2} className="px-4 py-2 text-sm font-medium text-gray-700">Fixed Assets</td>
+                  <td colSpan={showComparison ? 4 : 2} className="px-4 py-2 text-sm font-medium text-gray-700">{tt('Fixed Assets')}</td>
                 </tr>
                 
                 {balanceSheet.assets.fixed && balanceSheet.assets.fixed.map((asset, index) => (
@@ -162,7 +163,7 @@ const EnhancedBalanceSheet = ({
                 ))}
                 
                 <tr className="bg-gray-50">
-                  <td className="px-4 py-2 text-sm font-medium text-gray-700">Total Fixed Assets</td>
+                  <td className="px-4 py-2 text-sm font-medium text-gray-700">{tt('Total Fixed Assets')}</td>
                   <td className="px-4 py-2 text-sm font-medium text-gray-700 text-right">{formatCurrency(balanceSheet.assets.fixedTotal || 0)}</td>
                   
                   {showComparison && comparisonData.assets && (
@@ -182,7 +183,7 @@ const EnhancedBalanceSheet = ({
                 
                 {/* Total Assets */}
                 <tr className="bg-blue-50 font-medium text-blue-800">
-                  <td className="px-4 py-3 text-sm">Total Assets</td>
+                  <td className="px-4 py-3 text-sm">{tt('Total Assets')}</td>
                   <td className="px-4 py-3 text-sm text-right">{formatCurrency(balanceSheet.assets.total || 0)}</td>
                   
                   {showComparison && comparisonData.assets && (
@@ -206,17 +207,17 @@ const EnhancedBalanceSheet = ({
         
         {/* Liabilities and Equity Section */}
         <div>
-          <h5 className="font-medium text-gray-800 mb-3">Liabilities & Equity</h5>
+          <h5 className="font-medium text-gray-800 mb-3">{tt('Liabilities & Equity')}</h5>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-y border-gray-200">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Account')}</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Amount')}</th>
                   {showComparison && (
                     <>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Previous</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Change</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Previous')}</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Change')}</th>
                     </>
                   )}
                 </tr>
@@ -224,7 +225,7 @@ const EnhancedBalanceSheet = ({
               <tbody className="divide-y divide-gray-200">
                 {/* Current Liabilities Section */}
                 <tr className="bg-gray-50">
-                  <td colSpan={showComparison ? 4 : 2} className="px-4 py-2 text-sm font-medium text-gray-700">Current Liabilities</td>
+                  <td colSpan={showComparison ? 4 : 2} className="px-4 py-2 text-sm font-medium text-gray-700">{tt('Current Liabilities')}</td>
                 </tr>
                 
                 {balanceSheet.liabilities.current && balanceSheet.liabilities.current.map((liability, index) => (
@@ -252,7 +253,7 @@ const EnhancedBalanceSheet = ({
                 ))}
                 
                 <tr className="bg-gray-50">
-                  <td className="px-4 py-2 text-sm font-medium text-gray-700">Total Current Liabilities</td>
+                  <td className="px-4 py-2 text-sm font-medium text-gray-700">{tt('Total Current Liabilities')}</td>
                   <td className="px-4 py-2 text-sm font-medium text-gray-700 text-right">{formatCurrency(balanceSheet.liabilities.currentTotal || 0)}</td>
                   
                   {showComparison && comparisonData.liabilities && (
@@ -273,7 +274,7 @@ const EnhancedBalanceSheet = ({
                 
                 {/* Long-term Liabilities Section */}
                 <tr className="bg-gray-50">
-                  <td colSpan={showComparison ? 4 : 2} className="px-4 py-2 text-sm font-medium text-gray-700">Long-term Liabilities</td>
+                  <td colSpan={showComparison ? 4 : 2} className="px-4 py-2 text-sm font-medium text-gray-700">{tt('Long-term Liabilities')}</td>
                 </tr>
                 
                 {balanceSheet.liabilities.longTerm && balanceSheet.liabilities.longTerm.map((liability, index) => (
@@ -301,7 +302,7 @@ const EnhancedBalanceSheet = ({
                 ))}
                 
                 <tr className="bg-gray-50">
-                  <td className="px-4 py-2 text-sm font-medium text-gray-700">Total Long-term Liabilities</td>
+                  <td className="px-4 py-2 text-sm font-medium text-gray-700">{tt('Total Long-term Liabilities')}</td>
                   <td className="px-4 py-2 text-sm font-medium text-gray-700 text-right">{formatCurrency(balanceSheet.liabilities.longTermTotal || 0)}</td>
                   
                   {showComparison && comparisonData.liabilities && (
@@ -321,7 +322,7 @@ const EnhancedBalanceSheet = ({
                 </tr>
                 
                 <tr className="font-medium">
-                  <td className="px-4 py-2 text-sm text-gray-700">Total Liabilities</td>
+                  <td className="px-4 py-2 text-sm text-gray-700">{tt('Total Liabilities')}</td>
                   <td className="px-4 py-2 text-sm text-gray-700 text-right">{formatCurrency(balanceSheet.liabilities.total || 0)}</td>
                   
                   {showComparison && comparisonData.liabilities && (
@@ -342,7 +343,7 @@ const EnhancedBalanceSheet = ({
                 
                 {/* Equity Section */}
                 <tr className="bg-gray-50">
-                  <td colSpan={showComparison ? 4 : 2} className="px-4 py-2 text-sm font-medium text-gray-700">Equity</td>
+                  <td colSpan={showComparison ? 4 : 2} className="px-4 py-2 text-sm font-medium text-gray-700">{tt('Equity')}</td>
                 </tr>
                 
                 {balanceSheet.equity && balanceSheet.equity.items && balanceSheet.equity.items.map((item, index) => (
@@ -369,7 +370,7 @@ const EnhancedBalanceSheet = ({
                 ))}
                 
                 <tr className="font-medium">
-                  <td className="px-4 py-2 text-sm text-gray-700">Total Equity</td>
+                  <td className="px-4 py-2 text-sm text-gray-700">{tt('Total Equity')}</td>
                   <td className="px-4 py-2 text-sm text-gray-700 text-right">{formatCurrency(balanceSheet.equity.total || 0)}</td>
                   
                   {showComparison && comparisonData.equity && (
@@ -389,7 +390,7 @@ const EnhancedBalanceSheet = ({
                 
                 {/* Total Liabilities and Equity */}
                 <tr className="bg-blue-50 font-medium text-blue-800">
-                  <td className="px-4 py-3 text-sm">Total Liabilities & Equity</td>
+                  <td className="px-4 py-3 text-sm">{tt('Total Liabilities & Equity')}</td>
                   <td className="px-4 py-3 text-sm text-right">
                     {formatCurrency((balanceSheet.liabilities?.total || 0) + (balanceSheet.equity?.total || 0))}
                   </td>
@@ -419,14 +420,14 @@ const EnhancedBalanceSheet = ({
             onClick={() => window.location.href = `/api/financial/export/balance-sheet?timeframe=${timeframe}&format=pdf`}
           >
             <Download size={14} className="mr-1.5" />
-            Export PDF
+            {tt('Export PDF')}
           </button>
           <button 
             className="px-3 py-1.5 border border-gray-300 rounded-md bg-white text-sm flex items-center shadow-sm hover:bg-gray-50"
             onClick={() => window.location.href = `/api/financial/export/balance-sheet?timeframe=${timeframe}&format=csv`}
           >
             <Save size={14} className="mr-1.5" />
-            Export CSV
+            {tt('Export CSV')}
           </button>
         </div>
       </div>

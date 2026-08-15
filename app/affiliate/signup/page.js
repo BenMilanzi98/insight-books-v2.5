@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -114,9 +115,9 @@ export default function AffiliateSignupPage() {
           <div className="mx-auto h-16 w-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
             <Building className="h-8 w-8 text-green-600" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900">Become an Affiliate</h2>
+          <h2 className="text-3xl font-bold text-gray-900">{tt('Become an Affiliate')}</h2>
           <p className="mt-2 text-sm text-gray-600">
-            Join our affiliate program and start earning commissions
+            {tt('Join our affiliate program and start earning commissions')}
           </p>
         </div>
       </div>
@@ -127,7 +128,7 @@ export default function AffiliateSignupPage() {
             {/* Personal Information */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                Full Name *
+                {tt('Full Name *')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -141,14 +142,14 @@ export default function AffiliateSignupPage() {
                   value={formData.name}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Enter your full name"
+                  placeholder={tt('Enter your full name')}
                 />
               </div>
             </div>
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email Address *
+                {tt('Email Address *')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -162,14 +163,14 @@ export default function AffiliateSignupPage() {
                   value={formData.email}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Enter your email address"
+                  placeholder={tt('Enter your email address')}
                 />
               </div>
             </div>
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password *
+                {tt('Password *')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -183,7 +184,7 @@ export default function AffiliateSignupPage() {
                   value={formData.password}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Create a strong password"
+                  placeholder={tt('Create a strong password')}
                 />
                 <button
                   type="button"
@@ -201,7 +202,7 @@ export default function AffiliateSignupPage() {
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Confirm Password *
+                {tt('Confirm Password *')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -215,7 +216,7 @@ export default function AffiliateSignupPage() {
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Confirm your password"
+                  placeholder={tt('Confirm your password')}
                 />
                 <button
                   type="button"
@@ -234,7 +235,7 @@ export default function AffiliateSignupPage() {
             {/* Business Information */}
             <div>
               <label htmlFor="businessName" className="block text-sm font-medium text-gray-700">
-                Business/Company Name *
+                {tt('Business/Company Name *')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -248,7 +249,7 @@ export default function AffiliateSignupPage() {
                   value={formData.businessName}
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  placeholder="Enter your business name"
+                  placeholder={tt('Enter your business name')}
                 />
               </div>
             </div>
@@ -256,7 +257,7 @@ export default function AffiliateSignupPage() {
             {/* Payment Method */}
             <div>
               <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700">
-                Preferred Payment Method
+                {tt('Preferred Payment Method')}
               </label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -269,9 +270,9 @@ export default function AffiliateSignupPage() {
                   onChange={handleInputChange}
                   className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 >
-                  <option value="bank">Bank Transfer</option>
-                  <option value="mobile_money">Mobile Money</option>
-                  <option value="paypal">PayPal</option>
+                  <option value="bank">{tt('Bank Transfer')}</option>
+                  <option value="mobile_money">{tt('Mobile Money')}</option>
+                  <option value="paypal">{tt('PayPal')}</option>
                 </select>
               </div>
             </div>
@@ -279,11 +280,11 @@ export default function AffiliateSignupPage() {
             {/* Bank Details (shown when bank is selected) */}
             {formData.paymentMethod === 'bank' && (
               <div className="space-y-4 p-4 bg-gray-50 rounded-md">
-                <h4 className="text-sm font-medium text-gray-700">Bank Account Details</h4>
+                <h4 className="text-sm font-medium text-gray-700">{tt('Bank Account Details')}</h4>
                 
                 <div>
                   <label htmlFor="accountName" className="block text-xs font-medium text-gray-600">
-                    Account Holder Name
+                    {tt('Account Holder Name')}
                   </label>
                   <input
                     id="accountName"
@@ -292,13 +293,13 @@ export default function AffiliateSignupPage() {
                     value={formData.bankDetails.accountName}
                     onChange={handleBankDetailsChange}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                    placeholder="Account holder name"
+                    placeholder={tt('Account holder name')}
                   />
                 </div>
 
                 <div>
                   <label htmlFor="accountNumber" className="block text-xs font-medium text-gray-600">
-                    Account Number
+                    {tt('Account Number')}
                   </label>
                   <input
                     id="accountNumber"
@@ -307,13 +308,13 @@ export default function AffiliateSignupPage() {
                     value={formData.bankDetails.accountNumber}
                     onChange={handleBankDetailsChange}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                    placeholder="Account number"
+                    placeholder={tt('Account number')}
                   />
                 </div>
 
                 <div>
                   <label htmlFor="bankName" className="block text-xs font-medium text-gray-600">
-                    Bank Name
+                    {tt('Bank Name')}
                   </label>
                   <input
                     id="bankName"
@@ -322,7 +323,7 @@ export default function AffiliateSignupPage() {
                     value={formData.bankDetails.bankName}
                     onChange={handleBankDetailsChange}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                    placeholder="Bank name"
+                    placeholder={tt('Bank name')}
                   />
                 </div>
 
@@ -337,7 +338,7 @@ export default function AffiliateSignupPage() {
                     value={formData.bankDetails.swiftCode}
                     onChange={handleBankDetailsChange}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                    placeholder="SWIFT code"
+                    placeholder={tt('SWIFT code')}
                   />
                 </div>
               </div>
@@ -349,7 +350,7 @@ export default function AffiliateSignupPage() {
                 <div className="flex">
                   <AlertCircle className="h-5 w-5 text-red-400" />
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">Error</h3>
+                    <h3 className="text-sm font-medium text-red-800">{tt('Error')}</h3>
                     <div className="mt-2 text-sm text-red-700">{error}</div>
                   </div>
                 </div>
@@ -361,7 +362,7 @@ export default function AffiliateSignupPage() {
                 <div className="flex">
                   <CheckCircle className="h-5 w-5 text-green-400" />
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-green-800">Success</h3>
+                    <h3 className="text-sm font-medium text-green-800">{tt('Success')}</h3>
                     <div className="mt-2 text-sm text-green-700">{success}</div>
                   </div>
                 </div>
@@ -395,7 +396,7 @@ export default function AffiliateSignupPage() {
                 onClick={() => router.push('/affiliate/login')}
                 className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
-                Sign In
+                {tt('Sign In')}
               </button>
             </div>
           </div>

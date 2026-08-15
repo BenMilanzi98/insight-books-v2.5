@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -138,7 +139,7 @@ export default function PayrollWorkbenchV2Page() {
             Command-driven runs: load → calculate → submit → approve → post → pay.
             Legacy create flow remains at{' '}
             <Link className="text-blue-600 underline" href="/hr/payroll">
-              Payroll Processing
+              {tt('Payroll Processing')}
             </Link>
             .
           </>
@@ -153,7 +154,7 @@ export default function PayrollWorkbenchV2Page() {
 
       <PosStylePanel className="mb-6 grid gap-4 p-4 md:grid-cols-3">
         <label className="text-sm text-gray-700">
-          Period start
+          {tt('Period start')}
           <input
             type="date"
             className="mt-1 w-full rounded border px-2 py-1.5"
@@ -162,7 +163,7 @@ export default function PayrollWorkbenchV2Page() {
           />
         </label>
         <label className="text-sm text-gray-700">
-          Period end
+          {tt('Period end')}
           <input
             type="date"
             className="mt-1 w-full rounded border px-2 py-1.5"
@@ -177,13 +178,13 @@ export default function PayrollWorkbenchV2Page() {
             onClick={createRun}
             className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            Create run
+            {tt('Create run')}
           </button>
         </div>
       </PosStylePanel>
 
       <div className="mb-4">
-        <label className="text-sm font-medium text-gray-700">Select run</label>
+        <label className="text-sm font-medium text-gray-700">{tt('Select run')}</label>
         <select
           className="mt-1 w-full rounded border px-2 py-2"
           value={selectedId}
@@ -205,7 +206,7 @@ export default function PayrollWorkbenchV2Page() {
               <div>
                 <div className="text-lg font-medium">{run.runNumber}</div>
                 <div className="text-sm text-gray-600">
-                  Status: <span className="font-semibold">{run.status}</span>
+                  {tt('Status:')} <span className="font-semibold">{run.status}</span>
                   {run.checksum ? ` · checksum ${String(run.checksum).slice(0, 12)}…` : ''}
                 </div>
               </div>
@@ -258,30 +259,30 @@ export default function PayrollWorkbenchV2Page() {
               onClick={saveMappings}
               className="mt-2 rounded bg-emerald-600 px-3 py-1.5 text-sm text-white"
             >
-              Save mappings
+              {tt('Save mappings')}
             </button>
           </PosStylePanel>
 
           <PosStylePanel className="p-4">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="font-medium">Employee results</h2>
+              <h2 className="font-medium">{tt('Employee results')}</h2>
               <button
                 type="button"
                 onClick={loadReconcile}
                 className="text-sm text-blue-600 underline"
               >
-                Run reconciliation
+                {tt('Run reconciliation')}
               </button>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead>
                   <tr className="border-b text-xs uppercase text-gray-500">
-                    <th className="py-2 pr-3">Employee</th>
-                    <th className="py-2 pr-3">Gross</th>
+                    <th className="py-2 pr-3">{tt('Employee')}</th>
+                    <th className="py-2 pr-3">{tt('Gross')}</th>
                     <th className="py-2 pr-3">PAYE</th>
                     <th className="py-2 pr-3">NPS</th>
-                    <th className="py-2 pr-3">Net</th>
+                    <th className="py-2 pr-3">{tt('Net')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -297,14 +298,14 @@ export default function PayrollWorkbenchV2Page() {
                 </tbody>
               </table>
               {!run.results?.length ? (
-                <p className="text-sm text-gray-500">No results yet — run Calculate.</p>
+                <p className="text-sm text-gray-500">{tt('No results yet — run Calculate.')}</p>
               ) : null}
             </div>
           </PosStylePanel>
 
           {reconcile ? (
             <PosStylePanel className="p-4">
-              <h2 className="mb-2 font-medium">Reconciliation</h2>
+              <h2 className="mb-2 font-medium">{tt('Reconciliation')}</h2>
               <p className="mb-2 text-sm text-gray-600">
                 {reconcile.summary?.runs} run(s), {reconcile.summary?.unbalanced} unbalanced
               </p>

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 import { CrmStubView } from '@/components/admin';
@@ -17,7 +18,7 @@ export default function CrmClosedWonQueuesAliasPage() {
       />
       <p style={{ marginTop: '1rem' }}>
         <Link href="/insightbooks/crm/conversions/queues">
-          Open canonical conversion queues
+          {tt('Open canonical conversion queues')}
         </Link>
       </p>
     </div>

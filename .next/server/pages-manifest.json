@@ -2,6 +2,5 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/api/admin/mobile-app/upload": "pages/api/admin/mobile-app/upload.js",
-  "/404": "pages/404.html"
+  "/api/admin/mobile-app/upload": "pages/api/admin/mobile-app/upload.js"
 }

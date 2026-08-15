@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -42,13 +43,13 @@ export default function StockBasicExportPage() {
     <div className="mx-auto max-w-3xl px-4 py-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Stock Export</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">{tt('Stock Export')}</h1>
           <p className="mt-1 text-sm text-slate-600">
             Exports Item Name, Quantity, Order Price (weighted-average cost), and Selling Price for the current Business.
           </p>
         </div>
         <Link href="/stock" className="text-sm font-medium text-indigo-700 hover:underline">
-          Back to Stock
+          {tt('Back to Stock')}
         </Link>
       </div>
 
@@ -59,7 +60,7 @@ export default function StockBasicExportPage() {
             className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter by item name or SKU"
+            placeholder={tt('Filter by item name or SKU')}
           />
         </label>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}

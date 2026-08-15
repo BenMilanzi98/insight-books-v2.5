@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect } from "react";
 import { 
   Search, 
@@ -333,13 +334,13 @@ const AccountsReceivable = () => {
       <div className="p-4 sm:p-6 bg-gray-50 flex items-center justify-center min-h-screen">
         <div className="text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-gray-800 mb-2">Error Loading Receivables</h2>
+          <h2 className="text-lg font-bold text-gray-800 mb-2">{tt('Error Loading Receivables')}</h2>
           <p className="text-gray-600 mb-4">{error}</p>
           <button 
             onClick={() => window.location.reload()}
             className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
           >
-            Try Again
+            {tt('Try Again')}
           </button>
         </div>
       </div>
@@ -351,8 +352,8 @@ const AccountsReceivable = () => {
       <div className="p-4 sm:p-6 bg-gray-50 flex items-center justify-center min-h-screen">
         <div className="text-center">
           <DollarSign className="h-12 w-12 text-indigo-500 animate-spin mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-gray-800 mb-2">Loading Permissions</h2>
-          <p className="text-gray-600">Checking user permissions...</p>
+          <h2 className="text-lg font-bold text-gray-800 mb-2">{tt('Loading Permissions')}</h2>
+          <p className="text-gray-600">{tt('Checking user permissions...')}</p>
         </div>
       </div>
     );
@@ -363,8 +364,8 @@ const AccountsReceivable = () => {
       <div className="p-4 sm:p-6 bg-gray-50">
         <div className="text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-gray-800 mb-2">Access Denied</h2>
-          <p className="text-gray-600">You don't have permission to view this page.</p>
+          <h2 className="text-lg font-bold text-gray-800 mb-2">{tt('Access Denied')}</h2>
+          <p className="text-gray-600">{tt("You don't have permission to view this page.")}</p>
         </div>
       </div>
     );
@@ -375,9 +376,9 @@ const AccountsReceivable = () => {
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Accounts Receivable</h1>
+          <h1 className="text-2xl font-bold text-gray-800">{tt('Accounts Receivable')}</h1>
           <p className="text-gray-600 mt-1">
-            Manage and track outstanding invoices and customer payments
+            {tt('Manage and track outstanding invoices and customer payments')}
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
@@ -440,7 +441,7 @@ const AccountsReceivable = () => {
       {/* Aging Summary */}
       <div className="bg-white rounded-lg shadow mb-6">
         <div className="p-5 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-800">Aging Summary</h2>
+          <h2 className="text-lg font-semibold text-gray-800">{tt('Aging Summary')}</h2>
         </div>
         <div className="p-5">
           {receivables?.aging ? (
@@ -490,7 +491,7 @@ const AccountsReceivable = () => {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <input
                   type="text"
-                  placeholder="Search invoices, customers..."
+                  placeholder={tt('Search invoices, customers...')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
@@ -503,10 +504,10 @@ const AccountsReceivable = () => {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               >
-                <option value="All">All Status</option>
-                <option value="Pending">Pending</option>
-                <option value="Overdue">Overdue</option>
-                <option value="Not Due">Not Due</option>
+                <option value="All">{tt('All Status')}</option>
+                <option value="Pending">{tt('Pending')}</option>
+                <option value="Overdue">{tt('Overdue')}</option>
+                <option value="Not Due">{tt('Not Due')}</option>
               </select>
               <button 
                 onClick={handleExport}
@@ -514,7 +515,7 @@ const AccountsReceivable = () => {
                 className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Download className="h-4 w-4 mr-2" />
-                Export
+                {tt('Export')}
               </button>
             </div>
           </div>
@@ -524,7 +525,7 @@ const AccountsReceivable = () => {
       {/* Receivables Table */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-5 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-800">Outstanding Invoices</h2>
+          <h2 className="text-lg font-semibold text-gray-800">{tt('Outstanding Invoices')}</h2>
         </div>
         <div className="overflow-x-auto">
           {isLoading ? (
@@ -544,22 +545,22 @@ const AccountsReceivable = () => {
           ) : outstandingInvoices.length === 0 ? (
             <div className="p-8 text-center">
               <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Outstanding Invoices</h3>
-              <p className="text-gray-600">All invoices have been paid or there are no unpaid invoices.</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">{tt('No Outstanding Invoices')}</h3>
+              <p className="text-gray-600">{tt('All invoices have been paid or there are no unpaid invoices.')}</p>
             </div>
           ) : (
             <table className="min-w-full">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issue Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Outstanding</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Invoice')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Customer')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Issue Date')}</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Due Date')}</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Total')}</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Paid')}</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Outstanding')}</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Status')}</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Actions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -597,21 +598,21 @@ const AccountsReceivable = () => {
                         return (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             <CheckCircle2 className="mr-1 h-3 w-3" />
-                            Not Due
+                            {tt('Not Due')}
                           </span>
                         );
                       } else if (invoice.originalStatus === "Partial") {
                         return (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                             <Clock className="mr-1 h-3 w-3" />
-                            Partial
+                            {tt('Partial')}
                           </span>
                         );
                       } else {
                         return (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                             <Clock className="mr-1 h-3 w-3" />
-                            Pending
+                            {tt('Pending')}
                           </span>
                         );
                       }
@@ -667,7 +668,7 @@ const AccountsReceivable = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
-              <h2 className="text-xl font-semibold">Invoice Details</h2>
+              <h2 className="text-xl font-semibold">{tt('Invoice Details')}</h2>
               <div className="flex items-center space-x-3">
                 {invoiceTemplates.length > 0 && (
                   <div className="relative">
@@ -695,7 +696,7 @@ const AccountsReceivable = () => {
                   onClick={() => handleDownload(invoiceForPreview.id)}
                 >
                   <Download size={16} className="mr-2" />
-                  Download
+                  {tt('Download')}
                 </button>
                 <button
                   className="text-gray-400 hover:text-gray-600"
@@ -735,7 +736,7 @@ const AccountsReceivable = () => {
           <div className="bg-white p-6 rounded-lg shadow-lg">
             <div className="flex items-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
-              <p>Preparing invoice for download...</p>
+              <p>{tt('Preparing invoice for download...')}</p>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import Link from 'next/link';
 
@@ -12,11 +13,11 @@ export default function CustomerSuccessAdoptionMilestonesPage() {
         <Link href="/insightbooks/customer-success/adoption">← Adoption</Link>
       </p>
       <h1 style={{ fontSize: '1.35rem', marginBottom: '0.5rem' }}>
-        Adoption Milestones
+        {tt('Adoption Milestones')}
       </h1>
       <p style={{ color: '#555' }}>
         Materialised from pinned plan template. Evidence modes:{' '}
-        <code>PRODUCT_ANALYTICS</code>, <code>TRAINING_CERT</code>,{' '}
+        <code>{tt('PRODUCT_ANALYTICS')}</code>, <code>TRAINING_CERT</code>,{' '}
         <code>CS_ATTESTATION</code>, <code>MIXED</code>. Phase 9 gate fail →{' '}
         <code>UNKNOWN</code> / <code>UNAVAILABLE</code> — never invent{' '}
         <code>MET</code>.

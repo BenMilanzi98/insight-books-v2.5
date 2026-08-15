@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { X, Plus, Trash2, ChevronDown, Info, Search, Loader, Package, Tag, Edit2, Check, XCircle } from "lucide-react";
@@ -783,7 +784,7 @@ const QuotationModal = ({
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 focus:outline-none"
-            aria-label="Close"
+            aria-label={tt('Close')}
           >
             <X className="h-6 w-6" />
           </button>
@@ -793,21 +794,21 @@ const QuotationModal = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="clientId">
-                  Client <span className="text-red-500">*</span>
+                  {tt('Client')} <span className="text-red-500">*</span>
                 </label>
                 <ClientSearchCombobox
                   clients={clients}
                   value={formData.clientId}
                   onChange={handleChange}
                   onAddNew={() => setShowClientModal(true)}
-                  placeholder="Search or select a client..."
+                  placeholder={tt('Search or select a client...')}
                   error={errors.clientId}
                   showAddNew={true}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="orderNumber">
-                  Order number
+                  {tt('Order number')}
                 </label>
                 <div className="flex gap-2 items-center">
                   <input
@@ -834,13 +835,13 @@ const QuotationModal = ({
                       }}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
-                    Autogenerate
+                    {tt('Autogenerate')}
                   </label>
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="issueDate">
-                  Issue Date <span className="text-red-500">*</span>
+                  {tt('Issue Date')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -856,7 +857,7 @@ const QuotationModal = ({
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="validUntil">
-                  Valid Until <span className="text-red-500">*</span>
+                  {tt('Valid Until')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -876,7 +877,7 @@ const QuotationModal = ({
             {/* Title above items table - like invoice */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1 text-center" htmlFor="title">
-                Quotation title <span className="text-red-500">*</span>
+                {tt('Quotation title')} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -885,7 +886,7 @@ const QuotationModal = ({
                 className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
                 value={formData.title}
                 onChange={handleChange}
-                placeholder="e.g. Consulting services, Project XYZ"
+                placeholder={tt('e.g. Consulting services, Project XYZ')}
               />
               {errors.title && (
                 <p className="text-red-500 text-xs mt-1 text-center">{errors.title}</p>
@@ -893,14 +894,14 @@ const QuotationModal = ({
             </div>
             
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Quotation Items</h3>
+              <h3 className="text-lg font-semibold">{tt('Quotation Items')}</h3>
               <button
                 type="button"
                 onClick={addItem}
                 className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md shadow hover:bg-blue-700 transition"
               >
                 <Plus className="h-4 w-4 mr-1" />
-                Add Item
+                {tt('Add Item')}
               </button>
             </div>
             <div className="">
@@ -908,27 +909,27 @@ const QuotationModal = ({
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/2">
-                      Item
+                      {tt('Item')}
                     </th>
                     <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                      Qty
+                      {tt('Qty')}
                     </th>
                     <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                      Price
+                      {tt('Price')}
                     </th>
                     <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
                       Discount (per item)
                     </th>
                     {taxesAvailable && (
                     <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                      Tax %
+                      {tt('Tax %')}
                     </th>
                     )}
                     <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                      Amount
+                      {tt('Amount')}
                     </th>
                     <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                      Actions
+                      {tt('Actions')}
                     </th>
                   </tr>
                 </thead>
@@ -939,7 +940,7 @@ const QuotationModal = ({
                           <div className="relative w-full min-w-[300px]" ref={productSearchRef}>
                               <input
                                 type="text"
-                              placeholder="Search products by name or SKU..."
+                              placeholder={tt('Search products by name or SKU...')}
                               className={`w-full p-3 border rounded-md text-sm ${errors[`items.${index}.description`] ? 'border-red-500' : 'border-gray-300'}`}
                               value={item.productId ? (products.find(p => p.id === item.productId)?.name || item.description) : (itemSearchQueries[index] || item.description)}
                                 onChange={(e) => handleDescriptionChange(index, e.target.value)}
@@ -968,11 +969,11 @@ const QuotationModal = ({
                                 {isLoadingProducts ? (
                                   <div className="p-4 text-center">
                                     <Loader className="w-5 h-5 text-blue-500 animate-spin mx-auto mb-2" />
-                                    <p className="text-gray-500 text-sm">Loading products...</p>
+                                    <p className="text-gray-500 text-sm">{tt('Loading products...')}</p>
                                   </div>
                                 ) : filteredProducts.length === 0 ? (
                                   <div className="p-4 text-center">
-                                    <p className="text-gray-500">No products found</p>
+                                    <p className="text-gray-500">{tt('No products found')}</p>
                                   </div>
                                 ) : (
                                   <>
@@ -999,7 +1000,7 @@ const QuotationModal = ({
                                         <div className="text-right">
                                           <p className="font-medium">{formatCurrency(product.price)}</p>
                                           {product.stockLevel <= 0 ? (
-                                            <span className="text-xs text-red-500">Out of stock</span>
+                                            <span className="text-xs text-red-500">{tt('Out of stock')}</span>
                                           ) : (
                                             <button 
                                               className="text-xs text-blue-600 hover:text-blue-800"
@@ -1029,7 +1030,7 @@ const QuotationModal = ({
                             <div className="text-sm text-blue-600 font-medium">
                               {parseFloat(item.quantity || 0).toFixed(3)}
                             </div>
-                            <div className="text-xs text-blue-500">calculated</div>
+                            <div className="text-xs text-blue-500">{tt('calculated')}</div>
                           </div>
                         ) : (
                           <input
@@ -1051,7 +1052,7 @@ const QuotationModal = ({
                             <div className="text-sm text-blue-600 font-medium">
                               {formatCurrency(item.unitPrice || 0)}
                             </div>
-                            <div className="text-xs text-blue-500">per unit</div>
+                            <div className="text-xs text-blue-500">{tt('per unit')}</div>
                           </div>
                         ) : (
                           <input
@@ -1088,7 +1089,7 @@ const QuotationModal = ({
                       <td className="px-2 py-2 align-top">
                         <div className="flex flex-col min-w-[11rem] max-w-[14rem]">
                           <div className="flex items-center justify-between gap-1 mb-1">
-                            <span className="text-[11px] font-medium text-slate-600">Taxes</span>
+                            <span className="text-[11px] font-medium text-slate-600">{tt('Taxes')}</span>
                             <button
                               type="button"
                               className="text-blue-600 hover:text-blue-800"
@@ -1104,9 +1105,9 @@ const QuotationModal = ({
                             }`}
                           >
                             {isLoadingTaxTypes ? (
-                              <p className="text-xs text-slate-500">Loading...</p>
+                              <p className="text-xs text-slate-500">{tt('Loading...')}</p>
                             ) : pickerTaxTypes.length === 0 ? (
-                              <p className="text-xs text-slate-500">No taxes configured</p>
+                              <p className="text-xs text-slate-500">{tt('No taxes configured')}</p>
                             ) : (
                               pickerTaxTypes.map((tax) => {
                                 const checked = lineTaxesOf(item).some(
@@ -1151,14 +1152,14 @@ const QuotationModal = ({
                               className="mt-1 text-left text-xs text-slate-500 hover:text-slate-700"
                               onClick={() => handleTaxTypeToggle(index, '')}
                             >
-                              Clear taxes
+                              {tt('Clear taxes')}
                             </button>
                           )}
 
                           {/* NEW TAX FORM */}
                           {showNewTaxForm && (
                             <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md text-xs">
-                              <div className="font-medium text-blue-900 mb-1">Add New Tax</div>
+                              <div className="font-medium text-blue-900 mb-1">{tt('Add New Tax')}</div>
                               <div className="space-y-1">
                                 <input
                                   type="text"
@@ -1170,7 +1171,7 @@ const QuotationModal = ({
                                 <div className="flex gap-1">
                                   <input
                                     type="number"
-                                    placeholder="Rate"
+                                    placeholder={tt('Rate')}
                                     className="w-16 p-1 border border-gray-300 rounded text-xs"
                                     value={newTaxData.taxRate}
                                     onChange={(e) => setNewTaxData({...newTaxData, taxRate: parseFloat(e.target.value) || 0})}
@@ -1181,7 +1182,7 @@ const QuotationModal = ({
                                     onChange={(e) => setNewTaxData({...newTaxData, calculationType: e.target.value})}
                                   >
                                     <option value="Percentage">%</option>
-                                    <option value="Fixed">Fixed</option>
+                                    <option value="Fixed">{tt('Fixed')}</option>
                                   </select>
                                   <button
                                     type="button"
@@ -1208,7 +1209,7 @@ const QuotationModal = ({
                           {/* Display applied taxes */}
                           {item.productTaxes && item.productTaxes.length > 0 && (
                             <div className="mt-1 text-xs text-gray-600">
-                              <div className="font-medium mb-0.5">Applied:</div>
+                              <div className="font-medium mb-0.5">{tt('Applied:')}</div>
                               {item.productTaxes.map((tax, taxIdx) => (
                                 <div key={taxIdx} className="text-xs">
                                   {tax.taxName || tax.taxId || tax.name}: {tax.taxRate}%
@@ -1242,7 +1243,7 @@ const QuotationModal = ({
             {/* Unit-Based Products Section */}
             {formData.items.some(item => hasUnitManagement(item.product)) && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
-                <h3 className="text-sm font-medium text-blue-900 mb-3">Unit-Based Products</h3>
+                <h3 className="text-sm font-medium text-blue-900 mb-3">{tt('Unit-Based Products')}</h3>
                 <div className="space-y-4">
                   {formData.items
                     .map((item, index) => ({ item, index }))
@@ -1254,7 +1255,7 @@ const QuotationModal = ({
                             <span className="font-medium text-gray-900">{item.description}</span>
                             <div className="flex items-center space-x-1">
                               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                              <span className="text-xs text-blue-600 font-medium">Unit-Based</span>
+                              <span className="text-xs text-blue-600 font-medium">{tt('Unit-Based')}</span>
                             </div>
                           </div>
                           <span className="text-sm text-gray-500">MK {item.unitPrice}</span>
@@ -1283,7 +1284,7 @@ const QuotationModal = ({
             <div className="flex justify-end mt-4">
               <div className="w-64">
                 <div className="flex justify-between py-2 text-sm">
-                  <span className="text-gray-600">Global Discount:</span>
+                  <span className="text-gray-600">{tt('Global Discount:')}</span>
                   <div className="flex items-center">
                     <span className="text-gray-500 text-sm mr-1">MK</span>
                     <input
@@ -1299,12 +1300,12 @@ const QuotationModal = ({
                   </div>
                 </div>
                 <div className="flex justify-between py-2 text-sm">
-                  <span className="text-gray-600">Subtotal:</span>
+                  <span className="text-gray-600">{tt('Subtotal:')}</span>
                   <span className="font-medium">{formatCurrency(subtotal)}</span>
                 </div>
                 {totalLineItemDiscounts > 0 && (
                   <div className="flex justify-between py-2 text-sm">
-                    <span className="text-gray-600">Line Item Discounts:</span>
+                    <span className="text-gray-600">{tt('Line Item Discounts:')}</span>
                     <span className="font-medium text-red-600">-{formatCurrency(totalLineItemDiscounts)}</span>
                   </div>
                 )}
@@ -1313,12 +1314,12 @@ const QuotationModal = ({
                   taxLines: (formData.items || []).flatMap((item) => item.taxes || item.itemTaxes || []),
                 }) && (
                   <div className="flex justify-between py-2 text-sm">
-                    <span className="text-gray-600">Tax:</span>
+                    <span className="text-gray-600">{tt('Tax:')}</span>
                     <span className="font-medium">{formatCurrency(tax)}</span>
                   </div>
                 )}
                 <div className="flex justify-between py-2 text-lg font-bold border-t border-gray-200 mt-2 pt-2">
-                  <span>Total:</span>
+                  <span>{tt('Total:')}</span>
                   <span>{formatCurrency(total)}</span>
                 </div>
               </div>
@@ -1326,7 +1327,7 @@ const QuotationModal = ({
             
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="notes">
-                Notes
+                {tt('Notes')}
               </label>
               <textarea
                 id="notes"
@@ -1335,34 +1336,34 @@ const QuotationModal = ({
                 className="w-full p-2 border border-gray-300 rounded-md"
                 value={formData.notes}
                 onChange={handleChange}
-                placeholder="Add any additional notes or terms and conditions"
+                placeholder={tt('Add any additional notes or terms and conditions')}
               ></textarea>
             </div>
             
             <div className="mb-6 p-3 bg-gray-50 border border-gray-200 rounded-md">
               <p className="text-sm font-medium text-gray-700 mb-2">Footer overrides (optional)</p>
-              <p className="text-xs text-gray-500 mb-2">Override the default phone and bank details shown in the document footer. Leave blank to use settings defaults.</p>
+              <p className="text-xs text-gray-500 mb-2">{tt('Override the default phone and bank details shown in the document footer. Leave blank to use settings defaults.')}</p>
               <div className="space-y-2">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-0.5" htmlFor="footerPhoneOverride">Footer phone</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-0.5" htmlFor="footerPhoneOverride">{tt('Footer phone')}</label>
                   <input
                     id="footerPhoneOverride"
                     type="text"
                     className="w-full p-2 border border-gray-300 rounded-md text-sm"
                     value={formData.footerPhoneOverride || ""}
                     onChange={(e) => setFormData({ ...formData, footerPhoneOverride: e.target.value })}
-                    placeholder="e.g. +265 1 234 567"
+                    placeholder={tt('e.g. +265 1 234 567')}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-0.5" htmlFor="footerBankDetailsOverride">Footer bank details</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-0.5" htmlFor="footerBankDetailsOverride">{tt('Footer bank details')}</label>
                   <textarea
                     id="footerBankDetailsOverride"
                     rows={2}
                     className="w-full p-2 border border-gray-300 rounded-md text-sm"
                     value={formData.footerBankDetailsOverride || ""}
                     onChange={(e) => setFormData({ ...formData, footerBankDetailsOverride: e.target.value })}
-                    placeholder="Bank name, account name, number, branch..."
+                    placeholder={tt('Bank name, account name, number, branch...')}
                   />
                 </div>
               </div>
@@ -1376,7 +1377,7 @@ const QuotationModal = ({
             onClick={onClose}
             className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-100 font-medium transition"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="button"
@@ -1387,7 +1388,7 @@ const QuotationModal = ({
             {loading ? (
               <>
                 <span className="animate-spin mr-2">⌛</span>
-                Saving...
+                {tt('Saving...')}
               </>
             ) : (
               mode === "create" ? "Create Quotation" : "Update Quotation"

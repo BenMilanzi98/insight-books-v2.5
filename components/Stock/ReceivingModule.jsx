@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -117,7 +118,7 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
                 id="receiving-module-title"
                 className="text-lg font-semibold text-gray-900"
               >
-                Receiving & purchase orders
+                {tt('Receiving & purchase orders')}
               </h2>
               <p className="text-xs text-gray-500">
                 {open ? (
@@ -129,11 +130,11 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
                   <span className="block text-teal-800/90">
                     Click or tap here, or press{" "}
                     <kbd className="rounded border border-gray-300 bg-gray-100 px-1 py-0.5 text-[10px] font-sans text-gray-700">
-                      Enter
+                      {tt('Enter')}
                     </kbd>{" "}
                     or{" "}
                     <kbd className="rounded border border-gray-300 bg-gray-100 px-1 py-0.5 text-[10px] font-sans text-gray-700">
-                      Space
+                      {tt('Space')}
                     </kbd>
                     , to view receiving status and purchase order details.
                   </span>
@@ -173,14 +174,14 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 transition-colors"
             >
               <Inbox className="w-4 h-4" />
-              Receive goods
+              {tt('Receive goods')}
             </Link>
             <Link
               href="/purchases/orders"
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <ClipboardList className="w-4 h-4" />
-              All purchase orders
+              {tt('All purchase orders')}
             </Link>
           </div>
 
@@ -202,20 +203,19 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
                 <div className="px-4 py-3 border-b border-amber-100/80 bg-amber-50/80 flex items-center gap-2">
                   <Package className="w-4 h-4 text-amber-700" />
                   <h3 className="text-sm font-semibold text-gray-900">
-                    Ordered goods
+                    {tt('Ordered goods')}
                   </h3>
                   <span className="text-xs font-medium text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
                     {orderedCount} PO{orderedCount !== 1 ? "s" : ""}
                   </span>
                 </div>
                 <p className="px-4 pt-2 text-xs text-gray-600">
-                  Goods still to receive on approved / in-flight purchase orders. Lines
-                  disappear as you post receipts up to the ordered quantity.
+                  {tt('Goods still to receive on approved / in-flight purchase orders. Lines disappear as you post receipts up to the ordered quantity.')}
                 </p>
                 <div className="p-3 max-h-[min(380px,48vh)] overflow-y-auto space-y-3">
                   {data.orderedGoodsOutstanding.length === 0 ? (
                     <p className="text-sm text-gray-500 px-1 py-4 text-center">
-                      No outstanding goods on purchase orders.
+                      {tt('No outstanding goods on purchase orders.')}
                     </p>
                   ) : (
                     data.orderedGoodsOutstanding.map((po) => (
@@ -237,7 +237,7 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
                             href="/purchases/receipts"
                             className="text-xs font-medium text-teal-700 hover:underline shrink-0"
                           >
-                            Receive →
+                            {tt('Receive →')}
                           </Link>
                         </div>
                         <ul className="text-xs space-y-1.5 border-t border-gray-100 pt-2">
@@ -271,7 +271,7 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
                 <div className="px-4 py-3 border-b border-teal-100/80 bg-teal-50/60 flex items-center gap-2 flex-wrap">
                   <Inbox className="w-4 h-4 text-teal-700" />
                   <h3 className="text-sm font-semibold text-gray-900">
-                    Goods to be received
+                    {tt('Goods to be received')}
                   </h3>
                   <span className="text-xs font-medium text-teal-900 bg-teal-100 px-2 py-0.5 rounded-full max-w-[min(100%,14rem)] truncate" title={goodsToReceiveBadge}>
                     {goodsToReceiveBadge}
@@ -285,7 +285,7 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
                   {data.postedInventoryPending.length > 0 && (
                     <div>
                       <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 px-1">
-                        Stock posting pending
+                        {tt('Stock posting pending')}
                       </h4>
                       <ul className="space-y-2">
                         {data.postedInventoryPending.map((r) => (
@@ -301,7 +301,7 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
                                 href="/purchases/receipts"
                                 className="text-xs text-teal-700 hover:underline shrink-0"
                               >
-                                View
+                                {tt('View')}
                               </Link>
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
@@ -317,11 +317,11 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
 
                   <div>
                     <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 px-1">
-                      Awaiting goods receipt
+                      {tt('Awaiting goods receipt')}
                     </h4>
                     {data.orderedGoodsOutstanding.length === 0 ? (
                       <p className="text-sm text-gray-500 px-1 py-2 text-center">
-                        No open quantities on purchase orders.
+                        {tt('No open quantities on purchase orders.')}
                       </p>
                     ) : (
                       <ul className="space-y-2">
@@ -354,7 +354,7 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
                                   href="/purchases/receipts"
                                   className="text-xs font-medium text-teal-700 hover:underline shrink-0"
                                 >
-                                  Receive
+                                  {tt('Receive')}
                                 </Link>
                               </div>
                             </li>
@@ -370,20 +370,19 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
                 <div className="px-4 py-3 border-b border-emerald-100/80 bg-emerald-50/50 flex items-center gap-2 flex-wrap">
                   <CheckCircle2 className="w-4 h-4 text-emerald-700" />
                   <h3 className="text-sm font-semibold text-gray-900">
-                    Goods received
+                    {tt('Goods received')}
                   </h3>
                   <span className="text-xs font-medium text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded-full">
                     {receivedCount} recent
                   </span>
                 </div>
                 <p className="px-4 pt-2 text-xs text-gray-600">
-                  Posted receipts with stock applied. PO lines no longer appear in
-                  “Ordered goods” once fully received.
+                  {tt('Posted receipts with stock applied. PO lines no longer appear in “Ordered goods” once fully received.')}
                 </p>
                 <div className="p-3 max-h-[min(380px,48vh)] overflow-y-auto space-y-2">
                   {data.goodsReceivedPosted.length === 0 ? (
                     <p className="text-sm text-gray-500 px-1 py-4 text-center">
-                      No recent completed receipts.
+                      {tt('No recent completed receipts.')}
                     </p>
                   ) : (
                     data.goodsReceivedPosted.map((r) => (
@@ -399,7 +398,7 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
                             href="/purchases/receipts"
                             className="text-xs text-emerald-700 hover:underline shrink-0"
                           >
-                            View
+                            {tt('View')}
                           </Link>
                         </div>
                         <div className="text-xs text-gray-500 mt-1">

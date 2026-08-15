@@ -7,6 +7,8 @@ import {
   reportForecastVsActual,
   reportUtilization,
   reportCashOutlook,
+  reportBudgetPlan,
+  reportBudgetCompletion,
   exportReportAsCsv,
 } from '@/lib/budgetForecast/application/reportService';
 
@@ -20,6 +22,10 @@ const ID_MAP = {
   UTILIZATION: 'UTILIZATION',
   CASH_OUTLOOK: 'CASH_OUTLOOK',
   CASH_FLOW_FORECAST: 'CASH_OUTLOOK',
+  BUDGET: 'BUDGET',
+  BUDGET_REPORT: 'BUDGET',
+  COMPLETION: 'COMPLETION',
+  BUDGET_COMPLETION: 'COMPLETION',
 };
 
 export async function GET(request) {
@@ -43,6 +49,10 @@ export async function POST(request) {
       report = await reportUtilization(user.tenantId, body);
     } else if (reportId === 'CASH_OUTLOOK') {
       report = await reportCashOutlook(user.tenantId, body);
+    } else if (reportId === 'BUDGET') {
+      report = await reportBudgetPlan(user.tenantId, body);
+    } else if (reportId === 'COMPLETION') {
+      report = await reportBudgetCompletion(user.tenantId, body);
     } else {
       return NextResponse.json({ error: 'Unknown report' }, { status: 400 });
     }

@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 // components/NewReportComponents.js
 import React, { useState, useEffect } from 'react';
 import { Package, TrendingUp, TrendingDown, PieChart } from 'lucide-react';
@@ -86,8 +87,8 @@ export const StockMovementReport = ({
     return (
       <div className="text-center p-8 sm:p-10 bg-gradient-to-br from-slate-50 to-emerald-50/40 rounded-2xl border border-slate-200">
         <Package size={48} className="mx-auto text-emerald-400 mb-4" />
-        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
-        <p className="text-slate-500 mt-2 text-sm">Select a time period and generate the report.</p>
+        <h3 className="text-lg font-medium text-slate-800">{tt('No data available')}</h3>
+        <p className="text-slate-500 mt-2 text-sm">{tt('Select a time period and generate the report.')}</p>
       </div>
     );
   }
@@ -158,7 +159,7 @@ export const StockMovementReport = ({
           <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-slate-200">
             {onProductFilterChange && (
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-slate-700">Filter by product</label>
+                <label className="text-sm font-medium text-slate-700">{tt('Filter by product')}</label>
                 <select
                   value={productId || ''}
                   onChange={(e) => onProductFilterChange(e.target.value || null)}
@@ -171,15 +172,15 @@ export const StockMovementReport = ({
               </div>
             )}
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-slate-700">Group by</label>
+              <label className="text-sm font-medium text-slate-700">{tt('Group by')}</label>
               <select
                 value={groupBy}
                 onChange={(e) => setGroupBy(e.target.value)}
                 className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               >
-                <option value="none">No grouping</option>
-                <option value="day">Per day</option>
-                <option value="week">Per week</option>
+                <option value="none">{tt('No grouping')}</option>
+                <option value="day">{tt('Per day')}</option>
+                <option value="week">{tt('Per week')}</option>
               </select>
             </div>
           </div>
@@ -220,12 +221,12 @@ export const StockMovementReport = ({
                 <table className="min-w-full border-collapse">
                   <thead>
                     <tr className="bg-slate-50">
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Date</th>
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Transaction type</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Qty in</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Qty out</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Balance</th>
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Reference</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Date')}</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Transaction type')}</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Qty in')}</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Qty out')}</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Balance')}</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Reference')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white">
@@ -233,7 +234,7 @@ export const StockMovementReport = ({
                       <td className="px-4 py-2.5 text-sm font-medium text-slate-800">
                         {data.period?.startDate ? formatDate(data.period.startDate) : ''}
                       </td>
-                      <td className="px-4 py-2.5 text-sm font-medium text-slate-800">Opening balance</td>
+                      <td className="px-4 py-2.5 text-sm font-medium text-slate-800">{tt('Opening balance')}</td>
                       <td className="px-4 py-2.5 text-sm font-medium text-slate-800 text-right">0</td>
                       <td className="px-4 py-2.5 text-sm font-medium text-slate-800 text-right">0</td>
                       <td className="px-4 py-2.5 text-sm font-medium text-slate-800 text-right">{Number(productMovement.openingBalance) ?? 0}</td>
@@ -255,7 +256,7 @@ export const StockMovementReport = ({
                       </tr>
                     ))}
                     <tr className="bg-slate-50 font-semibold border-t-2 border-slate-200">
-                      <td colSpan={2} className="px-4 py-2.5 text-sm text-slate-800">Totals</td>
+                      <td colSpan={2} className="px-4 py-2.5 text-sm text-slate-800">{tt('Totals')}</td>
                       <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{productMovement.totals?.qtyIn ?? 0}</td>
                       <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{productMovement.totals?.qtyOut ?? 0}</td>
                       <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{productMovement.closingBalance ?? 0}</td>
@@ -278,7 +279,7 @@ export const StockMovementReport = ({
                 disabled={currentPage === 1}
                 className="px-3 py-2 text-sm border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                First
+                {tt('First')}
               </button>
               <button
                 type="button"
@@ -286,7 +287,7 @@ export const StockMovementReport = ({
                 disabled={currentPage === 1}
                 className="px-3 py-2 text-sm border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                Previous
+                {tt('Previous')}
               </button>
               <div className="flex items-center gap-1">
                 {getPageNumbers().map((page, idx) => {
@@ -315,7 +316,7 @@ export const StockMovementReport = ({
                 disabled={currentPage === totalPages}
                 className="px-3 py-2 text-sm border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                Next
+                {tt('Next')}
               </button>
               <button
                 type="button"
@@ -323,14 +324,14 @@ export const StockMovementReport = ({
                 disabled={currentPage === totalPages}
                 className="px-3 py-2 text-sm border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                Last
+                {tt('Last')}
               </button>
             </div>
           )}
         </div>
       ) : (
         <div className="text-center p-8 sm:p-10 text-slate-500 text-sm rounded-2xl bg-slate-50 border border-slate-200">
-          No inventory movements found for the selected period.
+          {tt('No inventory movements found for the selected period.')}
         </div>
       )}
     </FinancialReport>
@@ -369,8 +370,8 @@ export const PosDailyReport = ({
     return (
       <div className="text-center p-8 sm:p-10 bg-gradient-to-br from-slate-50 to-blue-50/40 rounded-2xl border border-slate-200">
         <TrendingUp size={48} className="mx-auto text-blue-400 mb-4" />
-        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
-        <p className="text-slate-500 mt-2 text-sm">Select a date and generate the report.</p>
+        <h3 className="text-lg font-medium text-slate-800">{tt('No data available')}</h3>
+        <p className="text-slate-500 mt-2 text-sm">{tt('Select a date and generate the report.')}</p>
       </div>
     );
   }
@@ -390,7 +391,7 @@ export const PosDailyReport = ({
           {/* Date selector */}
           {onDateChange && (
             <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-slate-200">
-              <label className="text-sm font-medium text-slate-700">Report date</label>
+              <label className="text-sm font-medium text-slate-700">{tt('Report date')}</label>
               <input
                 type="date"
                 value={displayDate}
@@ -402,31 +403,31 @@ export const PosDailyReport = ({
           {/* Summary cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="rounded-2xl border border-emerald-200/80 p-4 sm:p-5 bg-gradient-to-br from-emerald-50 to-white shadow-sm border-l-4 border-l-emerald-500">
-              <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">Total sales</p>
+              <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">{tt('Total sales')}</p>
               <p className="mt-1 min-w-0 break-words text-lg font-bold leading-tight tabular-nums text-slate-800 sm:text-xl">{formatCurrency(totalSales)}</p>
             </div>
             <div className="rounded-2xl border border-blue-200/80 p-4 sm:p-5 bg-gradient-to-br from-blue-50 to-white shadow-sm border-l-4 border-l-blue-500">
-              <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Transactions</p>
+              <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">{tt('Transactions')}</p>
               <p className="text-xl font-bold text-slate-800 mt-1">{transactionCount}</p>
             </div>
             <div className="rounded-2xl border border-sky-200/80 p-4 sm:p-5 bg-gradient-to-br from-sky-50 to-white shadow-sm border-l-4 border-l-sky-500">
-              <p className="text-xs font-medium text-sky-700 uppercase tracking-wide">Items sold</p>
+              <p className="text-xs font-medium text-sky-700 uppercase tracking-wide">{tt('Items sold')}</p>
               <p className="text-xl font-bold text-slate-800 mt-1">{itemsSold}</p>
             </div>
             <div className="rounded-2xl border border-amber-200/80 p-4 sm:p-5 bg-gradient-to-br from-amber-50 to-white shadow-sm border-l-4 border-l-amber-500">
-              <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">Avg sale</p>
+              <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">{tt('Avg sale')}</p>
               <p className="mt-1 min-w-0 break-words text-lg font-bold leading-tight tabular-nums text-slate-800 sm:text-xl">{formatCurrency(averageSaleValue)}</p>
             </div>
           </div>
           {/* Payment breakdown */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-800 mb-2">Payment breakdown</h3>
+            <h3 className="text-sm font-semibold text-slate-800 mb-2">{tt('Payment breakdown')}</h3>
             <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
               <table className="min-w-full">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Method</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Total</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Method')}</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Total')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white">
@@ -437,7 +438,7 @@ export const PosDailyReport = ({
                     </tr>
                   ))}
                   <tr className="bg-slate-50 font-semibold border-t border-slate-200">
-                    <td className="px-4 py-2.5 text-sm text-slate-800">Grand total</td>
+                    <td className="px-4 py-2.5 text-sm text-slate-800">{tt('Grand total')}</td>
                     <td className="px-4 py-2.5 text-sm text-right text-slate-800">{formatCurrency(paymentGrandTotal)}</td>
                   </tr>
                 </tbody>
@@ -448,11 +449,11 @@ export const PosDailyReport = ({
           {(totalCogs > 0 || grossProfit !== totalSales) && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <div className="rounded-2xl border border-amber-200/80 p-4 bg-gradient-to-br from-amber-50/80 to-white shadow-sm border-l-4 border-l-amber-500">
-                <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">Total COGS</p>
+                <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">{tt('Total COGS')}</p>
                 <p className="text-lg font-bold text-slate-800 mt-1">{formatCurrency(totalCogs)}</p>
               </div>
               <div className="rounded-2xl border border-emerald-200/80 p-4 bg-gradient-to-br from-emerald-50/80 to-white shadow-sm border-l-4 border-l-emerald-500">
-                <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">Gross profit</p>
+                <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">{tt('Gross profit')}</p>
                 <p className={`text-lg font-bold mt-1 ${grossProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(grossProfit)}</p>
               </div>
             </div>
@@ -466,21 +467,21 @@ export const PosDailyReport = ({
           )}
           {/* Stock impact */}
           <div className="rounded-2xl border border-slate-200 p-4 bg-gradient-to-r from-slate-50 to-emerald-50/50 border-l-4 border-l-emerald-500">
-            <p className="text-sm font-medium text-slate-800">Stock impact</p>
-            <p className="text-sm text-slate-600 mt-1">Total qty out today: <strong>{itemsSold}</strong> · Products affected: <strong>{productsAffected}</strong></p>
-            <a href="/reports-v2?type=STOCK_MOVEMENTS" className="text-sm text-emerald-600 hover:underline mt-2 inline-block font-medium">View stock movements</a>
+            <p className="text-sm font-medium text-slate-800">{tt('Stock impact')}</p>
+            <p className="text-sm text-slate-600 mt-1">{tt('Total qty out today:')} <strong>{itemsSold}</strong> · Products affected: <strong>{productsAffected}</strong></p>
+            <a href="/reports-v2?type=STOCK_MOVEMENTS" className="text-sm text-emerald-600 hover:underline mt-2 inline-block font-medium">{tt('View stock movements')}</a>
           </div>
           {/* Cashier breakdown */}
           {cashierBreakdown.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-slate-800 mb-2">By cashier</h3>
+              <h3 className="text-sm font-semibold text-slate-800 mb-2">{tt('By cashier')}</h3>
               <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
                 <table className="min-w-full">
                   <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Cashier</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Transactions</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Sales</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Cashier')}</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Transactions')}</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Sales')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white">
@@ -536,8 +537,8 @@ export const SalesAnalysisReport = ({
     return (
       <div className="text-center p-8 sm:p-10 bg-slate-50 rounded-2xl border border-slate-200">
         <TrendingUp size={48} className="mx-auto text-slate-400 mb-4" />
-        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
-        <p className="text-slate-500 mt-2 text-sm">Select a time period and generate the report.</p>
+        <h3 className="text-lg font-medium text-slate-800">{tt('No data available')}</h3>
+        <p className="text-slate-500 mt-2 text-sm">{tt('Select a time period and generate the report.')}</p>
       </div>
     );
   }
@@ -623,10 +624,10 @@ export const SalesAnalysisReport = ({
             <table className="min-w-full border-collapse">
               <thead>
                 <tr className="bg-slate-50">
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Month</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Month')}</th>
                   <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide"># of invoices</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Sales amount</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Avg invoice</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Sales amount')}</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">{tt('Avg invoice')}</th>
                   <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">% change</th>
                 </tr>
               </thead>
@@ -644,7 +645,7 @@ export const SalesAnalysisReport = ({
                 ))}
                 {data.totals && (
                   <tr className="bg-slate-50 font-semibold border-t-2 border-slate-200">
-                    <td className="px-4 py-2.5 text-sm text-slate-800">Total</td>
+                    <td className="px-4 py-2.5 text-sm text-slate-800">{tt('Total')}</td>
                     <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{data.totals.totalInvoices}</td>
                     <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(data.totals.totalSales)}</td>
                     <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(data.totals.avgInvoice)}</td>
@@ -656,8 +657,8 @@ export const SalesAnalysisReport = ({
           </div>
           {totalPages > 1 && (
             <div className="flex flex-wrap items-center justify-center gap-2 mt-6 pt-6 border-t border-slate-200">
-              <button type="button" onClick={() => handlePageChange(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">First</button>
-              <button type="button" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="px-3 py-2 text-sm border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Previous</button>
+              <button type="button" onClick={() => handlePageChange(1)} disabled={currentPage === 1} className="px-3 py-2 text-sm border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">{tt('First')}</button>
+              <button type="button" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="px-3 py-2 text-sm border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">{tt('Previous')}</button>
               <div className="flex items-center gap-1">
                 {getPageNumbers().map((page, idx) => (
                   page === '...' ? <span key={`ellipsis-${idx}`} className="px-2 text-slate-500">…</span> : (
@@ -665,8 +666,8 @@ export const SalesAnalysisReport = ({
                   )
                 ))}
               </div>
-              <button type="button" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Next</button>
-              <button type="button" onClick={() => handlePageChange(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Last</button>
+              <button type="button" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">{tt('Next')}</button>
+              <button type="button" onClick={() => handlePageChange(totalPages)} disabled={currentPage === totalPages} className="px-3 py-2 text-sm border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">{tt('Last')}</button>
             </div>
           )}
         </div>
@@ -689,8 +690,8 @@ export const SalesAnalysisReport = ({
                 <tr className="bg-slate-50">
                   <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{data.groupBy === 'product' ? 'Product' : 'Category'}</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase"># of Sales</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Quantity Sold</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Revenue</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Quantity Sold')}</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Revenue')}</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">% of Total</th>
                 </tr>
               </thead>
@@ -725,7 +726,7 @@ export const SalesAnalysisReport = ({
                 disabled={currentPage === 1}
                 className="px-3 py-1 text-sm border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                First
+                {tt('First')}
               </button>
               
               <button
@@ -733,7 +734,7 @@ export const SalesAnalysisReport = ({
                 disabled={currentPage === 1}
                 className="px-3 py-1 text-sm border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Previous
+                {tt('Previous')}
               </button>
               
               <div className="flex items-center gap-1">
@@ -767,7 +768,7 @@ export const SalesAnalysisReport = ({
                 disabled={currentPage === totalPages}
                 className="px-3 py-1 text-sm border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Next
+                {tt('Next')}
               </button>
               
               <button
@@ -775,7 +776,7 @@ export const SalesAnalysisReport = ({
                 disabled={currentPage === totalPages}
                 className="px-3 py-1 text-sm border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Last
+                {tt('Last')}
               </button>
             </div>
           )}
@@ -797,11 +798,11 @@ export const SalesAnalysisReport = ({
             <table className="min-w-full border-collapse">
               <thead>
                 <tr className="bg-slate-50">
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Rank</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Customer Name</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Rank')}</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Customer Name')}</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase"># of Orders</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Total Sales</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Avg Order</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Total Sales')}</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Avg Order')}</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">% of Total</th>
                 </tr>
               </thead>
@@ -837,7 +838,7 @@ export const SalesAnalysisReport = ({
                 disabled={currentPage === 1}
                 className="px-3 py-1 text-sm border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                First
+                {tt('First')}
               </button>
               
               <button
@@ -845,7 +846,7 @@ export const SalesAnalysisReport = ({
                 disabled={currentPage === 1}
                 className="px-3 py-1 text-sm border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Previous
+                {tt('Previous')}
               </button>
               
               <div className="flex items-center gap-1">
@@ -879,7 +880,7 @@ export const SalesAnalysisReport = ({
                 disabled={currentPage === totalPages}
                 className="px-3 py-1 text-sm border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Next
+                {tt('Next')}
               </button>
               
               <button
@@ -887,7 +888,7 @@ export const SalesAnalysisReport = ({
                 disabled={currentPage === totalPages}
                 className="px-3 py-1 text-sm border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Last
+                {tt('Last')}
               </button>
             </div>
           )}
@@ -915,8 +916,8 @@ export const ExpenseAnalysisReport = ({
     return (
       <div className="text-center p-8 bg-gradient-to-br from-slate-50 to-amber-50/50 rounded-2xl border border-slate-200">
         <TrendingDown size={48} className="mx-auto text-amber-500 mb-4" />
-        <h3 className="text-lg font-medium text-slate-700">No data available</h3>
-        <p className="text-slate-500 mt-2">Please select a time period and generate the report.</p>
+        <h3 className="text-lg font-medium text-slate-700">{tt('No data available')}</h3>
+        <p className="text-slate-500 mt-2">{tt('Please select a time period and generate the report.')}</p>
       </div>
     );
   }
@@ -943,10 +944,10 @@ export const ExpenseAnalysisReport = ({
           <table className="min-w-full border-collapse">
             <thead>
               <tr className="bg-gradient-to-r from-amber-50/80 to-slate-50">
-                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Category</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">This Period</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Last Period</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Change</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-600 uppercase">{tt('Category')}</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('This Period')}</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Last Period')}</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Change')}</th>
                 <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">% Change</th>
                 <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">% of Total</th>
               </tr>
@@ -968,7 +969,7 @@ export const ExpenseAnalysisReport = ({
               ))}
               {data.totals && (
                 <tr className="bg-slate-50 font-semibold">
-                  <td className="px-4 py-2 text-sm text-slate-800">TOTAL EXPENSES</td>
+                  <td className="px-4 py-2 text-sm text-slate-800">{tt('TOTAL EXPENSES')}</td>
                   <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(data.totals.thisPeriod)}</td>
                   <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(data.totals.lastPeriod)}</td>
                   <td className={`px-4 py-2 text-sm text-right ${data.totals.change >= 0 ? 'text-red-600' : 'text-green-600'}`}>
@@ -990,11 +991,11 @@ export const ExpenseAnalysisReport = ({
           <table className="min-w-full border-collapse">
             <thead>
               <tr className="bg-slate-50">
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Month</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Month')}</th>
                 {data.categories && data.categories.map((cat, idx) => (
                   <th key={idx} className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{cat}</th>
                 ))}
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Total</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Total')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -1037,8 +1038,8 @@ export const ProfitabilityAnalysisReport = ({
     return (
       <div className="text-center p-8 bg-gradient-to-br from-slate-50 to-sky-50/60 rounded-2xl border border-slate-200">
         <PieChart size={48} className="mx-auto text-sky-500 mb-4" />
-        <h3 className="text-lg font-medium text-slate-700">No data available</h3>
-        <p className="text-slate-500 mt-2">Please select a time period and generate the report.</p>
+        <h3 className="text-lg font-medium text-slate-700">{tt('No data available')}</h3>
+        <p className="text-slate-500 mt-2">{tt('Please select a time period and generate the report.')}</p>
       </div>
     );
   }
@@ -1065,12 +1066,12 @@ export const ProfitabilityAnalysisReport = ({
           <table className="min-w-full border-collapse">
             <thead>
               <tr className="bg-gradient-to-r from-emerald-50/80 to-slate-50">
-                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Product</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Units Sold</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Revenue</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-600 uppercase">{tt('Product')}</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Units Sold')}</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Revenue')}</th>
                 <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">COGS</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Gross Profit</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Margin %</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Gross Profit')}</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Margin %')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -1104,11 +1105,11 @@ export const ProfitabilityAnalysisReport = ({
           <table className="min-w-full border-collapse">
             <thead>
               <tr className="bg-slate-50">
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Customer</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Revenue</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Customer')}</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Revenue')}</th>
                 <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">COGS</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Gross Profit</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Margin %</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Gross Profit')}</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Margin %')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -1140,11 +1141,11 @@ export const ProfitabilityAnalysisReport = ({
           <table className="min-w-full border-collapse">
             <thead>
               <tr className="bg-slate-50">
-                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Month</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Revenue</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{tt('Month')}</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Revenue')}</th>
                 <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">COGS</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Gross Profit</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Margin %</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Gross Profit')}</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Margin %')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">

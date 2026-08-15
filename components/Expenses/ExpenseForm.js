@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef } from 'react';
 import { Save, AlertCircle, Loader, ChevronDown, Plus, X } from 'lucide-react';
@@ -489,7 +490,7 @@ const ExpenseForm = ({
           {/* Description Field */}
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description*
+              {tt('Description*')}
             </label>
             <input
               type="text"
@@ -499,7 +500,7 @@ const ExpenseForm = ({
               className={`w-full p-2 border rounded-md ${
                 errors.description ? 'border-red-500' : 'border-gray-300'
               }`}
-              placeholder="Brief description of expense"
+              placeholder={tt('Brief description of expense')}
             />
             {errors.description && (
               <p className="mt-1 text-sm text-red-600 flex items-center">
@@ -611,7 +612,7 @@ const ExpenseForm = ({
                       <div className="p-2 border-b border-gray-200 flex items-center space-x-2">
                         <input
                           type="text"
-                          placeholder="Search tax types..."
+                          placeholder={tt('Search tax types...')}
                           value={taxSearch}
                           onChange={(e) => setTaxSearch(e.target.value)}
                           className="flex-1 p-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -639,13 +640,13 @@ const ExpenseForm = ({
                             </button>
                           ))}
                         {taxTypes.filter(t => t.taxName.toLowerCase().includes(taxSearch.toLowerCase())).length === 0 && (
-                          <div className="px-3 py-2 text-gray-500 text-sm">No tax types found</div>
+                          <div className="px-3 py-2 text-gray-500 text-sm">{tt('No tax types found')}</div>
                         )}
                       </div>
                     </>
                   ) : (
                     <div className="p-3 space-y-2">
-                      <p className="text-sm font-medium text-gray-700">Create new tax type</p>
+                      <p className="text-sm font-medium text-gray-700">{tt('Create new tax type')}</p>
                       <input
                         type="text"
                         placeholder="Tax name (e.g. VAT)"
@@ -668,7 +669,7 @@ const ExpenseForm = ({
                         onChange={(e) => setNewTax(prev => ({ ...prev, accountId: e.target.value }))}
                         className="w-full p-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                       >
-                        <option value="">Select tax account</option>
+                        <option value="">{tt('Select tax account')}</option>
                         {taxAccounts.map(acc => (
                           <option key={acc.id} value={acc.id}>
                             {acc.accountCode ? `${acc.accountCode} - ` : ''}{acc.accountName || acc.name} ({acc.accountType})
@@ -681,7 +682,7 @@ const ExpenseForm = ({
                           onClick={() => { setIsAddingTax(false); setNewTax({ taxName: '', taxRate: '', accountId: '' }); }}
                           className="px-2 py-1 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
                         >
-                          Cancel
+                          {tt('Cancel')}
                         </button>
                         <button
                           type="button"
@@ -707,7 +708,7 @@ const ExpenseForm = ({
           {/* Date Field */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Date*
+              {tt('Date*')}
             </label>
             <input
               type="date"
@@ -732,7 +733,7 @@ const ExpenseForm = ({
               value={formData.expenseAccountId}
               onChange={(value) => setFormData(prev => ({ ...prev, expenseAccountId: value }))}
               options={availableCategories}
-              placeholder="Select expense category"
+              placeholder={tt('Select expense category')}
               searchPlaceholder="Search categories..."
               emptyMessage="No predefined expense accounts found for this business"
               required={true}
@@ -741,7 +742,7 @@ const ExpenseForm = ({
             <p className="mt-1 text-xs text-gray-500">
               Expense categories come from active, postable expense accounts in{" "}
               <a href="/chart-of-accounts" className="text-blue-600 hover:text-blue-800 underline">
-                Chart of Accounts
+                {tt('Chart of Accounts')}
               </a>{" "}
               if something is missing.
             </p>
@@ -773,7 +774,7 @@ const ExpenseForm = ({
           {formData.paymentStatus !== 'Pending' && (
             <div className="mb-4 col-span-1 sm:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Source of Funds
+                {tt('Source of Funds')}
               </label>
               <select
                 name="paymentMethod"
@@ -825,7 +826,7 @@ const ExpenseForm = ({
           {/* Payment Status Field */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Payment Status
+              {tt('Payment Status')}
             </label>
             <select
               name="paymentStatus"
@@ -834,9 +835,9 @@ const ExpenseForm = ({
               className="w-full p-2 border border-gray-300 rounded-md"
               required
             >
-              <option value="Fully paid">Fully paid</option>
-              <option value="Partially">Partially</option>
-              <option value="Pending">Pending</option>
+              <option value="Fully paid">{tt('Fully paid')}</option>
+              <option value="Partially">{tt('Partially')}</option>
+              <option value="Pending">{tt('Pending')}</option>
             </select>
           </div>
 
@@ -846,7 +847,7 @@ const ExpenseForm = ({
               {/* Amount Paid Field */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount Paid
+                  {tt('Amount Paid')}
                 </label>
                 <input
                   type="number"
@@ -856,7 +857,7 @@ const ExpenseForm = ({
                   className={`w-full p-2 border rounded-md ${
                     errors.paidAmount ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="Enter amount paid"
+                  placeholder={tt('Enter amount paid')}
                   step="0.01"
                   min="0"
                 />
@@ -871,7 +872,7 @@ const ExpenseForm = ({
               {/* Payment Reference Field */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Payment Reference
+                  {tt('Payment Reference')}
                 </label>
                 <input
                   type="text"
@@ -896,7 +897,7 @@ const ExpenseForm = ({
           {/* Notes Field */}
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Notes
+              {tt('Notes')}
             </label>
             <textarea
               name="notes"
@@ -904,18 +905,18 @@ const ExpenseForm = ({
               onChange={handleChange}
               rows="3"
               className="w-full p-2 border border-gray-300 rounded-md"
-              placeholder="Additional details or notes about this expense"
+              placeholder={tt('Additional details or notes about this expense')}
             ></textarea>
           </div>
 
           {/* GL posting preview */}
           <div className="col-span-2 rounded-md border border-gray-200 bg-gray-50 p-3">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-gray-800">Posting preview</h4>
+              <h4 className="text-sm font-medium text-gray-800">{tt('Posting preview')}</h4>
               {previewLoading ? (
                 <span className="text-xs text-gray-500 flex items-center">
                   <Loader className="w-3.5 h-3.5 mr-1 animate-spin" />
-                  Updating…
+                  {tt('Updating…')}
                 </span>
               ) : null}
             </div>
@@ -927,9 +928,9 @@ const ExpenseForm = ({
                 <table className="min-w-full text-xs">
                   <thead>
                     <tr className="text-left text-gray-500 border-b border-gray-200">
-                      <th className="py-1 pr-2 font-medium">Account</th>
-                      <th className="py-1 pr-2 font-medium text-right">Debit</th>
-                      <th className="py-1 font-medium text-right">Credit</th>
+                      <th className="py-1 pr-2 font-medium">{tt('Account')}</th>
+                      <th className="py-1 pr-2 font-medium text-right">{tt('Debit')}</th>
+                      <th className="py-1 font-medium text-right">{tt('Credit')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -972,7 +973,7 @@ const ExpenseForm = ({
               </div>
             ) : !previewError && !previewLoading ? (
               <p className="text-xs text-gray-500">
-                Select an expense category and amount to preview the journal entry.
+                {tt('Select an expense category and amount to preview the journal entry.')}
               </p>
             ) : null}
             {Array.isArray(postingPreview?.warnings) && postingPreview.warnings.length > 0 ? (
@@ -992,7 +993,7 @@ const ExpenseForm = ({
             onClick={onCancel}
             className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
-            Cancel
+            {tt('Cancel')}
           </button>
           <button
             type="submit"
@@ -1004,7 +1005,7 @@ const ExpenseForm = ({
             {isLoading ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Saving...
+                {tt('Saving...')}
               </>
             ) : (
               <>

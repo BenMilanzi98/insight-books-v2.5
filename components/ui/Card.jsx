@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { tx } from '@/lib/i18n/runtime';
 
 /**
  * Tenant glass card. Optional accent bar matches POS panel chrome.
@@ -43,12 +44,12 @@ export function SummaryCard({ title, value, subtitle, icon, trend, className, ac
     <Card className={cn('flex flex-col gap-2', className)}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-[var(--text-muted)]">{title}</p>
+          <p className="text-sm font-medium text-[var(--text-muted)]">{tx(title)}</p>
           <p className="mt-1 truncate text-2xl font-semibold tabular-nums text-[var(--text-primary)]">
             {value}
           </p>
-          {subtitle ? <p className="mt-1 text-xs text-[var(--text-secondary)]">{subtitle}</p> : null}
-          {trend ? <p className="mt-1 text-xs text-[var(--text-muted)]">{trend}</p> : null}
+          {subtitle ? <p className="mt-1 text-xs text-[var(--text-secondary)]">{tx(subtitle)}</p> : null}
+          {trend ? <p className="mt-1 text-xs text-[var(--text-muted)]">{tx(trend)}</p> : null}
         </div>
         {icon ? <div className="shrink-0 text-[var(--action-primary)]">{icon}</div> : null}
       </div>

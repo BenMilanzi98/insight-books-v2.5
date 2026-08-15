@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef } from 'react';
 import { Edit, Trash2, Save, X, AlertCircle } from 'lucide-react';
@@ -177,7 +178,7 @@ const UnitConfiguration = ({
   if (selectedUnits.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
-        <p>No units selected. Please select units above to configure pricing and stock.</p>
+        <p>{tt('No units selected. Please select units above to configure pricing and stock.')}</p>
       </div>
     );
   }
@@ -186,7 +187,7 @@ const UnitConfiguration = ({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-medium text-gray-700">
-          Unit Configuration
+          {tt('Unit Configuration')}
         </h4>
         <span className="text-xs text-gray-500">
           {selectedUnits.length} unit(s) configured
@@ -214,7 +215,7 @@ const UnitConfiguration = ({
                   </h5>
                   {isDefault && (
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded">
-                      Default Unit
+                      {tt('Default Unit')}
                     </span>
                   )}
                 </div>
@@ -226,7 +227,7 @@ const UnitConfiguration = ({
                       disabled={disabled}
                       className="text-xs px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded transition-colors"
                     >
-                      Set as Default
+                      {tt('Set as Default')}
                     </button>
                   )}
                   <button
@@ -243,24 +244,24 @@ const UnitConfiguration = ({
               {/* Auto-calculated Configuration Display */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-500">Selling Price:</span>
+                    <span className="text-gray-500">{tt('Selling Price:')}</span>
                     <p className="font-medium text-green-600">MWK {config.unitPrice || '0.00'}</p>
-                    <p className="text-xs text-gray-400">Auto-calculated</p>
+                    <p className="text-xs text-gray-400">{tt('Auto-calculated')}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Order Price:</span>
+                    <span className="text-gray-500">{tt('Order Price:')}</span>
                     <p className="font-medium text-green-600">MWK {config.costPrice || '0.00'}</p>
-                    <p className="text-xs text-gray-400">Auto-calculated</p>
+                    <p className="text-xs text-gray-400">{tt('Auto-calculated')}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Stock:</span>
+                    <span className="text-gray-500">{tt('Stock:')}</span>
                     <p className="font-medium text-blue-600">{config.quantityInStock || '0'} {unit.symbol}</p>
-                    <p className="text-xs text-gray-400">Auto-calculated</p>
+                    <p className="text-xs text-gray-400">{tt('Auto-calculated')}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Reorder Point:</span>
+                    <span className="text-gray-500">{tt('Reorder Point:')}</span>
                     <p className="font-medium text-blue-600">{config.reorderPoint || '0'} {unit.symbol}</p>
-                    <p className="text-xs text-gray-400">Auto-calculated</p>
+                    <p className="text-xs text-gray-400">{tt('Auto-calculated')}</p>
                   </div>
                 </div>
             </div>

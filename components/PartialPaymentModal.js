@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 import React, { useState, useEffect } from 'react';
 import { X, CreditCard, DollarSign, Calendar, FileText, AlertCircle, Loader } from 'lucide-react';
 import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
@@ -141,7 +142,7 @@ const PartialPaymentModal = ({
               <CreditCard className="h-6 w-6 text-blue-600" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Record Payment</h2>
+              <h2 className="text-xl font-semibold text-gray-900">{tt('Record Payment')}</h2>
               <p className="text-sm text-gray-600">Invoice #{invoice.invoiceNumber}</p>
             </div>
           </div>
@@ -157,19 +158,19 @@ const PartialPaymentModal = ({
         <div className="p-6 bg-gray-50 border-b border-gray-200">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <span className="text-gray-600">Total Amount:</span>
+              <span className="text-gray-600">{tt('Total Amount:')}</span>
               <p className="font-semibold text-gray-900">{formatCurrency(invoice.total)}</p>
             </div>
             <div>
-              <span className="text-gray-600">Amount Paid:</span>
+              <span className="text-gray-600">{tt('Amount Paid:')}</span>
               <p className="font-semibold text-green-600">{formatCurrency(invoice.totalPaid || 0)}</p>
             </div>
             <div>
-              <span className="text-gray-600">Remaining Balance:</span>
+              <span className="text-gray-600">{tt('Remaining Balance:')}</span>
               <p className="font-semibold text-red-600">{formatCurrency(remainingBalance)}</p>
             </div>
             <div>
-              <span className="text-gray-600">Status:</span>
+              <span className="text-gray-600">{tt('Status:')}</span>
               <p className="font-semibold capitalize">{invoice.status}</p>
             </div>
           </div>
@@ -187,7 +188,7 @@ const PartialPaymentModal = ({
           {/* Payment Amount */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Payment Amount *
+              {tt('Payment Amount *')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -214,7 +215,7 @@ const PartialPaymentModal = ({
           {/* Payment Method */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Payment Method *
+              {tt('Payment Method *')}
             </label>
             <select
               name="paymentMethod"
@@ -236,7 +237,7 @@ const PartialPaymentModal = ({
           {/* Payment Date */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Payment Date *
+              {tt('Payment Date *')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -264,7 +265,7 @@ const PartialPaymentModal = ({
               value={formData.reference}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Transaction reference, check number, etc."
+              placeholder={tt('Transaction reference, check number, etc.')}
             />
           </div>
 
@@ -283,7 +284,7 @@ const PartialPaymentModal = ({
                 onChange={handleInputChange}
                 rows={3}
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Additional notes about this payment..."
+                placeholder={tt('Additional notes about this payment...')}
               />
             </div>
           </div>
@@ -296,7 +297,7 @@ const PartialPaymentModal = ({
               className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               disabled={isSubmitting}
             >
-              Cancel
+              {tt('Cancel')}
             </button>
             <button
               type="submit"
@@ -306,7 +307,7 @@ const PartialPaymentModal = ({
               {isSubmitting ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Processing...
+                  {tt('Processing...')}
                 </>
               ) : (
                 'Record Payment'

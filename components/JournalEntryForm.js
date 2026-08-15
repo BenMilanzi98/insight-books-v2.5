@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -378,7 +379,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
               <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
                 {isEditing ? 'Edit Journal Entry' : 'New Journal Entry'}
               </h1>
-              <p className="text-blue-100 text-sm mt-0.5">Create or edit a general ledger entry</p>
+              <p className="text-blue-100 text-sm mt-0.5">{tt('Create or edit a general ledger entry')}</p>
             </div>
           </div>
         </div>
@@ -406,12 +407,12 @@ const JournalEntryForm = ({ existingEntry = null }) => {
         <form onSubmit={handleSubmit} className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-6 sm:p-8">
           {isPosted && (
             <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-              Posted entries are read-only. Corrections must be made via reversal or a new adjusting entry.
+              {tt('Posted entries are read-only. Corrections must be made via reversal or a new adjusting entry.')}
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="date">Date <span className="text-rose-500">*</span></label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="date">{tt('Date')} <span className="text-rose-500">*</span></label>
               <input
                 type="date"
                 id="date"
@@ -423,7 +424,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="entryType">Entry Type <span className="text-rose-500">*</span></label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="entryType">{tt('Entry Type')} <span className="text-rose-500">*</span></label>
               <select
                 id="entryType"
                 name="entryType"
@@ -432,18 +433,18 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400"
                 required
               >
-                <option value="Correction">Correction</option>
-                <option value="Accrual">Accrual</option>
-                <option value="Opening Balance">Opening Balance</option>
+                <option value="Correction">{tt('Correction')}</option>
+                <option value="Accrual">{tt('Accrual')}</option>
+                <option value="Opening Balance">{tt('Opening Balance')}</option>
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="description">Description <span className="text-rose-500">*</span></label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="description">{tt('Description')} <span className="text-rose-500">*</span></label>
               <input
                 type="text"
                 id="description"
                 name="description"
-                placeholder="Enter a description for this journal entry"
+                placeholder={tt('Enter a description for this journal entry')}
                 value={formData.description}
                 onChange={handleChange}
                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400"
@@ -451,12 +452,12 @@ const JournalEntryForm = ({ existingEntry = null }) => {
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="internalReference">Internal Reference / Tag</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="internalReference">{tt('Internal Reference / Tag')}</label>
               <input
                 type="text"
                 id="internalReference"
                 name="internalReference"
-                placeholder="Optional internal reference or tag"
+                placeholder={tt('Optional internal reference or tag')}
                 value={formData.internalReference}
                 onChange={handleChange}
                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400"
@@ -466,14 +467,14 @@ const JournalEntryForm = ({ existingEntry = null }) => {
 
           <div className="mb-8">
             <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-              <h2 className="text-lg font-semibold text-slate-800">Entry Lines</h2>
+              <h2 className="text-lg font-semibold text-slate-800">{tt('Entry Lines')}</h2>
               <button
                 type="button"
                 onClick={addEntry}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-100 text-blue-700 font-medium hover:bg-blue-200 transition-colors"
               >
                 <Plus size={18} />
-                Add Line
+                {tt('Add Line')}
               </button>
             </div>
 
@@ -481,11 +482,11 @@ const JournalEntryForm = ({ existingEntry = null }) => {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
-                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Account <span className="text-rose-500">*</span></th>
-                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
-                    <th className="px-4 py-3.5 text-right text-xs font-semibold text-amber-600 uppercase tracking-wider">Debit</th>
-                    <th className="px-4 py-3.5 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider">Credit</th>
-                    <th className="px-4 py-3.5 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider w-16">Actions</th>
+                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Account')} <span className="text-rose-500">*</span></th>
+                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Description')}</th>
+                    <th className="px-4 py-3.5 text-right text-xs font-semibold text-amber-600 uppercase tracking-wider">{tt('Debit')}</th>
+                    <th className="px-4 py-3.5 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider">{tt('Credit')}</th>
+                    <th className="px-4 py-3.5 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider w-16">{tt('Actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -501,7 +502,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                             className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500/50"
                             required
                           >
-                            <option value="">Select an account</option>
+                            <option value="">{tt('Select an account')}</option>
                             {Object.entries(accountsByType).map(([type, accts]) => (
                               <optgroup key={type} label={type}>
                                 {accts.map((account) => (
@@ -514,11 +515,11 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                           </select>
                         )}
                         {entry.accountId && lineAccountMeta[index]?.loading ? (
-                          <p className="mt-1 text-[11px] text-slate-400">Loading balance…</p>
+                          <p className="mt-1 text-[11px] text-slate-400">{tt('Loading balance…')}</p>
                         ) : null}
                         {entry.accountId && lineAccountMeta[index] && !lineAccountMeta[index].loading ? (
                           <p className="mt-1 text-[11px] text-slate-600">
-                            <span className="font-medium">GL balance:</span>{' '}
+                            <span className="font-medium">{tt('GL balance:')}</span>{' '}
                             {formatCurrency(lineAccountMeta[index].currentBalance || 0)}
                             {lineAccountMeta[index].accountCode ? (
                               <span className="text-slate-400">
@@ -573,18 +574,18 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                     </tr>
                   ))}
                   <tr className="border-t-2 border-slate-200 bg-slate-50/80 font-medium">
-                    <td colSpan={2} className="px-4 py-3 text-right text-slate-700">Totals:</td>
+                    <td colSpan={2} className="px-4 py-3 text-right text-slate-700">{tt('Totals:')}</td>
                     <td className="px-4 py-3 text-right text-amber-700">{formatCurrency(totals.debit)}</td>
                     <td className="px-4 py-3 text-right text-emerald-700">{formatCurrency(totals.credit)}</td>
                     <td className="px-4 py-3" />
                   </tr>
                   <tr className="bg-slate-50/50">
-                    <td colSpan={3} className="px-4 py-3 text-right font-medium text-slate-700">Difference:</td>
+                    <td colSpan={3} className="px-4 py-3 text-right font-medium text-slate-700">{tt('Difference:')}</td>
                     <td className={`px-4 py-3 text-right font-medium ${totals.isBalanced ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {totals.isBalanced ? (
                         <span className="inline-flex items-center gap-1">
                           <CheckCircle size={16} />
-                          Balanced
+                          {tt('Balanced')}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1">
@@ -607,7 +608,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
               className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
               disabled={isLoading}
             >
-              Cancel
+              {tt('Cancel')}
             </button>
             <button
               type="submit"

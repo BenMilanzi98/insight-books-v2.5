@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
@@ -2335,7 +2336,7 @@ const POSPage = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 lg:mb-8">
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-4">
-            <h1 className="text-3xl font-bold tracking-tight text-[var(--text-primary)] sm:text-4xl">Point of Sale</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-[var(--text-primary)] sm:text-4xl">{tt('Point of Sale')}</h1>
             {cartToast ? (
               <div
                 role="status"
@@ -2356,7 +2357,7 @@ const POSPage = () => {
               </div>
             ) : null}
           </div>
-          <p className="text-sm text-gray-600">Process sales and manage transactions</p>
+          <p className="text-sm text-gray-600">{tt('Process sales and manage transactions')}</p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <button 
@@ -2364,14 +2365,14 @@ const POSPage = () => {
             onClick={() => router.push('/pos/list')}
           >
             <Calendar className="w-4 h-4 mr-2" />
-            <span className="text-sm font-medium">Sales History</span>
+            <span className="text-sm font-medium">{tt('Sales History')}</span>
           </button>
           {/* {pagePermissions.canCreateSales &&( <button 
             className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center"
             onClick={clearSale}
           >
             <PlusCircle className="w-4 h-4 mr-2" />
-            <span>New Sale</span>
+            <span>{tt('New Sale')}</span>
           </button>)} */}
         </div>
       </div>
@@ -2384,7 +2385,7 @@ const POSPage = () => {
               <CheckCircle className="h-5 w-5 text-green-600" />
             </div>
             <div className="ml-3">
-              <p className="text-sm font-semibold">Sale completed successfully!</p>
+              <p className="text-sm font-semibold">{tt('Sale completed successfully!')}</p>
             </div>
           </div>
         </div>
@@ -2410,7 +2411,7 @@ const POSPage = () => {
           <div className="flex items-center">
             <Lock className="h-5 w-5 text-red-600 mr-3 flex-shrink-0" />
             <div>
-              <p className="text-sm font-bold">Terminal Blocked by MRA</p>
+              <p className="text-sm font-bold">{tt('Terminal Blocked by MRA')}</p>
               <p className="text-sm">{terminalBlockMessage}</p>
             </div>
           </div>
@@ -2423,12 +2424,12 @@ const POSPage = () => {
           <div className="flex items-center gap-2">
             <WifiOff className="h-5 w-5 text-amber-600" />
             <div>
-              <p className="text-sm font-semibold">You are offline</p>
+              <p className="text-sm font-semibold">{tt('You are offline')}</p>
               <p className="text-xs">Sales will be queued and synced when you reconnect.{offlineSalesCount > 0 && ` (${offlineSalesCount} pending)`}</p>
             </div>
           </div>
           {offlineBlocked && (
-            <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-medium">Threshold exceeded</span>
+            <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-medium">{tt('Threshold exceeded')}</span>
           )}
         </div>
       )}
@@ -2465,9 +2466,9 @@ const POSPage = () => {
         <div className="mb-4 flex items-center gap-4 text-xs text-gray-500">
           <span className="flex items-center gap-1">
             {serverTimeSource === 'mra' ? (
-              <><Wifi className="w-3.5 h-3.5 text-green-500" /> MRA Connected</>
+              <><Wifi className="w-3.5 h-3.5 text-green-500" /> {tt('MRA Connected')}</>
             ) : (
-              <><WifiOff className="w-3.5 h-3.5 text-yellow-500" /> Local Time</>
+              <><WifiOff className="w-3.5 h-3.5 text-yellow-500" /> {tt('Local Time')}</>
             )}
           </span>
           {serverTime && (
@@ -2494,7 +2495,7 @@ const POSPage = () => {
                   setSelectedCustomer("");
                 }}
               >
-                Walk-in Customer
+                {tt('Walk-in Customer')}
               </button>
               <button 
                 className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center ${
@@ -2505,7 +2506,7 @@ const POSPage = () => {
                 onClick={() => setActiveTab("registered")}
               >
                 <UserPlus className="w-4 h-4 mr-2" />
-                Registered Customer
+                {tt('Registered Customer')}
               </button>
               <button 
                 className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center ${
@@ -2516,7 +2517,7 @@ const POSPage = () => {
                 onClick={() => setActiveTab("historical")}
               >
                 <Calendar className="w-4 h-4 mr-2" />
-                Historical Transaction
+                {tt('Historical Transaction')}
               </button>
             </div>
 
@@ -2525,7 +2526,7 @@ const POSPage = () => {
               <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-blue-800 flex items-center gap-1.5">
-                    <Globe className="w-4 h-4" /> MRA Transaction Settings
+                    <Globe className="w-4 h-4" /> {tt('MRA Transaction Settings')}
                   </span>
                 </div>
 
@@ -2549,7 +2550,7 @@ const POSPage = () => {
                 {transactionType === 'B2B' && (
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-xs font-medium text-gray-600">Buyer TPIN *</label>
+                      <label className="text-xs font-medium text-gray-600">{tt('Buyer TPIN *')}</label>
                       <input
                         type="text"
                         maxLength={8}
@@ -2560,10 +2561,10 @@ const POSPage = () => {
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-gray-600">Auth Code</label>
+                      <label className="text-xs font-medium text-gray-600">{tt('Auth Code')}</label>
                       <input
                         type="text"
-                        placeholder="Optional"
+                        placeholder={tt('Optional')}
                         className="w-full mt-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
                         value={buyerAuthCode}
                         onChange={(e) => setBuyerAuthCode(e.target.value)}
@@ -2588,21 +2589,21 @@ const POSPage = () => {
                       }}
                       className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                     />
-                    <span className="text-xs font-medium text-gray-700">Relief Supply</span>
+                    <span className="text-xs font-medium text-gray-700">{tt('Relief Supply')}</span>
                   </label>
                   {isReliefSupply && (
-                    <span className="text-xs text-amber-600 font-medium">VAT removed from standard-rated items</span>
+                    <span className="text-xs text-amber-600 font-medium">{tt('VAT removed from standard-rated items')}</span>
                   )}
                 </div>
 
                 {/* VAT 5 Certificate */}
                 {isReliefSupply && (
                   <div>
-                    <label className="text-xs font-medium text-gray-600">VAT 5 Certificate Number *</label>
+                    <label className="text-xs font-medium text-gray-600">{tt('VAT 5 Certificate Number *')}</label>
                     <div className="flex gap-2 mt-1">
                       <input
                         type="text"
-                        placeholder="Enter VAT 5 certificate number"
+                        placeholder={tt('Enter VAT 5 certificate number')}
                         className={`flex-1 px-3 py-2 text-sm border rounded-lg focus:ring-1 outline-none ${
                           vat5Validated ? 'border-green-400 bg-green-50' : vat5Error ? 'border-red-400 bg-red-50' : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
                         }`}
@@ -2618,7 +2619,7 @@ const POSPage = () => {
                         Validate
                       </button>
                     </div>
-                    {vat5Validated && <p className="text-xs text-green-600 mt-1 flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Certificate validated</p>}
+                    {vat5Validated && <p className="text-xs text-green-600 mt-1 flex items-center gap-1"><CheckCircle className="w-3 h-3" /> {tt('Certificate validated')}</p>}
                     {vat5Error && <p className="text-xs text-red-600 mt-1">{vat5Error}</p>}
                   </div>
                 )}
@@ -2627,12 +2628,12 @@ const POSPage = () => {
 
             {activeTab === "registered" && (
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Select Customer</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">{tt('Select Customer')}</label>
                 <div className="relative">
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="Search and select customer..."
+                      placeholder={tt('Search and select customer...')}
                       className="w-full p-3 border-2 border-gray-200 rounded-xl pr-10 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                       value={clientSearchQuery}
                       onChange={handleClientSearchChange}
@@ -2682,17 +2683,17 @@ const POSPage = () => {
                           >
                             <div className="font-semibold text-blue-600 flex items-center">
                               <UserPlus className="w-4 h-4 mr-2" />
-                              Add New Client
+                              {tt('Add New Client')}
                             </div>
                           </div>
                         </>
                       ) : clientSearchQuery.trim() !== "" ? (
                         <div className="px-4 py-4 text-gray-500 text-center">
-                          No clients found
+                          {tt('No clients found')}
                         </div>
                       ) : (
                         <div className="px-4 py-4 text-gray-500 text-center">
-                          Start typing to search clients...
+                          {tt('Start typing to search clients...')}
                         </div>
                       )}
                     </div>
@@ -2709,7 +2710,7 @@ const POSPage = () => {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center">
                     <AlertCircle className="w-5 h-5 text-yellow-600 mr-2" />
-                    <h3 className="text-sm font-medium text-yellow-800">Historical Transaction Entry</h3>
+                    <h3 className="text-sm font-medium text-yellow-800">{tt('Historical Transaction Entry')}</h3>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -2730,7 +2731,7 @@ const POSPage = () => {
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium mb-1 text-gray-700">Sale date *</label>
+                        <label className="block text-sm font-medium mb-1 text-gray-700">{tt('Sale date *')}</label>
                         <input
                           type="date"
                           className="w-full p-2 border border-gray-200 rounded-md"
@@ -2742,10 +2743,10 @@ const POSPage = () => {
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-medium mb-1 text-gray-700">Original reference</label>
+                        <label className="block text-sm font-medium mb-1 text-gray-700">{tt('Original reference')}</label>
                         <input
                           type="text"
-                          placeholder="Old receipt / invoice number"
+                          placeholder={tt('Old receipt / invoice number')}
                           className="w-full p-2 border border-gray-200 rounded-md"
                           value={originalReference}
                           onChange={(e) => setOriginalReference(e.target.value)}
@@ -2757,7 +2758,7 @@ const POSPage = () => {
                       <label className="block text-sm font-medium mb-1 text-gray-700">Batch label (optional)</label>
                       <input
                         type="text"
-                        placeholder="e.g. HIST-2024-01"
+                        placeholder={tt('e.g. HIST-2024-01')}
                         className="w-full p-2 border border-gray-200 rounded-md"
                         value={migrationBatch}
                         onChange={(e) => setMigrationBatch(e.target.value)}
@@ -2771,7 +2772,7 @@ const POSPage = () => {
                         value={selectedCustomer}
                         onChange={(e) => setSelectedCustomer(e.target.value)}
                         onAddNew={() => setShowClientModal(true)}
-                        placeholder="Search or select a customer..."
+                        placeholder={tt('Search or select a customer...')}
                         disabled={isLoadingClients}
                         isLoading={isLoadingClients}
                         allowEmpty={true}
@@ -2779,7 +2780,7 @@ const POSPage = () => {
                       />
                     </div>
                     <p className="mt-3 text-xs text-yellow-800">
-                      Add line items below, then complete the sale. Historical lines do not reduce stock.
+                      {tt('Add line items below, then complete the sale. Historical lines do not reduce stock.')}
                     </p>
                   </>
                 ) : (
@@ -2798,7 +2799,7 @@ const POSPage = () => {
                 <div className="relative flex-grow min-w-0" ref={productSearchRef}>
                   <input
                     type="text"
-                    placeholder="Search by name, SKU or barcode..."
+                    placeholder={tt('Search by name, SKU or barcode...')}
                     className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                     value={productSearchQuery}
                     onChange={(e) => setProductSearchQuery(e.target.value)}
@@ -2823,11 +2824,11 @@ const POSPage = () => {
                       {isLoadingProducts ? (
                         <div className="p-6 text-center">
                           <Loader className="w-6 h-6 text-blue-500 animate-spin mx-auto mb-2" />
-                          <p className="text-gray-500 text-sm">Loading products...</p>
+                          <p className="text-gray-500 text-sm">{tt('Loading products...')}</p>
                         </div>
                       ) : filteredProducts.length === 0 ? (
                         <div className="p-6 text-center">
-                          <p className="text-gray-500">No products found</p>
+                          <p className="text-gray-500">{tt('No products found')}</p>
                         </div>
                       ) : (
                         filteredProducts.map(product => (
@@ -2851,7 +2852,7 @@ const POSPage = () => {
                             <div className="text-right ml-4">
                               <p className="font-bold text-gray-900">{formatCurrency(product.price)}</p>
                               {!canSellPosItem(product) ? (
-                                <span className="text-xs text-red-600 font-medium">Out of stock</span>
+                                <span className="text-xs text-red-600 font-medium">{tt('Out of stock')}</span>
                               ) : (
                                 <button 
                                   className="text-xs text-blue-600 hover:text-blue-800 font-semibold mt-1"
@@ -2878,7 +2879,7 @@ const POSPage = () => {
                     onClick={() => setShowCustomProduct(true)}
                   >
                     <Plus className="w-4 h-4 mr-2 shrink-0" />
-                    Add Custom Product
+                    {tt('Add Custom Product')}
                   </button>
                 </div>
               </div>
@@ -2889,17 +2890,17 @@ const POSPage = () => {
                 <table className="w-full">
                   <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Product</th>
-                      <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Price</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">{tt('Product')}</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">{tt('Price')}</th>
                       {selectedProducts.some(p => !hasUnitManagement(p)) && (
-                        <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Quantity</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">{tt('Quantity')}</th>
                       )}
                       {taxesAvailable && (
-                        <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Tax</th>
+                        <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">{tt('Tax')}</th>
                       )}
-                      <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Discount</th>
-                      <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Total</th>
-                      <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Action</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">{tt('Discount')}</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">{tt('Total')}</th>
+                      <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">{tt('Action')}</th>
                     </tr>
                   </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
@@ -2911,7 +2912,7 @@ const POSPage = () => {
                             <span>{product.name}</span>
                             {isPosServiceItem(product) && (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-100 text-sky-800">
-                                Service
+                                {tt('Service')}
                               </span>
                             )}
                             {renderProductExpiryBadge(product)}
@@ -2974,7 +2975,7 @@ const POSPage = () => {
                                 onClick={() => { setOpenTaxDropdownId(openTaxDropdownId === product.id ? null : product.id); setIsAddingPosTax(false); setPosTaxSearch(''); }}
                                 className="text-xs text-blue-600 hover:text-blue-800 border border-dashed border-blue-300 hover:border-blue-500 rounded px-2 py-1 transition-colors flex items-center gap-1"
                               >
-                                <Plus className="w-3 h-3" /> Add tax
+                                <Plus className="w-3 h-3" /> {tt('Add tax')}
                               </button>
                               {openTaxDropdownId === product.id && (
                                 <div className="absolute z-50 right-0 mt-1 w-56 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden">
@@ -2983,7 +2984,7 @@ const POSPage = () => {
                                       <div className="p-2 border-b border-gray-200 flex items-center space-x-2">
                                         <input
                                           type="text"
-                                          placeholder="Search taxes..."
+                                          placeholder={tt('Search taxes...')}
                                           value={posTaxSearch}
                                           onChange={(e) => setPosTaxSearch(e.target.value)}
                                           className="flex-1 p-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -3011,13 +3012,13 @@ const POSPage = () => {
                                             </button>
                                           ))}
                                         {posTaxTypes.filter(t => t.taxName.toLowerCase().includes(posTaxSearch.toLowerCase())).length === 0 && (
-                                          <div className="px-3 py-2 text-gray-500 text-xs">No tax types found</div>
+                                          <div className="px-3 py-2 text-gray-500 text-xs">{tt('No tax types found')}</div>
                                         )}
                                       </div>
                                     </>
                                   ) : (
                                     <div className="p-3 space-y-2">
-                                      <p className="text-xs font-medium text-gray-700">Create new tax type</p>
+                                      <p className="text-xs font-medium text-gray-700">{tt('Create new tax type')}</p>
                                       <input
                                         type="text"
                                         placeholder="Tax name (e.g. VAT)"
@@ -3038,7 +3039,7 @@ const POSPage = () => {
                                         onChange={(e) => setNewPosTax(prev => ({ ...prev, accountId: e.target.value }))}
                                         className="w-full p-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                       >
-                                        <option value="">Select tax account</option>
+                                        <option value="">{tt('Select tax account')}</option>
                                         {taxAccounts.map(acc => (
                                           <option key={acc.id} value={acc.id}>
                                             {acc.accountCode ? `${acc.accountCode} - ` : ''}{acc.accountName || acc.name} ({acc.accountType})
@@ -3051,7 +3052,7 @@ const POSPage = () => {
                                           onClick={() => { setIsAddingPosTax(false); setNewPosTax({ taxName: '', taxRate: '', accountId: '' }); }}
                                           className="px-2 py-1 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
                                         >
-                                          Cancel
+                                          {tt('Cancel')}
                                         </button>
                                         <button
                                           type="button"
@@ -3102,8 +3103,8 @@ const POSPage = () => {
                     <tr>
                       <td colSpan={5 + (selectedProducts.some(p => !hasUnitManagement(p)) ? 1 : 0) + (taxesAvailable ? 1 : 0)} className="px-8 py-12 text-sm text-gray-500 text-center">
                         <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                        <p className="font-medium">No products added yet</p>
-                        <p className="text-xs mt-1">Search and select products to add to the sale</p>
+                        <p className="font-medium">{tt('No products added yet')}</p>
+                        <p className="text-xs mt-1">{tt('Search and select products to add to the sale')}</p>
                       </td>
                     </tr>
                   )}
@@ -3115,13 +3116,13 @@ const POSPage = () => {
             {/* Unit-Based Quantity Input Section */}
             {selectedProducts.some((p) => getProductExpiryAlert(p)) && (
               <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                <strong>Expiry notice:</strong>{' '}
+                <strong>{tt('Expiry notice:')}</strong>{' '}
                 Some cart items expire within 30 days - review before checkout.
               </div>
             )}
             {selectedProducts.some(p => hasUnitManagement(p)) && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                <h3 className="text-sm font-medium text-blue-900 mb-3">Unit-Based Products</h3>
+                <h3 className="text-sm font-medium text-blue-900 mb-3">{tt('Unit-Based Products')}</h3>
                 <div className="space-y-4">
                   {selectedProducts
                     .filter(p => hasUnitManagement(p))
@@ -3147,7 +3148,7 @@ const POSPage = () => {
 
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
               <label className="text-sm font-semibold text-gray-700" htmlFor="pos-global-discount">
-                Global Discount
+                {tt('Global Discount')}
               </label>
               <div className="flex items-center">
                 <span className="text-xs mr-1 text-gray-600 font-medium">MK</span>
@@ -3169,7 +3170,7 @@ const POSPage = () => {
               <textarea
                 className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none resize-none"
                 rows="3"
-                placeholder="Add notes about this sale..."
+                placeholder={tt('Add notes about this sale...')}
                 value={saleNotes}
                 onChange={(e) => setSaleNotes(e.target.value)}
               ></textarea>
@@ -3181,16 +3182,16 @@ const POSPage = () => {
         {/* Right Column - Payment Method & Action Buttons */}
         <div className="lg:col-span-3 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-3 lg:p-4 border border-gray-100 relative overflow-hidden min-w-0">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500"></div>
-          <h2 className="text-sm font-bold text-gray-900 mb-2">Payment Method</h2>
+          <h2 className="text-sm font-bold text-gray-900 mb-2">{tt('Payment Method')}</h2>
           <div className="mb-3">
             {isLoadingPaymentAccounts ? (
               <div className="flex items-center justify-center p-3">
                 <Loader className="animate-spin h-4 w-4 text-gray-400" />
-                <span className="ml-2 text-xs text-gray-500">Loading...</span>
+                <span className="ml-2 text-xs text-gray-500">{tt('Loading...')}</span>
               </div>
             ) : paymentAccounts.length === 0 ? (
               <div className="p-2 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-xs">
-                No payment accounts available. Configure them in Settings.
+                {tt('No payment accounts available. Configure them in Settings.')}
               </div>
             ) : (
               <>
@@ -3246,7 +3247,7 @@ const POSPage = () => {
                 </div>
                 {!showSplitPayment && paymentAllocations.length > 1 && (
                   <div className="mt-1.5 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="text-[11px] font-semibold text-blue-900 mb-0.5">Split Payment:</div>
+                    <div className="text-[11px] font-semibold text-blue-900 mb-0.5">{tt('Split Payment:')}</div>
                     {paymentAllocations.map((alloc, idx) => {
                       const account = paymentAccounts.find(a => a.id === alloc.paymentAccountId);
                       return (
@@ -3294,7 +3295,7 @@ const POSPage = () => {
                 {showSplitPayment && (
                   <div className="mt-2 p-2 border border-blue-200 bg-blue-50/40 rounded-lg space-y-2">
                     <div className="flex justify-between text-[11px] text-gray-600">
-                      <span>Sale total</span>
+                      <span>{tt('Sale total')}</span>
                       <span className="font-semibold text-gray-900">{formatCurrency(calculateTotal())}</span>
                     </div>
                     <div className="space-y-1.5">
@@ -3328,7 +3329,7 @@ const POSPage = () => {
                               setPaymentAllocations(newAllocations);
                             }}
                             className="w-20 shrink-0 px-1.5 py-1 text-[11px] border border-gray-300 rounded-md bg-white"
-                            placeholder="Amt"
+                            placeholder={tt('Amt')}
                             min="0"
                             step="0.01"
                           />
@@ -3340,7 +3341,7 @@ const POSPage = () => {
                             }}
                             className="p-1 text-red-600 hover:bg-red-50 rounded disabled:opacity-40"
                             disabled={paymentAllocations.length <= 1}
-                            aria-label="Remove payment line"
+                            aria-label={tt('Remove payment line')}
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -3374,11 +3375,11 @@ const POSPage = () => {
                       return (
                         <div className="space-y-1 text-[11px]">
                           <div className="flex justify-between text-gray-600">
-                            <span>Allocated</span>
+                            <span>{tt('Allocated')}</span>
                             <span className="font-semibold">{formatCurrency(allocated)}</span>
                           </div>
                           <div className="flex justify-between font-semibold">
-                            <span>Remaining</span>
+                            <span>{tt('Remaining')}</span>
                             <span className={balanced ? 'text-green-600' : 'text-red-600'}>
                               {formatCurrency(remaining)}
                             </span>
@@ -3401,7 +3402,7 @@ const POSPage = () => {
                             }}
                             className="w-full px-2 py-1 border border-gray-300 rounded-md hover:bg-white text-gray-700"
                           >
-                            Auto-allocate remaining
+                            {tt('Auto-allocate remaining')}
                           </button>
                           <button
                             type="button"
@@ -3418,7 +3419,7 @@ const POSPage = () => {
                             }}
                             className="w-full px-2 py-1 text-red-700 border border-red-200 rounded-md hover:bg-red-50"
                           >
-                            Cancel split
+                            {tt('Cancel split')}
                           </button>
                         </div>
                       );
@@ -3437,7 +3438,7 @@ const POSPage = () => {
                 onClick={clearSale}
               >
                 <X className="w-4 h-4 mr-1.5" />
-                Clear
+                {tt('Clear')}
               </button>
               <button 
                 className={`w-full px-3 py-2 bg-gray-200 text-gray-700 rounded-lg flex items-center justify-center text-sm font-semibold transition-all ${
@@ -3447,7 +3448,7 @@ const POSPage = () => {
                 disabled={isSubmitting || selectedProducts.length === 0}
               >
                 <Save className="w-4 h-4 mr-1.5" />
-                Save Draft
+                {tt('Save Draft')}
               </button>
               {(() => {
                 const checkoutTotal = calculateTotal();
@@ -3459,12 +3460,12 @@ const POSPage = () => {
                 return (
                   <div className="w-full rounded-lg border border-gray-200 bg-gray-50/80 p-2.5 space-y-2">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="font-semibold text-gray-700">Sale total</span>
+                      <span className="font-semibold text-gray-700">{tt('Sale total')}</span>
                       <span className="font-bold text-gray-900">{formatCurrency(checkoutTotal)}</span>
                     </div>
                     {splitPay ? (
                       <p className="text-[11px] text-gray-500">
-                        Amount paid and change apply to single-payment sales only.
+                        {tt('Amount paid and change apply to single-payment sales only.')}
                       </p>
                     ) : (
                       <>
@@ -3478,7 +3479,7 @@ const POSPage = () => {
                             inputMode="decimal"
                             min={0}
                             step="any"
-                            placeholder="Cash tendered"
+                            placeholder={tt('Cash tendered')}
                             className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             value={posPaidAmount}
                             onChange={(e) => setPosPaidAmount(e.target.value)}
@@ -3488,14 +3489,14 @@ const POSPage = () => {
                         {paidTrim !== '' && (
                           <div className="text-xs space-y-1">
                             {!paidParsedOk ? (
-                              <p className="text-red-600 font-medium">Enter a valid amount.</p>
+                              <p className="text-red-600 font-medium">{tt('Enter a valid amount.')}</p>
                             ) : changeDue < -0.005 ? (
                               <p className="text-red-600 font-medium">
                                 Short by {formatCurrency(Math.abs(changeDue))}.
                               </p>
                             ) : (
                               <div className="flex justify-between items-center pt-1 border-t border-gray-200">
-                                <span className="font-semibold text-gray-700">Change due</span>
+                                <span className="font-semibold text-gray-700">{tt('Change due')}</span>
                                 <span className="font-bold text-emerald-700">{formatCurrency(Math.max(0, changeDue))}</span>
                               </div>
                             )}
@@ -3516,12 +3517,12 @@ const POSPage = () => {
                 {isSubmitting ? (
                   <>
                     <Loader className="animate-spin h-4 w-4 mr-1.5" />
-                    Processing...
+                    {tt('Processing...')}
                   </>
                 ) : (
                   <>
                     <ShoppingCart className="w-4 h-4 mr-1.5" />
-                    Complete Sale
+                    {tt('Complete Sale')}
                   </>
                 )}
               </button>
@@ -3535,10 +3536,10 @@ const POSPage = () => {
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Daily Sales (POS)</h2>
-            <p className="text-xs text-gray-500">Opening/closing register, transactions, and exports.</p>
+            <p className="text-xs text-gray-500">{tt('Opening/closing register, transactions, and exports.')}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="text-xs text-gray-600">Date</label>
+            <label className="text-xs text-gray-600">{tt('Date')}</label>
             <input
               type="date"
               className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm"
@@ -3553,19 +3554,19 @@ const POSPage = () => {
               href={`/api/pos/cash-day/export?date=${encodeURIComponent(dailyReportDate)}&format=csv`}
               className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
             >
-              Export CSV
+              {tt('Export CSV')}
             </a>
             <a
               href={`/api/pos/cash-day/export?date=${encodeURIComponent(dailyReportDate)}&format=xlsx`}
               className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
             >
-              Export Excel
+              {tt('Export Excel')}
             </a>
             <a
               href={`/api/pos/cash-day/export?date=${encodeURIComponent(dailyReportDate)}&format=pdf`}
               className="px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 hover:bg-indigo-100"
             >
-              Export PDF
+              {tt('Export PDF')}
             </a>
             {pagePermissions.canExportSales && (
               <button
@@ -3577,7 +3578,7 @@ const POSPage = () => {
                 }}
                 className="px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
               >
-                Download receipts PDF
+                {tt('Download receipts PDF')}
               </button>
             )}
           </div>
@@ -3589,31 +3590,31 @@ const POSPage = () => {
         )}
         {isLoadingDailyReport ? (
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Loader className="h-4 w-4 animate-spin" /> Loading daily report...
+            <Loader className="h-4 w-4 animate-spin" /> {tt('Loading daily report...')}
           </div>
         ) : dailyReport ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm mb-6">
               <div>
-                <p className="text-xs text-gray-500 uppercase">Total Sales</p>
+                <p className="text-xs text-gray-500 uppercase">{tt('Total Sales')}</p>
                 <p className="mt-1 min-w-0 break-words text-base font-semibold leading-tight tabular-nums text-gray-900 sm:text-lg">
                   {formatCurrency(dailyReport.totalSales || 0)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 uppercase">Transactions</p>
+                <p className="text-xs text-gray-500 uppercase">{tt('Transactions')}</p>
                 <p className="mt-1 text-lg font-semibold text-gray-900">
                   {dailyReport.transactionCount || 0}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 uppercase">Items Sold</p>
+                <p className="text-xs text-gray-500 uppercase">{tt('Items Sold')}</p>
                 <p className="mt-1 text-lg font-semibold text-gray-900">
                   {dailyReport.itemsSold || 0}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 uppercase">Gross Profit</p>
+                <p className="text-xs text-gray-500 uppercase">{tt('Gross Profit')}</p>
                 <p className="mt-1 min-w-0 break-words text-base font-semibold leading-tight tabular-nums text-gray-900 sm:text-lg">
                   {formatCurrency(dailyReport.grossProfit || 0)}
                 </p>
@@ -3623,7 +3624,7 @@ const POSPage = () => {
             {posCashDayState && (
               <div className="border border-gray-100 rounded-xl p-4 mb-6 bg-gray-50/80">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h3 className="text-sm font-semibold text-gray-900">POS cash register</h3>
+                  <h3 className="text-sm font-semibold text-gray-900">{tt('POS cash register')}</h3>
                   <div className="flex flex-wrap gap-2">
                     {!posCashDayState.register ? (
                       <button
@@ -3634,7 +3635,7 @@ const POSPage = () => {
                         disabled={posCashActionLoading}
                         className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white disabled:opacity-50"
                       >
-                        Open till
+                        {tt('Open till')}
                       </button>
                     ) : posCashDayState.register.status === 'OPEN' ? (
                       <>
@@ -3644,7 +3645,7 @@ const POSPage = () => {
                           disabled={posCashActionLoading}
                           className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white disabled:opacity-50"
                         >
-                          Deposit
+                          {tt('Deposit')}
                         </button>
                         <button
                           type="button"
@@ -3652,7 +3653,7 @@ const POSPage = () => {
                           disabled={posCashActionLoading}
                           className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-800 text-white disabled:opacity-50"
                         >
-                          Close till
+                          {tt('Close till')}
                         </button>
                       </>
                     ) : (
@@ -3666,7 +3667,7 @@ const POSPage = () => {
                   <div>
                     <p className="text-gray-500">System Cash account (Payment Management)</p>
                     <p className="font-medium text-gray-900">{posCashDayState.systemCashAccount?.name || 'Cash'}</p>
-                    <p className="text-gray-500 mt-1">Live ledger balance</p>
+                    <p className="text-gray-500 mt-1">{tt('Live ledger balance')}</p>
                     <p className="font-semibold">{formatCurrency(posCashDayState.liveCashBalance ?? 0)}</p>
                   </div>
                   {posCashDayState.register ? (
@@ -3692,8 +3693,7 @@ const POSPage = () => {
                     </>
                   ) : (
                     <div className="sm:col-span-2 text-gray-500 text-xs">
-                      Open the day to lock an opening balance equal to the system Cash account balance, then track
-                      deposits and closing.
+                      {tt('Open the day to lock an opening balance equal to the system Cash account balance, then track deposits and closing.')}
                     </div>
                   )}
                 </div>
@@ -3705,11 +3705,11 @@ const POSPage = () => {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
                     <tr>
-                      <th className="px-3 py-2">Sale</th>
-                      <th className="px-3 py-2">Time</th>
-                      <th className="px-3 py-2">Items sold</th>
-                      <th className="px-3 py-2 text-right">Amount</th>
-                      <th className="px-3 py-2">Payment</th>
+                      <th className="px-3 py-2">{tt('Sale')}</th>
+                      <th className="px-3 py-2">{tt('Time')}</th>
+                      <th className="px-3 py-2">{tt('Items sold')}</th>
+                      <th className="px-3 py-2 text-right">{tt('Amount')}</th>
+                      <th className="px-3 py-2">{tt('Payment')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -3758,24 +3758,24 @@ const POSPage = () => {
             )}
           </>
         ) : (
-          <p className="text-sm text-gray-500">No POS sales found for this date.</p>
+          <p className="text-sm text-gray-500">{tt('No POS sales found for this date.')}</p>
         )}
 
         {showDepositModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
             <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-5">
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">Deposit to accounts</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">{tt('Deposit to accounts')}</h3>
               <p className="text-xs text-gray-500 mb-4">
                 Move cash from the system Cash account to bank or other payment accounts (same balances as{' '}
                 <a href="/payments/management" className="text-blue-600 underline">
-                  Payment Management
+                  {tt('Payment Management')}
                 </a>
                 ).
               </p>
               <div className="space-y-3 max-h-72 overflow-y-auto">
                 {depositLines.map((row, idx) => (
                   <div key={idx} className="flex flex-col gap-1 border border-gray-100 rounded-lg p-3">
-                    <label className="text-xs text-gray-500">Destination account</label>
+                    <label className="text-xs text-gray-500">{tt('Destination account')}</label>
                     <select
                       className="border rounded-lg px-2 py-1.5 text-sm"
                       value={row.toAccountId}
@@ -3785,14 +3785,14 @@ const POSPage = () => {
                         setDepositLines(next);
                       }}
                     >
-                      <option value="">Select account</option>
+                      <option value="">{tt('Select account')}</option>
                       {paymentAccounts.map((acc) => (
                         <option key={acc.id} value={acc.id}>
                           {acc.name} ({acc.accountType})
                         </option>
                       ))}
                     </select>
-                    <label className="text-xs text-gray-500">Amount</label>
+                    <label className="text-xs text-gray-500">{tt('Amount')}</label>
                     <input
                       type="number"
                       min="0"
@@ -3822,7 +3822,7 @@ const POSPage = () => {
                   className="px-4 py-2 text-sm rounded-lg border border-gray-200"
                   onClick={() => setShowDepositModal(false)}
                 >
-                  Cancel
+                  {tt('Cancel')}
                 </button>
                 <button
                   type="button"
@@ -3842,13 +3842,13 @@ const POSPage = () => {
       <div className="mt-6 lg:mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100 relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-sky-500 to-indigo-500"></div>
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Recent Sales</h2>
+          <h2 className="text-xl lg:text-2xl font-bold text-gray-900">{tt('Recent Sales')}</h2>
         </div>
           <div className="mb-6">
             <div className="relative">
               <input 
                 type="text" 
-                placeholder="Search sales..." 
+                placeholder={tt('Search sales...')} 
                 className="w-full p-3 pl-10 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                 // Note: This would ideally be connected to an actual search function
               />
@@ -3871,13 +3871,13 @@ const POSPage = () => {
                 onClick={loadRecentSales}
               >
                 <RefreshCw className="w-4 h-4 mr-2 inline-block" />
-                Try Again
+                {tt('Try Again')}
               </button>
             </div>
           ) : recentSales.length === 0 ? (
             <div className="text-center py-16 text-gray-500">
               <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>No sales recorded yet</p>
+              <p>{tt('No sales recorded yet')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -3885,10 +3885,10 @@ const POSPage = () => {
                 <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Customer</th>
-                    <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase">Amount</th>
-                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">{tt('Date')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">{tt('Customer')}</th>
+                    <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase">{tt('Amount')}</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">{tt('Actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
@@ -3903,7 +3903,7 @@ const POSPage = () => {
                           {sale.isHistorical && (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
                               <Calendar className="w-3 h-3 mr-1" />
-                              Historical
+                              {tt('Historical')}
                             </span>
                           )}
                         </div>
@@ -3955,7 +3955,7 @@ const POSPage = () => {
           
         <div className="mt-6 flex justify-center">
           <Link href="/pos/list" className="text-blue-600 text-sm font-semibold hover:text-blue-800 hover:underline flex items-center transition-colors">
-            View All Sales
+            {tt('View All Sales')}
             <ArrowRight className="w-4 h-4 ml-1" />
           </Link>
         </div>
@@ -3969,7 +3969,7 @@ const POSPage = () => {
             ref={receiptModalRef}
           >
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Sale Completed</h3>
+              <h3 className="text-lg font-semibold">{tt('Sale Completed')}</h3>
               <button 
                 className="text-gray-500 hover:text-gray-700"
                 onClick={() => setShowReceiptModal(false)}
@@ -3982,14 +3982,14 @@ const POSPage = () => {
               <div className="bg-green-100 text-green-600 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                 <CheckCircle className="w-8 h-8" />
               </div>
-              <h4 className="text-xl font-bold mb-2">Success!</h4>
+              <h4 className="text-xl font-bold mb-2">{tt('Success!')}</h4>
               <p className="text-gray-600">
                 Sale {receiptNumber} has been completed successfully.
               </p>
             </div>
             
             <div className="bg-gray-50 rounded-md p-4 mb-6">
-              <p className="text-sm text-gray-600 mb-2">Sale Details:</p>
+              <p className="text-sm text-gray-600 mb-2">{tt('Sale Details:')}</p>
               <p className="text-lg font-bold mb-1">
                 Total:{' '}
                 {currentReceipt
@@ -4001,13 +4001,13 @@ const POSPage = () => {
                 currentReceipt.posAmountTendered !== '' && (
                   <div className="text-sm text-gray-700 space-y-0.5 mt-2 pt-2 border-t border-gray-200">
                     <div className="flex justify-between">
-                      <span>Amount tendered</span>
+                      <span>{tt('Amount tendered')}</span>
                       <span className="font-medium">
                         {formatCurrency(currentReceipt.posAmountTendered)}
                       </span>
                     </div>
                     <div className="flex justify-between font-semibold text-emerald-800">
-                      <span>Change</span>
+                      <span>{tt('Change')}</span>
                       <span>
                         {formatCurrency(
                           currentReceipt.posChangeGiven != null
@@ -4029,7 +4029,7 @@ const POSPage = () => {
                     </div>
                   ))}
                   <div className="flex justify-between text-xs mt-1 pt-1 border-t border-gray-200 font-semibold">
-                    <span>Total:</span>
+                    <span>{tt('Total:')}</span>
                     <span>{formatCurrency(currentReceipt.payments[0].amount || currentReceipt.total || 0)}</span>
                   </div>
                 </div>
@@ -4060,7 +4060,7 @@ const POSPage = () => {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Thermal paper width
+                  {tt('Thermal paper width')}
                 </label>
                 <select
                   value={receiptPaperWidthMm}
@@ -4081,14 +4081,14 @@ const POSPage = () => {
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 flex items-center justify-center hover:bg-gray-50"
                   onClick={() => setShowReceiptModal(false)}
                 >
-                  Close
+                  {tt('Close')}
                 </button>
                 <button 
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center hover:bg-blue-700"
                   onClick={() => handlePrintReceipt(receiptPaperWidthMm)}
                 >
                   <Printer className="w-4 h-4 mr-2" />
-                  Print Receipt
+                  {tt('Print Receipt')}
                 </button>
               </div>
             </div>
@@ -4133,7 +4133,7 @@ const POSPage = () => {
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Add Custom Product</h3>
+              <h3 className="text-lg font-semibold">{tt('Add Custom Product')}</h3>
               <button 
                 className="text-gray-500 hover:text-gray-700"
                 onClick={() => setShowCustomProduct(false)}
@@ -4144,11 +4144,11 @@ const POSPage = () => {
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Product Name *</label>
+                <label className="block text-sm font-medium mb-1">{tt('Product Name *')}</label>
                 <input
                   type="text"
                   className="w-full p-2 border border-gray-200 rounded-md"
-                  placeholder="Enter product name"
+                  placeholder={tt('Enter product name')}
                   value={customProduct.name}
                   onChange={(e) => setCustomProduct({...customProduct, name: e.target.value})}
                 />
@@ -4159,7 +4159,7 @@ const POSPage = () => {
                 <input
                   type="number"
                   className="w-full p-2 border border-gray-200 rounded-md"
-                  placeholder="Selling price"
+                  placeholder={tt('Selling price')}
                   min="0"
                   step="0.01"
                   value={customProduct.price}
@@ -4172,7 +4172,7 @@ const POSPage = () => {
                 <input
                   type="number"
                   className="w-full p-2 border border-gray-200 rounded-md"
-                  placeholder="Purchase / cost price"
+                  placeholder={tt('Purchase / cost price')}
                   min="0"
                   step="0.01"
                   value={customProduct.orderPrice}
@@ -4182,7 +4182,7 @@ const POSPage = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-1">Description</label>
+                <label className="block text-sm font-medium mb-1">{tt('Description')}</label>
                 <textarea
                   className="w-full p-2 border border-gray-200 rounded-md"
                   rows="2"
@@ -4193,7 +4193,7 @@ const POSPage = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-1">Quantity</label>
+                <label className="block text-sm font-medium mb-1">{tt('Quantity')}</label>
                 <input
                   type="number"
                   className="w-full p-2 border border-gray-200 rounded-md"
@@ -4209,13 +4209,13 @@ const POSPage = () => {
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                 onClick={() => setShowCustomProduct(false)}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button 
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 onClick={addCustomProduct}
               >
-                Add Product
+                {tt('Add Product')}
               </button>
             </div>
           </div>
@@ -4227,7 +4227,7 @@ const POSPage = () => {
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Void Sale</h3>
+              <h3 className="text-lg font-semibold">{tt('Void Sale')}</h3>
               <button 
                 className="text-gray-500 hover:text-gray-700"
                 onClick={() => setShowVoidModal(false)}
@@ -4241,16 +4241,16 @@ const POSPage = () => {
                 Are you sure you want to void sale {selectedSaleForAction?.saleNumber}?
               </p>
               <p className="text-sm text-red-600">
-                This action will cancel the transaction and restore inventory levels.
+                {tt('This action will cancel the transaction and restore inventory levels.')}
               </p>
             </div>
             
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Reason for voiding *</label>
+              <label className="block text-sm font-medium mb-1">{tt('Reason for voiding *')}</label>
               <textarea
                 className="w-full p-2 border border-gray-200 rounded-md"
                 rows="3"
-                placeholder="Enter reason for voiding this sale..."
+                placeholder={tt('Enter reason for voiding this sale...')}
                 value={voidReason}
                 onChange={(e) => setVoidReason(e.target.value)}
               />
@@ -4262,7 +4262,7 @@ const POSPage = () => {
                 onClick={() => setShowVoidModal(false)}
                 disabled={isProcessingVoid}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button 
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center justify-center"
@@ -4272,12 +4272,12 @@ const POSPage = () => {
                 {isProcessingVoid ? (
                   <>
                     <Loader className="animate-spin h-4 w-4 mr-2" />
-                    Voiding...
+                    {tt('Voiding...')}
                   </>
                 ) : (
                   <>
                     <Ban className="w-4 h-4 mr-2" />
-                    Void Sale
+                    {tt('Void Sale')}
                   </>
                 )}
               </button>
@@ -4291,7 +4291,7 @@ const POSPage = () => {
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Refund Sale</h3>
+              <h3 className="text-lg font-semibold">{tt('Refund Sale')}</h3>
               <button 
                 className="text-gray-500 hover:text-gray-700"
                 onClick={() => setShowRefundModal(false)}
@@ -4305,16 +4305,16 @@ const POSPage = () => {
                 Are you sure you want to refund sale {selectedSaleForAction?.saleNumber}?
               </p>
               <p className="text-sm text-blue-600">
-                This action will reverse the sale, restore inventory, and adjust financial records.
+                {tt('This action will reverse the sale, restore inventory, and adjust financial records.')}
               </p>
             </div>
             
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Reason for refund *</label>
+              <label className="block text-sm font-medium mb-1">{tt('Reason for refund *')}</label>
               <textarea
                 className="w-full p-2 border border-gray-200 rounded-md"
                 rows="3"
-                placeholder="Enter reason for refunding this sale..."
+                placeholder={tt('Enter reason for refunding this sale...')}
                 value={refundReason}
                 onChange={(e) => setRefundReason(e.target.value)}
               />
@@ -4326,7 +4326,7 @@ const POSPage = () => {
                 onClick={() => setShowRefundModal(false)}
                 disabled={isProcessingRefund}
               >
-                Cancel
+                {tt('Cancel')}
               </button>
               <button 
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center"
@@ -4336,12 +4336,12 @@ const POSPage = () => {
                 {isProcessingRefund ? (
                   <>
                     <Loader className="animate-spin h-4 w-4 mr-2" />
-                    Processing...
+                    {tt('Processing...')}
                   </>
                 ) : (
                   <>
                     <RotateCcw className="w-4 h-4 mr-2" />
-                    Process Refund
+                    {tt('Process Refund')}
                   </>
                 )}
               </button>
@@ -4356,7 +4356,7 @@ const POSPage = () => {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900">Download receipts PDF</h3>
+                <h3 className="text-lg font-semibold text-slate-900">{tt('Download receipts PDF')}</h3>
                 <p className="mt-1 text-xs text-slate-500">
                   One PDF with every receipt on its own page (or pages). Max 5,000 receipts per export.
                 </p>
@@ -4404,7 +4404,7 @@ const POSPage = () => {
                       setReceiptsPdfError(null);
                     }}
                   />
-                  {opt.label}
+                  {tt(opt.label)}
                 </label>
               ))}
             </div>
@@ -4412,7 +4412,7 @@ const POSPage = () => {
             {receiptsPdfPreset === "custom" && (
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">From</label>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">{tt('From')}</label>
                   <input
                     type="date"
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
@@ -4424,7 +4424,7 @@ const POSPage = () => {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">To</label>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">{tt('To')}</label>
                   <input
                     type="date"
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
@@ -4455,7 +4455,7 @@ const POSPage = () => {
                 onClick={() => setShowReceiptsPdfModal(false)}
                 disabled={isExportingReceiptsPdf}
               >
-                Close
+                {tt('Close')}
               </button>
               <button
                 type="button"
@@ -4465,7 +4465,7 @@ const POSPage = () => {
               >
                 {isCountingReceiptsPdf ? (
                   <span className="inline-flex items-center gap-2">
-                    <Loader className="h-4 w-4 animate-spin" /> Counting…
+                    <Loader className="h-4 w-4 animate-spin" /> {tt('Counting…')}
                   </span>
                 ) : (
                   "Preview count"
@@ -4479,11 +4479,11 @@ const POSPage = () => {
               >
                 {isExportingReceiptsPdf ? (
                   <span className="inline-flex items-center gap-2">
-                    <Loader className="h-4 w-4 animate-spin" /> Generating PDF…
+                    <Loader className="h-4 w-4 animate-spin" /> {tt('Generating PDF…')}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-2">
-                    <FileText className="h-4 w-4" /> Generate PDF
+                    <FileText className="h-4 w-4" /> {tt('Generate PDF')}
                   </span>
                 )}
               </button>

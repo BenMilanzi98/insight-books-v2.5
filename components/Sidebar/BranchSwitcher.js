@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ChevronDown, Check, Building2 } from 'lucide-react';
@@ -110,10 +111,10 @@ export default function BranchSwitcher({
       <div className="w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-white">
         {canManageBusinesses ? (
           <Link href="/switch-tenant" className="text-blue-300 hover:text-blue-200 text-xs underline">
-            Add or manage businesses
+            {tt('Add or manage businesses')}
           </Link>
         ) : (
-          <div className="text-gray-400 text-xs">No businesses assigned</div>
+          <div className="text-gray-400 text-xs">{tt('No businesses assigned')}</div>
         )}
       </div>
     );
@@ -179,14 +180,14 @@ export default function BranchSwitcher({
               className="text-xs text-blue-600 hover:text-blue-800 font-medium"
               onClick={() => setIsOpen(false)}
             >
-              Manage businesses
+              {tt('Manage businesses')}
             </Link>
             <Link
               href="/subscription"
               className="text-xs text-gray-500 hover:text-gray-700"
               onClick={() => setIsOpen(false)}
             >
-              Subscription
+              {tt('Subscription')}
             </Link>
           </div>
         </div>

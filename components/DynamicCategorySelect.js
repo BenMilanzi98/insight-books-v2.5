@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useRef, useEffect } from 'react';
 import { Plus, X, Check, ChevronDown } from 'lucide-react';
@@ -7,7 +8,7 @@ const DynamicCategorySelect = ({
   value, 
   onChange, 
   options = [], 
-  placeholder = "Select or add category",
+  placeholder = tt('Select or add category'),
   searchPlaceholder = "Search categories...",
   emptyMessage = "No categories available",
   emptySearchMessage = "No categories found",

@@ -1,5 +1,6 @@
 import { forwardRef } from 'react';
 import { cn } from '@/lib/utils';
+import { tx } from '@/lib/i18n/runtime';
 
 const variants = {
   primary:
@@ -52,7 +53,7 @@ const Button = forwardRef(function Button(
       {loading ? (
         <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" />
       ) : null}
-      {children}
+      {tx(children)}
     </button>
   );
 });
@@ -69,7 +70,7 @@ export const IconButton = forwardRef(function IconButton(
       variant="ghost"
       size="compact"
       className={cn('min-h-11 min-w-11 px-0', className)}
-      aria-label={label}
+      aria-label={label != null ? tx(label) : undefined}
       {...props}
     >
       {children}
