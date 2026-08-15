@@ -59,6 +59,38 @@ function fakePrisma({
     posCashDay: {
       findFirst: async () => ({ id: 'day1', status: 'OPEN' }),
     },
+    sale: {
+      findMany: async () => [
+        {
+          id: 'sale1',
+          saleNumber: 'INV-SALE-1',
+          saleDate: new Date('2026-08-10T12:00:00.000Z'),
+          clientId: 'c1',
+          subtotal: 1000,
+          taxAmount: 0,
+          total: 1000,
+          status: 'completed',
+          paymentMethod: 'cash',
+          notes: null,
+          createdAt: new Date('2026-08-10T12:00:00.000Z'),
+          createdById: 'u1',
+          client: { name: 'Customer One' },
+          createdBy: { name: 'Till User' },
+          items: [
+            {
+              id: 'si1',
+              productId: 'p1',
+              description: 'Product One',
+              quantity: 1,
+              unitPrice: 1000,
+              amount: 1000,
+              isCustom: false,
+              product: { name: 'Product One' },
+            },
+          ],
+        },
+      ],
+    },
   };
 }
 
@@ -81,6 +113,7 @@ describe('buildDesktopSnapshot', () => {
       'paymentAccounts',
       'openInvoices',
       'recentPayments',
+      'sales',
       'posConfig',
       'serverNow',
     ]);
@@ -88,6 +121,9 @@ describe('buildDesktopSnapshot', () => {
     expect(snapshot.customers[0].id).toBe('c1');
     expect(snapshot.products[0].quantity).toBe(7);
     expect(snapshot.products[0].barcodes).toEqual(['123456']);
+    expect(snapshot.sales[0].id).toBe('sale1');
+    expect(snapshot.sales[0].saleNumber).toBe('INV-SALE-1');
+    expect(snapshot.sales[0].items[0].productName).toBe('Product One');
     expect(snapshot.sessionUser.role.name).toBe('Sales');
     expect(snapshot.posConfig.cashDay.id).toBe('day1');
     expect(new Date(snapshot.serverNow).toISOString()).toBe(snapshot.serverNow);

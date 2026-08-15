@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { openDesktopDb } from '../../lib/desktop/sqlite/db.js';
 import { replaceSnapshot } from '../../lib/desktop/sqlite/snapshotStore.js';
-import { appendOutbox, listOutbox } from '../../lib/desktop/sqlite/outboxStore.js';
+import { appendOutbox, listOutbox, updateOutbox } from '../../lib/desktop/sqlite/outboxStore.js';
 import { writeMeta, readMeta } from '../../lib/desktop/sqlite/meta.js';
 import { runDesktopSync } from '../../lib/desktop/syncWorker.js';
+import { OUTBOX_STATUS } from '../../lib/desktop/outboxState.js';
 
 const t0 = Date.parse('2026-08-15T10:00:00.000Z');
 
@@ -60,6 +61,27 @@ describe('runDesktopSync', () => {
     expect(listOutbox(db).find((x) => x.id === 'm2').status).toBe('pending');
     expect(cloud.pullSnapshot).not.toHaveBeenCalled();
     expect(readMeta(db).lastSuccessfulSyncAt).toBe(String(t0));
+  });
+
+  it('returns OUTBOX_BLOCKED when failed rows block snapshot pull with no push', async () => {
+    const db = seedDb();
+    appendOutbox(db, { id: 'm1', kind: 'pos.sale', payload: {} });
+    updateOutbox(db, 'm1', { status: OUTBOX_STATUS.failed, errorMessage: 'stock 0' });
+    const cloud = {
+      heartbeat: async () => ({
+        serverNow: '2026-08-15T12:00:00.000Z',
+        bound: true,
+        subscriptionActive: true,
+      }),
+      pushItems: vi.fn(),
+      pullSnapshot: vi.fn(),
+    };
+    const r = await runDesktopSync({ db, cloud, now: t0 + 2 * 60 * 60 * 1000 });
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('OUTBOX_BLOCKED');
+    expect(r.failedItemId).toBe('m1');
+    expect(cloud.pushItems).not.toHaveBeenCalled();
+    expect(cloud.pullSnapshot).not.toHaveBeenCalled();
   });
 
   it('pushes two sales then pulls snapshot and stamps lastSuccessfulSyncAt', async () => {

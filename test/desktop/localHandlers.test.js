@@ -10,13 +10,13 @@ import { vi } from 'vitest';
 
 const t0 = Date.parse('2026-08-15T10:00:00.000Z');
 
-function seed(db) {
+function seed(db, { posConfig = {}, lastSuccessfulSyncAt = String(t0) } = {}) {
   writeMeta(db, {
     tenantId: 't1',
     deviceId: 'pc-a',
     numberPrefix: 'TILL1',
-    lastSuccessfulSyncAt: String(t0),
-    lastLocalNow: String(t0),
+    lastSuccessfulSyncAt,
+    lastLocalNow: lastSuccessfulSyncAt === String(t0) ? String(t0) : lastSuccessfulSyncAt,
     lastServerNow: '2026-08-15T10:00:00.000Z',
     subscriptionActive: 'true',
   });
@@ -29,17 +29,44 @@ function seed(db) {
     paymentAccounts: [],
     openInvoices: [],
     recentPayments: [],
+    sales: [],
     sessionUser: { id: 'u1' },
     tenantSettings: {},
-    posConfig: {},
+    posConfig,
     serverNow: '2026-08-15T10:00:00.000Z',
   });
+}
+
+function openTill(db, now = t0 + 60 * 1000) {
+  return handleDesktopLocal({
+    db,
+    method: 'POST',
+    pathname: '/api/pos/cash-day/open',
+    body: { openingBalance: 5000 },
+    now,
+    user: { id: 'u1', tenantId: 't1' },
+  });
+}
+
+function createTestSale(db, now = t0 + 60 * 1000) {
+  openTill(db, now);
+  const res = handleDesktopLocal({
+    db,
+    method: 'POST',
+    pathname: '/api/sales',
+    body: { items: [{ productId: 'p1', quantity: 2, price: 1000 }], payments: [] },
+    now,
+    user: { id: 'u1', tenantId: 't1' },
+  });
+  expect(res.status).toBe(201);
+  return res.json.sale;
 }
 
 describe('handleDesktopLocal POS sale', () => {
   it('writes sale, decrements stock, appends outbox', () => {
     const db = openDesktopDb(':memory:');
     seed(db);
+    openTill(db);
     const res = handleDesktopLocal({
       db,
       method: 'POST',
@@ -52,13 +79,15 @@ describe('handleDesktopLocal POS sale', () => {
     expect(res.json.message).toBe('Sale created successfully');
     expect(res.json.sale.saleNumber).toBe('TILL1-SALE-1');
     expect(getProduct(db, 'p1').quantity).toBe(8);
-    expect(listOutbox(db)[0].kind).toBe('pos.sale');
-    expect(listOutbox(db)[0].payload.saleNumber).toBe('TILL1-SALE-1');
+    const saleOutbox = listOutbox(db).find((e) => e.kind === 'pos.sale');
+    expect(saleOutbox).toBeTruthy();
+    expect(saleOutbox.payload.saleNumber).toBe('TILL1-SALE-1');
   });
 
   it('accepts unitPrice on sale items', () => {
     const db = openDesktopDb(':memory:');
     seed(db);
+    openTill(db);
     const res = handleDesktopLocal({
       db,
       method: 'POST',
@@ -72,9 +101,25 @@ describe('handleDesktopLocal POS sale', () => {
     expect(res.json.sale.total).toBe(1000);
   });
 
+  it('rejects sale when till is not open', () => {
+    const db = openDesktopDb(':memory:');
+    seed(db);
+    const res = handleDesktopLocal({
+      db,
+      method: 'POST',
+      pathname: '/api/sales',
+      body: { items: [{ productId: 'p1', quantity: 1, price: 1000 }] },
+      now: t0 + 60 * 1000,
+      user: { id: 'u1', tenantId: 't1' },
+    });
+    expect(res.status).toBe(409);
+    expect(res.json.code).toBe('TILL_NOT_OPEN');
+  });
+
   it('rejects writes after 24h', () => {
     const db = openDesktopDb(':memory:');
     seed(db);
+    openTill(db);
     const res = handleDesktopLocal({
       db,
       method: 'POST',
@@ -101,6 +146,49 @@ describe('handleDesktopLocal POS sale', () => {
     expect(res.status).toBe(200);
     expect(res.json).toHaveProperty('sales');
     expect(res.json).toHaveProperty('pagination');
+  });
+});
+
+describe('handleDesktopLocal POS void and refund', () => {
+  it('voids sale locally, restores stock, appends pos.void outbox', () => {
+    const db = openDesktopDb(':memory:');
+    seed(db);
+    const sale = createTestSale(db);
+    expect(getProduct(db, 'p1').quantity).toBe(8);
+
+    const res = handleDesktopLocal({
+      db,
+      method: 'POST',
+      pathname: `/api/sales/${sale.id}/void`,
+      body: { reason: 'Duplicate entry corrected' },
+      now: t0 + 120 * 1000,
+      user: { id: 'u1', tenantId: 't1' },
+    });
+    expect(res.status).toBe(200);
+    expect(res.json.success).toBe(true);
+    expect(res.json.sale.status).toBe('voided');
+    expect(getProduct(db, 'p1').quantity).toBe(10);
+    expect(listOutbox(db).some((e) => e.kind === 'pos.void')).toBe(true);
+  });
+
+  it('refunds sale locally, restores stock, appends pos.refund outbox', () => {
+    const db = openDesktopDb(':memory:');
+    seed(db);
+    const sale = createTestSale(db);
+
+    const res = handleDesktopLocal({
+      db,
+      method: 'POST',
+      pathname: `/api/sales/${sale.id}/refund`,
+      body: { reason: 'Customer returned goods', refundMethod: 'cash' },
+      now: t0 + 120 * 1000,
+      user: { id: 'u1', tenantId: 't1' },
+    });
+    expect(res.status).toBe(200);
+    expect(res.json.success).toBe(true);
+    expect(res.json.sale.status).toBe('refunded');
+    expect(getProduct(db, 'p1').quantity).toBe(10);
+    expect(listOutbox(db).some((e) => e.kind === 'pos.refund')).toBe(true);
   });
 });
 

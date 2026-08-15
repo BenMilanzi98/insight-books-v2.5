@@ -43,6 +43,41 @@ describe('sqlite snapshot + outbox', () => {
     expect(listOutbox(db)).toHaveLength(1);
   });
 
+  it('populates sales and seeds lastSuccessfulSyncAt on first bind', () => {
+    const db = openDesktopDb(':memory:');
+    replaceSnapshot(db, {
+      version: 1,
+      tenantId: 't1',
+      products: [],
+      customers: [],
+      taxTypes: [],
+      paymentAccounts: [],
+      openInvoices: [],
+      recentPayments: [],
+      sales: [
+        {
+          id: 'sale1',
+          saleNumber: 'TILL1-SALE-1',
+          date: '2026-08-15',
+          subtotal: 1000,
+          total: 1000,
+          status: 'completed',
+          items: [],
+          createdAt: '2026-08-15T10:00:00.000Z',
+        },
+      ],
+      sessionUser: { id: 'u1' },
+      tenantSettings: {},
+      posConfig: {},
+      serverNow: '2026-08-15T10:00:00.000Z',
+    });
+    const rows = db.prepare('SELECT payload FROM sales').all();
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows[0].payload).saleNumber).toBe('TILL1-SALE-1');
+    expect(readMeta(db).lastSuccessfulSyncAt).toBe(String(Date.parse('2026-08-15T10:00:00.000Z')));
+    expect(readMeta(db).lastLocalNow).toBe(String(Date.parse('2026-08-15T10:00:00.000Z')));
+  });
+
   it('assigns increasing seq', () => {
     const db = openDesktopDb(':memory:');
     appendOutbox(db, { id: 'a', kind: 'pos.sale', payload: {} });

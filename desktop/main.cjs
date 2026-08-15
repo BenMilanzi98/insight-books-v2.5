@@ -234,13 +234,23 @@ async function importSnapshot(p, { snapshot, sessionCookie, bindMeta, deviceId }
   const db = await openDb(p.sqlitePath);
   try {
     replaceSnapshot(db, snapshot);
-    writeMeta(db, {
+    const { readMeta } = await importLibDesktop('sqlite/meta.js');
+    const meta = readMeta(db);
+    const metaPatch = {
       tenantId: snapshot.tenantId,
       deviceId,
       numberPrefix: bindMeta?.numberPrefix || '',
       boundAt: bindMeta?.boundAt ? String(new Date(bindMeta.boundAt).getTime()) : String(Date.now()),
       subscriptionActive: 'true',
-    });
+    };
+    if (!meta.lastSuccessfulSyncAt && snapshot.serverNow) {
+      const seedMs = Date.parse(snapshot.serverNow);
+      metaPatch.lastSuccessfulSyncAt = String(seedMs);
+      if (!meta.lastLocalNow) {
+        metaPatch.lastLocalNow = String(seedMs);
+      }
+    }
+    writeMeta(db, metaPatch);
   } finally {
     db.close();
   }
