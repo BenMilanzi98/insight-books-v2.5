@@ -2,6 +2,36 @@
 
 This app’s production `next build` typically needs **3–6+ GB peak RAM**. A **2 GB VPS cannot reliably compile** the app unless you add swap — and even then it is slow and fragile.
 
+## 8 GB VPS (this project's production host)
+
+Your box has **8 GB RAM and often 0 swap**. That is enough to build, but:
+
+| Script | Heap | On 8 GB |
+|--------|------|---------|
+| `build:clean` | **14 GB** | **Will OOM-kill** (silent exit at “Creating an optimized…”) |
+| `build:ci` | 6 GB | Risky if app/DB also running |
+| `build:vps-8gb` | **4 GB** | Correct choice |
+
+```bash
+# once
+sudo ./scripts/vps-ensure-swap.sh 2
+
+# free RAM during compile
+pm2 stop all || true
+
+npm run build:vps-8gb
+npm run start   # or pm2 restart …
+```
+
+If a build dies with **no** Next error:
+
+```bash
+echo $?                    # 137 = killed
+dmesg -T | grep -i oom
+```
+
+---
+
 ## Recommended path (build elsewhere, run on VPS)
 
 Build on GitHub Actions, ship a release tarball, apply it on the VPS **without** running `next build`.

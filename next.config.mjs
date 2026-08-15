@@ -13,6 +13,9 @@ function isClientConsoleEnabledAtBuild() {
   return process.env.NODE_ENV !== 'production';
 }
 
+const buildCpus = Math.max(1, Number(process.env.NEXT_BUILD_CPUS || 1) || 1);
+const buildParallelism = Math.max(1, Number(process.env.NEXT_BUILD_PARALLELISM || 1) || 1);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Turbopack can resolve bare CSS @import "tailwindcss" from the parent of this
@@ -56,14 +59,14 @@ const nextConfig = {
   transpilePackages: ['qrcode.react'],
   productionBrowserSourceMaps: false,
   experimental: {
-    // Lower peak memory during webpack production builds (2 GB VPS + swap).
+    // Cap webpack workers. Override on larger hosts: NEXT_BUILD_CPUS=2
     webpackMemoryOptimizations: true,
-    cpus: 1,
+    cpus: buildCpus,
     optimizePackageImports: ['lucide-react', 'recharts'],
   },
   webpack: (config, { isServer }) => {
-    // Serialize webpack work — trades speed for lower RAM on small hosts.
-    config.parallelism = 1;
+    // Serialize by default; raise with NEXT_BUILD_PARALLELISM on 8GB+ hosts.
+    config.parallelism = buildParallelism;
     config.cache = false;
     config.devtool = false;
     // Desktop-only native addon — never bundle; optional on web/VPS hosts.
