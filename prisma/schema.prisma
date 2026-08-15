@@ -26,6 +26,7 @@ model Tenant {
   accounts                     Account[]
   AccountBalance               AccountBalance[]
   accountSubscriptions         AccountSubscription[]
+  desktopDevices               DesktopDevice[]
   adminAccess                  AdminTenantAccess[]
   customerOwnerships           CustomerOwnership[]
   customerSegmentMemberships   CustomerSegmentMembership[]
@@ -16650,4 +16651,37 @@ model MarketingCampaign {
   @@index([parentCampaignId])
   @@index([campaignType, status])
   @@index([startDate, endDate])
+}
+
+model DesktopDevice {
+  id              String    @id @default(cuid())
+  tenantId        String
+  deviceId        String
+  name            String
+  numberPrefix    String
+  boundAt         DateTime  @default(now())
+  unboundAt       DateTime?
+  lastHeartbeatAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  receipts        DesktopOutboxReceipt[]
+
+  @@unique([deviceId])
+  @@index([tenantId, unboundAt])
+  @@index([tenantId, numberPrefix])
+}
+
+model DesktopOutboxReceipt {
+  id             String   @id
+  tenantId       String
+  deviceId       String
+  kind           String
+  serverEntityId String?
+  resultJson     Json
+  createdAt      DateTime @default(now())
+  device         DesktopDevice @relation(fields: [deviceId], references: [deviceId], onDelete: Cascade)
+
+  @@unique([tenantId, id])
+  @@index([tenantId])
 }
