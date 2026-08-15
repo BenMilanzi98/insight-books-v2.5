@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { parseSessionPayloadEdge } from '@/lib/sessionCookieEdge';
 import { isApiPublicPath } from '@/lib/tenantApiAccess';
 import { evaluateCutoverAccess } from '@/lib/productionCutover/modes';
+import { DESKTOP_COOKIE, isDesktopCookie } from '@/lib/desktop/runtime';
+import { resolveDesktopApiMiddleware } from '@/lib/desktop/middlewareClassify';
 
 async function finishTenantRouteAccess(request, sessionCookie, pathname, requestHeaders) {
   try {
@@ -58,6 +60,7 @@ async function finishApiRouteAccess(request, sessionCookie, pathname, requestHea
 
 export async function middleware(request) {
   const pathname = request.nextUrl.pathname;
+  const isDesktop = isDesktopCookie(request.cookies.get(DESKTOP_COOKIE)?.value);
 
   // Skip middleware for static files, api routes, etc.
   if (
@@ -72,7 +75,7 @@ export async function middleware(request) {
   }
 
   // Phase 18 — server-enforced cutover / maintenance / write freeze (CUTOVER_MODE)
-  {
+  if (!isDesktop) {
     const cutover = evaluateCutoverAccess({
       pathname,
       method: request.method,
@@ -105,6 +108,18 @@ export async function middleware(request) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
     if (!sessionCookie) {
+      return NextResponse.next({ request: { headers: requestHeaders } });
+    }
+    if (isDesktop) {
+      const resolved = resolveDesktopApiMiddleware(pathname);
+      if (resolved.action === 'respond') {
+        return NextResponse.json(resolved.body, { status: resolved.status });
+      }
+      if (resolved.action === 'rewrite') {
+        const url = request.nextUrl.clone();
+        url.pathname = resolved.pathname;
+        return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+      }
       return NextResponse.next({ request: { headers: requestHeaders } });
     }
     return finishApiRouteAccess(request, sessionCookie, pathname, requestHeaders);
@@ -176,6 +191,26 @@ export async function middleware(request) {
       url.pathname = '/auth/login';
       url.search = `?redirect=${encodeURIComponent(pathname)}`;
       return NextResponse.redirect(url);
+    }
+
+    if (isDesktop) {
+      try {
+        const sessionData = await parseSessionPayloadEdge(sessionCookie);
+        if (!sessionData) {
+          throw new Error('Invalid session');
+        }
+
+        const requestHeaders = new Headers(request.headers);
+        requestHeaders.set('x-user-id', sessionData.userId);
+        requestHeaders.set('x-user-role', sessionData.role || '');
+
+        return NextResponse.next({ request: { headers: requestHeaders } });
+      } catch (error) {
+        console.error('Invalid session, redirecting to login:', error);
+        const url = request.nextUrl.clone();
+        url.pathname = '/auth/login';
+        return NextResponse.redirect(url);
+      }
     }
     
     try {
