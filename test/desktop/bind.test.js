@@ -26,8 +26,9 @@ describe('allocateNumberPrefix', () => {
 
 function fakePrisma(seed = []) {
   const devices = seed.map((device) => ({ ...device }));
-  return {
+  const client = {
     _devices: devices,
+    $transaction: async (callback) => callback(client),
     desktopDevice: {
       findMany: async ({ where }) =>
         devices.filter(
@@ -67,6 +68,7 @@ function fakePrisma(seed = []) {
       },
     },
   };
+  return client;
 }
 
 describe('bindDesktopDevice', () => {
@@ -100,6 +102,25 @@ describe('bindDesktopDevice', () => {
     expect(prisma._devices).toHaveLength(1);
   });
 
+  it('rebinds the same device after unbind without creating another row', async () => {
+    const prisma = fakePrisma([
+      { tenantId: 't1', deviceId: 'pc-a', numberPrefix: 'TILL1', unboundAt: null },
+    ]);
+
+    await unbindDesktopDevice({ prisma, tenantId: 't1', deviceId: 'pc-a' });
+    const rebound = await bindDesktopDevice({
+      prisma,
+      tenantId: 't1',
+      deviceId: 'pc-a',
+      name: 'Shop',
+    });
+
+    expect(rebound.numberPrefix).toBe('TILL1');
+    expect(prisma._devices).toHaveLength(1);
+    expect(prisma._devices[0].unboundAt).toBeNull();
+    expect(prisma._devices[0].boundAt).toBeInstanceOf(Date);
+  });
+
   it('rejects a device owned by another tenant with 403', async () => {
     const prisma = fakePrisma([
       { tenantId: 't2', deviceId: 'pc-a', numberPrefix: 'TILL1', unboundAt: null },
@@ -121,6 +142,39 @@ describe('unbindDesktopDevice', () => {
       unbindDesktopDevice({ prisma, tenantId: 't1', deviceId: 'pc-a' })
     ).resolves.toEqual({ ok: true });
     expect(prisma._devices[0].unboundAt).toBeInstanceOf(Date);
+  });
+
+  it('rejects an already-unbound device as not bound', async () => {
+    const prisma = fakePrisma([
+      {
+        tenantId: 't1',
+        deviceId: 'pc-a',
+        numberPrefix: 'TILL1',
+        unboundAt: new Date(),
+      },
+    ]);
+
+    await expect(
+      unbindDesktopDevice({ prisma, tenantId: 't1', deviceId: 'pc-a' })
+    ).rejects.toMatchObject({ code: DESKTOP_CODES.NOT_BOUND, status: 403 });
+  });
+
+  it('rejects a missing device as not bound', async () => {
+    const prisma = fakePrisma([]);
+
+    await expect(
+      unbindDesktopDevice({ prisma, tenantId: 't1', deviceId: 'missing' })
+    ).rejects.toMatchObject({ code: DESKTOP_CODES.NOT_BOUND, status: 403 });
+  });
+
+  it('rejects a foreign-tenant device as not bound', async () => {
+    const prisma = fakePrisma([
+      { tenantId: 't2', deviceId: 'pc-a', numberPrefix: 'TILL1', unboundAt: null },
+    ]);
+
+    await expect(
+      unbindDesktopDevice({ prisma, tenantId: 't1', deviceId: 'pc-a' })
+    ).rejects.toMatchObject({ code: DESKTOP_CODES.NOT_BOUND, status: 403 });
   });
 });
 
