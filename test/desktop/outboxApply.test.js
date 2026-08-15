@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { applyDesktopOutboxItem } from '../../lib/desktop/cloud/outboxApply.js';
+import {
+  applyDesktopOutboxBatch,
+  applyDesktopOutboxItem,
+} from '../../lib/desktop/cloud/outboxApply.js';
 
 function fakePrisma(receipts) {
   return {
@@ -144,5 +147,69 @@ describe('applyDesktopOutboxItem', () => {
       })
     ).rejects.toThrow('Insufficient stock');
     expect(receipts).toHaveLength(0);
+  });
+
+  it('returns existing receipt when create races on tenantId_id (P2002)', async () => {
+    const racedReceipt = {
+      tenantId: 't1',
+      id: 'm7',
+      resultJson: { serverId: 'sale-raced' },
+      serverEntityId: 'sale-raced',
+    };
+    const createSale = vi.fn(async () => ({ id: 'sale-new' }));
+    let findCalls = 0;
+    const prisma = {
+      desktopOutboxReceipt: {
+        findUnique: async ({ where }) => {
+          if (where.tenantId_id.id !== 'm7') return null;
+          findCalls += 1;
+          return findCalls > 1 ? racedReceipt : null;
+        },
+        create: async () => {
+          const err = new Error('Unique constraint failed');
+          err.code = 'P2002';
+          err.meta = { target: ['tenantId', 'id'] };
+          throw err;
+        },
+      },
+    };
+    const r = await applyDesktopOutboxItem({
+      prisma,
+      tenantId: 't1',
+      user: { id: 'u1', tenantId: 't1' },
+      deviceId: 'pc-a',
+      item: { id: 'm7', kind: 'pos.sale', payload: {} },
+      handlers: { 'pos.sale': createSale },
+    });
+    expect(createSale).toHaveBeenCalledTimes(1);
+    expect(r.serverId).toBe('sale-raced');
+    expect(r.duplicate).toBe(true);
+  });
+});
+
+describe('applyDesktopOutboxBatch', () => {
+  it('stops on first failure and does not apply later items', async () => {
+    const applyItem = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error('first failed'), { code: 'STOCK' }))
+      .mockResolvedValueOnce({ serverId: 'never', duplicate: false });
+
+    const batch = await applyDesktopOutboxBatch({
+      prisma: {},
+      tenantId: 't1',
+      user: { id: 'u1', tenantId: 't1' },
+      deviceId: 'pc-a',
+      items: [
+        { id: 'first', kind: 'pos.sale', payload: {} },
+        { id: 'second', kind: 'pos.sale', payload: {} },
+      ],
+      request: null,
+      applyItem,
+    });
+
+    expect(applyItem).toHaveBeenCalledTimes(1);
+    expect(batch.stoppedAt).toBe('first');
+    expect(batch.error).toMatchObject({ message: 'first failed', code: 'STOCK' });
+    expect(batch.results).toHaveLength(0);
   });
 });

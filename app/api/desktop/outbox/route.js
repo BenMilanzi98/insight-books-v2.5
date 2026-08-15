@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requireAnyPermission } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import { applyDesktopOutboxItem } from '@/lib/desktop/cloud/outboxApply.js';
+import { applyDesktopOutboxBatch } from '@/lib/desktop/cloud/outboxApply.js';
 import { DESKTOP_CODES } from '@/lib/desktop/codes.js';
 
 /**
@@ -14,6 +14,15 @@ export async function POST(request) {
   if (!user?.tenantId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
+
+  const perm = await requireAnyPermission(request, [
+    'sales.create',
+    'invoices.create',
+    'inventory.update',
+    'payments.create',
+    'clients.create',
+  ]);
+  if (perm) return perm;
 
   const body = await request.json().catch(() => ({}));
   const deviceId = String(body.deviceId || '');
@@ -33,44 +42,24 @@ export async function POST(request) {
     );
   }
 
-  const results = [];
-  for (const item of items) {
-    try {
-      const applied = await applyDesktopOutboxItem({
-        prisma,
-        tenantId: user.tenantId,
-        user,
-        deviceId,
-        item,
-        request,
-      });
-      results.push({
-        id: item?.id ?? null,
-        kind: item?.kind ?? null,
-        serverId: applied.serverId,
-        duplicate: applied.duplicate,
-      });
-    } catch (error) {
-      console.error('Desktop outbox apply failed:', {
-        id: item?.id,
-        kind: item?.kind,
-        message: error?.message,
-        code: error?.code,
-      });
-      return NextResponse.json(
-        {
-          results,
-          stoppedAt: item?.id ?? null,
-          error: {
-            message: error?.message || 'Outbox item failed',
-            code: error?.code || null,
-            kind: item?.kind ?? null,
-          },
-        },
-        { status: error?.status || 400 }
-      );
-    }
+  const batch = await applyDesktopOutboxBatch({
+    prisma,
+    tenantId: user.tenantId,
+    user,
+    deviceId,
+    items,
+    request,
+  });
+
+  if (batch.error) {
+    console.error('Desktop outbox apply failed:', {
+      id: batch.stoppedAt,
+      kind: batch.error.kind,
+      message: batch.error.message,
+      code: batch.error.code,
+    });
+    return NextResponse.json(batch, { status: batch.error.status || 400 });
   }
 
-  return NextResponse.json({ results });
+  return NextResponse.json({ results: batch.results });
 }
