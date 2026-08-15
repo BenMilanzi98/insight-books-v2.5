@@ -1,0 +1,24 @@
+appId: com.insightbooks.desktop
+productName: Insight Books Desktop
+directories:
+  output: dist
+  buildResources: build
+files:
+  - main.cjs
+  - preload.cjs
+  - runSync.cjs
+  - package.json
+extraResources:
+  - from: ../.next/standalone
+    to: standalone
+    filter:
+      - "**/*"
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: InsightBooks-desktop-setup.exe
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

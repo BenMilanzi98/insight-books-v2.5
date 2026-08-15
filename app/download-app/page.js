@@ -1,9 +1,13 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
 const APK_FILENAME = 'InsightBooks-android.apk';
+const WINDOWS_FILENAME = 'InsightBooks-desktop-setup.exe';
+const WINDOWS_DOWNLOAD_URL = '/downloads/InsightBooks-desktop-setup.exe';
+const WINDOWS_MIN_VERSION = 'Windows 10 x64';
 const APP_TITLE = 'Insight Books';
 const DEVELOPER_NAME = 'Insight Innovations Ltd';
 const MIN_ANDROID_VERSION = '8.0';
@@ -285,13 +289,13 @@ export default function DownloadAppPage() {
           <div className="grid gap-10 lg:grid-cols-[1.25fr_.85fr] lg:items-center">
             <div>
               <div className="mb-5 inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-blue-100">
-                Official Android Download Center
+                {tt('Official Android Download Center')}
               </div>
 
               <div className="mb-6 flex items-center gap-5">
                 <div className="flex h-28 w-28 flex-shrink-0 items-center justify-center rounded-[2rem] border border-white/70 bg-gradient-to-br from-white to-blue-50 p-3 shadow-2xl shadow-black/30">
                   <div className="flex h-full w-full items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-sky-500 text-4xl font-black text-white">
-                    IB
+                    {tt('IB')}
                   </div>
                 </div>
                 <div>
@@ -299,7 +303,7 @@ export default function DownloadAppPage() {
                     {APP_TITLE}
                   </h1>
                   <p className="mt-3 text-lg font-semibold text-slate-300">
-                    Official Android app for Insight Books users.
+                    {tt('Official Android app for Insight Books users.')}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-sm text-slate-100">
@@ -310,7 +314,7 @@ export default function DownloadAppPage() {
                       Android {MIN_ANDROID_VERSION}+
                     </span>
                     <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-sm text-slate-100">
-                      Verified official release
+                      {tt('Verified official release')}
                     </span>
                   </div>
                 </div>
@@ -330,7 +334,7 @@ export default function DownloadAppPage() {
                   {busy ? 'Downloading...' : 'Download latest APK'}
                 </button>
                 <span className="text-sm font-bold text-emerald-200">
-                  Download only from this official Insight Books page.
+                  {tt('Download only from this official Insight Books page.')}
                 </span>
               </div>
 
@@ -342,23 +346,23 @@ export default function DownloadAppPage() {
             <div className="rounded-3xl border border-white/20 bg-white/10 p-5 shadow-2xl shadow-black/25 backdrop-blur-xl">
               <div className="mb-4 flex items-center gap-2 text-sm font-extrabold text-blue-100">
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_0_6px_rgba(34,197,94,.14),0_0_24px_rgba(34,197,94,.8)]" />
-                Secure distribution
+                {tt('Secure distribution')}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
-                  <p className="text-xs text-blue-200">Current version</p>
+                  <p className="text-xs text-blue-200">{tt('Current version')}</p>
                   <p className="mt-1 text-lg font-extrabold">{latestVersionName}</p>
                 </div>
                 <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
-                  <p className="text-xs text-blue-200">Compatibility</p>
+                  <p className="text-xs text-blue-200">{tt('Compatibility')}</p>
                   <p className="mt-1 text-lg font-extrabold">Android {MIN_ANDROID_VERSION}+</p>
                 </div>
                 <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
-                  <p className="text-xs text-blue-200">Updated</p>
+                  <p className="text-xs text-blue-200">{tt('Updated')}</p>
                   <p className="mt-1 text-lg font-extrabold">{formatDate(data?.publishedAt)}</p>
                 </div>
                 <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
-                  <p className="text-xs text-blue-200">Availability</p>
+                  <p className="text-xs text-blue-200">{tt('Availability')}</p>
                   <p className="mt-1 text-lg font-extrabold">
                     {canDownload ? 'Ready' : 'Unavailable'}
                   </p>
@@ -367,11 +371,10 @@ export default function DownloadAppPage() {
 
               <div className="mt-4 rounded-2xl bg-slate-950/35 p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-200">
-                  Security notice
+                  {tt('Security notice')}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-blue-50">
-                  Verify the developer, version, and this official domain before installing. Android
-                  may ask you to allow installs from your browser.
+                  {tt('Verify the developer, version, and this official domain before installing. Android may ask you to allow installs from your browser.')}
                 </p>
               </div>
             </div>
@@ -384,15 +387,15 @@ export default function DownloadAppPage() {
           <div className="space-y-6">
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
-                Download
+                {tt('Download')}
               </p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-950">Install the latest Android app</h2>
+              <h2 className="mt-2 text-2xl font-bold text-slate-950">{tt('Install the latest Android app')}</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 The download button below keeps the current `/download-app` behavior: it streams the APK,
                 shows progress, validates the package, then saves it to your Downloads folder.
               </p>
 
-              <div className="mt-5">
+              <div className="mt-5 grid gap-4 lg:grid-cols-2">
                 {data ? (
                   canDownload ? (
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 text-left">
@@ -402,7 +405,7 @@ export default function DownloadAppPage() {
                           onClick={runDownload}
                           className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-sky-600 px-6 py-4 font-extrabold text-white shadow-lg shadow-blue-500/20 transition hover:-translate-y-0.5 hover:shadow-xl"
                         >
-                          Download APK
+                          {tt('Download APK')}
                         </button>
                       )}
 
@@ -458,18 +461,17 @@ export default function DownloadAppPage() {
                             onClick={openForInstall}
                             className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-6 py-4 font-extrabold text-white transition hover:bg-emerald-700"
                           >
-                            Install app
+                            {tt('Install app')}
                           </button>
                           <p className="text-xs leading-5 text-slate-500">
-                            Opens the APK so Android can run the installer. If nothing happens, open
-                            your Downloads folder and tap the APK file.
+                            {tt('Opens the APK so Android can run the installer. If nothing happens, open your Downloads folder and tap the APK file.')}
                           </p>
                           <button
                             type="button"
                             onClick={resetDownload}
                             className="w-full py-2 text-sm font-semibold text-indigo-600 hover:underline"
                           >
-                            Download again
+                            {tt('Download again')}
                           </button>
                         </div>
                       )}
@@ -483,14 +485,14 @@ export default function DownloadAppPage() {
                             rel="noreferrer"
                             className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-6 py-3 font-semibold text-slate-800 transition hover:bg-slate-50"
                           >
-                            Open file link
+                            {tt('Open file link')}
                           </a>
                           <button
                             type="button"
                             onClick={resetDownload}
                             className="w-full rounded-2xl bg-indigo-600 px-6 py-3 font-extrabold text-white transition hover:bg-indigo-700"
                           >
-                            Try again
+                            {tt('Try again')}
                           </button>
                         </div>
                       )}
@@ -498,26 +500,56 @@ export default function DownloadAppPage() {
                   ) : (
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                       <p>
-                        No download link is available from the server, or the website download is locked.
+                        {tt('No download link is available from the server, or the website download is locked.')}
                       </p>
                       <p className="mt-2 text-amber-800">
-                        Please check back shortly or contact your administrator.
+                        {tt('Please check back shortly or contact your administrator.')}
                       </p>
                     </div>
                   )
                 ) : (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                    Loading release details...
+                    {tt('Loading release details...')}
                   </div>
                 )}
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 text-left">
+                  <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
+                    Windows x64
+                  </p>
+                  <h3 className="mt-2 text-lg font-bold text-slate-950">Insight Books Desktop</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Offline-capable POS for Windows. Requires an active subscription and one-time online setup.
+                  </p>
+                  <dl className="mt-4 space-y-2 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-slate-500">Compatibility</dt>
+                      <dd className="font-semibold text-slate-900">{WINDOWS_MIN_VERSION}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-slate-500">Updated</dt>
+                      <dd className="font-semibold text-slate-900">{formatDate(null)}</dd>
+                    </div>
+                  </dl>
+                  <a
+                    href={WINDOWS_DOWNLOAD_URL}
+                    download={WINDOWS_FILENAME}
+                    className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-slate-800 to-slate-950 px-6 py-4 font-extrabold text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
+                  >
+                    Download Windows installer
+                  </a>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    If the installer is not yet published, check back shortly or contact your administrator.
+                  </p>
+                </div>
               </div>
             </div>
 
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
-                Overview
+                {tt('Overview')}
               </p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-950">About this app</h2>
+              <h2 className="mt-2 text-2xl font-bold text-slate-950">{tt('About this app')}</h2>
               <p className="mt-3 text-sm leading-7 text-slate-600">{FULL_DESCRIPTION}</p>
 
               {notes.length > 0 && (
@@ -537,9 +569,9 @@ export default function DownloadAppPage() {
 
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
-                Highlights
+                {tt('Highlights')}
               </p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-950">Features</h2>
+              <h2 className="mt-2 text-2xl font-bold text-slate-950">{tt('Features')}</h2>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {FEATURES.map((feature) => (
                   <div
@@ -557,9 +589,9 @@ export default function DownloadAppPage() {
 
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
-                Setup
+                {tt('Setup')}
               </p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-950">Install instructions</h2>
+              <h2 className="mt-2 text-2xl font-bold text-slate-950">{tt('Install instructions')}</h2>
               <ol className="mt-5 space-y-3 rounded-2xl bg-slate-950 p-5 text-sm leading-6 text-slate-100">
                 {INSTALL_STEPS.map((step, index) => (
                   <li key={step} className="flex gap-3">
@@ -574,17 +606,17 @@ export default function DownloadAppPage() {
 
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
-                Releases
+                {tt('Releases')}
               </p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-950">Version history</h2>
+              <h2 className="mt-2 text-2xl font-bold text-slate-950">{tt('Version history')}</h2>
               <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
                 <table className="min-w-full text-left text-sm">
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>
-                      <th className="px-4 py-3 font-semibold">Version</th>
-                      <th className="px-4 py-3 font-semibold">Code</th>
-                      <th className="px-4 py-3 font-semibold">Released</th>
-                      <th className="px-4 py-3 font-semibold">Status</th>
+                      <th className="px-4 py-3 font-semibold">{tt('Version')}</th>
+                      <th className="px-4 py-3 font-semibold">{tt('Code')}</th>
+                      <th className="px-4 py-3 font-semibold">{tt('Released')}</th>
+                      <th className="px-4 py-3 font-semibold">{tt('Status')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -592,7 +624,7 @@ export default function DownloadAppPage() {
                       <td className="px-4 py-3 font-semibold text-slate-900">{latestVersionName}</td>
                       <td className="px-4 py-3 text-slate-600">{latestVersionCode ?? '-'}</td>
                       <td className="px-4 py-3 text-slate-600">{formatDate(data?.publishedAt)}</td>
-                      <td className="px-4 py-3 text-emerald-700">Latest</td>
+                      <td className="px-4 py-3 text-emerald-700">{tt('Latest')}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -602,25 +634,25 @@ export default function DownloadAppPage() {
 
           <aside className="space-y-6 lg:sticky lg:top-6 lg:self-start">
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-950">App info</h2>
+              <h2 className="text-lg font-bold text-slate-950">{tt('App info')}</h2>
               <dl className="mt-4 space-y-3 text-sm">
                 <div className="flex justify-between gap-4">
-                  <dt className="text-slate-500">Version</dt>
+                  <dt className="text-slate-500">{tt('Version')}</dt>
                   <dd className="font-semibold text-slate-900">
                     {latestVersionName}
                     {latestVersionCode != null ? ` (${latestVersionCode})` : ''}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-slate-500">Updated</dt>
+                  <dt className="text-slate-500">{tt('Updated')}</dt>
                   <dd className="font-semibold text-slate-900">{formatDate(data?.publishedAt)}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-slate-500">Compatibility</dt>
+                  <dt className="text-slate-500">{tt('Compatibility')}</dt>
                   <dd className="font-semibold text-slate-900">Android {MIN_ANDROID_VERSION}+</dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-slate-500">Developer</dt>
+                  <dt className="text-slate-500">{tt('Developer')}</dt>
                   <dd className="font-semibold text-slate-900">{DEVELOPER_NAME}</dd>
                 </div>
               </dl>
@@ -630,15 +662,14 @@ export default function DownloadAppPage() {
                 disabled={!canDownload || busy}
                 className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-sky-600 px-5 py-3 font-extrabold text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
               >
-                Download latest APK
+                {tt('Download latest APK')}
               </button>
             </div>
 
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-950">Rating breakdown</h2>
+              <h2 className="text-lg font-bold text-slate-950">{tt('Rating breakdown')}</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Reviews and rating totals are managed in the Android App Center. This page focuses on
-                the official release and protected APK download.
+                {tt('Reviews and rating totals are managed in the Android App Center. This page focuses on the official release and protected APK download.')}
               </p>
               <div className="mt-4 space-y-2">
                 {[5, 4, 3, 2, 1].map((rating) => (
@@ -654,7 +685,7 @@ export default function DownloadAppPage() {
             </div>
 
             <Link href="/" className="inline-flex text-sm font-semibold text-indigo-600 hover:underline">
-              Back to home
+              {tt('Back to home')}
             </Link>
           </aside>
         </div>
