@@ -101,6 +101,7 @@
     "@types/pg": "^8.11.11",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
+    "better-sqlite3": "^13.0.3",
     "busboy": "^1.6.0",
     "chart.js": "^4.5.0",
     "clsx": "^2.1.1",
