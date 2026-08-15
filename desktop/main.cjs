@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { randomUUID } = require('crypto');
+const { pathToFileURL } = require('url');
 
 const { runDesktopSyncFromMain } = require('./runSync.cjs');
 
@@ -16,6 +17,20 @@ let nextProcess = null;
 let syncTimer = null;
 let sessionCookieValue = null;
 
+const CLOUD_ORIGIN = new URL(CLOUD_URL).origin;
+const AUTH_PATHS = new Set(['/auth/login', '/auth/signup']);
+const SETUP_PATH = '/desktop/setup';
+
+function libDesktopRoot() {
+  const packagedRoot = path.join(__dirname, 'lib', 'desktop');
+  if (fs.existsSync(packagedRoot)) return packagedRoot;
+  return path.join(__dirname, '..', 'lib', 'desktop');
+}
+
+function importLibDesktop(relativePath) {
+  return import(pathToFileURL(path.join(libDesktopRoot(), relativePath)).href);
+}
+
 function paths() {
   const userData = app.getPath('userData');
   return {
@@ -23,7 +38,7 @@ function paths() {
     sqlitePath: path.join(userData, 'desktop.sqlite'),
     devicePath: path.join(userData, 'device.json'),
     sessionPath: path.join(userData, 'session.json'),
-    schemaPath: path.join(__dirname, '..', 'lib', 'desktop', 'sqlite', 'schema.sql'),
+    schemaPath: path.join(libDesktopRoot(), 'sqlite', 'schema.sql'),
   };
 }
 
@@ -60,12 +75,12 @@ function saveSessionCookie(sessionPath, cookie) {
 }
 
 async function openDb(sqlitePath) {
-  const { openDesktopDb } = await import('../lib/desktop/sqlite/db.js');
+  const { openDesktopDb } = await importLibDesktop('sqlite/db.js');
   return openDesktopDb(sqlitePath);
 }
 
 async function readTenantIdFromMeta(db) {
-  const { readMeta } = await import('../lib/desktop/sqlite/meta.js');
+  const { readMeta } = await importLibDesktop('sqlite/meta.js');
   const meta = readMeta(db);
   return meta.tenantId || null;
 }
@@ -120,6 +135,7 @@ function spawnLocalNext(p) {
 
   const env = {
     ...process.env,
+    ELECTRON_RUN_AS_NODE: '1',
     DESKTOP_RUNTIME: '1',
     PORT: String(LOCAL_PORT),
     HOSTNAME: '127.0.0.1',
@@ -181,10 +197,37 @@ function loadCloudLogin(win) {
   win.loadURL(`${CLOUD_URL}/auth/login?desktop=1`);
 }
 
+async function maybeRedirectUnboundToSetup(win, p, deviceId, url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return;
+  }
+  if (parsed.origin !== CLOUD_ORIGIN) return;
+
+  const pathname = parsed.pathname.replace(/\/$/, '') || '/';
+  if (AUTH_PATHS.has(pathname)) return;
+  if (pathname === SETUP_PATH || pathname.startsWith(`${SETUP_PATH}/`)) return;
+  if (await isDeviceBound(p)) return;
+
+  loadCloudSetup(win, deviceId);
+}
+
+function attachUnboundNavigationHandlers(win, p, deviceId) {
+  const handler = (_event, url) => {
+    maybeRedirectUnboundToSetup(win, p, deviceId, url).catch((err) => {
+      console.warn('Setup redirect failed:', err?.message || err);
+    });
+  };
+  win.webContents.on('did-navigate', handler);
+  win.webContents.on('did-navigate-in-page', handler);
+}
+
 async function importSnapshot(p, { snapshot, sessionCookie, bindMeta, deviceId }) {
-  const { assertSetupSnapshot } = await import('../lib/desktop/setupPayload.js');
-  const { replaceSnapshot } = await import('../lib/desktop/sqlite/snapshotStore.js');
-  const { writeMeta } = await import('../lib/desktop/sqlite/meta.js');
+  const { assertSetupSnapshot } = await importLibDesktop('setupPayload.js');
+  const { replaceSnapshot } = await importLibDesktop('sqlite/snapshotStore.js');
+  const { writeMeta } = await importLibDesktop('sqlite/meta.js');
 
   assertSetupSnapshot(snapshot);
 
@@ -288,6 +331,11 @@ async function createWindow() {
     return { ok: true };
   });
 
+  ipcMain.handle('desktop:unbind', async () => {
+    const nextDeviceId = await unbindAndReset(p, win);
+    return { ok: true, deviceId: nextDeviceId };
+  });
+
   if (await isDeviceBound(p)) {
     loadLocalApp(win, p).catch((err) => {
       console.error(err);
@@ -296,14 +344,9 @@ async function createWindow() {
     scheduleSync(p);
     runSyncIfOnline(p);
   } else {
+    attachUnboundNavigationHandlers(win, p, deviceId);
     loadCloudLogin(win);
   }
-
-  win.webContents.on('did-navigate', (_event, url) => {
-    if (url.startsWith(`${CLOUD_URL}/desktop/setup`)) {
-      /* setup page handles bind flow */
-    }
-  });
 
   return win;
 }

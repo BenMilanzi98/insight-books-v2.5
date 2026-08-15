@@ -8,6 +8,16 @@ files:
   - preload.cjs
   - runSync.cjs
   - package.json
+  - from: ../lib/desktop
+    to: lib/desktop
+    filter:
+      - "**/*"
+  - from: ../node_modules/better-sqlite3
+    to: node_modules/better-sqlite3
+    filter:
+      - "**/*"
+asarUnpack:
+  - "**/better-sqlite3/**"
 extraResources:
   - from: ../.next/standalone
     to: standalone
