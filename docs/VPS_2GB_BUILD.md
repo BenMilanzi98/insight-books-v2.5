@@ -4,30 +4,38 @@ This app’s production `next build` typically needs **3–6+ GB peak RAM**. A *
 
 ## 8 GB VPS (this project's production host)
 
-Your box has **8 GB RAM and often 0 swap**. That is enough to build, but:
+Webpack for this app peaks **above 4 GB**. On 8 GB RAM:
 
-| Script | Heap | On 8 GB |
-|--------|------|---------|
-| `build:clean` | **14 GB** | **Will OOM-kill** (silent exit at “Creating an optimized…”) |
-| `build:ci` | 6 GB | Risky if app/DB also running |
-| `build:vps-8gb` | **4 GB** | Correct choice |
+| Script / heap | Result |
+|---------------|--------|
+| `build:clean` (14 GB) | Kernel OOM-kill |
+| heap **4096** | JS heap OOM (what you hit) |
+| `build:vps-8gb` (~**6656** + 4G swap + cpus=1) | Intended on-box path |
+| GitHub Actions + `vps-apply-release.sh` | Most reliable |
 
 ```bash
-# once
-sudo ./scripts/vps-ensure-swap.sh 2
-
-# free RAM during compile
 pm2 stop all || true
-
+# script creates 4G swap if missing (run as root)
 npm run build:vps-8gb
-npm run start   # or pm2 restart …
+pm2 restart insightbooks
 ```
 
-If a build dies with **no** Next error:
+If still OOM:
 
 ```bash
-echo $?                    # 137 = killed
-dmesg -T | grep -i oom
+VPS_BUILD_HEAP_MB=7200 npm run build:vps-8gb
+# or use Node 20: nvm install 20 && nvm use 20
+```
+
+Manual swap (if the helper script is missing on an old checkout):
+
+```bash
+fallocate -l 4G /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+free -h
 ```
 
 ---
