@@ -4,6 +4,16 @@ import prisma from '@/lib/prisma';
 import { buildDesktopSnapshot } from '@/lib/desktop/cloud/snapshot.js';
 import { DESKTOP_CODES } from '@/lib/desktop/codes.js';
 
+export function assertBoundDesktopDevice(device, tenantId) {
+  if (!device || device.tenantId !== tenantId || device.unboundAt) {
+    const error = new Error('Desktop device is not bound');
+    error.code = DESKTOP_CODES.NOT_BOUND;
+    error.status = 403;
+    throw error;
+  }
+  return device;
+}
+
 export async function GET(request) {
   const user = await getUserFromSession(request);
   if (!user?.tenantId) {
@@ -15,19 +25,17 @@ export async function GET(request) {
     new URL(request.url).searchParams.get('deviceId') ||
     '';
 
-  const device = await prisma.desktopDevice.findFirst({
-    where: {
-      tenantId: user.tenantId,
-      deviceId,
-      unboundAt: null,
-    },
-    select: { id: true },
+  const device = await prisma.desktopDevice.findUnique({
+    where: { deviceId },
+    select: { id: true, tenantId: true, unboundAt: true },
   });
 
-  if (!device) {
+  try {
+    assertBoundDesktopDevice(device, user.tenantId);
+  } catch (error) {
     return NextResponse.json(
-      { error: 'Desktop device is not bound', code: DESKTOP_CODES.NOT_BOUND },
-      { status: 403 }
+      { error: error.message, code: error.code },
+      { status: error.status }
     );
   }
 
