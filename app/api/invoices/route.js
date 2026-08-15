@@ -2,29 +2,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
-import { ensureInvoiceSalesAccounting } from '@/lib/ensureInvoiceSalesAccounting';
-import { requireStandardAccess } from '@/lib/accessControl';
-import { resolveBranchId } from '@/lib/branchHelpers';
-import { hasEISAccess } from '@/lib/subscriptionService';
-import eisService from '@/lib/eisService';
-import { allocateNextInvNumberReliable, formatDatedDocumentNumber } from '@/lib/documentSequences';
 import { classifyApiError } from '@/lib/apiErrorUtils';
-import {
-  prismaWhereCoaIncomeAccounts,
-} from '@/lib/coaIncomeAccounts';
-import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility';
-import { calculateInvoiceTotals } from '@/lib/invoiceTotals';
 import { addMoney, moneyGreaterOrEqual, parseMoney, subtractMoney } from '@/lib/money';
-import { emitSalesInvoicePosted } from '@/lib/admin/productAnalytics/producers';
-import {
-  ensureInvoiceItemAccountIdColumn,
-  requireInvoiceItemAccountIdColumn,
-  buildInvoiceItemCreateData,
-} from '@/lib/ensureInvoiceItemAccountId';
-import {
-  assertActiveTaxTypeIds,
-  collectTaxTypeIdsFromItems,
-} from '@/lib/taxManagement/assertActiveTaxTypes';
+import { ensureInvoiceItemAccountIdColumn } from '@/lib/ensureInvoiceItemAccountId';
+import { createInvoice } from '@/lib/invoices/createInvoice';
 
 // GET - Fetch invoices with filtering, sorting, and pagination
 export async function GET(request) {
@@ -327,16 +308,15 @@ export async function GET(request) {
 }
 
 // POST - Create a new invoice
+// Implementation lives in lib/invoices/createInvoice.js so this route and the
+// desktop outbox share one revenue/COGS posting path.
 export async function POST(request) {
   try {
     const perm = await requirePermission(request, 'invoices.create');
     if (perm) return perm;
 
     const body = await request.json();
-    
-    console.log("🔥 INVOICE API POST ENDPOINT CALLED");
-    console.log("🔥 INVOICE API RECEIVED DATA:", JSON.stringify(body, null, 2));
-    
+
     // Get user from session
     const user = await getUserFromSession(request);
     if (!user) {
@@ -346,359 +326,20 @@ export async function POST(request) {
       );
     }
 
-    const columnCheck = await requireInvoiceItemAccountIdColumn();
-    if (!columnCheck.ok) return columnCheck.response;
-    const invoiceItemHasAccountId = columnCheck.hasColumn;
-    
-    // Validate required fields
-    if (!body.clientId || !body.items || body.items.length === 0) {
-      return NextResponse.json(
-        { error: 'Client and at least one item are required' },
-        { status: 400 }
-      );
-    }
+    const invoice = await createInvoice({ user, body });
 
-    // Auto-assign revenue GL: services → 4150, products → 4100 (no tenant picker).
-    const { applyAutomaticSaleRevenueAccounts } = await import('@/lib/coaIncomeAccounts');
-    await applyAutomaticSaleRevenueAccounts(prisma, user.tenantId, body.items);
-    
-    // Enhanced validation for each item
-    for (const item of body.items) {
-      if (!item.description || item.quantity <= 0 || item.unitPrice < 0) {
-        return NextResponse.json(
-          { error: 'All items must have valid description, quantity, and Selling Price' },
-          { status: 400 }
-        );
-      }
-
-      if (!item.accountId) {
-        return NextResponse.json(
-          {
-            error:
-              'Could not resolve income accounts. Ensure Chart of Accounts has 4100 Product Sales and 4150 Service Revenue.',
-          },
-          { status: 400 }
-        );
-      }
-      
-      // Validate per-item discount amount (should be non-negative and not exceed Selling Price)
-      if (item.discountAmount && item.discountAmount < 0) {
-        return NextResponse.json(
-          { error: 'Discount amount must be positive' },
-          { status: 400 }
-        );
-      }
-      
-      if (item.discountAmount && item.discountAmount > item.unitPrice) {
-        return NextResponse.json(
-          { error: 'Per-item discount cannot exceed Selling Price' },
-          { status: 400 }
-        );
-      }
-      
-      // Validate tax rate
-      if (item.taxRate && (item.taxRate < 0 || item.taxRate > 100)) {
-        return NextResponse.json(
-          { error: 'Tax rate must be between 0 and 100%' },
-          { status: 400 }
-        );
-      }
-    }
-
-    try {
-      await assertActiveTaxTypeIds(
-        prisma,
-        user.tenantId,
-        collectTaxTypeIdsFromItems(body.items)
-      );
-    } catch (e) {
-      if (e?.status === 400 || e?.code === 'INACTIVE_TAX' || e?.code === 'UNKNOWN_TAX') {
-        return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
-      }
-      throw e;
-    }
-    
-    const incomeAccountIds = body.items.map(item => item.accountId).filter(Boolean);
-    const incomeAccounts = await prisma.account.findMany({
-      where: prismaWhereCoaIncomeAccounts(user.tenantId, {
-        id: { in: incomeAccountIds },
-      }),
-      select: {
-        id: true,
-        accountCode: true,
-        accountName: true,
-        acceptsNewTransactions: true,
-        _count: {
-          select: {
-            childAccounts: { where: { isActive: true } },
-          },
-        },
-      },
-    });
-
-    if (incomeAccounts.length !== new Set(incomeAccountIds).size) {
-      return NextResponse.json(
-        { error: 'Invoice items must reference active income accounts.' },
-        { status: 400 }
-      );
-    }
-
-    for (const acc of incomeAccounts) {
-      const block = accountBlocksDirectPosting(acc);
-      if (block.blocked) {
-        const label = acc.accountName || acc.accountCode || acc.id;
-        return NextResponse.json(
-          {
-            error: `Cannot post invoice revenue to "${label}". ${block.reason} Use a detail account such as 4100 Product Sales.`,
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Enhanced calculation using the new function
-    const calculations = calculateInvoiceTotals(body.items, body.discount || 0);
-    
-    // Get tenant settings for invoice prefix (optional; avoid 500 if TenantSettings has missing columns e.g. after restore)
-    let tenantSettings = null;
-    try {
-      tenantSettings = await prisma.tenantSettings.findFirst({
-        where: { tenantId: user.tenantId }
-      });
-    } catch (_) {
-      // use default prefix below
-    }
-    const invoicePrefix = tenantSettings?.invoicePrefix || 'INV';
-
-    const invoiceStatus = body.status || 'Draft';
-    const issueDate = new Date(body.issueDate || new Date());
-    const dueDate =
-      body.dueDate != null && body.dueDate !== ''
-        ? new Date(body.dueDate)
-        : (() => {
-            const d = new Date(issueDate);
-            d.setDate(d.getDate() + 30);
-            return d;
-          })();
-    
-    let branchId;
-    try {
-      branchId = await resolveBranchId(user, body.branchId, user.tenantId);
-    } catch (branchErr) {
-      return NextResponse.json(
-        { error: branchErr.message || 'Invalid branch' },
-        { status: 403 }
-      );
-    }
-    
-    // Check if invoice has service items
-    const hasServices = calculations.processedItems.some(item => {
-      if (!item.productId) return true; // Custom items are considered services
-      // We'll check the product in the transaction
-      return false; // Default to false, will check in transaction
-    });
-    
-    // Create the invoice with items in a transaction (extended timeout for COGS + GL posting)
-    const result = await prisma.$transaction(async (tx) => {
-      const seq = await allocateNextInvNumberReliable(tx, user.tenantId, {
-        prefix: invoicePrefix,
-        issueDate,
-      });
-      const invoiceNumber = formatDatedDocumentNumber(invoicePrefix, issueDate, seq);
-
-      // Check products to determine if invoice has services
-      let invoiceHasServices = false;
-      let productNameById = {};
-      if (calculations.processedItems.some(item => item.productId)) {
-        const productIds = calculations.processedItems
-          .filter(item => item.productId)
-          .map(item => item.productId);
-        const products = await tx.product.findMany({
-          where: { id: { in: productIds }, tenantId: user.tenantId },
-          select: { id: true, isService: true, name: true }
-        });
-        productNameById = Object.fromEntries(products.map(p => [p.id, p.name]));
-        invoiceHasServices = products.some(p => p.isService) ||
-          calculations.processedItems.some(item => !item.productId);
-      } else {
-        invoiceHasServices = true; // All custom items
-      }
-
-      // Ensure every line has a clear title (item/service description)
-      const itemsWithTitles = calculations.processedItems.map(item => {
-        const desc = (item.description && String(item.description).trim()) || productNameById[item.productId] || 'Item';
-        return { ...item, description: desc };
-      });
-
-      // Create the invoice with items
-      const newInvoice = await tx.invoice.create({
-        data: {
-          invoiceNumber,
-          title: body.title || null,
-          orderNumber: body.orderNumber || null,
-          clientId: body.clientId,
-          createdById: user.id,
-          issueDate,
-          dueDate,
-          discount: body.discount || 0, // Legacy global discount
-          subtotal: calculations.subtotal,
-          taxAmount: calculations.taxAmount,
-          totalDiscountAmount: calculations.totalDiscountAmount, // Enhanced: Total of all line item discounts
-          total: calculations.total,
-          // Cash-basis: unpaid until payments land (schema defaults remainingBalance to 0).
-          totalPaid: 0,
-          remainingBalance: calculations.total,
-          status: invoiceStatus,
-          notes: body.notes,
-          tenantId: user.tenantId,
-          branchId: branchId,
-          footerPhoneOverride: body.footerPhoneOverride || null,
-          footerBankDetailsOverride: body.footerBankDetailsOverride || null,
-          items: {
-            create: itemsWithTitles.map((item) =>
-              buildInvoiceItemCreateData(item, invoiceItemHasAccountId),
-            ),
-          },
-        },
-        include: {
-          client: true,
-          createdBy: { // Include user info for "Prepared By"
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
-          },
-          items: { include: { itemTaxes: true } },
-        }
-      });
-
-      // Recognize revenue + COGS when invoice is not a draft
-      if (invoiceStatus !== 'Draft' && String(invoiceStatus).toUpperCase() !== 'PROFORMA') {
-        try {
-          const posted = await ensureInvoiceSalesAccounting({
-            db: tx,
-            tenantId: user.tenantId,
-            userId: user.id,
-            invoiceId: newInvoice.id,
-          });
-          console.log(
-            `✅ V2 sales accounting for invoice ${invoiceNumber}: revenue=${posted.postedInvoice}, cogs=${posted.postedCogs} (MK ${posted.cogsAmount}), tax: MK ${calculations.taxAmount}`
-          );
-        } catch (journalError) {
-          console.error('Error creating journal entry for invoice:', journalError);
-          throw journalError;
-        }
-      }
-
-      // Create audit log entry
-      await tx.auditLog.create({
-      data: {
-        action: 'INVOICE_CREATED',
-        entityType: 'INVOICE',
-        entityId: newInvoice.id,
-        userId: user.id,
-        tenantId: user.tenantId,
-        details: JSON.stringify({
-          invoiceNumber,
-          client: newInvoice.client.name,
-          amount: newInvoice.total
-        })
-      }
-    });
-
-      return newInvoice;
-    }, { maxWait: 15000, timeout: 120000 });
-
-    const newInvoice = result;
-    
-    // Format the response
-    const formattedInvoice = {
-      id: newInvoice.id,
-      invoiceNumber: newInvoice.invoiceNumber,
-      clientId: newInvoice.clientId,
-      client: newInvoice.client,
-      preparedBy: newInvoice.createdBy?.name || 'N/A', // Include prepared by info
-      preparedById: newInvoice.createdBy?.id || null,
-      createdBy: newInvoice.createdBy, // Include full createdBy object
-      createdAt: newInvoice.createdAt, // Include creation timestamp
-      issueDate: newInvoice.issueDate,
-      dueDate: newInvoice.dueDate,
-      discount: newInvoice.discount,
-      subtotal: newInvoice.subtotal,
-      taxAmount: newInvoice.taxAmount,
-      totalDiscountAmount: newInvoice.totalDiscountAmount,
-      total: newInvoice.total,
-      status: newInvoice.status,
-      notes: newInvoice.notes,
-      items: newInvoice.items,
-      updatedAt: newInvoice.updatedAt
-    };
-    
-    // Product Analytics (Phase 9): posted invoice meaningful action (fire-and-forget)
-    if (
-      newInvoice.status !== 'Draft' &&
-      String(newInvoice.status).toUpperCase() !== 'PROFORMA'
-    ) {
-      try {
-        await emitSalesInvoicePosted(prisma, {
-          tenantId: user.tenantId,
-          invoiceId: newInvoice.id,
-          actorId: user.id,
-          status: newInvoice.status,
-          occurredAt: newInvoice.createdAt || new Date(),
-          branchId: newInvoice.branchId || null,
-        });
-      } catch (analyticsErr) {
-        console.warn('[productAnalytics] invoice posted emit failed:', analyticsErr?.message);
-      }
-    }
-
-    // MRA EIS: auto-submit invoice to MRA for EIS-enabled tenants (fire-and-forget)
-    let eisResult = null;
-    if (newInvoice.status !== 'Draft') {
-      try {
-        const tenant = await prisma.tenant.findUnique({ where: { id: user.tenantId }, select: { eisEnabled: true } });
-        if (tenant?.eisEnabled) {
-          const eisAccess = await hasEISAccess(user.tenantId);
-          if (eisAccess) {
-            eisResult = await eisService.submitInvoice(user.tenantId, {
-              invoiceNumber: newInvoice.invoiceNumber,
-              invoiceDate: newInvoice.issueDate,
-              customerName: newInvoice.client?.name || '',
-              customerTPIN: '',
-              items: (newInvoice.items || []).map(item => ({
-                description: item.description,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                taxRate: item.taxRate || 0
-              })),
-              subtotal: parseMoney(newInvoice.subtotal),
-              taxTotal: parseMoney(newInvoice.taxAmount),
-              total: parseMoney(newInvoice.total),
-              paymentMethod: 'Bank Transfer'
-            }, 'invoice', newInvoice.id);
-            console.log('✅ EIS: Invoice submitted to MRA:', eisResult?.submissionId);
-          }
-        }
-      } catch (eisErr) {
-        console.error('⚠️ EIS invoice submission failed (invoice still saved):', eisErr.message);
-      }
-    }
-
-    formattedInvoice.eis = eisResult
-      ? { submissionId: eisResult.submissionId, status: eisResult.status }
-      : null;
-
-    // Return the created invoice
     return NextResponse.json(
       {
         message: 'Invoice created successfully',
-        invoice: formattedInvoice
+        invoice
       },
       { status: 201 }
     );
   } catch (error) {
+    if (error?.name === 'ServiceHttpError') {
+      return NextResponse.json(error.body, { status: error.status });
+    }
+
     console.error('❌ Error creating invoice:', error);
     console.error('Error details:', {
       message: error.message,
@@ -728,3 +369,4 @@ export async function POST(request) {
     );
   }
 }
+

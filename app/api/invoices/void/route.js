@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
-import { getUserFromSession, hasPermission } from '@/lib/auth';
-import { isFullAccessTenantRole } from '@/lib/tenantRoleAccess';
-import { assertPeriodOpen } from '@/lib/accountingPeriodService';
-import { reverseSourceJournals } from '@/lib/accountingV2/application/reverseSourceJournals.js';
-import { addMoney } from '@/lib/money';
-import { voidInvoiceInTransaction } from '@/lib/invoiceVoidService';
+import { getUserFromSession } from '@/lib/auth';
+import { voidInvoice } from '@/lib/invoices/voidInvoice';
 
 export async function POST(request) {
   try {
@@ -20,105 +15,13 @@ export async function POST(request) {
     const body = await request.json();
     const { invoiceId, reason } = body;
 
-    if (!invoiceId) {
-      return NextResponse.json(
-        { success: false, error: 'Invoice ID is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!reason || reason.trim().length < 3) {
-      return NextResponse.json(
-        { success: false, error: 'Void reason is required (minimum 3 characters)' },
-        { status: 400 }
-      );
-    }
-
-    const invoice = await prisma.invoice.findFirst({
-      where: {
-        id: invoiceId,
-        tenantId: user.tenantId
-      },
-      include: {
-        client: {
-          select: { name: true, email: true }
-        },
-        payments: {
-          where: { status: 'Completed' }
-        }
-      }
+    const result = await voidInvoice({
+      user,
+      invoiceId,
+      reason,
+      ipAddress:
+        request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
     });
-
-    if (!invoice) {
-      return NextResponse.json(
-        { success: false, error: 'Invoice not found' },
-        { status: 404 }
-      );
-    }
-
-    if (invoice.status === 'void') {
-      return NextResponse.json(
-        { success: false, error: 'Invoice is already voided' },
-        { status: 400 }
-      );
-    }
-
-    if (invoice.status === 'refunded' || invoice.status === 'partially_refunded') {
-      return NextResponse.json(
-        { success: false, error: 'Cannot void a refunded invoice' },
-        { status: 400 }
-      );
-    }
-
-    const totalPaid = invoice.payments.reduce((sum, payment) => addMoney(sum, payment.amount), 0);
-    if (totalPaid > 0) {
-      return NextResponse.json(
-        { success: false, error: 'Cannot void invoice with payments. Process refund instead.' },
-        { status: 400 }
-      );
-    }
-
-    const voidDate = new Date();
-    const reversalReason = reason.trim();
-    await assertPeriodOpen(user.tenantId, voidDate);
-
-    const canAdminVoid =
-      isFullAccessTenantRole(user) ||
-      hasPermission(user, 'invoices.delete') ||
-      hasPermission(user, 'invoices.void');
-
-    // V2 reverse first (own posting boundary), then mark invoice void.
-    const v2Reversal = await reverseSourceJournals({
-      tenantId: user.tenantId,
-      userId: user.id,
-      reason: reversalReason,
-      sourceTypes: ['Invoice', 'Invoice-COGS'],
-      sourceIds: [invoiceId],
-      requireJournals: true,
-      postingDate: voidDate.toISOString().slice(0, 10),
-      approvalOverride: canAdminVoid
-        ? {
-            approvedById: user.id,
-            approvedAt: voidDate.toISOString(),
-            createdById: null,
-            allowSelfApproval: true,
-          }
-        : null,
-    });
-
-    const result = await prisma.$transaction((tx) =>
-      voidInvoiceInTransaction({
-        tx,
-        invoice,
-        tenantId: user.tenantId,
-        userId: user.id,
-        reason: reversalReason,
-        voidDate,
-        v2Reversal,
-        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-        userEmail: user.email,
-      })
-    );
 
     return NextResponse.json({
       success: true,
@@ -133,6 +36,10 @@ export async function POST(request) {
     });
 
   } catch (error) {
+    if (error?.name === 'ServiceHttpError') {
+      return NextResponse.json(error.body, { status: error.status });
+    }
+
     console.error('Error voiding invoice:', error);
 
     if (error.code === 'PERIOD_LOCKED') {
