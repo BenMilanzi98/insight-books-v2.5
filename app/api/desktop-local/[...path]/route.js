@@ -33,14 +33,17 @@ async function dispatch(request, ctx) {
   const body = ['GET', 'HEAD'].includes(request.method)
     ? null
     : await request.json().catch(() => ({}));
-  const result = handleDesktopLocal({
-    db: getDesktopDbFromEnv(),
-    method: request.method,
-    pathname,
-    searchParams: Object.fromEntries(new URL(request.url).searchParams),
-    body,
-    now: Date.now(),
-    user,
-  });
+  const result = await Promise.resolve(
+    handleDesktopLocal({
+      db: getDesktopDbFromEnv(),
+      method: request.method,
+      pathname,
+      searchParams: Object.fromEntries(new URL(request.url).searchParams),
+      body,
+      now: Date.now(),
+      user,
+      requestCookie: request.headers.get('cookie') || '',
+    })
+  );
   return NextResponse.json(result.json, { status: result.status });
 }

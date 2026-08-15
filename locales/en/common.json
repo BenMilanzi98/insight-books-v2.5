@@ -29,8 +29,37 @@
     "retry": "Retry",
     "help": "Help",
     "more": "More",
-    "apply": "Apply"
+    "apply": "Apply",
+    "send": "Send",
+    "sending": "Sending…",
+    "void": "Void",
+    "refund": "Refund",
+    "preview": "Preview",
+    "remove": "Remove",
+    "select": "Select",
+    "details": "Details",
+    "record": "Record",
+    "attach": "Attach"
   },
+  "fields": {
+    "name": "Name",
+    "date": "Date",
+    "amount": "Amount",
+    "status": "Status",
+    "actions": "Actions",
+    "description": "Description",
+    "notes": "Notes",
+    "type": "Type",
+    "total": "Total",
+    "email": "Email",
+    "phone": "Phone",
+    "reference": "Reference",
+    "quantity": "Quantity",
+    "price": "Price"
+  },
+  "all": "All",
+  "optional": "Optional",
+  "required": "Required",
   "status": {
     "draft": "Draft",
     "pending": "Pending",
@@ -72,6 +101,18 @@
     "english": "English",
     "chichewa": "Chichewa",
     "switchTo": "Switch language"
+  },
+  "desktop": {
+    "banner": {
+      "warning": "Sync required soon. {hours} hours left.",
+      "locked": "Connect to the internet to sync. New sales are paused."
+    },
+    "footer": {
+      "lastSynced": "Last synced: {time}"
+    },
+    "syncNow": "Sync now",
+    "syncIssues": "Sync issues",
+    "onlineOnly": "This area needs internet."
   },
   "yes": "Yes",
   "no": "No"

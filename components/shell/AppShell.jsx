@@ -12,6 +12,8 @@ import OnboardingGate from '@/components/OnboardingGate';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import RouteDocumentTitle from '@/components/i18n/RouteDocumentTitle';
+import DesktopSyncBanner from '@/components/desktop/DesktopSyncBanner';
+import DesktopSyncFooter from '@/components/desktop/DesktopSyncFooter';
 
 const HIDDEN_EXACT = ['/', '/auth/login', '/auth/signup', '/contact', '/terms', '/privacy'];
 
@@ -137,6 +139,7 @@ export default function AppShell({ children }) {
             navId={drawerId}
           />
         )}
+        <DesktopSyncBanner />
         <main
           className={cn(
             'main-content-full-width flex-1',
@@ -145,6 +148,7 @@ export default function AppShell({ children }) {
         >
           {hide ? children : <OnboardingGate>{children}</OnboardingGate>}
         </main>
+        {!hide && <DesktopSyncFooter />}
         {!hide && <Footer />}
       </div>
 

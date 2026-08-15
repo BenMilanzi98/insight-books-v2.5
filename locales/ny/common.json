@@ -25,12 +25,41 @@
     "import": "Lowetsani",
     "export": "Tulutsani",
     "print": "Sindikizani",
-    "refresh": "Tsitsaninso",
+    "refresh": "Konzaninso",
     "retry": "Yesaninso",
     "help": "Thandizo",
     "more": "Zina",
-    "apply": "Gwiritsani"
+    "apply": "Gwiritsani",
+    "send": "Tumizani",
+    "sending": "Kutumiza…",
+    "void": "Thetsani",
+    "refund": "Bwezerani ndalama",
+    "preview": "Yang'anani",
+    "remove": "Chotsani",
+    "select": "Sankhani",
+    "details": "Zambiri",
+    "record": "Lembani",
+    "attach": "Phatikizani"
   },
+  "fields": {
+    "name": "Dzina",
+    "date": "Tsiku",
+    "amount": "Ndalama",
+    "status": "Mkhalidwe",
+    "actions": "Zochita",
+    "description": "Kufotokoza",
+    "notes": "Zolemba",
+    "type": "Mtundu",
+    "total": "Zonse",
+    "email": "Imelo",
+    "phone": "Foni",
+    "reference": "Nambala yotsatira",
+    "quantity": "Chiwerengero",
+    "price": "Mtengo"
+  },
+  "all": "Zonse",
+  "optional": "Sichofunika",
+  "required": "Chofunika",
   "status": {
     "draft": "Zosungidwa",
     "pending": "Zikudikira",
@@ -72,6 +101,18 @@
     "english": "Chingerezi",
     "chichewa": "Chichewa",
     "switchTo": "Sinthani chilankhulo"
+  },
+  "desktop": {
+    "banner": {
+      "warning": "Kufunika kulumikizana posachedwa. Maola {hours} otsala.",
+      "locked": "Lumikizani intaneti kuti mugwirizanitse. Malonda atsopano aletsedwa."
+    },
+    "footer": {
+      "lastSynced": "Kugwirizanitsa komaliza: {time}"
+    },
+    "syncNow": "Gwirizanitsani tsopano",
+    "syncIssues": "Mavuto a kugwirizanitsa",
+    "onlineOnly": "Malo ano amafunika intaneti."
   },
   "yes": "Inde",
   "no": "Ayi"

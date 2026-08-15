@@ -3,8 +3,10 @@ import { openDesktopDb } from '../../lib/desktop/sqlite/db.js';
 import { replaceSnapshot, getProduct } from '../../lib/desktop/sqlite/snapshotStore.js';
 import { writeMeta } from '../../lib/desktop/sqlite/meta.js';
 import { handleDesktopLocal } from '../../lib/desktop/local/handlers.js';
-import { listOutbox } from '../../lib/desktop/sqlite/outboxStore.js';
+import { listOutbox, updateOutbox, appendOutbox } from '../../lib/desktop/sqlite/outboxStore.js';
 import { DESKTOP_CODES } from '../../lib/desktop/codes.js';
+import { OUTBOX_STATUS } from '../../lib/desktop/outboxState.js';
+import { vi } from 'vitest';
 
 const t0 = Date.parse('2026-08-15T10:00:00.000Z');
 
@@ -228,5 +230,70 @@ describe('handleDesktopLocal clients', () => {
     expect(res.status).toBe(403);
     expect(res.json.code).toBe(DESKTOP_CODES.SYNC_REQUIRED);
     expect(res.status).not.toBe(501);
+  });
+});
+
+describe('handleDesktopLocal sync-status and sync-now', () => {
+  it('returns sync status with failed outbox issues', () => {
+    const db = openDesktopDb(':memory:');
+    seed(db);
+    appendOutbox(db, { id: 'fail-1', kind: 'pos.sale', payload: {} });
+    updateOutbox(db, 'fail-1', {
+      status: OUTBOX_STATUS.failed,
+      errorMessage: 'stock 0',
+    });
+
+    const res = handleDesktopLocal({
+      db,
+      method: 'GET',
+      pathname: '/api/sync-status',
+      now: t0 + 21 * 60 * 60 * 1000,
+    });
+    expect(res.status).toBe(200);
+    expect(res.json.warning).toBe(true);
+    expect(res.json.locked).toBe(false);
+    expect(res.json.failedCount).toBeGreaterThanOrEqual(1);
+    expect(res.json.issues[0]).toMatchObject({
+      kind: expect.any(String),
+      errorMessage: expect.any(String),
+    });
+  });
+
+  it('POST sync-now runs desktop sync via injected cloud client', async () => {
+    const db = openDesktopDb(':memory:');
+    seed(db);
+    const cloud = {
+      heartbeat: vi.fn(async () => ({
+        serverNow: '2026-08-15T12:00:00.000Z',
+        bound: true,
+        subscriptionActive: true,
+      })),
+      pushItems: vi.fn(async () => ({ results: [] })),
+      pullSnapshot: vi.fn(async () => ({
+        version: 1,
+        tenantId: 't1',
+        products: [],
+        customers: [],
+        taxTypes: [],
+        paymentAccounts: [],
+        openInvoices: [],
+        recentPayments: [],
+        sessionUser: { id: 'u1' },
+        tenantSettings: {},
+        posConfig: {},
+        serverNow: '2026-08-15T12:00:00.000Z',
+      })),
+    };
+
+    const res = await handleDesktopLocal({
+      db,
+      method: 'POST',
+      pathname: '/api/sync-now',
+      now: t0 + 1000,
+      cloud,
+    });
+    expect(res.status).toBe(200);
+    expect(res.json.ok).toBe(true);
+    expect(cloud.heartbeat).toHaveBeenCalled();
   });
 });
