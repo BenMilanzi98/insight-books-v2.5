@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { Suspense } from 'react';
 import PermissionGuard from '@/components/PermissionGuard';
@@ -7,8 +8,8 @@ import BudgetForecastReportView from '@/components/budget-forecast/BudgetForecas
 
 function ReportsFallback() {
   return (
-    <BfShell title="Reports" subtitle="Loading report studio…">
-      <p className="text-sm text-slate-500">Preparing filters…</p>
+    <BfShell title={tt('Reports')} subtitle={tt('Loading report studio…')}>
+      <p className="text-sm text-slate-500">{tt('Preparing filters…')}</p>
     </BfShell>
   );
 }
@@ -17,8 +18,8 @@ export default function BudgetForecastReportsPage() {
   return (
     <PermissionGuard requiredPermission="budgets.view">
       <BfShell
-        title="Reports"
-        subtitle="Budget plan, Budget versus Actual, and related management reports."
+        title={tt('Reports')}
+        subtitle={tt('Budget plan, Budget versus Actual, and related management reports.')}
       >
         <Suspense fallback={<ReportsFallback />}>
           <BudgetForecastReportView />

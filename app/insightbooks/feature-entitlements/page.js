@@ -154,7 +154,7 @@ export default function FeatureEntitlementsPage() {
 
       {loading ? <AdminLoadingState label="Loading entitlements" /> : null}
       {!loading && error && entitlements.length === 0 && tenants.length === 0 ? (
-        <AdminErrorState title="Entitlements unavailable" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Entitlements unavailable')} message={error} onRetry={load} />
       ) : null}
 
       {!loading && !(error && entitlements.length === 0 && tenants.length === 0) ? (
@@ -230,7 +230,7 @@ export default function FeatureEntitlementsPage() {
             <div className="flex items-end">
               <button type="submit" disabled={saving} className={btnPrimary}>
                 <Plus className="h-4 w-4" aria-hidden />
-                {saving ? 'Saving…' : 'Save entitlement'}
+                {saving ? tt('Saving…') : tt('Save entitlement')}
               </button>
             </div>
           </form>

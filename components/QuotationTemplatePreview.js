@@ -73,7 +73,7 @@ const QuotationTemplatePreview = forwardRef(({
   });
 
   return (
-    <div ref={ref} className={`bg-white ${isPrint ? 'print:shadow-none' : 'border border-gray-200 rounded-xl shadow-sm'} max-w-3xl mx-auto overflow-hidden`} style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div ref={ref} className={`bg-white ${isPrint ? tt('print:shadow-none') : tt('border border-gray-200 rounded-xl shadow-sm')} max-w-3xl mx-auto overflow-hidden`} style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <style jsx>{`@media print { table { border-collapse: collapse; } td, th { padding: 8px !important; } }`}</style>
       {/* Header: accent bar + company and doc type */}
       <div className="border-l-4 px-6 pt-6 pb-4" style={{ borderLeftColor: primaryColor }}>

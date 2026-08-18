@@ -378,7 +378,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                     disabled={uploading}
                     className="text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50"
                   >
-                    {uploading ? "Uploading…" : "Replace"}
+                    {uploading ? tt('Uploading…') : tt('Replace')}
                   </button>
                 </div>
               ) : (
@@ -434,7 +434,7 @@ function ConfirmDialog({ title, message, onConfirm, onCancel, loading }) {
             disabled={loading}
             className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white  hover:bg-red-700 disabled:opacity-50"
           >
-            {loading ? "Removing…" : "Delete"}
+            {loading ? tt('Removing…') : tt('Delete')}
           </button>
         </div>
       </div>
@@ -775,7 +775,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
 
       <FormSection
-        title="Order Information"
+        title={tt('Order Information')}
         description="Supplier, order type, timing and status for this purchase request."
       >
         <div className="grid gap-4 sm:grid-cols-2">
@@ -863,7 +863,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
       </FormSection>
 
       <FormSection
-        title="Line Items"
+        title={tt('Line Items')}
         description={
           form.orderType === "goods"
             ? "Select products from your inventory. Stock increases only when you post a goods receipt, not when saving the PO."
@@ -1156,7 +1156,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
         </div>
       </FormSection>
 
-      <FormSection title="Notes & Totals" description="Internal instructions. Totals: Subtotal, Total Tax, Grand Total.">
+      <FormSection title={tt('Notes & Totals')} description="Internal instructions. Totals: Subtotal, Total Tax, Grand Total.">
         <div className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-700">{tt('Notes')}</label>
@@ -1198,7 +1198,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
           disabled={saving}
           className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white  hover:bg-blue-700 disabled:opacity-50"
         >
-          {saving ? "Saving…" : isEdit ? "Update Purchase Order" : "Save Purchase Order"}
+          {saving ? "Saving…" : isEdit ? tt('Update Purchase Order') : tt('Save Purchase Order')}
         </button>
       </div>
     </form>
@@ -1353,7 +1353,7 @@ export default function PurchaseOrdersPage() {
         </div>
       )}
       <PageHeader
-        title="Purchase Orders"
+        title={tt('Purchase Orders')}
         description="Track procurement requests, approvals, receipts, and remaining balances."
         actions={
           <button
@@ -1525,7 +1525,7 @@ export default function PurchaseOrdersPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {formMode === "edit" ? "Edit Purchase Order" : "New Purchase Order"}
+                  {formMode === "edit" ? tt('Edit Purchase Order') : tt('New Purchase Order')}
                 </h2>
                 {formMode === "edit" && (
                   <p className="text-xs text-gray-500">{activeOrder?.poNumber}</p>
@@ -1566,7 +1566,7 @@ export default function PurchaseOrdersPage() {
 
       {deletingOrder && (
         <ConfirmDialog
-          title="Delete Purchase Order"
+          title={tt('Delete Purchase Order')}
           message={`Cancel ${deletingOrder.poNumber}? The system will reverse linked bills/expenses where allowed and keep an audit trail. If goods were already received, cancellation may be blocked.`}
           onConfirm={handleDeleteOrder}
           onCancel={() => setDeletingOrder(null)}

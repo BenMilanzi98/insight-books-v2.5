@@ -885,9 +885,7 @@ const QuotationsPage = () => {
               <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{tt('No quotations found')}</h3>
               <p className="text-gray-500 mb-6">
-                {activeTab !== "all" || searchQuery 
-                  ? "Try adjusting your filters or search query"
-                  : "Get started by creating your first quotation"}
+                {activeTab !== "all" || searchQuery ? tt('Try adjusting your filters or search query') : tt('Get started by creating your first quotation')}
               </p>
               {pagePermissions.canCreateQuotations && (
                 <button 
@@ -936,21 +934,21 @@ const QuotationsPage = () => {
                           <div className="flex items-center justify-end gap-1">
                             <button 
                               className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                              title="Preview"
+                              title={tt('Preview')}
                               onClick={() => fetchQuotationForPreview(quotation)}
                             >
                               <Eye size={16} />
                             </button>
                             <button 
                               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
-                              title="Download"
+                              title={tt('Download')}
                               onClick={() => handleDownloadQuotation(quotation.id)}
                             >
                               <Printer size={16} />
                             </button>
                             <button
                               className={`p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all ${isCapturingPdf ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              title={isCapturingPdf ? "Sending..." : "Send Quotation"}
+                              title={isCapturingPdf ? tt('Sending...') : tt('Send Quotation')}
                               onClick={() => handleSendQuotation(quotation)}
                               disabled={isCapturingPdf}
                             >
@@ -959,7 +957,7 @@ const QuotationsPage = () => {
                             {quotation.status === "Approved" && pagePermissions.canConvertQuotations && (
                               <button 
                                 className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                                title="Convert to Invoice"
+                                title={tt('Convert to Invoice')}
                                 onClick={() => handleConvertToInvoice(quotation)}
                               >
                                 <CornerDownRight size={16} />
@@ -969,14 +967,14 @@ const QuotationsPage = () => {
                               <>
                                 <button 
                                   className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
-                                  title="Edit"
+                                  title={tt('Edit')}
                                   onClick={() => handleEditQuotation(quotation)}
                                 >
                                   <Edit size={16} />
                                 </button>
                                 <button 
                                   className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                  title="Duplicate"
+                                  title={tt('Duplicate')}
                                   onClick={() => handleDuplicateQuotation(quotation.id)}
                                 >
                                   <Copy size={16} />
@@ -986,7 +984,7 @@ const QuotationsPage = () => {
                             {quotation.status === "Draft" && pagePermissions.canDeleteQuotations && (
                               <button 
                                 className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                title="Delete"
+                                title={tt('Delete')}
                                 onClick={() => handleDeleteQuotation(quotation.id)}
                               >
                                 <Trash2 size={16} />

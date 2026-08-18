@@ -7,40 +7,29 @@ import PermissionGuard from '@/components/PermissionGuard';
 import BfShell, {
   StatusBadge,
   SummaryCard,
-  BfPrimaryButton,
   BfSecondaryButton,
-  BF_THEAD_CLASS,
 } from '@/components/budget-forecast/BfShell';
 import PosStylePanel from '@/components/shell/PosStylePanel';
+import PnlBudgetGrid from '@/components/budget-forecast/PnlBudgetGrid';
 import { formatCurrency } from '@/lib/currencyUtils';
-
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function buildMonthKeys(startDate, endDate) {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const keys = [];
-  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
-  const endMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
-  let guard = 0;
-  while (cursor <= endMonth && guard < 120) {
-    const y = cursor.getUTCFullYear();
-    const m = cursor.getUTCMonth();
-    keys.push({
-      key: `${y}-${String(m + 1).padStart(2, '0')}`,
-      label: `${MONTH_SHORT[m]} ${String(y).slice(2)}`,
-      periodStart: new Date(Date.UTC(y, m, 1)).toISOString(),
-      periodEnd: new Date(Date.UTC(y, m + 1, 0, 23, 59, 59, 999)).toISOString(),
-      monthNumber: m + 1,
-      quarterNumber: Math.floor(m / 3) + 1,
-    });
-    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-    guard += 1;
-  }
-  return keys;
-}
+import { buildBudgetPeriodColumns } from '@/lib/budgetForecast/domain/periods.js';
+import {
+  BUDGET_GROWTH_MODES,
+  applyGrowthToPeriodMap,
+  parseLineGrowthAssumptions,
+  serializeLineGrowthAssumptions,
+} from '@/lib/budgetForecast/domain/budgetGrowth.js';
 
 function periodKeyFromRow(p) {
+  if (p.key) return p.key;
+  if (p.quarterNumber && !p.monthNumber) {
+    const d = new Date(p.periodStart);
+    return `${d.getUTCFullYear()}-Q${p.quarterNumber}`;
+  }
+  if (!p.monthNumber && !p.quarterNumber) {
+    const d = new Date(p.periodStart);
+    return String(d.getUTCFullYear());
+  }
   if (p.monthNumber && p.periodStart) {
     const d = new Date(p.periodStart);
     return `${d.getUTCFullYear()}-${String(p.monthNumber).padStart(2, '0')}`;
@@ -86,16 +75,24 @@ export default function BudgetDetailPage() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [growthSettings, setGrowthSettings] = useState({});
 
   const monthKeys = useMemo(() => {
     if (!budget?.startDate || !budget?.endDate) return [];
-    return buildMonthKeys(budget.startDate, budget.endDate);
-  }, [budget?.startDate, budget?.endDate]);
+    return buildBudgetPeriodColumns(budget.frequency, budget.startDate, budget.endDate).map((p) => ({
+      ...p,
+      periodStart: p.periodStart.toISOString(),
+      periodEnd: p.periodEnd.toISOString(),
+    }));
+  }, [budget?.startDate, budget?.endDate, budget?.frequency]);
 
   function seedEdits(data, months) {
     const edits = {};
+    const growth = {};
     const ids = (data.lines || []).map((l) => l.accountId);
     for (const line of data.lines || []) {
+      growth[line.accountId] = parseLineGrowthAssumptions(line.assumptions);
       const monthsMap = emptyMonths(months);
       for (const p of line.periodAmounts || []) {
         const key = periodKeyFromRow(p);
@@ -107,6 +104,7 @@ export default function BudgetDetailPage() {
       edits[line.accountId] = monthsMap;
     }
     setPeriodEdits(edits);
+    setGrowthSettings(growth);
     setSelectedAccountIds(ids);
   }
 
@@ -119,7 +117,11 @@ export default function BudgetDetailPage() {
       return;
     }
     setBudget(json.data);
-    const months = buildMonthKeys(json.data.startDate, json.data.endDate);
+    const months = buildBudgetPeriodColumns(json.data.frequency, json.data.startDate, json.data.endDate).map((p) => ({
+      ...p,
+      periodStart: p.periodStart.toISOString(),
+      periodEnd: p.periodEnd.toISOString(),
+    }));
     seedEdits(json.data, months);
   }
 
@@ -144,12 +146,49 @@ export default function BudgetDetailPage() {
       const line = (budget?.lines || []).find((l) => l.accountId === accountId);
       const acc = accounts.find((a) => (a.id || a.accountId) === accountId);
       const t = String(line?.accountTypeSnapshot || acc?.accountType || '').toLowerCase();
+      const cat = String(line?.accountCategorySnapshot || acc?.coaV2Category || '').toUpperCase();
       const amt = sumMonths(periodEdits[accountId]);
-      if (t.includes('income') || t.includes('revenue')) rev += amt;
-      else exp += amt;
+      if (t.includes('income') || t.includes('revenue') || cat === 'REVENUE' || cat === 'OTHER_INCOME') {
+        rev += amt;
+      } else {
+        exp += amt;
+      }
     }
     return { rev, exp, profit: rev - exp };
   }, [selectedAccountIds, periodEdits, budget, accounts]);
+
+  function setGrowthForAccount(accountId, patch) {
+    setGrowthSettings((prev) => ({
+      ...prev,
+      [accountId]: { mode: BUDGET_GROWTH_MODES.MANUAL, growthPercent: 0, fixedIncrement: 0, ...prev[accountId], ...patch },
+    }));
+  }
+
+  function applyGrowthForAccount(accountId) {
+    const settings = growthSettings[accountId];
+    if (!settings || settings.mode === BUDGET_GROWTH_MODES.MANUAL) return;
+    const keys = monthKeys.map((m) => m.key);
+    const existing = periodEdits[accountId] || emptyMonths(monthKeys);
+    const next = applyGrowthToPeriodMap(keys, existing, settings);
+    setPeriodEdits((prev) => ({ ...prev, [accountId]: next }));
+  }
+
+  function addAccount(accountId) {
+    if (selectedAccountIds.includes(accountId)) return;
+    setSelectedAccountIds((prev) => [...prev, accountId]);
+    setPeriodEdits((edits) => ({
+      ...edits,
+      [accountId]: edits[accountId] || emptyMonths(monthKeys),
+    }));
+    setGrowthSettings((prev) => ({
+      ...prev,
+      [accountId]: prev[accountId] || { mode: BUDGET_GROWTH_MODES.MANUAL, growthPercent: 0, fixedIncrement: 0 },
+    }));
+  }
+
+  function removeAccount(accountId) {
+    setSelectedAccountIds((prev) => prev.filter((x) => x !== accountId));
+  }
 
   async function saveLines() {
     setSaving(true);
@@ -158,15 +197,20 @@ export default function BudgetDetailPage() {
     try {
       const lines = selectedAccountIds.map((accountId) => {
         const months = periodEdits[accountId] || emptyMonths(monthKeys);
+        const growth = growthSettings[accountId] || { mode: BUDGET_GROWTH_MODES.MANUAL };
         return {
           accountId,
+          calculationMethod: growth.mode,
+          assumptions: serializeLineGrowthAssumptions(growth),
           periods: monthKeys.map((m) => ({
+            key: m.key,
             periodStart: m.periodStart,
             periodEnd: m.periodEnd,
             monthNumber: m.monthNumber,
             quarterNumber: m.quarterNumber,
             amount: Number(months[m.key] || 0),
-            sourceMethod: 'MANUAL',
+            sourceMethod: growth.mode || 'MANUAL',
+            growthRate: growth.mode === BUDGET_GROWTH_MODES.GROWTH_PERCENT ? growth.growthPercent : null,
           })),
         };
       });
@@ -204,17 +248,6 @@ export default function BudgetDetailPage() {
     setMessage(`Command “${command}” completed.`);
   }
 
-  function toggleAccount(accountId) {
-    setSelectedAccountIds((prev) => {
-      if (prev.includes(accountId)) return prev.filter((x) => x !== accountId);
-      setPeriodEdits((edits) => ({
-        ...edits,
-        [accountId]: edits[accountId] || emptyMonths(monthKeys),
-      }));
-      return [...prev, accountId];
-    });
-  }
-
   function setMonthAmount(accountId, key, value) {
     setPeriodEdits((prev) => ({
       ...prev,
@@ -232,7 +265,7 @@ export default function BudgetDetailPage() {
   if (!budget && !error) {
     return (
       <PermissionGuard requiredPermission="budgets.view">
-        <BfShell title="Budget" subtitle="Loading…" />
+        <BfShell title={tt('Budget')} subtitle={tt('Loading…')} />
       </PermissionGuard>
     );
   }
@@ -304,104 +337,25 @@ export default function BudgetDetailPage() {
           />
         </div>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-4">
-          <PosStylePanel accent="default" className="p-4 lg:col-span-1">
-            <h2 className="text-sm font-semibold text-slate-900">{tt('Chart of Accounts')}</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              {tt('Select posting accounts. Parent + child together is rejected.')}
-            </p>
-            <div className="mt-3 max-h-[28rem] overflow-y-auto divide-y divide-slate-100/80">
-              {accounts.slice(0, 300).map((a) => {
-                const aid = a.id || a.accountId;
-                const checked = selectedAccountIds.includes(aid);
-                return (
-                  <label key={aid} className="flex items-center gap-2 py-2 text-sm">
-                    <input type="checkbox" checked={checked} onChange={() => toggleAccount(aid)} />
-                    <span className="font-mono text-xs text-slate-500">{a.accountCode || a.code}</span>
-                    <span className="truncate">{a.accountName || a.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </PosStylePanel>
-
-          <PosStylePanel accent="green" className="overflow-x-auto p-4 lg:col-span-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">{tt('Monthly planner')}</h2>
-                <p className="text-xs text-slate-500">
-                  Edit months freely (seasonality). Annual is the sum — or type Annual to spread evenly.
-                </p>
-              </div>
-              <BfPrimaryButton type="button" success disabled={saving} onClick={saveLines}>
-                {saving ? 'Saving…' : 'Save lines'}
-              </BfPrimaryButton>
-            </div>
-            <table className="mt-3 w-full min-w-[56rem] text-left text-sm">
-              <thead>
-                <tr className={BF_THEAD_CLASS}>
-                  <th className="sticky left-0 z-10 bg-inherit py-2.5 pr-2">{tt('Account')}</th>
-                  {monthKeys.map((m) => (
-                    <th key={m.key} className="px-1 py-2.5 text-right font-medium">
-                      {m.label}
-                    </th>
-                  ))}
-                  <th className="py-2.5 pl-2 text-right">{tt('Annual')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedAccountIds.map((accountId) => {
-                  const acc = accounts.find((a) => (a.id || a.accountId) === accountId);
-                  const line = (budget?.lines || []).find((l) => l.accountId === accountId);
-                  const months = periodEdits[accountId] || emptyMonths(monthKeys);
-                  const annual = sumMonths(months);
-                  const label =
-                    line?.accountNameSnapshot ||
-                    acc?.accountName ||
-                    acc?.name ||
-                    accountId;
-                  const code = line?.accountCodeSnapshot || acc?.accountCode || acc?.code || '';
-                  return (
-                    <tr key={accountId} className="border-b border-slate-100/80">
-                      <td className="sticky left-0 z-10 bg-white/95 py-2 pr-2 backdrop-blur-sm">
-                        <div className="font-mono text-[11px] text-slate-500">{code}</div>
-                        <div className="max-w-[10rem] truncate font-medium text-slate-800">{label}</div>
-                      </td>
-                      {monthKeys.map((m) => (
-                        <td key={m.key} className="px-0.5 py-1">
-                          <input
-                            className="w-[4.5rem] rounded border border-slate-300 bg-white/90 px-1 py-1 text-right text-xs"
-                            value={months[m.key] ?? '0'}
-                            onChange={(e) => setMonthAmount(accountId, m.key, e.target.value)}
-                            inputMode="decimal"
-                            aria-label={`${label} ${m.label}`}
-                          />
-                        </td>
-                      ))}
-                      <td className="py-1 pl-2">
-                        <input
-                          className="w-24 rounded border border-slate-300 bg-slate-50 px-2 py-1 text-right text-xs font-semibold"
-                          value={String(Math.round(annual * 100) / 100)}
-                          onChange={(e) => setAnnualAmount(accountId, e.target.value)}
-                          inputMode="decimal"
-                          title="Edit to re-spread evenly across months"
-                          aria-label={`${label} annual`}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-                {selectedAccountIds.length === 0 ? (
-                  <tr>
-                    <td colSpan={monthKeys.length + 2} className="py-8 text-center text-slate-500">
-                      Select accounts on the left to plan monthly amounts.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </PosStylePanel>
-        </div>
+        <PosStylePanel accent="green" className="overflow-x-auto p-4">
+          <PnlBudgetGrid
+            monthKeys={monthKeys}
+            accounts={accounts}
+            selectedAccountIds={selectedAccountIds}
+            periodEdits={periodEdits}
+            onAddAccount={addAccount}
+            onRemoveAccount={removeAccount}
+            onMonthChange={setMonthAmount}
+            onAnnualChange={setAnnualAmount}
+            onSave={saveLines}
+            saving={saving}
+            showAdvanced={showAdvanced}
+            onShowAdvancedChange={setShowAdvanced}
+            growthSettings={growthSettings}
+            onGrowthChange={setGrowthForAccount}
+            onApplyGrowth={applyGrowthForAccount}
+          />
+        </PosStylePanel>
       </BfShell>
     </PermissionGuard>
   );

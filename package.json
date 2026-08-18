@@ -94,6 +94,7 @@
     "coa:salary-audit": "node scripts/coa-v2-governance.mjs salary-audit",
     "coa:seed-templates": "node scripts/coa-v2-governance.mjs seed-templates",
     "coa:governance": "node scripts/coa-v2-governance.mjs all",
+    "coa:repair-structure": "node scripts/coa-repair-structure.mjs",
     "desktop:dev": "cd desktop && npm start",
     "desktop:build": "cd desktop && npm run dist"
   },

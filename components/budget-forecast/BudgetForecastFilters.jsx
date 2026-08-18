@@ -1,7 +1,9 @@
 'use client';
 import { tt } from '@/lib/i18n/runtime';
 
+import { useMemo } from 'react';
 import { reportNeedsBudget, reportNeedsForecast } from '@/lib/budgetForecast/reportFilterConfig';
+import { listPeriodFilterOptions } from '@/lib/budgetForecast/domain/periodFilter.js';
 
 export { reportNeedsBudget, reportNeedsForecast };
 
@@ -18,6 +20,16 @@ export default function BudgetForecastFilters({
 }) {
   const set = (patch) => onChange({ ...draft, ...patch });
   const reportId = draft.reportId;
+
+  const selectedBudget = budgets.find((b) => b.id === draft.budgetId);
+  const periodOptions = useMemo(() => {
+    if (!selectedBudget?.startDate || !selectedBudget?.endDate) return [];
+    return listPeriodFilterOptions(
+      selectedBudget.startDate,
+      selectedBudget.endDate,
+      draft.periodGranularity || 'MONTH'
+    );
+  }, [selectedBudget, draft.periodGranularity]);
 
   return (
     <aside className="flex h-full min-h-0 w-full flex-col border-t border-slate-200 bg-white lg:w-80 lg:border-l lg:border-t-0">
@@ -50,7 +62,7 @@ export default function BudgetForecastFilters({
             <select
               className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
               value={draft.budgetId}
-              onChange={(e) => set({ budgetId: e.target.value })}
+              onChange={(e) => set({ budgetId: e.target.value, periodKey: 'ALL' })}
             >
               <option value="">{tt('Select…')}</option>
               {budgets.map((b) => (
@@ -79,6 +91,37 @@ export default function BudgetForecastFilters({
             </select>
           </label>
         ) : null}
+
+        {reportId === 'BVA' && draft.budgetId ? (
+          <>
+            <label className="block text-sm">
+              <span className="font-medium text-slate-700">{tt('View by')}</span>
+              <select
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                value={draft.periodGranularity || 'MONTH'}
+                onChange={(e) => set({ periodGranularity: e.target.value, periodKey: 'ALL' })}
+              >
+                <option value="MONTH">{tt('Month')}</option>
+                <option value="QUARTER">{tt('Quarter')}</option>
+                <option value="YEAR">{tt('Year')}</option>
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="font-medium text-slate-700">{tt('Period')}</span>
+              <select
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                value={draft.periodKey || 'ALL'}
+                onChange={(e) => set({ periodKey: e.target.value })}
+              >
+                {periodOptions.map((opt) => (
+                  <option key={opt.key} value={opt.key}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        ) : null}
       </div>
 
       <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-4 py-3">
@@ -93,7 +136,7 @@ export default function BudgetForecastFilters({
           onClick={onApply}
           className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
         >
-          {applying ? 'Applying…' : 'Apply'}
+          {applying ? tt('Applying…') : tt('Apply')}
         </button>
       </div>
     </aside>

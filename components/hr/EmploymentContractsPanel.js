@@ -111,7 +111,7 @@ export default function EmploymentContractsPanel({ employeeId, formatCurrency })
             onClick={() => setShowForm((v) => !v)}
             className="inline-flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
           >
-            <Plus size={12} /> {showForm ? 'Cancel' : 'New contract'}
+            <Plus size={12} /> {showForm ? tt('Cancel') : tt('New contract')}
           </button>
         </div>
       </div>
@@ -197,7 +197,7 @@ export default function EmploymentContractsPanel({ employeeId, formatCurrency })
             disabled={saving}
             className="rounded bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-700 disabled:opacity-50"
           >
-            {saving ? 'Saving…' : 'Save contract'}
+            {saving ? tt('Saving…') : tt('Save contract')}
           </button>
         </form>
       ) : null}

@@ -231,7 +231,7 @@ useEffect(() => {
                 className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
                 disabled={isDeleting}
               >
-                {isDeleting ? 'Deleting...' : 'Delete'}
+                {isDeleting ? tt('Deleting...') : tt('Delete')}
               </button>
             </div>
           </div>

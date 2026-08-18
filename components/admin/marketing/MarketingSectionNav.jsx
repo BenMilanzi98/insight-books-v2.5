@@ -52,7 +52,7 @@ export default function MarketingSectionNav({ className }) {
             <span
               key={section.id}
               aria-disabled="true"
-              title="Insufficient privileges"
+              title={tt('Insufficient privileges')}
               className={cn(
                 'cursor-not-allowed rounded-[var(--admin-radius)] px-3 py-1.5 text-sm font-medium opacity-50',
                 'border border-dashed border-[var(--admin-border)] bg-[var(--admin-surface-muted)] text-[var(--admin-text-muted)]'

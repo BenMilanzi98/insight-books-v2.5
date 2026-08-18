@@ -459,6 +459,44 @@ export async function POST(request, { params }) {
     const body = await request.json().catch(() => ({}));
 
     if (action === 'reverse') {
+      const original = await prisma.journalEntry.findFirst({
+        where: { id: entryId, tenantId: user.tenantId },
+        select: { id: true, architectureVersion: true },
+      });
+      if (!original) {
+        return NextResponse.json({ error: 'Journal entry not found' }, { status: 404 });
+      }
+
+      if (original.architectureVersion === 'ACCOUNTING_V2') {
+        const { contextFromSession } = await import('@/lib/accountingV2/adapters/baseAdapter.js');
+        const { reverseJournal } = await import('@/lib/accountingV2/application/journalReversalService.js');
+        const context = contextFromSession({
+          tenantId: user.tenantId,
+          userId: user.id,
+          permissions: user.permissions || [],
+        });
+        const result = await reverseJournal(
+          context,
+          entryId,
+          {
+            reason: body.reason || 'Reversed via journal entries',
+            hasPermission: () => canPostJournalEntries(user),
+          },
+          prisma
+        );
+        const reversalId = result?.journalEntryId || result?.journal?.id;
+        const hydrated = reversalId
+          ? await prisma.journalEntry.findUnique({
+              where: { id: reversalId },
+              include: ENTRY_INCLUDE,
+            })
+          : null;
+        return NextResponse.json({
+          message: 'Journal entry reversed successfully.',
+          entry: hydrated ? formatJournalEntry(hydrated) : result,
+        });
+      }
+
       const reversal = await createReversalEntry(entryId, body.reason, {
         userId: user.id,
         tenantId: user.tenantId,

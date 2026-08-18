@@ -290,7 +290,7 @@ const SubscriptionCountdownBanner = ({ subscription, isTrialActive, remainingTri
               ) : (
                 <>
                   <Crown className="h-5 w-5 mr-2" />
-                  {isExpired ? 'Renew Now' : 'Upgrade Now'}
+                  {isExpired ? tt('Renew Now') : tt('Upgrade Now')}
                   <ArrowRight className="h-5 w-5 ml-2" />
                 </>
               )}

@@ -140,7 +140,7 @@ export default function ReversalDetailDrawer({ open, onClose, reversal }) {
                   </div>
                   <div>
                     <dt className="text-slate-500">{tt('Is reversed')}</dt>
-                    <dd>{details?.isReversed ? "Yes" : "Unknown / see register"}</dd>
+                    <dd>{details?.isReversed ? tt('Yes') : tt('Unknown / see register')}</dd>
                   </div>
                   <div>
                     <dt className="text-slate-500">{tt('Original id')}</dt>
@@ -249,7 +249,7 @@ export default function ReversalDetailDrawer({ open, onClose, reversal }) {
                       </div>
                       <div>
                         <dt className="text-slate-500">{tt('Cross-period disclosure')}</dt>
-                        <dd>{register.crossPeriodDisclosure ? "Yes" : "No"}</dd>
+                        <dd>{register.crossPeriodDisclosure ? tt('Yes') : tt('No')}</dd>
                       </div>
                       {register.errorMessage ? (
                         <div>

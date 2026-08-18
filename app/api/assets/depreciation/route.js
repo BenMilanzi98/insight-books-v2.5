@@ -3,182 +3,292 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import {
+  calcDepreciationAmount,
+  rangeForPreset,
+} from '@/lib/assets/depreciationPeriods.js';
+
+async function postDepreciationGl({
+  user,
+  asset,
+  depreciationSchedule,
+  depreciationAmount,
+  startDate,
+  endDate,
+  frequency,
+}) {
+  if (depreciationAmount <= 0.01) return null;
+  try {
+    const { resolvePurposeAccount } = await import(
+      '@/lib/coaV2/application/accountMappingRegistry.js'
+    );
+    const { createAccountingContext } = await import(
+      '@/lib/accountingV2/domain/accountingContext.js'
+    );
+    const { postDepreciationAccounting } = await import(
+      '@/lib/accountingV2/adapters/remainingAdapters.js'
+    );
+    const { postGlEntry } = await import('@/lib/accountingEngine/postGlEntry.js');
+    const ctx = createAccountingContext({
+      businessId: user.tenantId,
+      userId: user.id,
+    });
+    const expenseAcct = await resolvePurposeAccount(ctx, 'DEPRECIATION_EXPENSE');
+    const accumAcct = await resolvePurposeAccount(ctx, 'ACCUMULATED_DEPRECIATION');
+    const amt = Math.round(depreciationAmount * 100) / 100;
+    const periodLabel = frequency && frequency !== 'custom' ? ` (${frequency})` : '';
+    const lines = [
+      {
+        lineNumber: 1,
+        accountId: expenseAcct.id,
+        debitAmount: amt,
+        creditAmount: 0,
+        description: `Depreciation — ${asset.name}${periodLabel}`,
+      },
+      {
+        lineNumber: 2,
+        accountId: accumAcct.id,
+        debitAmount: 0,
+        creditAmount: amt,
+        description: `Accumulated depreciation — ${asset.name}${periodLabel}`,
+      },
+    ];
+    const desc = `Depreciation ${asset.name}${periodLabel} (${startDate.toISOString().slice(0, 10)}–${endDate.toISOString().slice(0, 10)})`;
+    return (
+      await postDepreciationAccounting({
+        db: prisma,
+        tenantId: user.tenantId,
+        userId: user.id,
+        sourceId: depreciationSchedule.id,
+        amount: amt,
+        date: endDate,
+        description: desc,
+        lines,
+        legacyPost: () =>
+          postGlEntry({
+            tenantId: user.tenantId,
+            userId: user.id,
+            entryDate: endDate,
+            description: desc,
+            sourceType: 'DepreciationSchedule',
+            sourceId: depreciationSchedule.id,
+            lines,
+          }),
+      })
+    ).result;
+  } catch (glErr) {
+    console.error('Depreciation GL posting failed (schedule saved):', glErr?.message || glErr);
+    return null;
+  }
+}
+
+async function depreciateOneAsset({ user, asset, startDate, endDate, frequency, periodCount }) {
+  const depreciationAmount = calcDepreciationAmount(asset, {
+    frequency,
+    periodCount,
+    startDate,
+    endDate,
+  });
+  const newAccumulatedDepreciation = (asset.accumulatedDepreciation || 0) + depreciationAmount;
+  const remainingValue = asset.originalCost - newAccumulatedDepreciation;
+
+  const depreciationSchedule = await prisma.depreciationSchedule.create({
+    data: {
+      assetId: asset.id,
+      periodStart: startDate,
+      periodEnd: endDate,
+      depreciationAmount,
+      remainingValue,
+      tenantId: user.tenantId,
+    },
+  });
+
+  const updatedAsset = await prisma.asset.update({
+    where: { id: asset.id },
+    data: { accumulatedDepreciation: newAccumulatedDepreciation },
+  });
+
+  const glResult = await postDepreciationGl({
+    user,
+    asset,
+    depreciationSchedule,
+    depreciationAmount,
+    startDate,
+    endDate,
+    frequency,
+  });
+
+  return {
+    assetId: asset.id,
+    periodStart: startDate,
+    periodEnd: endDate,
+    frequency: frequency || 'custom',
+    periodCount: periodCount || 1,
+    depreciationAmount,
+    accumulatedDepreciation: newAccumulatedDepreciation,
+    remainingValue,
+    depreciationSchedule,
+    journalEntryId: glResult?.journalEntryId || glResult?.id || null,
+    asset: updatedAsset,
+  };
+}
 
 /**
- * POST handler for calculating depreciation
- * Calculates depreciation for an asset
+ * POST — calculate depreciation for one asset or all active assets.
+ * Body: { periodStart, periodEnd, assetId? } or { periodStart, periodEnd, assetIds?: string[] }
+ * Empty assetIds / omitted assetId → all ACTIVE assets for the tenant.
  */
 export async function POST(request) {
   try {
-    // Check for standard access (trial or paid subscription)
     const accessError = await requireStandardAccess(request);
-    if (accessError) {
-      return accessError;
-    }
+    if (accessError) return accessError;
 
-    // Authenticate user and get tenant ID
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     const body = await request.json();
-    const { assetId, periodStart, periodEnd } = body;
+    const {
+      assetId,
+      assetIds,
+      periodStart,
+      periodEnd,
+      frequency = 'custom',
+      periodCount = 1,
+    } = body;
 
-    // Validate required fields
-    if (!assetId || !periodStart || !periodEnd) {
+    let startDate;
+    let endDate;
+    const freq = String(frequency || 'custom').toLowerCase();
+    const count = Math.max(1, Number(periodCount) || 1);
+
+    if (freq !== 'custom' && ['hour', 'day', 'week', 'month', 'quarter', 'year'].includes(freq)) {
+      const range = rangeForPreset(freq, count, periodEnd ? new Date(periodEnd) : new Date());
+      startDate = range.periodStart;
+      endDate = range.periodEnd;
+      // Prefer explicit dates when provided (UI sets them from preset)
+      if (periodStart && periodEnd) {
+        const ps = new Date(periodStart);
+        const pe = new Date(periodEnd);
+        if (!Number.isNaN(ps.getTime()) && !Number.isNaN(pe.getTime()) && pe >= ps) {
+          startDate = ps;
+          endDate = pe;
+        }
+      }
+    } else {
+      if (!periodStart || !periodEnd) {
+        return NextResponse.json(
+          { error: 'Missing required fields: periodStart, periodEnd' },
+          { status: 400 }
+        );
+      }
+      startDate = new Date(periodStart);
+      endDate = new Date(periodEnd);
+    }
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return NextResponse.json({ error: 'Invalid periodStart or periodEnd' }, { status: 400 });
+    }
+    if (endDate < startDate) {
       return NextResponse.json(
-        { error: 'Missing required fields: assetId, periodStart, periodEnd' },
+        { error: 'periodEnd must be on or after periodStart' },
         { status: 400 }
       );
     }
 
-    // Get asset details
-    const asset = await prisma.asset.findFirst({
+    let targetIds = [];
+    if (assetId) {
+      targetIds = [assetId];
+    } else if (Array.isArray(assetIds) && assetIds.length > 0) {
+      targetIds = assetIds;
+    }
+
+    const assets = await prisma.asset.findMany({
       where: {
-        id: assetId,
-        tenantId: user.tenantId
-      }
+        tenantId: user.tenantId,
+        ...(targetIds.length
+          ? { id: { in: targetIds } }
+          : {
+              OR: [
+                { status: 'active' },
+                { status: 'ACTIVE' },
+                { status: 'Active' },
+              ],
+            }),
+      },
     });
 
-    if (!asset) {
+    let list = assets;
+    if (!targetIds.length && list.length === 0) {
+      list = await prisma.asset.findMany({
+        where: {
+          tenantId: user.tenantId,
+          NOT: {
+            OR: [
+              { status: 'disposed' },
+              { status: 'DISPOSED' },
+              { status: 'Disposed' },
+              { status: 'sold' },
+              { status: 'SOLD' },
+            ],
+          },
+        },
+      });
+    }
+
+    if (targetIds.length && list.length === 0) {
+      return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+    }
+    if (!list.length) {
       return NextResponse.json(
-        { error: 'Asset not found' },
+        { error: 'No active assets found to depreciate' },
         { status: 404 }
       );
     }
 
-    // Calculate depreciation based on method
-    const startDate = new Date(periodStart);
-    const endDate = new Date(periodEnd);
-    const daysInPeriod = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-    const daysInYear = 365;
-
-    let depreciationAmount = 0;
-    let remainingValue = asset.originalCost;
-
-    if (asset.depreciationMethod === 'straight_line') {
-      // Straight-line depreciation
-      const annualDepreciation = asset.originalCost / (asset.usefulLifeYears || 1);
-      depreciationAmount = (annualDepreciation * daysInPeriod) / daysInYear;
-    } else if (asset.depreciationMethod === 'declining_balance') {
-      // Declining balance depreciation
-      const rate = 2 / (asset.usefulLifeYears || 1); // Double declining balance
-      const currentValue = asset.originalCost - (asset.accumulatedDepreciation || 0);
-      depreciationAmount = (currentValue * rate * daysInPeriod) / daysInYear;
-    } else {
-      // Default to straight-line
-      const annualDepreciation = asset.originalCost / (asset.usefulLifeYears || 1);
-      depreciationAmount = (annualDepreciation * daysInPeriod) / daysInYear;
+    const results = [];
+    let totalDepreciation = 0;
+    for (const asset of list) {
+      const row = await depreciateOneAsset({
+        user,
+        asset,
+        startDate,
+        endDate,
+        frequency: freq,
+        periodCount: count,
+      });
+      results.push(row);
+      totalDepreciation += row.depreciationAmount || 0;
     }
 
-    // Calculate remaining value
-    const newAccumulatedDepreciation = (asset.accumulatedDepreciation || 0) + depreciationAmount;
-    remainingValue = asset.originalCost - newAccumulatedDepreciation;
-
-    // Create depreciation schedule entry
-    const depreciationSchedule = await prisma.depreciationSchedule.create({
-      data: {
-        assetId: assetId,
-        periodStart: startDate,
-        periodEnd: endDate,
-        depreciationAmount: depreciationAmount,
-        remainingValue: remainingValue,
-        tenantId: user.tenantId
-      }
-    });
-
-    // Update asset with new accumulated depreciation
-    const updatedAsset = await prisma.asset.update({
-      where: { id: assetId },
-      data: {
-        accumulatedDepreciation: newAccumulatedDepreciation
-      }
-    });
-
-    // Stage 5 — post depreciation GL (was register-only)
-    let glResult = null;
-    if (depreciationAmount > 0.01) {
-      try {
-        const { resolvePurposeAccount } = await import(
-          '@/lib/coaV2/application/accountMappingRegistry.js'
-        );
-        const { createAccountingContext } = await import(
-          '@/lib/accountingV2/domain/accountingContext.js'
-        );
-        const { postDepreciationAccounting } = await import(
-          '@/lib/accountingV2/adapters/remainingAdapters.js'
-        );
-        const { postGlEntry } = await import('@/lib/accountingEngine/postGlEntry.js');
-        const ctx = createAccountingContext({
-          businessId: user.tenantId,
-          userId: user.id,
-        });
-        const expenseAcct = await resolvePurposeAccount(ctx, 'DEPRECIATION_EXPENSE');
-        const accumAcct = await resolvePurposeAccount(ctx, 'ACCUMULATED_DEPRECIATION');
-        const amt = Math.round(depreciationAmount * 100) / 100;
-        const lines = [
-          {
-            lineNumber: 1,
-            accountId: expenseAcct.id,
-            debitAmount: amt,
-            creditAmount: 0,
-            description: `Depreciation — ${asset.name}`,
-          },
-          {
-            lineNumber: 2,
-            accountId: accumAcct.id,
-            debitAmount: 0,
-            creditAmount: amt,
-            description: `Accumulated depreciation — ${asset.name}`,
-          },
-        ];
-        const desc = `Depreciation ${asset.name} (${startDate.toISOString().slice(0, 10)}–${endDate.toISOString().slice(0, 10)})`;
-        glResult = (
-          await postDepreciationAccounting({
-            db: prisma,
-            tenantId: user.tenantId,
-            userId: user.id,
-            sourceId: depreciationSchedule.id,
-            amount: amt,
-            date: endDate,
-            description: desc,
-            lines,
-            legacyPost: () =>
-              postGlEntry({
-                tenantId: user.tenantId,
-                userId: user.id,
-                entryDate: endDate,
-                description: desc,
-                sourceType: 'DepreciationSchedule',
-                sourceId: depreciationSchedule.id,
-                lines,
-              }),
-          })
-        ).result;
-      } catch (glErr) {
-        console.error('Depreciation GL posting failed (schedule saved):', glErr?.message || glErr);
-      }
+    // Single-asset response shape (back-compat) + bulk summary for the UI modal
+    if (results.length === 1 && assetId) {
+      return NextResponse.json({
+        message: 'Depreciation calculated successfully',
+        depreciation: results[0],
+        asset: results[0].asset,
+        summary: {
+          assetsProcessed: 1,
+          totalDepreciation,
+          frequency: freq,
+          periodCount: count,
+        },
+      });
     }
 
     return NextResponse.json({
       message: 'Depreciation calculated successfully',
-      depreciation: {
-        assetId: assetId,
+      depreciations: results,
+      summary: {
+        assetsProcessed: results.length,
+        totalDepreciation,
         periodStart: startDate,
         periodEnd: endDate,
-        depreciationAmount: depreciationAmount,
-        accumulatedDepreciation: newAccumulatedDepreciation,
-        remainingValue: remainingValue,
-        depreciationSchedule: depreciationSchedule,
-        journalEntryId: glResult?.journalEntryId || glResult?.id || null,
+        frequency: freq,
+        periodCount: count,
       },
-      asset: updatedAsset
     });
-
   } catch (error) {
     console.error('Error calculating depreciation:', error);
     return NextResponse.json(
@@ -194,46 +304,32 @@ export async function POST(request) {
  */
 export async function GET(request) {
   try {
-    // Check for standard access (trial or paid subscription)
     const accessError = await requireStandardAccess(request);
-    if (accessError) {
-      return accessError;
-    }
+    if (accessError) return accessError;
 
-    // Authenticate user and get tenant ID
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const assetId = searchParams.get('assetId');
 
     if (!assetId) {
-      return NextResponse.json(
-        { error: 'Asset ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Asset ID is required' }, { status: 400 });
     }
 
-    // Fetch depreciation schedules
     const schedules = await prisma.depreciationSchedule.findMany({
       where: {
-        assetId: assetId,
-        tenantId: user.tenantId
+        assetId,
+        tenantId: user.tenantId,
       },
       orderBy: {
-        periodStart: 'desc'
-      }
+        periodStart: 'desc',
+      },
     });
 
-    return NextResponse.json({
-      schedules: schedules
-    });
-
+    return NextResponse.json({ schedules });
   } catch (error) {
     console.error('Error fetching depreciation schedules:', error);
     return NextResponse.json(

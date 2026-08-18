@@ -272,7 +272,7 @@ const TenantDashboard = () => {
         <div className="bg-white p-6 rounded-lg border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">
-              {tenant?.isTrial ? 'Trial Period' : 'Revenue Overview'}
+              {tenant?.isTrial ? tt('Trial Period') : tt('Revenue Overview')}
             </h3>
             <DollarSign className="h-5 w-5 text-green-600" />
           </div>
@@ -368,7 +368,7 @@ const TenantDashboard = () => {
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">{tt('Trial Status')}</span>
               <span className="text-sm text-gray-500">
-                {analytics?.subscriptionMetrics.isTrial ? 'Yes' : 'No'}
+                {analytics?.subscriptionMetrics.isTrial ? tt('Yes') : tt('No')}
               </span>
             </div>
           </div>

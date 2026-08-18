@@ -126,7 +126,7 @@ export default function PlatformReportsPage() {
 
       {!loading && allFailed ? (
         <AdminErrorState
-          title="Reports unavailable"
+          title={tt('Reports unavailable')}
           message={errors.tenants || errors.subscriptions || errors.affiliates}
           onRetry={load}
         />
@@ -149,7 +149,7 @@ export default function PlatformReportsPage() {
               </a>
             </div>
             {errors.tenants ? (
-              <AdminErrorState title="Tenants unavailable" message={errors.tenants} onRetry={load} />
+              <AdminErrorState title={tt('Tenants unavailable')} message={errors.tenants} onRetry={load} />
             ) : (
               <>
                 <AdminSummaryCard
@@ -183,7 +183,7 @@ export default function PlatformReportsPage() {
             </div>
             {errors.subscriptions ? (
               <AdminErrorState
-                title="Subscriptions unavailable"
+                title={tt('Subscriptions unavailable')}
                 message={errors.subscriptions}
                 onRetry={load}
               />
@@ -226,7 +226,7 @@ export default function PlatformReportsPage() {
             </div>
             {errors.affiliates ? (
               <AdminErrorState
-                title="Affiliates unavailable"
+                title={tt('Affiliates unavailable')}
                 message={errors.affiliates}
                 onRetry={load}
               />

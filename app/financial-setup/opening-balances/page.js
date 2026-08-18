@@ -108,7 +108,7 @@ export default function OpeningBalancesPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `opening-balances.${format === "pdf" ? "pdf" : "xlsx"}`;
+      a.download = `opening-balances.${format === "pdf" ? tt('pdf') : tt('xlsx')}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -323,7 +323,7 @@ export default function OpeningBalancesPage() {
                 disabled={!!exporting}
                 className="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
               >
-                {exporting === "xlsx" ? "Exporting…" : "Export Excel"}
+                {exporting === "xlsx" ? tt('Exporting…') : tt('Export Excel')}
               </button>
               <button
                 type="button"
@@ -331,7 +331,7 @@ export default function OpeningBalancesPage() {
                 disabled={!!exporting}
                 className="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
               >
-                {exporting === "pdf" ? "Exporting…" : "Export PDF"}
+                {exporting === "pdf" ? tt('Exporting…') : tt('Export PDF')}
               </button>
               <button
                 onClick={() => setShowHelp(!showHelp)}

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { assertSetupSnapshot } from '@/lib/desktop/setupPayload';
@@ -76,9 +77,9 @@ export default function DesktopSetupPage() {
 
   return (
     <div className="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center px-6 py-16 text-center">
-      <h1 className="text-2xl font-bold text-slate-900">Set up this PC</h1>
+      <h1 className="text-2xl font-bold text-slate-900">{tt('Set up this PC')}</h1>
       <p className="mt-3 text-sm text-slate-600">
-        We will bind this computer to your tenant and download an offline snapshot for POS work.
+        {tt('We will bind this computer to your tenant and download an offline snapshot for POS work.')}
       </p>
 
       {status === 'running' && (
@@ -101,7 +102,7 @@ export default function DesktopSetupPage() {
             onClick={runSetup}
             className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
           >
-            Try again
+            {tt('Try again')}
           </button>
         </div>
       )}

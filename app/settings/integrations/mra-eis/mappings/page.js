@@ -256,7 +256,7 @@ export default function MraEisMappingsPage() {
                   <tr key={s.mraSiteId} className="border-b border-slate-100">
                     <td className="px-3 py-2 font-mono text-xs">{s.mraSiteId}</td>
                     <td className="px-3 py-2">{s.siteName}</td>
-                    <td className="px-3 py-2">{s.active ? 'Yes' : 'No'}</td>
+                    <td className="px-3 py-2">{s.active ? tt('Yes') : tt('No')}</td>
                     <td className="px-3 py-2">{(s.localBranchesMapped || []).length}</td>
                   </tr>
                 ))}

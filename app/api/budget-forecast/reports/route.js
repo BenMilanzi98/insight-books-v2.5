@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withBudgetForecastAuth } from '@/lib/budgetForecast/http';
+import { resolvePeriodFilterRange } from '@/lib/budgetForecast/domain/periodFilter.js';
+import prisma from '@/lib/prisma';
 import {
   listReportDefinitions,
   reportBudgetVsActual,
@@ -39,8 +41,20 @@ export async function POST(request) {
     const body = await request.json();
     const reportId = ID_MAP[body.reportId || body.type] || body.reportId || 'BVA';
     let report;
+    const reportBody = { ...body };
+    if (reportId === 'BVA' && body.budgetId && body.periodKey) {
+      const budget = await prisma.budget.findFirst({
+        where: { id: body.budgetId, tenantId: user.tenantId },
+        select: { startDate: true, endDate: true },
+      });
+      if (budget) {
+        const range = resolvePeriodFilterRange(budget.startDate, budget.endDate, body.periodKey);
+        reportBody.startDate = range.startDate.toISOString();
+        reportBody.endDate = range.endDate.toISOString();
+      }
+    }
     if (reportId === 'BVA') {
-      report = await reportBudgetVsActual(user.tenantId, body);
+      report = await reportBudgetVsActual(user.tenantId, reportBody);
     } else if (reportId === 'BVF') {
       report = await reportBudgetVsForecast(user.tenantId, body);
     } else if (reportId === 'FVA') {

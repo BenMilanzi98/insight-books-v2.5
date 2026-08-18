@@ -118,7 +118,7 @@ export default function TaxCollectedTable({ collectedTaxes, searchTerm = "" }) {
                     <td className="px-6 py-3 whitespace-nowrap pl-12 text-sm">
                       <div className="flex items-center">
                         <span className="text-gray-900">
-                          {item.type === 'invoice' ? 'Invoice' : 'Sale'}: {item.id}
+                          {item.type === 'invoice' ? tt('Invoice') : tt('Sale')}: {item.id}
                         </span>
                       </div>
                     </td>

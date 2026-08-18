@@ -298,7 +298,7 @@ const BulkTaxApplicationModal = ({
                   <div className="border border-gray-300 rounded-md bg-gray-50 max-h-64 overflow-y-auto">
                     {filteredProducts.length === 0 ? (
                       <div className="p-4 text-center text-gray-500">
-                        {searchTerm ? 'No products found matching your search' : 'No products available'}
+                        {searchTerm ? tt('No products found matching your search') : tt('No products available')}
                       </div>
                     ) : (
                       <div className="divide-y divide-gray-200">
@@ -350,7 +350,7 @@ const BulkTaxApplicationModal = ({
                     }
                   </p>
                   <p className="text-xs text-gray-500 mt-2">
-                    This will {applyToAll ? 'replace' : 'apply'} the selected tax(es) to the selected product(s).
+                    This will {applyToAll ? tt('replace') : tt('apply')} the selected tax(es) to the selected product(s).
                   </p>
                 </div>
               </div>

@@ -90,7 +90,7 @@ export default function MraEisTerminalDetailPage() {
             </div>
             <div>
               <dt className="text-slate-500">{tt('Activation confirmed')}</dt>
-              <dd className="font-medium">{health.activationConfirmed ? 'Yes' : 'No'}</dd>
+              <dd className="font-medium">{health.activationConfirmed ? tt('Yes') : tt('No')}</dd>
             </div>
             <div>
               <dt className="text-slate-500">{tt('JWT status')}</dt>
@@ -106,7 +106,7 @@ export default function MraEisTerminalDetailPage() {
             </div>
             <div>
               <dt className="text-slate-500">{tt('Token expiring')}</dt>
-              <dd className="font-medium">{health.tokenExpiring ? 'Yes' : 'No'}</dd>
+              <dd className="font-medium">{health.tokenExpiring ? tt('Yes') : tt('No')}</dd>
             </div>
           </dl>
           {(health.blockers || []).length > 0 && (

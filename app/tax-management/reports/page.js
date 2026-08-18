@@ -27,7 +27,7 @@ export default function TaxReportsPage() {
   return (
     <div className="container mx-auto py-2">
       <PageHeader
-        title="Tax reports"
+        title={tt('Tax reports')}
         description="Operational tax reports with export matching screen filters."
       />
       <div className="mb-6 grid gap-4 md:grid-cols-2">

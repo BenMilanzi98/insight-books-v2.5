@@ -51,7 +51,7 @@ export const ExpenseReport = ({
   
   return (
     <FinancialReport
-      title="Expense Report"
+      title={tt('Expense Report')}
       subtitle={data?.period ? formatPeriodRange(data.period.startDate, data.period.endDate) : "Expense Analysis"}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}
@@ -255,7 +255,7 @@ export const ExpenseReport = ({
           {data.accountLines?.length > 0 && (
             <ReportAccountTable
               lines={data.accountLines}
-              title="Expense & COGS Accounts — General Ledger Detail"
+              title={tt('Expense & COGS Accounts — General Ledger Detail')}
               showOpeningClosing
             />
           )}

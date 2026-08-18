@@ -128,7 +128,7 @@ const ClientModal = ({ isOpen, onClose, onClientCreated }) => {
               ) : (
                 <Save className="w-4 h-4 mr-2" />
               )}
-              Save
+              {tt('Save')}
             </button>
           </div>
         </form>

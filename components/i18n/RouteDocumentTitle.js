@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { Suspense, useEffect } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useI18n } from './I18nProvider';
 import { tt } from '@/lib/i18n/runtime';
+import { findReportByType } from '@/lib/reports/reportCatalog';
 
 /** Longest prefix wins. English titles are translated via tt(). */
 const ROUTE_TITLES = [
@@ -74,6 +75,8 @@ const ROUTE_TITLES = [
   { prefix: '/subscription', title: 'Subscription' },
   { prefix: '/account', title: 'Account' },
   { prefix: '/switch-tenant', title: 'Switch business' },
+  { prefix: '/desktop', title: 'Desktop sync' },
+  { prefix: '/download-app', title: 'Download app' },
   { prefix: '/auth/login', title: 'Log in' },
   { prefix: '/auth/signup', title: 'Sign up' },
   { prefix: '/auth/forgot-password', title: 'Forgot password' },
@@ -81,23 +84,62 @@ const ROUTE_TITLES = [
   { prefix: '/contact', title: 'Contact' },
   { prefix: '/privacy', title: 'Privacy Policy' },
   { prefix: '/terms', title: 'Terms of Service' },
+  { prefix: '/request-demo', title: 'Request a demo' },
+  { prefix: '/start-trial', title: 'Start trial' },
+  { prefix: '/sales-enquiry', title: 'Sales enquiry' },
 ];
 
-export default function RouteDocumentTitle() {
+function stripBrand(title) {
+  return String(title || '')
+    .replace(/\s*[|–—-]\s*InsightBooks.*$/i, '')
+    .trim();
+}
+
+function titleForPath(pathname, searchParams) {
+  if (pathname.startsWith('/reports-v2') || pathname === '/reports') {
+    const type = searchParams?.get('type');
+    const report = findReportByType(type);
+    if (report?.name) return report.name;
+    return 'Reports';
+  }
+  const hit = ROUTE_TITLES.filter(
+    (r) => pathname === r.prefix || pathname.startsWith(`${r.prefix}/`)
+  ).sort((a, b) => b.prefix.length - a.prefix.length)[0];
+  return hit?.title || null;
+}
+
+function brandedTitle(pageTitle) {
+  const translated = tt(pageTitle);
+  if (!translated || translated === 'InsightBooks') return 'InsightBooks';
+  return `${translated} | InsightBooks`;
+}
+
+function RouteDocumentTitleInner() {
   const pathname = usePathname() || '';
+  const searchParams = useSearchParams();
   const { t, locale } = useI18n();
 
   useEffect(() => {
-    const hit = ROUTE_TITLES.filter(
-      (r) => pathname === r.prefix || pathname.startsWith(`${r.prefix}/`)
-    ).sort((a, b) => b.prefix.length - a.prefix.length)[0];
-    if (!hit) return undefined;
+    const mapped = titleForPath(pathname, searchParams);
+    const fallback = stripBrand(typeof document !== 'undefined' ? document.title : '');
+    const pageTitle = mapped || fallback;
+    if (!pageTitle) return undefined;
     const prev = document.title;
-    document.title = `${tt(hit.title)} | InsightBooks`;
+    document.title = brandedTitle(pageTitle);
     return () => {
       document.title = prev;
     };
-  }, [pathname, t, locale]);
+  }, [pathname, searchParams, t, locale]);
 
   return null;
 }
+
+export default function RouteDocumentTitle() {
+  return (
+    <Suspense fallback={null}>
+      <RouteDocumentTitleInner />
+    </Suspense>
+  );
+}
+
+export { titleForPath, brandedTitle, stripBrand };

@@ -394,7 +394,7 @@ export default function PensionManagementPage() {
               disabled={savingSettings || settingsLoading}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {savingSettings ? "Saving..." : "Save Rates"}
+              {savingSettings ? tt('Saving...') : tt('Save Rates')}
             </button>
           </div>
           <p className="text-sm text-gray-600 mb-4">
@@ -663,7 +663,7 @@ export default function PensionManagementPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     disabled={clearingPension || isLoadingPaymentAccounts}
                   >
-                    <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                    <option value="">{isLoadingPaymentAccounts ? tt('Loading accounts...') : tt('Select an account')}</option>
                     {paymentAccounts.map(account => (
                       <option key={account.id} value={account.id}>
                         {account.name} {account.accountType ? `(${account.accountType})` : ''}
@@ -686,7 +686,7 @@ export default function PensionManagementPage() {
                   disabled={clearingPension || selectedClearEmployeeIds.length === 0}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {clearingPension ? "Clearing..." : "Confirm Clear"}
+                  {clearingPension ? tt('Clearing...') : tt('Confirm Clear')}
                 </button>
               </div>
             </div>

@@ -164,7 +164,7 @@ export default function TaxReturnsPage() {
   return (
     <div className="container mx-auto py-2">
       <PageHeader
-        title="Tax returns"
+        title={tt('Tax returns')}
         description="Draft → ready → filed. Filing records status only — it does not auto-journal."
         actions={
           canUpdate ? (

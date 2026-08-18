@@ -92,7 +92,7 @@ export default function SystemMraEisAdminCentrePage() {
 
       {loading ? <AdminLoadingState label="Loading platform overview" /> : null}
       {!loading && error ? (
-        <AdminErrorState title="Overview unavailable" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Overview unavailable')} message={error} onRetry={load} />
       ) : null}
 
       {!loading && !error ? (
@@ -115,7 +115,7 @@ export default function SystemMraEisAdminCentrePage() {
                       label={c.label}
                       value={c.value}
                       error={Boolean(c.error)}
-                      tone={c.error ? 'danger' : 'neutral'}
+                      tone={c.error ? tt('danger') : tt('neutral')}
                     />
                   </li>
                 ))}

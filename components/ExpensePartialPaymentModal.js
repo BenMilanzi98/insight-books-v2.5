@@ -285,7 +285,7 @@ const ExpensePartialPaymentModal = ({
                 required
                 disabled={isSubmitting || isLoadingPaymentAccounts}
               >
-                <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                <option value="">{isLoadingPaymentAccounts ? tt('Loading accounts...') : tt('Select an account')}</option>
                 {paymentAccounts.map(account => (
                   <option key={account.id} value={account.id}>
                     {formatPaymentAccountOptionLabel(account)}
@@ -386,7 +386,7 @@ const ExpensePartialPaymentModal = ({
                 className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isSubmitting || !!error}
               >
-                {isSubmitting ? 'Processing...' : 'Add Payment'}
+                {isSubmitting ? tt('Processing...') : tt('Add Payment')}
               </button>
             </div>
           </form>

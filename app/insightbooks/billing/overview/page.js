@@ -70,7 +70,7 @@ export default function AdminBillingOverviewPage() {
 
       {loading ? <AdminLoadingState label="Loading platform billing" /> : null}
       {!loading && error ? (
-        <AdminErrorState title="Billing overview unavailable" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Billing overview unavailable')} message={error} onRetry={load} />
       ) : null}
 
       {!loading && !error && s ? (

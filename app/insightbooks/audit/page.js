@@ -203,8 +203,8 @@ export default function AuditPage() {
         const failed = String(log.action || '').includes('FAILED')
           || String(log.action || '').includes('UNAUTHORIZED');
         return (
-          <AdminStatusBadge tone={failed ? 'danger' : 'success'}>
-            {failed ? 'Failed' : 'Success'}
+          <AdminStatusBadge tone={failed ? tt('danger') : tt('success')}>
+            {failed ? tt('Failed') : tt('Success')}
           </AdminStatusBadge>
         );
       },
@@ -249,7 +249,7 @@ export default function AuditPage() {
           label="Security events"
           value={loading ? '…' : securityCount}
           icon={AlertTriangle}
-          tone={securityCount > 0 ? 'danger' : 'neutral'}
+          tone={securityCount > 0 ? tt('danger') : tt('neutral')}
         />
       </div>
 
@@ -304,13 +304,11 @@ export default function AuditPage() {
 
       {loading ? <AdminLoadingState label="Loading audit logs" /> : null}
       {!loading && fetchFailed ? (
-        <AdminErrorState title="Audit logs unavailable" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Audit logs unavailable')} message={error} onRetry={load} />
       ) : null}
       {!loading && !fetchFailed && filtered.length === 0 ? (
         <AdminEmptyState
-          title={searchTerm || selectedAction !== 'all' || selectedLogType !== 'all'
-            ? 'No activities match your filters'
-            : 'No audit activity yet'}
+          title={searchTerm || selectedAction !== 'all' || selectedLogType !== 'all' ? tt('No activities match your filters') : tt('No audit activity yet')}
           description="Events appear here when users and admins perform tracked actions."
           icon={Activity}
         />

@@ -176,9 +176,9 @@ export default function MraEisSalesTransmissionPage() {
             <div>
               <dt className="text-slate-500">{tt('Config refresh / Terminal block')}</dt>
               <dd>
-                {selected.transmission.shouldRefreshConfiguration ? 'Refresh required' : 'No refresh'}
+                {selected.transmission.shouldRefreshConfiguration ? tt('Refresh required') : tt('No refresh')}
                 {' · '}
-                {selected.transmission.shouldBlockTerminal ? 'Terminal blocked' : 'Terminal OK'}
+                {selected.transmission.shouldBlockTerminal ? tt('Terminal blocked') : tt('Terminal OK')}
               </dd>
             </div>
           </dl>

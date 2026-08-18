@@ -239,7 +239,7 @@ export default function SubscriptionPaymentPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTrialBadge(subscription.isTrial)}`}>
-                        {subscription.isTrial ? 'Trial' : 'Paid'}
+                        {subscription.isTrial ? tt('Trial') : tt('Paid')}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -261,7 +261,7 @@ export default function SubscriptionPaymentPage() {
                           setShowPaymentModal(true);
                         }}
                         className="text-indigo-600 hover:text-indigo-900 p-2"
-                        title="Process payment"
+                        title={tt('Process payment')}
                       >
                         <CreditCard className="h-4 w-4" />
                       </button>
@@ -332,7 +332,7 @@ export default function SubscriptionPaymentPage() {
                     className="w-full border border-gray-300 rounded-md px-3 py-2"
                     disabled={isLoadingPaymentAccounts}
                   >
-                    <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                    <option value="">{isLoadingPaymentAccounts ? tt('Loading accounts...') : tt('Select an account')}</option>
                     {paymentAccounts.map(account => (
                       <option key={account.id} value={account.id}>
                         {account.name} {account.accountType ? `(${account.accountType})` : ''}

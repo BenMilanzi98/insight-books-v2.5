@@ -96,7 +96,7 @@ export default function SystemHealthPage() {
 
       {loading ? <AdminLoadingState label="Loading system health" /> : null}
       {!loading && error ? (
-        <AdminErrorState title="Health check unavailable" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Health check unavailable')} message={error} onRetry={load} />
       ) : null}
 
       {!loading && !error && data ? (
@@ -170,7 +170,7 @@ export default function SystemHealthPage() {
                     : '—'
               }
               icon={Activity}
-              tone={(data.jobs?.retryableFailedEmails ?? 0) > 0 ? 'warning' : 'neutral'}
+              tone={(data.jobs?.retryableFailedEmails ?? 0) > 0 ? tt('warning') : tt('neutral')}
               error={Boolean(data.jobs?.error)}
             />
           </div>
@@ -192,7 +192,7 @@ export default function SystemHealthPage() {
                 className="inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] border border-[var(--admin-border)] px-3 text-sm font-medium text-[var(--admin-text)] hover:bg-[var(--admin-surface-muted)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <RefreshCw className={`h-4 w-4 ${retrying ? 'animate-spin' : ''}`} aria-hidden />
-                {retrying ? 'Retrying…' : 'Retry failed emails'}
+                {retrying ? tt('Retrying…') : tt('Retry failed emails')}
               </button>
             </div>
             {retryMessage ? (

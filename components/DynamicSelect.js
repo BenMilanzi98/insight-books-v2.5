@@ -145,7 +145,7 @@ const DynamicSelect = ({
                     type="button"
                     onClick={handleAddNew}
                     className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
-                    title="Add new option"
+                    title={tt('Add new option')}
                   >
                     <Plus size={16} />
                   </button>
@@ -166,7 +166,7 @@ const DynamicSelect = ({
                     onClick={handleSaveNew}
                     disabled={!newOption.trim()}
                     className="p-1 text-green-600 hover:text-green-800 hover:bg-green-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Save new option"
+                    title={tt('Save new option')}
                   >
                     <Check size={16} />
                   </button>
@@ -174,7 +174,7 @@ const DynamicSelect = ({
                     type="button"
                     onClick={handleCancelAdd}
                     className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                    title="Cancel"
+                    title={tt('Cancel')}
                   >
                     <X size={16} />
                   </button>

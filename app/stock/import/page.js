@@ -165,7 +165,7 @@ export default function StockBasicImportPage() {
             onClick={runPreview}
             className="rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
-            {busy ? 'Working…' : 'Preview'}
+            {busy ? tt('Working…') : tt('Preview')}
           </button>
           <button
             type="button"
@@ -230,7 +230,7 @@ export default function StockBasicImportPage() {
 
       {result ? (
         <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-          <p className="font-medium">Import {result.idempotent ? 'already completed' : 'posted'}.</p>
+          <p className="font-medium">Import {result.idempotent ? tt('already completed') : tt('posted')}.</p>
           <p className="mt-1">Batch: {result.batchId}</p>
           <p className="mt-1">Items posted: {result.summary?.postedItems ?? result.results?.length ?? 0}</p>
           {result.accountingNote ? <p className="mt-2 text-emerald-800">{result.accountingNote}</p> : null}

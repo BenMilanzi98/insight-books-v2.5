@@ -213,7 +213,7 @@ const COGSSettlementModal = ({ isOpen, onClose, onSettle, isLoading, totalCOGS =
                 }`}
                 disabled={isLoading || isLoadingPaymentAccounts}
               >
-                <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                <option value="">{isLoadingPaymentAccounts ? tt('Loading accounts...') : tt('Select an account')}</option>
                 {paymentAccounts.map(account => (
                   <option key={account.id} value={account.id}>
                     {account.name} {account.accountType ? `(${account.accountType})` : ''}

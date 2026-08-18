@@ -77,7 +77,7 @@ export default function MarketingOverviewView() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Marketing"
+        title={tt('Marketing')}
         description="Campaign governance, taxonomy, and acquisition evidence. Attribution spend and funnels arrive in later waves."
         actions={
           <button type="button" className={btnGhost} onClick={load} disabled={loading}>
@@ -89,7 +89,7 @@ export default function MarketingOverviewView() {
       <MarketingSectionNav />
 
       {loading ? <AdminLoadingState label="Loading marketing overview…" /> : null}
-      {error ? <AdminErrorState title="Unavailable" message={error} onRetry={load} /> : null}
+      {error ? <AdminErrorState title={tt('Unavailable')} message={error} onRetry={load} /> : null}
 
       {!loading && !error && pack ? (
         <div className="space-y-8">

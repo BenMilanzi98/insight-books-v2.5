@@ -97,13 +97,13 @@ export default function AdminImportsPage() {
           disabled={loading || !csvText.trim()}
           className={btnPrimary}
         >
-          {loading ? 'Validating…' : 'Run dry-run'}
+          {loading ? tt('Validating…') : tt('Run dry-run')}
         </button>
       </div>
 
       {error ? (
         <div className="mt-4">
-          <AdminErrorState title="Dry-run failed" message={error} />
+          <AdminErrorState title={tt('Dry-run failed')} message={error} />
         </div>
       ) : null}
 
@@ -124,7 +124,7 @@ export default function AdminImportsPage() {
             </ul>
           ) : (
             <AdminEmptyState
-              title="No validation errors"
+              title={tt('No validation errors')}
               description={`${result.rowCount ?? 0} row(s) validated. Preview shows up to 50 rows.`}
             />
           )}

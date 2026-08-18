@@ -175,7 +175,7 @@ export default function SecurityCompliancePage() {
       {isLoading ? <AdminLoadingState label="Loading compliance" /> : null}
       {!isLoading && loadError && policies.length === 0 && complianceData.overallScore == null ? (
         <AdminErrorState
-          title="Compliance unavailable"
+          title={tt('Compliance unavailable')}
           message={loadError}
           onRetry={fetchComplianceData}
         />
@@ -314,7 +314,7 @@ export default function SecurityCompliancePage() {
                 </ul>
               ) : (
                 <AdminEmptyState
-                  title="No policies found"
+                  title={tt('No policies found')}
                   description="Policies will appear here once the compliance API returns them."
                 />
               )}
@@ -380,7 +380,7 @@ export default function SecurityCompliancePage() {
                 </ul>
               ) : (
                 <AdminEmptyState
-                  title="No audit requirements"
+                  title={tt('No audit requirements')}
                   description="Audit requirements will appear when returned by the API."
                 />
               )}

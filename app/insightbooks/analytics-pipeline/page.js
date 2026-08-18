@@ -103,7 +103,7 @@ export default function AnalyticsPipelinePage() {
             <AdminSummaryCard
               label="Dead letters"
               value={h.outbox?.dead ?? 0}
-              tone={(h.outbox?.dead || 0) > 0 ? 'danger' : 'success'}
+              tone={(h.outbox?.dead || 0) > 0 ? tt('danger') : tt('success')}
             />
             <AdminSummaryCard label="Events" value={h.eventCount ?? 0} />
           </div>
@@ -115,7 +115,7 @@ export default function AnalyticsPipelinePage() {
               disabled={Boolean(busy)}
               onClick={() => runAction('/api/admin/analytics-pipeline/dispatch', 'Dispatch')}
             >
-              {busy === 'Dispatch' ? 'Dispatching…' : 'Dispatch outbox'}
+              {busy === 'Dispatch' ? tt('Dispatching…') : tt('Dispatch outbox')}
             </button>
             <button
               type="button"
@@ -123,7 +123,7 @@ export default function AnalyticsPipelinePage() {
               disabled={Boolean(busy)}
               onClick={() => runAction('/api/admin/analytics-pipeline/consume', 'Consume')}
             >
-              {busy === 'Consume' ? 'Consuming…' : 'Consume → facts'}
+              {busy === 'Consume' ? tt('Consuming…') : tt('Consume → facts')}
             </button>
             <button
               type="button"
@@ -131,7 +131,7 @@ export default function AnalyticsPipelinePage() {
               disabled={Boolean(busy)}
               onClick={() => runAction('/api/admin/analytics-pipeline/reconcile', 'Reconcile')}
             >
-              {busy === 'Reconcile' ? 'Reconciling…' : 'Reconcile payments'}
+              {busy === 'Reconcile' ? tt('Reconciling…') : tt('Reconcile payments')}
             </button>
             <button
               type="button"
@@ -147,7 +147,7 @@ export default function AnalyticsPipelinePage() {
                 }
               }}
             >
-              {busy === 'Backfill' ? 'Backfilling…' : 'Backfill payments'}
+              {busy === 'Backfill' ? tt('Backfilling…') : tt('Backfill payments')}
             </button>
           </div>
 
@@ -189,7 +189,7 @@ export default function AnalyticsPipelinePage() {
                 key: 'status',
                 header: 'Status',
                 render: (r) => (
-                  <AdminStatusBadge tone={r.status === 'MATCH' ? 'success' : 'danger'}>
+                  <AdminStatusBadge tone={r.status === 'MATCH' ? tt('success') : tt('danger')}>
                     {r.status}
                   </AdminStatusBadge>
                 ),

@@ -171,7 +171,7 @@ export default function AdminLogin() {
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                       className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--admin-text-muted,#64748b)] hover:text-[var(--admin-text,#0f172a)]"
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      aria-label={showPassword ? tt('Hide password') : tt('Show password')}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -183,7 +183,7 @@ export default function AdminLogin() {
                   disabled={isLoading}
                   className="inline-flex h-11 w-full items-center justify-center rounded-[var(--admin-radius,0.5rem)] bg-[var(--action-primary,#0f172a)] px-4 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
                 >
-                  {isLoading ? 'Signing in…' : 'Sign in'}
+                  {isLoading ? tt('Signing in…') : tt('Sign in')}
                 </button>
               </form>
             </div>

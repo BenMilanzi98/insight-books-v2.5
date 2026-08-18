@@ -570,7 +570,7 @@ export default function HRReports() {
       <Sidebar />
       <main className="flex-1 p-6">
         <PosStylePageHeader
-          title="HR Reports"
+          title={tt('HR Reports')}
           description="Generate comprehensive HR and payroll reports"
         />
 
@@ -728,7 +728,7 @@ export default function HRReports() {
           )}
           <div className="flex-1">
             <span className="font-semibold block">
-              {notification.type === 'success' ? 'Success' : 'Error'}:
+              {notification.type === 'success' ? tt('Success') : tt('Error')}:
             </span>
             <span>{notification.message}</span>
           </div>

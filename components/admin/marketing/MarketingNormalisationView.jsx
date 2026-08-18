@@ -135,7 +135,7 @@ export default function MarketingNormalisationView() {
             disabled={activatingId === r.id}
             onClick={() => handleActivate(r.id)}
           >
-            {activatingId === r.id ? 'Activating…' : 'Activate'}
+            {activatingId === r.id ? tt('Activating…') : tt('Activate')}
           </button>
         ) : null,
     },
@@ -144,7 +144,7 @@ export default function MarketingNormalisationView() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Source normalisation"
+        title={tt('Source normalisation')}
         description="Versioned rules map raw CRM capture strings to governed taxonomy. ACTIVE rules are immutable."
         actions={
           <button type="button" className={btnGhost} onClick={load} disabled={loading}>
@@ -207,7 +207,7 @@ export default function MarketingNormalisationView() {
           </AdminField>
           <div className="md:col-span-2 flex flex-wrap items-center gap-3">
             <button type="submit" className={btnPrimary} disabled={saving}>
-              {saving ? 'Saving…' : 'Create DRAFT'}
+              {saving ? tt('Saving…') : tt('Create DRAFT')}
             </button>
             {formError ? (
               <p className="text-sm text-[var(--admin-danger)]" role="alert">
@@ -222,7 +222,7 @@ export default function MarketingNormalisationView() {
       {!loading && error ? <AdminErrorState message={error} onRetry={load} /> : null}
       {!loading && !error && items.length === 0 ? (
         <AdminEmptyState
-          title="No normalisation rules"
+          title={tt('No normalisation rules')}
           description="Create a DRAFT rule to map CRM raw source strings to taxonomy codes."
         />
       ) : null}

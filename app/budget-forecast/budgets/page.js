@@ -184,8 +184,8 @@ export default function BudgetsPage() {
   return (
     <PermissionGuard requiredPermission="budgets.view">
       <BfShell
-        title="Budgets"
-        subtitle="Plan revenue and expenses against the Chart of Accounts. Budgets never post to the General Ledger."
+        title={tt('Budgets')}
+        subtitle={tt('Plan revenue and expenses against the Chart of Accounts. Budgets never post to the General Ledger.')}
         actions={
           <BfSecondaryButton type="button" onClick={migrateBf}>
             {tt('Migrate legacy BF data')}
@@ -241,7 +241,7 @@ export default function BudgetsPage() {
                     href={`/budget-forecast/reports?reportId=BVA&budgetId=${c.budgetId}`}
                     className="mt-1 inline-block text-xs font-semibold underline"
                   >
-                    Open Budget vs Actual
+                    {tt('Open Budget vs Actual')}
                   </Link>
                 ) : null}
               </div>
@@ -445,7 +445,7 @@ export default function BudgetsPage() {
               ) : null}
 
               <BfPrimaryButton type="submit" success className="w-full" disabled={creating}>
-                {creating ? 'Creating…' : 'Create draft'}
+                {creating ? tt('Creating…') : tt('Create draft')}
               </BfPrimaryButton>
             </form>
           </PosStylePanel>

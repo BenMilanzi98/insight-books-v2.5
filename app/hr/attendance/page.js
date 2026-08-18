@@ -812,7 +812,7 @@ export default function AttendancePage() {
       )}
 
       <PosStylePageHeader
-        title="Attendance Management"
+        title={tt('Attendance Management')}
         description="Mark employee attendance and record time"
         actions={
           <>
@@ -824,7 +824,7 @@ export default function AttendancePage() {
             />
             <PosStyleHeaderButton type="button" onClick={() => setShowReportSection(!showReportSection)}>
               <FileText size={18} className="mr-2" />
-              {showReportSection ? 'Hide Report' : 'View Report'}
+              {showReportSection ? tt('Hide Report') : tt('View Report')}
             </PosStyleHeaderButton>
             <button
               onClick={() => openModal()}
@@ -1115,7 +1115,7 @@ export default function AttendancePage() {
                                 <button
                                   onClick={() => quickMarkStatus(employee.id, 'Absent')}
                                   className="text-red-600 hover:text-red-900"
-                                  title="Mark Absent"
+                                  title={tt('Mark Absent')}
                                 >
                                   <XCircle size={18} />
                                 </button>
@@ -1127,7 +1127,7 @@ export default function AttendancePage() {
                                   <button
                                     onClick={() => quickClockOut(employee.id)}
                                     className="text-orange-600 hover:text-orange-900"
-                                    title="Clock Out"
+                                    title={tt('Clock Out')}
                                   >
                                     <Clock size={18} />
                                   </button>
@@ -1135,14 +1135,14 @@ export default function AttendancePage() {
                                 <button
                                   onClick={() => openModal(record)}
                                   className="text-blue-600 hover:text-blue-900"
-                                  title="Edit"
+                                  title={tt('Edit')}
                                 >
                                   <Edit size={18} />
                                 </button>
                                 <button
                                   onClick={() => deleteRecord(record)}
                                   className="text-red-600 hover:text-red-900"
-                                  title="Delete"
+                                  title={tt('Delete')}
                                 >
                                   <Trash2 size={18} />
                                 </button>
@@ -1166,7 +1166,7 @@ export default function AttendancePage() {
                                   openModal(null, true); // Preserve the formData we just set
                                 }}
                                 className="text-blue-600 hover:text-blue-900"
-                                title="Clock In Now"
+                                title={tt('Clock In Now')}
                               >
                                 <Clock size={18} />
                               </button>
@@ -1190,7 +1190,7 @@ export default function AttendancePage() {
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold">
-                  {editingRecord ? 'Edit Attendance' : 'Add Attendance Record'}
+                  {editingRecord ? tt('Edit Attendance') : tt('Add Attendance Record')}
                 </h2>
                 <button
                   onClick={() => setShowModal(false)}
@@ -1272,7 +1272,7 @@ export default function AttendancePage() {
                           setFormData({ ...formData, clockIn: localDateTime });
                         }}
                         className="px-3 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-md hover:bg-blue-100 text-sm whitespace-nowrap"
-                        title="Set to current time"
+                        title={tt('Set to current time')}
                       >
                         {tt('Now')}
                       </button>
@@ -1297,7 +1297,7 @@ export default function AttendancePage() {
                           setFormData({ ...formData, clockOut: localDateTime });
                         }}
                         className="px-3 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-md hover:bg-blue-100 text-sm whitespace-nowrap"
-                        title="Set to current time"
+                        title={tt('Set to current time')}
                       >
                         {tt('Now')}
                       </button>
@@ -1323,7 +1323,7 @@ export default function AttendancePage() {
                         formData.clockIn && formData.clockOut ? 'bg-gray-50' : ''
                       }`}
                       placeholder="8.0"
-                      title={formData.clockIn && formData.clockOut ? 'Auto-calculated from Clock In/Out times. You can manually override if needed.' : 'Enter hours worked or set Clock In/Out to auto-calculate'}
+                      title={formData.clockIn && formData.clockOut ? tt('Auto-calculated from Clock In/Out times. You can manually override if needed.') : tt('Enter hours worked or set Clock In/Out to auto-calculate')}
                     />
                   </div>
                   <div>
@@ -1343,7 +1343,7 @@ export default function AttendancePage() {
                         formData.clockIn && formData.clockOut ? 'bg-gray-50' : ''
                       }`}
                       placeholder="0.0"
-                      title={formData.clockIn && formData.clockOut ? 'Auto-calculated from Clock In/Out times. You can manually override if needed.' : 'Enter overtime hours or set Clock In/Out to auto-calculate'}
+                      title={formData.clockIn && formData.clockOut ? tt('Auto-calculated from Clock In/Out times. You can manually override if needed.') : tt('Enter overtime hours or set Clock In/Out to auto-calculate')}
                     />
                   </div>
                 </div>
@@ -1373,7 +1373,7 @@ export default function AttendancePage() {
                     type="submit"
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                   >
-                    {editingRecord ? 'Update' : 'Save'}
+                    {editingRecord ? tt('Update') : tt('Save')}
                   </button>
                 </div>
               </form>

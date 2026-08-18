@@ -78,7 +78,7 @@ export default function TaxSettingsHubPage() {
   return (
     <div className="container mx-auto py-2">
       <PageHeader
-        title="Tax settings"
+        title={tt('Tax settings')}
         description="Purpose → chart of accounts mappings used by tax posting (Wave 3)."
       />
 
@@ -137,7 +137,7 @@ export default function TaxSettingsHubPage() {
               disabled={saving}
               className="w-full rounded-[var(--radius-sm)] bg-[var(--brand-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              {saving ? "Saving…" : "Save mapping"}
+              {saving ? tt('Saving…') : tt('Save mapping')}
             </button>
           </div>
         </form>

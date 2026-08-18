@@ -119,7 +119,7 @@ export default function AdminGlobalSettingsPage() {
               className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--action-primary)] px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
             >
               <Save className="h-4 w-4" aria-hidden />
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? tt('Saving…') : tt('Save')}
             </button>
           </div>
         }
@@ -133,7 +133,7 @@ export default function AdminGlobalSettingsPage() {
 
       {loading ? <AdminLoadingState label="Loading settings" /> : null}
       {!loading && error ? (
-        <AdminErrorState title="Settings unavailable" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Settings unavailable')} message={error} onRetry={load} />
       ) : null}
       {success ? (
         <p className="mb-4 rounded-[var(--radius-md)] bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">

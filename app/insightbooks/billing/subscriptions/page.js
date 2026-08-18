@@ -456,8 +456,8 @@ export default function AdminSubscriptions() {
       key: 'isTrial',
       header: 'Trial',
       render: (subscription) => (
-        <AdminStatusBadge tone={subscription.isTrial ? 'info' : 'neutral'}>
-          {subscription.isTrial ? 'Trial' : 'Paid'}
+        <AdminStatusBadge tone={subscription.isTrial ? tt('info') : tt('neutral')}>
+          {subscription.isTrial ? tt('Trial') : tt('Paid')}
         </AdminStatusBadge>
       ),
     },
@@ -484,7 +484,7 @@ export default function AdminSubscriptions() {
             type="button"
             onClick={() => openEditModal(subscription)}
             className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-surface-muted)] hover:text-[var(--admin-text)]"
-            title="Edit subscription"
+            title={tt('Edit subscription')}
             aria-label={tt('Edit subscription')}
           >
             <Edit className="h-4 w-4" />
@@ -493,7 +493,7 @@ export default function AdminSubscriptions() {
             type="button"
             onClick={() => openDeleteModal(subscription)}
             className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-danger)] hover:bg-[var(--admin-surface-muted)]"
-            title="Delete subscription"
+            title={tt('Delete subscription')}
             aria-label={tt('Delete subscription')}
           >
             <Trash2 className="h-4 w-4" />
@@ -594,7 +594,7 @@ export default function AdminSubscriptions() {
 
           {!error && pagedSubscriptions.length === 0 ? (
             <AdminEmptyState
-              title={subscriptions.length === 0 ? 'No subscriptions found' : 'No subscriptions match your filters'}
+              title={subscriptions.length === 0 ? tt('No subscriptions found') : tt('No subscriptions match your filters')}
               description="Adjust filters or add a new subscription."
               action={
                 <button type="button" onClick={() => setShowAddModal(true)} className={btnPrimary}>
@@ -1183,7 +1183,7 @@ export default function AdminSubscriptions() {
                 <button
                   onClick={fetchEISSubscriptions}
                   className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                  title="Refresh"
+                  title={tt('Refresh')}
                 >
                   <RefreshCw className="h-4 w-4" />
                 </button>
@@ -1231,7 +1231,7 @@ export default function AdminSubscriptions() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${subscription.planType === 'monthly' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
-                            {subscription.planType === 'monthly' ? 'Monthly' : 'Yearly'}
+                            {subscription.planType === 'monthly' ? tt('Monthly') : tt('Yearly')}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -1253,11 +1253,11 @@ export default function AdminSubscriptions() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex space-x-2">
-                            <button onClick={() => openEISViewModal(subscription)} className="text-indigo-600 hover:text-indigo-900 p-1" title="View details">
+                            <button onClick={() => openEISViewModal(subscription)} className="text-indigo-600 hover:text-indigo-900 p-1" title={tt('View details')}>
                               <Eye className="h-4 w-4" />
                             </button>
                             {subscription.isActive && (
-                              <button onClick={() => openEISDeactivateModal(subscription)} className="text-red-600 hover:text-red-900 p-1" title="Deactivate">
+                              <button onClick={() => openEISDeactivateModal(subscription)} className="text-red-600 hover:text-red-900 p-1" title={tt('Deactivate')}>
                                 <X className="h-4 w-4" />
                               </button>
                             )}
@@ -1369,7 +1369,7 @@ export default function AdminSubscriptions() {
                   <div><p className="text-sm text-gray-500">{tt('Tenant')}</p><p className="font-medium">{selectedSubscription.tenant?.name}</p></div>
                   <div><p className="text-sm text-gray-500">{tt('Subdomain')}</p><p className="font-medium">{selectedSubscription.tenant?.subdomain}</p></div>
                   <div><p className="text-sm text-gray-500">TPIN</p><p className="font-medium">{selectedSubscription.tenant?.tpin || '-'}</p></div>
-                  <div><p className="text-sm text-gray-500">{tt('Plan')}</p><p className="font-medium">{selectedSubscription.planType === 'monthly' ? 'Monthly' : 'Yearly'}</p></div>
+                  <div><p className="text-sm text-gray-500">{tt('Plan')}</p><p className="font-medium">{selectedSubscription.planType === 'monthly' ? tt('Monthly') : tt('Yearly')}</p></div>
                   <div><p className="text-sm text-gray-500">{tt('Status')}</p><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(selectedSubscription.status)}`}>{selectedSubscription.status}</span></div>
                   <div><p className="text-sm text-gray-500">{tt('Amount')}</p><p className="font-medium">{selectedSubscription.currency} {(selectedSubscription.amount || 0).toLocaleString()}</p></div>
                   <div><p className="text-sm text-gray-500">{tt('Started')}</p><p className="font-medium">{selectedSubscription.startedAt ? new Date(selectedSubscription.startedAt).toLocaleDateString() : '-'}</p></div>

@@ -370,7 +370,7 @@ export default function SystemLedgerCoaTable({
                 type="button"
                 onClick={() => onViewAccount?.(synth)}
                 className="touch-manipulation rounded-md p-2.5 text-slate-500 transition-colors hover:bg-white hover:text-slate-900 sm:p-2"
-                title="View GL breakdown for postings on this parent code"
+                title={tt('View GL breakdown for postings on this parent code')}
               >
                 <Eye size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
               </button>
@@ -379,7 +379,7 @@ export default function SystemLedgerCoaTable({
                   type="button"
                   disabled
                   className="touch-manipulation cursor-not-allowed rounded-md p-2.5 text-slate-200 sm:p-2"
-                  title="System-generated row — not editable"
+                  title={tt('System-generated row — not editable')}
                 >
                   <Edit size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
                 </button>
@@ -388,7 +388,7 @@ export default function SystemLedgerCoaTable({
                 type="button"
                 disabled
                 className="touch-manipulation cursor-not-allowed rounded-md p-2.5 text-slate-200 sm:p-2"
-                title="System-generated row — merge not available"
+                title={tt('System-generated row — merge not available')}
               >
                 <GitMerge size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
               </button>
@@ -397,7 +397,7 @@ export default function SystemLedgerCoaTable({
                   type="button"
                   disabled
                   className="touch-manipulation cursor-not-allowed rounded-md p-2.5 text-slate-200 sm:p-2"
-                  title="System-generated row — cannot delete"
+                  title={tt('System-generated row — cannot delete')}
                 >
                   <Trash2 size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
                 </button>
@@ -579,7 +579,7 @@ export default function SystemLedgerCoaTable({
                 onClick={() => primary && onViewAccount?.(primary)}
                 disabled={!primary}
                 className={`touch-manipulation rounded-md p-2.5 sm:p-2 ${!primary ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 transition-colors hover:bg-white hover:text-slate-900'}`}
-                title={primary ? 'View details' : 'No ledger row for this code yet'}
+                title={primary ? tt('View details') : tt('No ledger row for this code yet')}
               >
                 <Eye size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
               </button>
@@ -618,7 +618,7 @@ export default function SystemLedgerCoaTable({
                   type="button"
                   onClick={() => primary && onDeleteAccount?.(primary.id)}
                   className={`touch-manipulation rounded-md p-2.5 transition-colors sm:p-2 ${!primary || isLocked ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 hover:bg-white hover:text-rose-600'}`}
-                  title={!primary ? 'No ledger row' : isLocked ? 'Account in use or system account' : 'Delete or deactivate'}
+                  title={!primary ? 'No ledger row' : isLocked ? tt('Account in use or system account') : tt('Delete or deactivate')}
                   disabled={!primary || isLocked}
                 >
                   <Trash2 size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
@@ -662,11 +662,11 @@ export default function SystemLedgerCoaTable({
           ) : null}
           {showExpandToolbar && accounts.length > 0 ? (
             <div className="flex flex-wrap justify-end gap-2 border-b border-slate-100/90 bg-slate-50/50 px-3 py-2 sm:px-4">
-              <button type="button" onClick={handleExpandAll} className={coaBtnSecondary} title="Expand all rows">
+              <button type="button" onClick={handleExpandAll} className={coaBtnSecondary} title={tt('Expand all rows')}>
                 <ChevronsDownUp size={17} strokeWidth={2} />
                 {tt('Expand all')}
               </button>
-              <button type="button" onClick={handleCollapseToRoots} className={coaBtnSecondary} title="Collapse to main categories">
+              <button type="button" onClick={handleCollapseToRoots} className={coaBtnSecondary} title={tt('Collapse to main categories')}>
                 <ChevronsUpDown size={17} strokeWidth={2} />
                 {tt('Main only')}
               </button>

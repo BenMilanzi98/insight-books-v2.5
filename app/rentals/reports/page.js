@@ -86,7 +86,7 @@ export default function RentalReportsPage() {
   return (
     <main className="min-h-full p-4 sm:p-6 lg:p-8">
       <PosStylePageHeader
-        title="Rental reports"
+        title={tt('Rental reports')}
         description="Revenue, operational usage, repairs, and supplier hire cost."
       />
 
@@ -110,7 +110,7 @@ export default function RentalReportsPage() {
             </select>
           </label>
           <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60" disabled={loading} type="submit">
-            {loading ? 'Loading…' : 'Apply filters'}
+            {loading ? tt('Loading…') : tt('Apply filters')}
           </button>
         </form>
       </PosStylePanel>
@@ -119,7 +119,7 @@ export default function RentalReportsPage() {
 
       <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {metrics.map(([label, value, detail]) => (
-          <PosStylePanel key={label} className="p-4" accent={label === 'Reversals' ? 'rose' : label === 'Revenue' ? 'green' : 'default'}>
+          <PosStylePanel key={label} className="p-4" accent={label === 'Reversals' ? 'rose' : label === 'Revenue' ? tt('green') : tt('default')}>
             <p className="text-sm font-medium text-gray-600">{label}</p>
             <p className="mt-1 text-2xl font-bold text-[var(--text-primary)]">{value}</p>
             <p className="mt-1 text-xs text-gray-500">{detail}</p>

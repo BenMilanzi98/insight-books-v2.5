@@ -181,7 +181,7 @@ const ClientSearchCombobox = ({
             ))
           ) : (
             <div className="px-4 py-2 text-sm text-gray-500">
-              {searchQuery.trim() ? "No clients found" : "No clients available"}
+              {searchQuery.trim() ? tt('No clients found') : tt('No clients available')}
             </div>
           )}
           

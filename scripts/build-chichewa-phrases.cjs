@@ -106,6 +106,11 @@ function loadExtracted() {
 }
 
 const phrases = Object.create(null);
+const outDir = path.join(root, 'locales', 'phrases');
+const existingPath = path.join(outDir, 'ny.json');
+if (fs.existsSync(existingPath)) {
+  Object.assign(phrases, JSON.parse(fs.readFileSync(existingPath, 'utf8')));
+}
 harvestCatalogues(phrases);
 applyExact(phrases);
 
@@ -119,7 +124,6 @@ for (const text of loadExtracted()) {
   }
 }
 
-const outDir = path.join(root, 'locales', 'phrases');
 fs.mkdirSync(outDir, { recursive: true });
 const sorted = {};
 for (const k of Object.keys(phrases).sort((a, b) => a.localeCompare(b))) {

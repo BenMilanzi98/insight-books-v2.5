@@ -411,17 +411,17 @@ export default function AffiliatePage() {
       header: 'Actions',
       render: (a) => (
         <div className="flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <IconBtn title="Copy referral link" onClick={() => copyAffiliateLink(a.affiliateCode)}>
+          <IconBtn title={tt('Copy referral link')} onClick={() => copyAffiliateLink(a.affiliateCode)}>
             <Copy className="h-4 w-4" />
           </IconBtn>
-          <IconBtn title="View details" onClick={() => setDetails(a)}>
+          <IconBtn title={tt('View details')} onClick={() => setDetails(a)}>
             <Eye className="h-4 w-4" />
           </IconBtn>
-          <IconBtn title="Edit" onClick={() => openEdit(a)}>
+          <IconBtn title={tt('Edit')} onClick={() => openEdit(a)}>
             <Pencil className="h-4 w-4" />
           </IconBtn>
           <IconBtn
-            title="Set password"
+            title={tt('Set password')}
             onClick={() => {
               setPasswordTarget(a);
               setPasswordData({ password: '', confirmPassword: '', notifyAffiliate: true });
@@ -430,7 +430,7 @@ export default function AffiliatePage() {
             <Lock className="h-4 w-4" />
           </IconBtn>
           <IconBtn
-            title="Delete"
+            title={tt('Delete')}
             onClick={() => setConfirmDelete(a)}
           >
             <Trash2 className="h-4 w-4 text-[var(--admin-danger)]" />
@@ -513,11 +513,11 @@ export default function AffiliatePage() {
 
       {loading ? <AdminLoadingState label="Loading affiliates" /> : null}
       {!loading && error && affiliates.length === 0 ? (
-        <AdminErrorState title="Affiliate list unavailable" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Affiliate list unavailable')} message={error} onRetry={load} />
       ) : null}
       {!loading && !error && filtered.length === 0 ? (
         <AdminEmptyState
-          title={searchTerm || selectedStatus !== 'all' ? 'No affiliates match your filters' : 'No affiliates yet'}
+          title={searchTerm || selectedStatus !== 'all' ? tt('No affiliates match your filters') : tt('No affiliates yet')}
           description="Add an affiliate to start tracking referrals and commissions."
           icon={Users}
           action={
@@ -576,14 +576,14 @@ export default function AffiliatePage() {
       <AdminModal
         open={formOpen}
         onClose={closeForm}
-        title={editing ? 'Edit affiliate' : 'Add affiliate'}
+        title={editing ? tt('Edit affiliate') : tt('Add affiliate')}
         footer={
           <>
             <button type="button" onClick={closeForm} className={btnGhost} disabled={actionLoading}>
               {tt('Cancel')}
             </button>
             <button type="submit" form="affiliate-form" className={btnPrimary} disabled={actionLoading}>
-              {actionLoading ? 'Saving…' : editing ? 'Update' : 'Add'}
+              {actionLoading ? 'Saving…' : editing ? tt('Update') : tt('Add')}
             </button>
           </>
         }
@@ -698,7 +698,7 @@ export default function AffiliatePage() {
       <AdminModal
         open={Boolean(details)}
         onClose={() => setDetails(null)}
-        title="Affiliate details"
+        title={tt('Affiliate details')}
         footer={
           <button type="button" onClick={() => setDetails(null)} className={btnGhost}>
             {tt('Close')}
@@ -754,7 +754,7 @@ export default function AffiliatePage() {
                   readOnly
                   value={typeof window !== 'undefined' ? `${window.location.origin}/ref/${details.affiliateCode}` : ''}
                 />
-                <IconBtn title="Copy link" onClick={() => copyAffiliateLink(details.affiliateCode)}>
+                <IconBtn title={tt('Copy link')} onClick={() => copyAffiliateLink(details.affiliateCode)}>
                   <Copy className="h-4 w-4" />
                 </IconBtn>
               </div>
@@ -773,7 +773,7 @@ export default function AffiliatePage() {
               {tt('Cancel')}
             </button>
             <button type="submit" form="aff-password-form" className={btnPrimary} disabled={actionLoading}>
-              {actionLoading ? 'Saving…' : 'Set password'}
+              {actionLoading ? tt('Saving…') : tt('Set password')}
             </button>
           </>
         }
@@ -810,7 +810,7 @@ export default function AffiliatePage() {
 
       <AdminConfirmationDialog
         open={Boolean(confirmDelete)}
-        title="Delete affiliate"
+        title={tt('Delete affiliate')}
         description={confirmDelete ? `Delete ${confirmDelete.name}? This cannot be undone.` : ''}
         confirmLabel="Delete"
         tone="danger"

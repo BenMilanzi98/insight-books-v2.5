@@ -285,7 +285,7 @@ export default function VoidRefundDemoPage() {
                         <button
                           onClick={() => openVoidModal(invoice)}
                           className="text-orange-600 hover:text-orange-900 bg-orange-100 hover:bg-orange-200 px-3 py-1 rounded-md text-xs font-medium transition-colors"
-                          title="Void Invoice"
+                          title={tt('Void Invoice')}
                         >
                           {tt('Void')}
                         </button>
@@ -297,7 +297,7 @@ export default function VoidRefundDemoPage() {
                         <button
                           onClick={() => openRefundModal(invoice)}
                           className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-3 py-1 rounded-md text-xs font-medium transition-colors"
-                          title="Process Refund"
+                          title={tt('Process Refund')}
                         >
                           {tt('Refund')}
                         </button>

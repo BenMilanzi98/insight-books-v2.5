@@ -437,7 +437,7 @@ const InvoicingPage = () => {
         pendingSendAttachmentsRef.current = [];
         pendingSendOtherEmailsRef.current = [];
         const isPaid = captureInvoiceData.invoice.status === 'Paid';
-        setSuccessMessage(`${isPaid ? 'Payment confirmation' : 'Invoice'} sent successfully`);
+        setSuccessMessage(`${isPaid ? tt('Payment confirmation') : tt('Invoice')} sent successfully`);
         if (result.statusUpdated) loadInvoices();
       } catch (error) {
         console.error("Error in post-capture process:", error);
@@ -751,7 +751,7 @@ const InvoicingPage = () => {
         )}
 
         <PageHeader
-          title="Invoices"
+          title={tt('Invoices')}
           description="Manage and track all your invoices"
           actions={
             <>
@@ -1014,9 +1014,7 @@ const InvoicingPage = () => {
               <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{tt('No invoices found')}</h3>
               <p className="text-gray-500 mb-6">
-                {activeTab !== "all" || searchQuery 
-                  ? "Try adjusting your filters or search query"
-                  : "Get started by creating your first invoice"}
+                {activeTab !== "all" || searchQuery ? tt('Try adjusting your filters or search query') : tt('Get started by creating your first invoice')}
               </p>
               {pagePermissions.canCreateInvoices && (
                 <button 
@@ -1083,14 +1081,14 @@ const InvoicingPage = () => {
                           <div className="flex items-center justify-end gap-1">
                             <button 
                               className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                              title="Preview"
+                              title={tt('Preview')}
                               onClick={() => handlePreviewInvoice(invoice)}
                             >
                               <Eye size={16} />
                             </button>
                             <button 
                               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
-                              title="Download"
+                              title={tt('Download')}
                               onClick={() => handleDownload(invoice.id)}
                             >
                               <Printer size={16} />
@@ -1098,7 +1096,7 @@ const InvoicingPage = () => {
                             {pagePermissions.canSendInvoices && (
                               <button
                                 className={`p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all ${isCapturingPdf ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                title={isCapturingPdf ? "Sending..." : invoice.status === 'Paid' ? "Send Payment Confirmation" : "Send Invoice"}
+                                title={isCapturingPdf ? "Sending..." : invoice.status === 'Paid' ? tt('Send Payment Confirmation') : tt('Send Invoice')}
                                 onClick={() => handleSendInvoice(invoice)}
                                 disabled={isCapturingPdf}
                               >
@@ -1108,7 +1106,7 @@ const InvoicingPage = () => {
                             {invoice.status === 'Draft' && pagePermissions.canUpdateInvoices && (
                               <button 
                                 className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
-                                title="Edit"
+                                title={tt('Edit')}
                                 onClick={() => openEditInvoiceModal(invoice)}
                               >
                                 <Edit size={16} />
@@ -1117,7 +1115,7 @@ const InvoicingPage = () => {
                             {(invoice.status === 'Draft' || invoice.status === 'Pending') && pagePermissions.canDeleteInvoices && (
                               <button 
                                 className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                title="Delete"
+                                title={tt('Delete')}
                                 onClick={() => handleDeleteInvoice(invoice.id)}
                               >
                                 <Trash2 size={16} />
@@ -1127,7 +1125,7 @@ const InvoicingPage = () => {
                              !invoice.payments?.some(p => p.status === 'Completed') && pagePermissions.canUpdateInvoices && (
                               <button 
                                 className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
-                                title="Void Invoice"
+                                title={tt('Void Invoice')}
                                 onClick={() => openVoidModal(invoice)}
                               >
                                 <Ban size={16} />
@@ -1137,7 +1135,7 @@ const InvoicingPage = () => {
                              invoice.payments?.some(p => p.status === 'Completed') && pagePermissions.canUpdateInvoices && (
                               <button 
                                 className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                title="Process Refund"
+                                title={tt('Process Refund')}
                                 onClick={() => openRefundModal(invoice)}
                               >
                                 <RotateCcw size={16} />
@@ -1146,7 +1144,7 @@ const InvoicingPage = () => {
                             {isEligibleForPartialPayment(invoice) && pagePermissions.canUpdateInvoices && (
                               <button 
                                 className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                                title="Record Payment"
+                                title={tt('Record Payment')}
                                 onClick={() => handlePartialPayment(invoice)}
                               >
                                 <CreditCard size={16} />
@@ -1155,7 +1153,7 @@ const InvoicingPage = () => {
                             {invoice.payments && invoice.payments.length > 0 && (
                               <button 
                                 className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                title="Payment History"
+                                title={tt('Payment History')}
                                 onClick={() => togglePaymentHistory(invoice)}
                               >
                                 <FileText size={16} />

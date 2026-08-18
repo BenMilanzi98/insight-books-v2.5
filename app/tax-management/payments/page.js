@@ -85,7 +85,7 @@ export default function TaxPaymentsPage() {
   return (
     <div className="container mx-auto py-2">
       <PageHeader
-        title="Tax payments"
+        title={tt('Tax payments')}
         description="Settlements post via V2 (Dr tax payable / Cr bank) and dual-write into this register."
         actions={
           canSettle ? (

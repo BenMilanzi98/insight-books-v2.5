@@ -69,7 +69,7 @@ export default function TaxReconciliationPage() {
   return (
     <div className="container mx-auto py-2">
       <PageHeader
-        title="Tax reconciliation"
+        title={tt('Tax reconciliation')}
         description="Subledger ↔ GL, return ↔ transactions, reversal journal linkage."
         actions={
           <button

@@ -1,11 +1,12 @@
 import React from 'react';
+import { tx } from '@/lib/i18n/runtime';
 import { 
   Camera, Upload, RefreshCw, BarChart, Users, Building2, 
   CreditCard, Settings, FileText, DollarSign, Edit, Mail 
 } from 'lucide-react';
 
 const QuickActions = ({ 
-  title = "Quick Actions", 
+  title = {tt('Quick Actions')}, 
   actions = [], 
   columns = 4, 
   variant = "default",
@@ -65,7 +66,7 @@ const QuickActions = ({
     <div className={`rounded-lg p-6 ${styles.container} ${className}`}>
       {title && (
         <h3 className={`mb-6 ${styles.title} animate-fade-in`}>
-          {title}
+          {tx(title)}
         </h3>
       )}
       
@@ -76,8 +77,8 @@ const QuickActions = ({
             className={`group relative overflow-hidden rounded-lg p-4 cursor-pointer transition-all duration-300 transform hover:scale-105 ${styles.action} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 animate-fade-in-up`}
             onClick={() => onActionClick?.(action)}
             style={{ animationDelay: `${index * 100}ms` }}
-            aria-label={action.title}
-            title={action.description}
+            aria-label={tx(action.title)}
+            title={tx(action.description)}
           >
             <div className="relative z-10 text-left">
               <div className="flex items-center mb-3">
@@ -85,13 +86,13 @@ const QuickActions = ({
                   {getIconComponent(action.icon)}
                 </div>
                 <h4 className="font-medium text-gray-900 group-hover:text-blue-900 transition-colors duration-200">
-                  {action.title}
+                  {tx(action.title)}
                 </h4>
               </div>
               
               {action.description && (
                 <p className="text-sm text-gray-600 group-hover:text-gray-700 transition-colors duration-200">
-                  {action.description}
+                  {tx(action.description)}
                 </p>
               )}
               

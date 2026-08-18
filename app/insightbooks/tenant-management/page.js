@@ -236,11 +236,11 @@ export default function TenantManagementPage() {
 
       {loading ? <AdminLoadingState label="Loading tenants" /> : null}
       {!loading && error ? (
-        <AdminErrorState title="Tenant list unavailable" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Tenant list unavailable')} message={error} onRetry={load} />
       ) : null}
       {!loading && !error && filtered.length === 0 ? (
         <AdminEmptyState
-          title="No tenants match"
+          title={tt('No tenants match')}
           description="Adjust filters or create a new tenant."
           action={
             <button
@@ -385,7 +385,7 @@ export default function TenantManagementPage() {
       <AdminModal
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        title="Create tenant"
+        title={tt('Create tenant')}
         footer={
           <>
             <button
@@ -401,7 +401,7 @@ export default function TenantManagementPage() {
               disabled={creating}
               className="rounded-[var(--admin-radius)] bg-[var(--action-primary)] px-3 py-2 text-sm text-white disabled:opacity-60"
             >
-              {creating ? 'Creating…' : 'Create'}
+              {creating ? tt('Creating…') : tt('Create')}
             </button>
           </>
         }

@@ -227,7 +227,7 @@ export default function CreditDebitNotesPage() {
             onClick={refetch}
             disabled={loading}
             className="p-2 rounded-md border border-gray-300 hover:bg-gray-50"
-            title="Refresh"
+            title={tt('Refresh')}
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </button>
@@ -518,7 +518,7 @@ function CreateNoteModal({ isCredit, clients, onClose, onSuccess }) {
                 type="text"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder={isCredit ? "e.g. Returned goods, discount" : "e.g. Undercharged, extra services"}
+                placeholder={isCredit ? tt('e.g. Returned goods, discount') : tt('e.g. Undercharged, extra services')}
                 required
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               />
@@ -562,7 +562,7 @@ function CreateNoteModal({ isCredit, clients, onClose, onSuccess }) {
                 disabled={submitting}
                 className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
               >
-                {submitting ? "Creating…" : "Create"}
+                {submitting ? tt('Creating…') : tt('Create')}
               </button>
             </div>
           </form>
@@ -580,7 +580,7 @@ function DetailModal({ note, isCredit, onClose, onPostToLedger, posting, canPost
         <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">
-              {isCredit ? "Credit" : "Debit"} Note – {note.noteNumber}
+              {isCredit ? tt('Credit') : tt('Debit')} Note – {note.noteNumber}
             </h2>
             <button onClick={onClose} className="p-1 rounded hover:bg-gray-100">
               <X className="h-5 w-5" />
@@ -646,7 +646,7 @@ function DetailModal({ note, isCredit, onClose, onPostToLedger, posting, canPost
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
               >
                 <FileCheck className="h-4 w-4" />
-                {posting ? "Posting…" : "Post to ledger"}
+                {posting ? tt('Posting…') : tt('Post to ledger')}
               </button>
               <p className="mt-2 text-xs text-gray-500">
                 Posts journal entry (AR and revenue) and marks this note as Posted.

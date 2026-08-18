@@ -338,7 +338,7 @@ export default function MraEisMigrationPage() {
                       <td className="py-2 pr-3">{s.name}</td>
                       <td className="py-2 pr-3 font-mono text-xs">{s.sourceType}</td>
                       <td className="py-2 pr-3">{s.environmentClassification}</td>
-                      <td className="py-2 pr-3">{s.readOnlyVerified ? 'Yes' : 'No'}</td>
+                      <td className="py-2 pr-3">{s.readOnlyVerified ? tt('Yes') : tt('No')}</td>
                       <td className="py-2">{s.status}</td>
                     </tr>
                   ))}

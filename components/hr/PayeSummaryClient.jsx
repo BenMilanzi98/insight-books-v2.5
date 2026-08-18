@@ -250,7 +250,7 @@ export default function PayeSummaryClient() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `paye-summary-${periodLabel.replace(/\s+/g, '-')}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+      a.download = `paye-summary-${periodLabel.replace(/\s+/g, '-')}.${format === 'pdf' ? tt('pdf') : tt('xlsx')}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -277,7 +277,7 @@ export default function PayeSummaryClient() {
       <Sidebar />
       <main className="flex-1 p-6 lg:p-8 overflow-x-hidden">
         <PosStylePageHeader
-          title="PAYE Summary"
+          title={tt('PAYE Summary')}
           description="Statutory PAYE report from finalized payroll records — filterable, exportable, and aligned with accounting postings."
           actions={
             <>
@@ -572,7 +572,7 @@ export default function PayeSummaryClient() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center text-blue-600 hover:text-blue-800"
-                          title="Download payslip"
+                          title={tt('Download payslip')}
                         >
                           <Download className="w-4 h-4" />
                         </a>

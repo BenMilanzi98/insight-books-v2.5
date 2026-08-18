@@ -147,7 +147,7 @@ export default function MraEisPlansAdminPage() {
       </p>
 
       {error ? (
-        <AdminErrorState title="Unable to load plans" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Unable to load plans')} message={error} onRetry={load} />
       ) : null}
 
       <div className="admin-stagger mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -207,8 +207,8 @@ export default function MraEisPlansAdminPage() {
               key: 'visibility',
               header: 'Public',
               render: (p) => (
-                <AdminStatusBadge tone={p.isPublic ? 'success' : 'neutral'}>
-                  {p.isPublic ? 'Visible' : 'Hidden'}
+                <AdminStatusBadge tone={p.isPublic ? tt('success') : tt('neutral')}>
+                  {p.isPublic ? tt('Visible') : tt('Hidden')}
                 </AdminStatusBadge>
               ),
             },
@@ -226,7 +226,7 @@ export default function MraEisPlansAdminPage() {
       <AdminModal
         open={showCreate}
         onClose={() => setShowCreate(false)}
-        title="Create MRA EIS plan"
+        title={tt('Create MRA EIS plan')}
         footer={
           <>
             <button
@@ -242,7 +242,7 @@ export default function MraEisPlansAdminPage() {
               disabled={saving}
               className="admin-btn-primary rounded-[var(--admin-radius)] px-3 py-2 text-sm font-semibold disabled:opacity-60"
             >
-              {saving ? 'Saving…' : 'Save draft'}
+              {saving ? tt('Saving…') : tt('Save draft')}
             </button>
           </>
         }

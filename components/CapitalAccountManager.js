@@ -48,6 +48,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
   });
   const [contributions, setContributions] = useState([]);
   const [contributionSummary, setContributionSummary] = useState({ totalCashContributions: 0, totalAssetContributions: 0, totalCapital: 0 });
+  const [reversingContributionId, setReversingContributionId] = useState(null);
   const [assetAccounts, setAssetAccounts] = useState([]);
 
   // Fetch capital account and payment method balances
@@ -196,6 +197,38 @@ const CapitalAccountManager = ({ onboarding = false }) => {
       setError(e.message);
     } finally {
       setIsSubmittingContribution(false);
+    }
+  };
+
+  const handleReverseContribution = async (contribution) => {
+    if (contribution.isReversed) return;
+    const reason = window.prompt(
+      tt('Reason for reversing this capital contribution (required):'),
+      tt('Entered in error')
+    );
+    if (!reason || !reason.trim()) return;
+
+    setReversingContributionId(contribution.id);
+    setError(null);
+    try {
+      const res = await fetch('/api/capital-account/contributions/reverse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reference: contribution.reference || undefined,
+          journalId: contribution.journalId || contribution.id,
+          reason: reason.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to reverse contribution');
+      setSuccessMessage(data.message || tt('Contribution reversed'));
+      fetchData();
+      fetchContributions();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setReversingContributionId(null);
     }
   };
 
@@ -545,7 +578,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
             value={formatCurrency(capitalAccount?.balance || 0)}
             icon={TrendingUp}
             valueClassName={(capitalAccount?.balance || 0) <= 0 ? 'text-amber-900' : 'text-blue-900'}
-            barClassName={(capitalAccount?.balance || 0) <= 0 ? 'from-amber-400 via-yellow-500 to-orange-500' : 'from-blue-500 via-sky-500 to-indigo-500'}
+            barClassName={(capitalAccount?.balance || 0) <= 0 ? tt('from-amber-400 via-yellow-500 to-orange-500') : tt('from-blue-500 via-sky-500 to-indigo-500')}
             iconWrapClassName={(capitalAccount?.balance || 0) <= 0 ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}
             helper={`Cumulative contributed capital: ${formatCurrency(capitalAccount?.ownerContributedCapital ?? 0)}`}
           >
@@ -994,7 +1027,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                     className="w-full sm:w-auto px-4 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-sm sm:text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
                     disabled={isTransferring}
                   >
-                    {transferSuccess ? 'Close' : 'Cancel'}
+                    {transferSuccess ? tt('Close') : tt('Cancel')}
                   </button>
                   <button
                     onClick={handleTransfer}
@@ -1067,27 +1100,49 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                   <th className="text-left py-2 px-3 font-semibold text-slate-600">{tt('Account Debited')}</th>
                   <th className="text-right py-2 px-3 font-semibold text-slate-600">{tt('Amount')}</th>
                   <th className="text-right py-2 px-3 font-semibold text-slate-600">{tt('Running Total')}</th>
+                  <th className="text-right py-2 px-3 font-semibold text-slate-600">{tt('Actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {contributions.reduce((acc, c) => {
+                  if (c.isReversed) {
+                    acc.push({ ...c, runningTotal: acc.length > 0 ? acc[acc.length - 1].runningTotal : 0 });
+                    return acc;
+                  }
                   const runningTotal = (acc.length > 0 ? acc[acc.length - 1].runningTotal : 0) + (c.amount || 0);
                   acc.push({ ...c, runningTotal });
                   return acc;
                 }, []).map((c) => (
-                  <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <tr key={c.id} className={`border-b border-slate-100 hover:bg-slate-50 ${c.isReversed ? 'opacity-60' : ''}`}>
                     <td className="py-2 px-3 text-slate-700">{formatDate(c.date)}</td>
                     <td className="py-2 px-3">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${c.type === 'cash' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
                         {c.type === 'cash' ? <Banknote className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
-                        {c.type === 'cash' ? 'Cash' : 'Asset'}
+                        {c.type === 'cash' ? tt('Cash') : tt('Asset')}
                       </span>
+                      {c.isReversed ? (
+                        <span className="ml-2 text-xs font-medium text-rose-600">{tt('Reversed')}</span>
+                      ) : null}
                     </td>
                     <td className="py-2 px-3 text-slate-700">{c.description}</td>
                     <td className="py-2 px-3 font-mono text-xs text-blue-700">{c.coaAccountCode || "—"}</td>
                     <td className="py-2 px-3 text-slate-500">{c.debitAccountName}</td>
                     <td className="py-2 px-3 text-right font-medium text-slate-800">{formatCurrency(c.amount)}</td>
-                    <td className="py-2 px-3 text-right font-bold text-blue-700">{formatCurrency(c.runningTotal)}</td>
+                    <td className="py-2 px-3 text-right font-bold text-blue-700">
+                      {c.isReversed ? '—' : formatCurrency(c.runningTotal)}
+                    </td>
+                    <td className="py-2 px-3 text-right">
+                      {!c.isReversed ? (
+                        <button
+                          type="button"
+                          onClick={() => handleReverseContribution(c)}
+                          disabled={reversingContributionId === c.id}
+                          className="text-xs font-medium text-rose-600 hover:text-rose-800 disabled:opacity-50"
+                        >
+                          {reversingContributionId === c.id ? tt('Reversing…') : tt('Reverse')}
+                        </button>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>

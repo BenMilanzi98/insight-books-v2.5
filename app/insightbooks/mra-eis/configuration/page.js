@@ -127,7 +127,7 @@ export default function SystemMraEisConfigurationPage() {
 
       {loading ? <AdminLoadingState label="Loading configuration" /> : null}
       {!loading && error ? (
-        <AdminErrorState title="Configuration unavailable" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Configuration unavailable')} message={error} onRetry={load} />
       ) : null}
       {!loading && !error ? (
         <AdminDataTable

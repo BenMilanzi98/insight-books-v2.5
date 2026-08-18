@@ -121,7 +121,7 @@ export default function AdminBillingPlansPage() {
         key: 'status',
         header: 'Status',
         render: (p) => (
-          <AdminStatusBadge tone={p.status === 'ACTIVE' ? 'success' : 'neutral'}>
+          <AdminStatusBadge tone={p.status === 'ACTIVE' ? tt('success') : tt('neutral')}>
             {p.status}
           </AdminStatusBadge>
         ),
@@ -152,21 +152,21 @@ export default function AdminBillingPlansPage() {
         <AdminErrorState message={error} onRetry={load} />
       ) : null}
       {!loading && !error && latest.length === 0 ? (
-        <AdminEmptyState title="No plans" description="Plans will seed from the catalog on first load." />
+        <AdminEmptyState title={tt('No plans')} description="Plans will seed from the catalog on first load." />
       ) : null}
       {!loading && latest.length > 0 ? <AdminDataTable columns={columns} rows={latest} rowKey="id" /> : null}
 
       <AdminModal
         open={showForm}
         onClose={() => setShowForm(false)}
-        title="Create plan version"
+        title={tt('Create plan version')}
         footer={
           <>
             <button type="button" onClick={() => setShowForm(false)} className={btnGhost}>
               {tt('Cancel')}
             </button>
             <button type="submit" form="plan-version-form" disabled={saving} className={btnPrimary}>
-              {saving ? 'Saving…' : 'Create version'}
+              {saving ? tt('Saving…') : tt('Create version')}
             </button>
           </>
         }

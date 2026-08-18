@@ -2,7 +2,7 @@
 import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Building, FileText, Image, Landmark, Loader2, MapPin } from "lucide-react";
 import {
   WizardExistingList,
   WizardField,
@@ -11,6 +11,7 @@ import {
   WizardSubmitButton,
   inputCls,
   selectCls,
+  textareaCls,
 } from "@/components/setup/wizardUi";
 
 /**
@@ -20,7 +21,7 @@ import {
 export default function SetupWizardStepContent({ stepId, facts, onSaved, onError }) {
   switch (stepId) {
     case "accountSettings":
-      return <AccountSettingsStep facts={facts} onSaved={onSaved} onError={onError} />;
+      return <AccountSettingsStep onSaved={onSaved} onError={onError} />;
     case "inventory":
     case "openingStock":
       return <OpeningStockStep onSaved={onSaved} onError={onError} />;
@@ -139,7 +140,7 @@ function StartingDateStep({ facts, onSaved, onError }) {
           />
         </WizardField>
         <WizardSubmitButton saving={saving}>
-          {facts?.hasStartingDate ? "Update starting date" : "Set starting date"}
+          {facts?.hasStartingDate ? tt('Update starting date') : tt('Set starting date')}
         </WizardSubmitButton>
       </form>
     </div>
@@ -273,7 +274,7 @@ function CapitalStep({ facts, onSaved, onError }) {
   return (
     <div className="space-y-4">
       {configured ? (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <p className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-800">
           Owner&apos;s capital is linked to GL 3100. You can record another contribution below if needed.
         </p>
       ) : (
@@ -296,7 +297,7 @@ function CapitalStep({ facts, onSaved, onError }) {
           />
         </WizardField>
         <WizardSubmitButton saving={saving}>
-          {configured ? "Record contribution" : "Set opening capital"}
+          {configured ? tt('Record contribution') : tt('Set opening capital')}
         </WizardSubmitButton>
       </form>
     </div>
@@ -382,7 +383,7 @@ function AssetsStep({ onSaved, onError }) {
   return (
     <div className="space-y-4">
       <WizardExistingList
-        title="Registered assets"
+        title={tt('Registered assets')}
         items={items}
         emptyText="No assets yet — add your first one below."
         renderItem={(a) => (
@@ -543,7 +544,7 @@ function LiabilitiesStep({ onSaved, onError }) {
   return (
     <div className="space-y-4">
       <WizardExistingList
-        title="Tracked liabilities"
+        title={tt('Tracked liabilities')}
         items={items}
         emptyText="No liabilities yet — add a loan or obligation below."
         renderItem={(l) => (
@@ -731,7 +732,7 @@ function PaymentAccountsStep({ onSaved, onError }) {
   return (
     <div className="space-y-4">
       <WizardExistingList
-        title="Payment accounts"
+        title={tt('Payment accounts')}
         items={items}
         emptyText="No payment accounts — add cash, bank, or mobile money below."
         renderItem={(p) => (
@@ -848,7 +849,7 @@ function TaxesStep({ facts, onSaved, onError }) {
   return (
     <div className="space-y-4">
       {facts?.taxConfigured ? (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <p className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-800">
           Tax GL accounts (2041 / 2045) and {facts.taxTypeCount} active tax type
           {facts.taxTypeCount === 1 ? "" : "s"} are configured.
         </p>
@@ -867,7 +868,7 @@ function TaxesStep({ facts, onSaved, onError }) {
         type="button"
         disabled={syncing}
         onClick={sync}
-        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 px-5 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-50"
+        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-50"
       >
         {syncing ? (
           <>
@@ -954,7 +955,7 @@ function ClientsStep({ onSaved, onError }) {
   return (
     <div className="space-y-4">
       <WizardExistingList
-        title="Clients"
+        title={tt('Clients')}
         items={items}
         emptyText="No clients yet."
         renderItem={(c) => (
@@ -1043,9 +1044,9 @@ function ClientBulkUpload({ onSaved, onError }) {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-xl border border-dashed border-rose-200 bg-rose-50/40 p-4">
-      <p className="text-sm font-semibold text-rose-900">{tt('Bulk upload')}</p>
-      <a href="/api/clients/template" className="text-xs font-medium text-rose-800 underline">
+    <form onSubmit={submit} className="space-y-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/40 p-4">
+      <p className="text-sm font-semibold text-indigo-900">{tt('Bulk upload')}</p>
+      <a href="/api/clients/template" className="text-xs font-medium text-indigo-800 underline">
         {tt('Download CSV template')}
       </a>
       <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" />
@@ -1129,7 +1130,7 @@ function SuppliersStep({ onSaved, onError }) {
   return (
     <div className="space-y-4">
       <WizardExistingList
-        title="Suppliers"
+        title={tt('Suppliers')}
         items={items}
         emptyText="No suppliers yet."
         renderItem={(s) => (
@@ -1218,9 +1219,9 @@ function SupplierBulkUpload({ onSaved, onError }) {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-xl border border-dashed border-lime-200 bg-lime-50/40 p-4">
-      <p className="text-sm font-semibold text-lime-900">{tt('Bulk upload')}</p>
-      <a href="/api/purchases/suppliers/template" className="text-xs font-medium text-lime-800 underline">
+    <form onSubmit={submit} className="space-y-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/40 p-4">
+      <p className="text-sm font-semibold text-indigo-900">{tt('Bulk upload')}</p>
+      <a href="/api/purchases/suppliers/template" className="text-xs font-medium text-indigo-800 underline">
         {tt('Download CSV template')}
       </a>
       <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-sm" />
@@ -1338,7 +1339,7 @@ function OpeningStockStep({ onSaved, onError }) {
   return (
     <div className="space-y-4">
       <WizardExistingList
-        title="Products with stock"
+        title={tt('Products with stock')}
         items={stocked}
         emptyText="No opening stock recorded yet."
         renderItem={(p) => (
@@ -1496,12 +1497,12 @@ function BulkStockUpload({ onSaved, onError }) {
   };
 
   return (
-    <div className="rounded-xl border border-dashed border-sky-200 bg-sky-50/50 p-4 space-y-3">
-      <p className="text-sm font-semibold text-sky-900">{tt('Option A — bulk opening stock')}</p>
+    <div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50/50 p-4 space-y-3">
+      <p className="text-sm font-semibold text-indigo-900">{tt('Option A — bulk opening stock')}</p>
       <div className="flex flex-wrap gap-2">
         <a
           href="/api/stock/basic-import/template"
-          className="rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-medium text-sky-800"
+          className="rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-xs font-medium text-indigo-800"
         >
           {tt('Download template')}
         </a>
@@ -1527,39 +1528,232 @@ function BulkStockUpload({ onSaved, onError }) {
   );
 }
 
-function AccountSettingsStep({ facts, onSaved, onError }) {
-  const [form, setForm] = useState({
-    name: facts?.tenantName || "",
-    businessPhone: facts?.businessPhone || "",
-    businessEmail: facts?.businessEmail || "",
-    businessAddress: facts?.businessAddress || "",
+function normalizeLogoUrl(logoUrl) {
+  if (!logoUrl) return "";
+  let url = logoUrl;
+  if (url.startsWith("http")) return url;
+  url = url.replace(/^\/+/, "");
+  if (url.startsWith("uploads/")) {
+    return `/api/uploads/${url.replace(/^uploads\//, "")}`;
+  }
+  return `/api/uploads/${url}`;
+}
+
+function cleanLogoUrl(url) {
+  if (!url) return "";
+  if (url.startsWith("blob:") || url.includes("localhost:3000")) return "";
+  return url;
+}
+
+function WizardSection({ title, icon: Icon, children, hint }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-4 space-y-4">
+      <div className="flex items-start gap-2">
+        {Icon ? (
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+            <Icon className="h-4 w-4" />
+          </span>
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+          {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function AccountSettingsStep({ onSaved, onError }) {
+  const [settings, setSettings] = useState({
+    name: "",
+    subdomain: "",
+    logoUrl: "",
+    primaryColor: "#4f46e5",
+    secondaryColor: "#7c3aed",
+    tpin: "",
+    buildingName: "",
+    businessAddress: "",
+    businessCity: "",
+    businessPhone: "",
+    businessEmail: "",
+    defaultBankDetails: "",
+    receiptFooter: "",
+    receiptPaperWidthMm: 80,
+    currencyCode: "MWK",
+    defaultTaxRate: 17.5,
   });
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [localError, setLocalError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
-    setForm({
-      name: facts?.tenantName || "",
-      businessPhone: facts?.businessPhone || "",
-      businessEmail: facts?.businessEmail || "",
-      businessAddress: facts?.businessAddress || "",
-    });
-  }, [facts]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const [accountRes, tenantRes] = await Promise.all([
+          fetch("/api/account", { credentials: "include" }),
+          fetch("/api/tenant/settings", { credentials: "include" }),
+        ]);
+        const accountData = accountRes.ok ? await accountRes.json() : {};
+        const tenantData = tenantRes.ok ? await tenantRes.json() : {};
+        if (cancelled) return;
+
+        const finalLogoUrl = cleanLogoUrl(accountData.logoUrl || tenantData.logoUrl);
+        setSettings({
+          name: accountData.name || tenantData.name || "",
+          subdomain: accountData.subdomain || "",
+          logoUrl: finalLogoUrl,
+          primaryColor: accountData.primaryColor || tenantData.primaryColor || "#4f46e5",
+          secondaryColor: accountData.secondaryColor || tenantData.secondaryColor || "#7c3aed",
+          tpin: accountData.tpin || tenantData.tpin || "",
+          buildingName: tenantData.buildingName || "",
+          businessAddress: tenantData.businessAddress || "",
+          businessCity: tenantData.businessCity || "",
+          businessPhone: tenantData.businessPhone || "",
+          businessEmail: tenantData.businessEmail || "",
+          defaultBankDetails:
+            typeof tenantData.defaultBankDetails === "string"
+              ? tenantData.defaultBankDetails
+              : tenantData.defaultBankDetails && typeof tenantData.defaultBankDetails === "object"
+                ? [
+                    tenantData.defaultBankDetails.bankName &&
+                      `Bank: ${tenantData.defaultBankDetails.bankName}`,
+                    tenantData.defaultBankDetails.accountNumber &&
+                      `Account number: ${tenantData.defaultBankDetails.accountNumber}`,
+                    tenantData.defaultBankDetails.accountName &&
+                      `Account name: ${tenantData.defaultBankDetails.accountName}`,
+                  ]
+                    .filter(Boolean)
+                    .join("\n")
+                : "",
+          receiptFooter: tenantData.receiptFooter || "",
+          receiptPaperWidthMm: tenantData.receiptPaperWidthMm ?? 80,
+          currencyCode: tenantData.currencyCode || "MWK",
+          defaultTaxRate: tenantData.defaultTaxRate ?? 17.5,
+        });
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err.message || "Could not load account settings";
+          setLocalError(msg);
+          onError(msg);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [onError]);
+
+  const handleChange = (field, value) => {
+    setSettings((prev) => ({ ...prev, [field]: value }));
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => ({ ...prev, [field]: null }));
+    }
+  };
+
+  const handleLogoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setLocalError("Please select an image file (JPEG, PNG, GIF, etc.)");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setLocalError("Logo file size must be less than 5MB");
+      return;
+    }
+    setLogoFile(file);
+    setLocalError(null);
+  };
+
+  useEffect(() => {
+    if (!logoFile) {
+      setLogoPreviewUrl(null);
+      return undefined;
+    }
+    const url = URL.createObjectURL(logoFile);
+    setLogoPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [logoFile]);
+
+  const displayLogo =
+    logoPreviewUrl || (settings.logoUrl ? normalizeLogoUrl(settings.logoUrl) : null);
+
+  const validate = () => {
+    const next = {};
+    if (!settings.name.trim()) next.name = "Business name is required";
+    if (settings.businessEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settings.businessEmail)) {
+      next.businessEmail = "Please enter a valid email address";
+    }
+    if (settings.defaultTaxRate < 0 || settings.defaultTaxRate > 100) {
+      next.defaultTaxRate = "Tax rate must be between 0 and 100";
+    }
+    setFieldErrors(next);
+    return Object.keys(next).length === 0;
+  };
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!validate()) return;
+
     setSaving(true);
     setLocalError(null);
     onError(null);
     try {
-      const res = await fetch("/api/tenant/settings", {
+      const accountFormData = new FormData();
+      accountFormData.append("name", settings.name || "");
+      accountFormData.append("primaryColor", settings.primaryColor || "");
+      accountFormData.append("secondaryColor", settings.secondaryColor || "");
+      if (logoFile) accountFormData.append("logoUrl", logoFile);
+
+      const accountRes = await fetch("/api/account", {
+        method: "POST",
+        credentials: "include",
+        body: accountFormData,
+      });
+      const accountErr = await accountRes.json().catch(() => ({}));
+      if (!accountRes.ok) throw new Error(accountErr.error || "Could not save account settings");
+
+      const tenantRes = await fetch("/api/tenant/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          name: settings.name,
+          tpin: settings.tpin || null,
+          primaryColor: settings.primaryColor,
+          secondaryColor: settings.secondaryColor,
+          buildingName: settings.buildingName,
+          businessAddress: settings.businessAddress,
+          businessCity: settings.businessCity,
+          businessPhone: settings.businessPhone,
+          businessEmail: settings.businessEmail,
+          receiptFooter: settings.receiptFooter,
+          receiptPaperWidthMm: settings.receiptPaperWidthMm ?? 80,
+          defaultBankDetails: settings.defaultBankDetails,
+          currencyCode: settings.currencyCode,
+          defaultTaxRate: settings.defaultTaxRate,
+        }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Could not save account settings");
+      const tenantErr = await tenantRes.json().catch(() => ({}));
+      if (!tenantRes.ok) throw new Error(tenantErr.error || "Could not save tenant settings");
+
+      if (logoFile) {
+        const reload = await fetch("/api/account", { credentials: "include" });
+        if (reload.ok) {
+          const data = await reload.json();
+          setSettings((prev) => ({ ...prev, logoUrl: cleanLogoUrl(data.logoUrl) }));
+        }
+        setLogoFile(null);
+      }
+
       await onSaved();
     } catch (err) {
       const msg = err.message || "Save failed";
@@ -1570,29 +1764,201 @@ function AccountSettingsStep({ facts, onSaved, onError }) {
     }
   };
 
+  if (loading) return <WizardStepLoading />;
+
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-      <p className="text-sm text-slate-600">{tt('Only fill what is missing. Existing values are prefilled.')}</p>
+    <form onSubmit={submit} className="space-y-4">
+      <p className="text-sm text-slate-600">
+        {tt('Same fields as Account → Business Info and Receipt Settings. Save when ready — you can edit these later on the Account page.')}
+      </p>
       <WizardFormError message={localError} />
-      <WizardField label="Business name *">
-        <input className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-      </WizardField>
-      {!facts?.businessPhone && (
-        <WizardField label="Phone">
-          <input className={inputCls} value={form.businessPhone} onChange={(e) => setForm({ ...form, businessPhone: e.target.value })} />
-        </WizardField>
-      )}
-      {!facts?.businessEmail && (
-        <WizardField label="Email">
-          <input type="email" className={inputCls} value={form.businessEmail} onChange={(e) => setForm({ ...form, businessEmail: e.target.value })} />
-        </WizardField>
-      )}
-      {!facts?.businessAddress && (
-        <WizardField label="Address">
-          <input className={inputCls} value={form.businessAddress} onChange={(e) => setForm({ ...form, businessAddress: e.target.value })} />
-        </WizardField>
-      )}
-      <WizardSubmitButton saving={saving}>{tt('Save account settings')}</WizardSubmitButton>
+
+      <WizardSection title={tt('Business Information')} icon={Building}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <WizardField label="Business name *">
+            <input
+              className={inputCls}
+              value={settings.name}
+              onChange={(e) => handleChange("name", e.target.value)}
+              required
+            />
+            {fieldErrors.name ? <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p> : null}
+          </WizardField>
+          <WizardField label="Subdomain">
+            <input className={`${inputCls} bg-slate-50 text-slate-500`} value={settings.subdomain} disabled readOnly />
+          </WizardField>
+          <div className="sm:col-span-2">
+            <WizardField label="Logo">
+              <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 sm:flex-row sm:items-center">
+                <div className="flex h-24 w-36 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-slate-50">
+                  {displayLogo ? (
+                    <img src={displayLogo} alt={tt('Logo')} className="max-h-20 max-w-full object-contain" />
+                  ) : (
+                    <Image className="h-8 w-8 text-slate-300" />
+                  )}
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoChange}
+                  className="block w-full text-sm text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
+                />
+              </div>
+            </WizardField>
+          </div>
+          <WizardField label="Primary color">
+            <input
+              type="color"
+              className="h-10 w-full cursor-pointer rounded-lg border border-slate-200"
+              value={settings.primaryColor}
+              onChange={(e) => handleChange("primaryColor", e.target.value)}
+            />
+          </WizardField>
+          <WizardField label="Secondary color">
+            <input
+              type="color"
+              className="h-10 w-full cursor-pointer rounded-lg border border-slate-200"
+              value={settings.secondaryColor}
+              onChange={(e) => handleChange("secondaryColor", e.target.value)}
+            />
+          </WizardField>
+        </div>
+      </WizardSection>
+
+      <WizardSection
+        title={tt('Business Address')}
+        icon={MapPin}
+        hint={tt('Shown on receipts and invoices.')}
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <WizardField label="Building / location name">
+            <input className={inputCls} value={settings.buildingName} onChange={(e) => handleChange("buildingName", e.target.value)} />
+          </WizardField>
+          <WizardField label="Street address">
+            <input className={inputCls} value={settings.businessAddress} onChange={(e) => handleChange("businessAddress", e.target.value)} />
+          </WizardField>
+          <WizardField label="City / town">
+            <input className={inputCls} value={settings.businessCity} onChange={(e) => handleChange("businessCity", e.target.value)} />
+          </WizardField>
+          <WizardField label="Contact numbers">
+            <input className={inputCls} value={settings.businessPhone} onChange={(e) => handleChange("businessPhone", e.target.value)} />
+          </WizardField>
+          <div className="sm:col-span-2">
+            <WizardField label="Email address">
+              <input
+                type="email"
+                className={inputCls}
+                value={settings.businessEmail}
+                onChange={(e) => handleChange("businessEmail", e.target.value)}
+              />
+              {fieldErrors.businessEmail ? (
+                <p className="mt-1 text-xs text-red-600">{fieldErrors.businessEmail}</p>
+              ) : null}
+            </WizardField>
+          </div>
+          <WizardField label="TPIN" hint="8-digit Malawi Revenue Authority TPIN (for MRA EIS).">
+            <input
+              className={inputCls}
+              value={settings.tpin}
+              maxLength={8}
+              onChange={(e) => handleChange("tpin", e.target.value.replace(/\D/g, "").slice(0, 8))}
+              placeholder="12345678"
+            />
+          </WizardField>
+        </div>
+      </WizardSection>
+
+      <WizardSection
+        title={tt('Banking & tax')}
+        icon={Landmark}
+        hint={tt('Default bank details for document footers. Tax GL accounts 2041 / 2045 are fixed system accounts.')}
+      >
+        <div className="grid gap-4 lg:grid-cols-2">
+          <WizardField label="Default bank account details">
+            <textarea
+              className={textareaCls}
+              rows={5}
+              placeholder={`Bank: Standard Bank\nAccount name: Your Company Ltd\nAccount number: 1234567890\nBranch: Blantyre`}
+              value={settings.defaultBankDetails}
+              onChange={(e) => handleChange("defaultBankDetails", e.target.value)}
+            />
+          </WizardField>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                {tt('Tax inflow (collected)')}
+              </span>
+              <p className="mt-0.5 text-sm font-medium text-slate-900">2041 – Tax Inflow (Collected)</p>
+              <p className="text-xs text-slate-500">{tt('Tax from sales, invoices and POS')}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                {tt('Tax outflow (paid)')}
+              </span>
+              <p className="mt-0.5 text-sm font-medium text-slate-900">2045 – Tax Outflow (Paid)</p>
+              <p className="text-xs text-slate-500">{tt('Tax on expenses and supplier bills')}</p>
+            </div>
+          </div>
+        </div>
+      </WizardSection>
+
+      <WizardSection
+        title={tt('Receipt customization')}
+        icon={FileText}
+        hint={tt('Thermal paper width and footer for POS receipts.')}
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <WizardField label="Thermal paper width">
+            <select
+              className={selectCls}
+              value={settings.receiptPaperWidthMm ?? 80}
+              onChange={(e) => handleChange("receiptPaperWidthMm", Number(e.target.value))}
+            >
+              {[58, 70, 72, 76, 80, 88, 90].map((mm) => (
+                <option key={mm} value={mm}>
+                  {mm} mm{mm === 80 ? " (most common)" : ""}
+                </option>
+              ))}
+            </select>
+          </WizardField>
+          <div className="sm:col-span-2">
+            <WizardField label="Receipt footer message">
+              <textarea
+                className={textareaCls}
+                rows={3}
+                value={settings.receiptFooter}
+                onChange={(e) => handleChange("receiptFooter", e.target.value)}
+                placeholder={tt('Thank you for your business!')}
+              />
+            </WizardField>
+          </div>
+          <WizardField label="Currency code">
+            <select className={selectCls} value={settings.currencyCode} onChange={(e) => handleChange("currencyCode", e.target.value)}>
+              <option value="MWK">{tt('MWK - Malawian Kwacha')}</option>
+              <option value="USD">{tt('USD - US Dollar')}</option>
+              <option value="EUR">{tt('EUR - Euro')}</option>
+              <option value="GBP">{tt('GBP - British Pound')}</option>
+              <option value="ZAR">{tt('ZAR - South African Rand')}</option>
+            </select>
+          </WizardField>
+          <WizardField label="Default tax rate (%)">
+            <input
+              type="number"
+              className={inputCls}
+              min="0"
+              max="100"
+              step="0.01"
+              value={settings.defaultTaxRate}
+              onChange={(e) => handleChange("defaultTaxRate", parseFloat(e.target.value) || 0)}
+            />
+            {fieldErrors.defaultTaxRate ? (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.defaultTaxRate}</p>
+            ) : null}
+          </WizardField>
+        </div>
+      </WizardSection>
+
+      <WizardSubmitButton saving={saving}>{tt('Save business & receipt settings')}</WizardSubmitButton>
     </form>
   );
 }

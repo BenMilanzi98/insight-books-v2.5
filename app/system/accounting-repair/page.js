@@ -121,7 +121,7 @@ export default function AccountingRepairPage() {
           disabled={detecting}
           className="rounded bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {detecting ? 'Detecting…' : 'Run detection'}
+          {detecting ? tt('Detecting…') : tt('Run detection')}
         </button>
       </header>
 
@@ -251,7 +251,7 @@ export default function AccountingRepairPage() {
                     <td className="px-3 py-2">{b.repairCategory}</td>
                     <td className="px-3 py-2">{badge(b.status, statusTone(b.status))}</td>
                     <td className="px-3 py-2">{b.recordCount}</td>
-                    <td className="px-3 py-2">{b.dryRun ? 'yes' : 'no'}</td>
+                    <td className="px-3 py-2">{b.dryRun ? tt('yes') : tt('no')}</td>
                     <td className="px-3 py-2 text-xs">{b.approvedBy ?? '—'}</td>
                   </tr>
                 ))}

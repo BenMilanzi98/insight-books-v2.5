@@ -244,12 +244,15 @@ const LiabilityManagement = () => {
   const [alertMessage, setAlertMessage] = useState("");
   const [alertType, setAlertType] = useState("success");
   
+  const [liabilityGlAccounts, setLiabilityGlAccounts] = useState([]);
+  
   // Form data
   const [liabilityFormData, setLiabilityFormData] = useState({
     name: "",
     description: "",
     categoryId: "",
     liabilityType: "loan",
+    glAccountId: "",
     principalAmount: "",
     interestRate: "",
     interestType: "reducing_balance",
@@ -286,7 +289,29 @@ const LiabilityManagement = () => {
   // Fetch categories when component mounts
   useEffect(() => {
     fetchCategories();
+    (async () => {
+      try {
+        const res = await fetch('/api/chart-of-accounts/picker?postingOnly=1&prefix=2000');
+        const data = await res.json().catch(() => ({}));
+        const rows = data.data || data.accounts || [];
+        setLiabilityGlAccounts(Array.isArray(rows) ? rows : []);
+      } catch {
+        setLiabilityGlAccounts([]);
+      }
+    })();
   }, []);
+
+  useEffect(() => {
+    if (!showLiabilityModal || editId || liabilityFormData.glAccountId) return;
+    if (!liabilityGlAccounts.length) return;
+    const preferred =
+      liabilityGlAccounts.find((a) => String(a.accountCode || a.code).startsWith('2510')) ||
+      liabilityGlAccounts.find((a) => String(a.accountCode || a.code).startsWith('2160')) ||
+      liabilityGlAccounts[0];
+    if (preferred) {
+      setLiabilityFormData((prev) => ({ ...prev, glAccountId: preferred.id || preferred.accountId }));
+    }
+  }, [showLiabilityModal, editId, liabilityGlAccounts, liabilityFormData.glAccountId]);
   
   // Fetch liabilities when filters change
   useEffect(() => {
@@ -497,7 +522,7 @@ const LiabilityManagement = () => {
       }
       
       // Show success message
-      setAlertMessage(`Liability successfully ${editId ? 'updated' : 'created'}`);
+      setAlertMessage(`Liability successfully ${editId ? tt('updated') : tt('created')}`);
       setAlertType("success");
       setShowAlert(true);
       
@@ -629,6 +654,7 @@ const LiabilityManagement = () => {
       description: "",
       categoryId: "",
       liabilityType: "loan",
+      glAccountId: liabilityGlAccounts[0]?.id || liabilityGlAccounts[0]?.accountId || "",
       principalAmount: "",
       interestRate: "",
       interestType: "reducing_balance",
@@ -673,6 +699,7 @@ const LiabilityManagement = () => {
       description: liability.description || "",
       categoryId: liability.categoryId,
       liabilityType: liability.liabilityType,
+      glAccountId: liability.glAccountId || "",
       principalAmount: liability.principalAmount.toString(),
       interestRate: liability.interestRate ? liability.interestRate.toString() : "",
       interestType: liability.interestType || "reducing_balance",
@@ -931,21 +958,21 @@ const LiabilityManagement = () => {
                               <button 
                                 className="text-blue-600 hover:text-blue-800"
                                 onClick={() => handleViewLiability(liability)}
-                                title="View details"
+                                title={tt('View details')}
                               >
                                 <Eye size={16} />
                               </button>
                               <button 
                                 className="text-orange-600 hover:text-orange-800"
                                 onClick={() => handleEditLiability(liability)}
-                                title="Edit liability"
+                                title={tt('Edit liability')}
                               >
                                 <Edit size={16} />
                               </button>
                               <button 
                                 className="text-green-600 hover:text-green-800"
                                 onClick={() => handleRecordPayment(liability)}
-                                title="Record payment"
+                                title={tt('Record payment')}
                                 disabled={liability.status === 'paid_off'}
                               >
                                 <DollarSign size={16} />
@@ -953,7 +980,7 @@ const LiabilityManagement = () => {
                               <button 
                                 className="text-red-600 hover:text-red-800"
                                 onClick={() => handleDeleteLiability(liability.id)}
-                                title="Delete liability"
+                                title={tt('Delete liability')}
                               >
                                 <Trash size={16} />
                               </button>
@@ -1015,7 +1042,7 @@ const LiabilityManagement = () => {
               <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
                 <div className="p-6 border-b border-gray-200">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-semibold">{editId ? 'Edit Liability' : 'New Liability'}</h2>
+                    <h2 className="text-xl font-semibold">{editId ? tt('Edit Liability') : tt('New Liability')}</h2>
                     <button 
                       onClick={() => {
                         setShowLiabilityModal(false);
@@ -1053,6 +1080,30 @@ const LiabilityManagement = () => {
                             <option key={cat.id} value={cat.id}>{cat.name}</option>
                           ))}
                         </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">{tt('Liability GL account *')}</label>
+                        <select
+                          className="w-full p-2 border border-gray-200 rounded"
+                          value={liabilityFormData.glAccountId}
+                          onChange={(e) => setLiabilityFormData({ ...liabilityFormData, glAccountId: e.target.value })}
+                          required={!editId}
+                        >
+                          <option value="">{tt('Select GL account (2000 series)')}</option>
+                          {liabilityGlAccounts.map((acct) => {
+                            const id = acct.id || acct.accountId;
+                            const code = acct.accountCode || acct.code;
+                            const name = acct.accountName || acct.name;
+                            return (
+                              <option key={id} value={id}>
+                                {code} — {name}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {tt('Loan proceeds post Dr Bank / Cr this account when principal is entered.')}
+                        </p>
                       </div>
                     </div>
                     
@@ -1206,7 +1257,7 @@ const LiabilityManagement = () => {
                                 className="w-full p-2 border border-gray-200 rounded"
                                 value={liabilityFormData.interestRate}
                                 onChange={(e) => setLiabilityFormData({...liabilityFormData, interestRate: e.target.value})}
-                                placeholder={liabilityFormData.interestRateMode === 'monthly' ? 'Monthly percentage rate' : 'Annual percentage rate'}
+                                placeholder={liabilityFormData.interestRateMode === 'monthly' ? tt('Monthly percentage rate') : tt('Annual percentage rate')}
                               />
                               <p className="text-xs text-gray-500 mt-1">
                                 {tt('Monthly rates are converted to an annual APR when calculating the schedule.')}
@@ -1312,7 +1363,7 @@ const LiabilityManagement = () => {
                       type="submit"
                       className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                     >
-                      {editId ? 'Update' : 'Create'} Liability
+                      {editId ? tt('Update') : tt('Create')} Liability
                     </button>
                   </div>
                 </form>
@@ -1667,7 +1718,7 @@ const LiabilityManagement = () => {
                       >
                         {!liabilityPayAccounts.length && (
                           <option value="">
-                            {liabilityPayAccountsLoading ? "Loading accounts…" : "No payment accounts"}
+                            {liabilityPayAccountsLoading ? tt('Loading accounts…') : tt('No payment accounts')}
                           </option>
                         )}
                         {liabilityPayAccounts.map((acc) => (

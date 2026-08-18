@@ -288,7 +288,7 @@ export default function CrmOpportunityDetailView({ opportunityId }) {
             ) : (
               risks.map((r) => (
                 <li key={r.code || r.id}>
-                  <AdminStatusBadge tone={r.severity === 'CRITICAL' ? 'danger' : 'info'}>
+                  <AdminStatusBadge tone={r.severity === 'CRITICAL' ? tt('danger') : tt('info')}>
                     {r.severity}
                   </AdminStatusBadge>{' '}
                   {r.code}: {r.detail}

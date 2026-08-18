@@ -467,7 +467,7 @@ export default function TaxManagement() {
                       icon={PercentIcon}
                       active={false}
                       onClick={() => router.push('/tax-management/accounts')}
-                      title="View tax accounts and balances"
+                      title={tt('View tax accounts and balances')}
                       valueClassName="text-green-700"
                       iconWrapClassName="bg-green-100 text-green-600"
                       barClassName="from-emerald-400 via-green-500 to-teal-500"

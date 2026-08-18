@@ -353,7 +353,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
                   }`}
                   disabled={isSubmitting}
                 >
-                  <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                  <option value="">{isLoadingPaymentAccounts ? tt('Loading accounts...') : tt('Select an account')}</option>
                   {paymentAccounts.map(account => (
                     <option key={account.id} value={account.id}>
                       {formatPaymentAccountOptionLabel(account)}

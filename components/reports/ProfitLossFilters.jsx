@@ -32,7 +32,7 @@ export default function ProfitLossFilters({
           >
             {DATE_PRESETS.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.label}
+                {tt(p.label)}
               </option>
             ))}
           </select>
@@ -72,7 +72,7 @@ export default function ProfitLossFilters({
                   checked={draft.groupBy === g}
                   onChange={() => set({ groupBy: g })}
                 />
-                {g === 'MONTH' ? 'Month' : 'Quarter'}
+                {g === 'MONTH' ? tt('Month') : tt('Quarter')}
               </label>
             ))}
           </div>
@@ -88,7 +88,7 @@ export default function ProfitLossFilters({
                 checked={draft.reportBasis === 'ACCRUAL'}
                 onChange={() => set({ reportBasis: 'ACCRUAL' })}
               />
-              Billed (Accrual)
+              {tt('Billed (Accrual)')}
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input
@@ -97,7 +97,7 @@ export default function ProfitLossFilters({
                 checked={draft.reportBasis === 'CASH'}
                 onChange={() => set({ reportBasis: 'CASH' })}
               />
-              Collected (Cash-Based)
+              {tt('Collected (Cash-Based)')}
             </label>
           </div>
         </fieldset>
@@ -155,7 +155,7 @@ export default function ProfitLossFilters({
           onClick={onApply}
           className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
         >
-          {applying ? 'Applying…' : 'Apply'}
+          {applying ? tt('Applying…') : tt('Apply')}
         </button>
       </div>
     </aside>

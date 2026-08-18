@@ -86,10 +86,20 @@ describe('accountsForCatchAllDropdown (2999)', () => {
     const accounts = [
       { id: 'vat', accountCode: '2041-01', accountType: 'Liability', currentBalance: 1000 },
       { id: 'input', accountCode: '2045-02', accountType: 'Liability', currentBalance: 200 },
-      { id: 'misc', accountCode: '2180', accountType: 'Liability', currentBalance: 50 },
+      { id: 'misc', accountCode: '2185', accountType: 'Liability', currentBalance: 50 },
     ];
     const c2999 = accountsForCatchAllDropdown(accounts, '2999');
-    expect(c2999.map((a) => a.accountCode)).toEqual(['2180']);
+    expect(c2999.map((a) => a.accountCode)).toEqual(['2185']);
+  });
+
+  it('excludes blueprint liability codes such as 2115 GRNI and 2180 Credit Card Payable', () => {
+    const accounts = [
+      { id: 'grni', accountCode: '2115', accountType: 'Liability', currentBalance: 100 },
+      { id: 'cc', accountCode: '2180', accountType: 'Liability', currentBalance: 50 },
+      { id: 'misc', accountCode: '2185', accountType: 'Liability', currentBalance: 25 },
+    ];
+    const c2999 = accountsForCatchAllDropdown(accounts, '2999');
+    expect(c2999.map((a) => a.accountCode)).toEqual(['2185']);
   });
 });
 

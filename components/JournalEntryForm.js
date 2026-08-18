@@ -333,13 +333,13 @@ const JournalEntryForm = ({ existingEntry = null }) => {
       if (!response.ok) {
         const errorData = await response.json();
         console.error('API error response:', errorData);
-        throw new Error(errorData.error || `Failed to ${isEditing ? 'update' : 'create'} journal entry`);
+        throw new Error(errorData.error || `Failed to ${isEditing ? tt('update') : tt('create')} journal entry`);
       }
       
       const result = await response.json();
       console.log('API success response:', result);
       
-      setSuccess(`Journal entry ${isEditing ? 'updated' : 'created'} successfully`);
+      setSuccess(`Journal entry ${isEditing ? tt('updated') : tt('created')} successfully`);
       
       // Redirect after a short delay
       setTimeout(() => {
@@ -348,7 +348,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
       
     } catch (err) {
       console.error("Error submitting form:", err);
-      setError(err.message || `Failed to ${isEditing ? 'update' : 'create'} journal entry`);
+      setError(err.message || `Failed to ${isEditing ? tt('update') : tt('create')} journal entry`);
     } finally {
       setIsLoading(false);
     }
@@ -377,7 +377,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                {isEditing ? 'Edit Journal Entry' : 'New Journal Entry'}
+                {isEditing ? tt('Edit Journal Entry') : tt('New Journal Entry')}
               </h1>
               <p className="text-blue-100 text-sm mt-0.5">{tt('Create or edit a general ledger entry')}</p>
             </div>
@@ -566,7 +566,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                           type="button"
                           onClick={() => removeEntry(index)}
                           className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors"
-                          title="Remove line"
+                          title={tt('Remove line')}
                         >
                           <Trash2 size={18} />
                         </button>
@@ -618,12 +618,12 @@ const JournalEntryForm = ({ existingEntry = null }) => {
               {isLoading ? (
                 <>
                   <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                  {isEditing ? 'Updating...' : 'Saving...'}
+                  {isEditing ? tt('Updating...') : tt('Saving...')}
                 </>
               ) : (
                 <>
                   <Save size={18} />
-                  {isEditing ? 'Update Entry' : 'Save Entry'}
+                  {isEditing ? tt('Update Entry') : tt('Save Entry')}
                 </>
               )}
             </button>

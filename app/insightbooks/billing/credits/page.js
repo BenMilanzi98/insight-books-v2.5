@@ -112,7 +112,7 @@ export default function AdminCreditsRefundsPage() {
         key: 'status',
         header: 'Status',
         render: (row) => (
-          <AdminStatusBadge tone={row.status === 'OPEN' ? 'warning' : 'success'}>
+          <AdminStatusBadge tone={row.status === 'OPEN' ? tt('warning') : tt('success')}>
             {row.status}
           </AdminStatusBadge>
         ),

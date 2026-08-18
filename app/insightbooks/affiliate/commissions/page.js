@@ -85,7 +85,7 @@ export default function AffiliateCommissionsPage() {
       header: 'Status',
       render: (r) => (
         <AdminStatusBadge
-          tone={r.status === 'completed' ? 'success' : r.status === 'reversed' ? 'danger' : 'neutral'}
+          tone={r.status === 'completed' ? 'success' : r.status === 'reversed' ? tt('danger') : tt('neutral')}
         >
           {r.status}
         </AdminStatusBadge>
@@ -119,7 +119,7 @@ export default function AffiliateCommissionsPage() {
       {!loading && error ? <AdminErrorState message={error} onRetry={load} /> : null}
       {!loading && !error && rows.length === 0 ? (
         <AdminEmptyState
-          title="No commissions yet"
+          title={tt('No commissions yet')}
           description="Commissions appear when a verified platform payment is attributed to an affiliate."
         />
       ) : null}

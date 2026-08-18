@@ -196,9 +196,7 @@ export default function ReversalPendingApprovals({ currentUserId = null }) {
                               onClick={() => approveAndExecute(row)}
                               className="text-indigo-600 hover:underline disabled:opacity-50"
                             >
-                              {row.status === "APPROVED"
-                                ? "Execute"
-                                : "Approve & execute"}
+                              {row.status === "APPROVED" ? tt('Execute') : tt('Approve & execute')}
                             </button>
                           ) : null}
                           <button

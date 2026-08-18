@@ -2478,7 +2478,7 @@ const StockManagement = () => {
         <div className="w-full min-w-0 lg:w-auto">
           <PageHeader
             className="mb-0 border-b-0 pb-0"
-            title="Stock/Inventory management"
+            title={tt('Stock/Inventory management')}
             description={
               stockCatalog === "services"
                 ? "Billable services — pricing and tax only; no inventory or stock movements."
@@ -2567,7 +2567,7 @@ const StockManagement = () => {
                 }}
               >
                 <CheckSquare size={16} />
-                <span>{isSelectMode ? 'Cancel Selection' : 'Select Products'}</span>
+                <span>{isSelectMode ? tt('Cancel Selection') : tt('Select Products')}</span>
               </button>
 
               {/* Batch Delete Button */}
@@ -2593,7 +2593,7 @@ const StockManagement = () => {
                 type="button"
                 className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-blue-200 hover:from-blue-700 hover:to-blue-800 transition-all duration-200"
                 onClick={handleOpenCreatePurchaseOrder}
-                title="Create a purchase order from stock"
+                title={tt('Create a purchase order from stock')}
               >
                 <ShoppingCart size={16} />
                 <span>{tt('New Purchase Order')}</span>
@@ -2626,7 +2626,7 @@ const StockManagement = () => {
                   }}
                 >
                   <CheckSquare size={16} />
-                  <span>{isSelectMode ? "Cancel selection" : "Select services"}</span>
+                  <span>{isSelectMode ? tt('Cancel selection') : tt('Select services')}</span>
                 </button>
               )}
 
@@ -2690,7 +2690,7 @@ const StockManagement = () => {
       {/* Statistics Cards — click to filter list or open related view */}
       <div className={`grid grid-cols-1 gap-4 lg:gap-6 mb-6 lg:mb-8 ${stockCatalog === "services" ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4"}`}>
         <ClickableStatCard
-          label={stockCatalog === "services" ? "Services" : "Total products"}
+          label={stockCatalog === "services" ? tt('Services') : tt('Total products')}
           value={
             statisticsLoading
               ? "…"
@@ -2746,7 +2746,7 @@ const StockManagement = () => {
               icon={BarChart2}
               iconWrapClassName="bg-blue-50 text-blue-600"
               barClassName="from-blue-500 via-sky-500 to-indigo-500"
-              title="Open Chart of Accounts inventory account"
+              title={tt('Open Chart of Accounts inventory account')}
               onClick={() => {
                 const code = statistics.glAccount?.code || "1310";
                 router.push(`/chart-of-accounts?search=${encodeURIComponent(code)}`);
@@ -2868,7 +2868,7 @@ const StockManagement = () => {
                   : 'bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
               onClick={() => setView('list')}
-              title="List View"
+              title={tt('List View')}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="1" y="3" width="14" height="2" rx="1" fill="currentColor"/>
@@ -2884,7 +2884,7 @@ const StockManagement = () => {
                   : 'bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
               onClick={() => setView('grid')}
-              title="Grid View"
+              title={tt('Grid View')}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor"/>
@@ -3296,7 +3296,7 @@ const StockManagement = () => {
                               <button 
                                 className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                 onClick={() => handleItemClick(item)}
-                                title="View Details"
+                                title={tt('View Details')}
                               >
                                 <Eye size={16} />
                               </button>
@@ -3304,7 +3304,7 @@ const StockManagement = () => {
                                 <button 
                                   className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                                   onClick={(e) => handleEditProduct(item, e)}
-                                  title="Edit Product"
+                                  title={tt('Edit Product')}
                                 >
                                   <Edit size={16} />
                                 </button>
@@ -3338,16 +3338,14 @@ const StockManagement = () => {
                   )}
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  {stockCatalog === "services" ? "No services yet" : "No products found"}
+                  {stockCatalog === "services" ? tt('No services yet') : tt('No products found')}
                 </h3>
                 <p className="text-gray-500 mb-6 max-w-sm mx-auto">
                   {stockCatalog === "services"
                     ? searchTerm || categoryFilter !== "All"
                       ? "Try adjusting your search or category filter"
                       : "Create a service for consulting, room rates, delivery fees, and other non-inventory billing."
-                    : (searchTerm || categoryFilter !== "All" || statusFilter !== "All") 
-                    ? "Try adjusting your search or filter criteria" 
-                    : "Get started by adding your first product to stock"}
+                    : (searchTerm || categoryFilter !== "All" || statusFilter !== "All") ? tt('Try adjusting your search or filter criteria') : tt('Get started by adding your first product to stock')}
                 </p>
                 {stockCatalog === "services" ? (
                   pagePermissions.canCreateStock && (
@@ -3449,7 +3447,11 @@ const StockManagement = () => {
                   <div className="mt-3 pt-3 border-t border-gray-100">
                     <div className="flex justify-between items-center">
                       <span className="text-xs text-gray-500">{tt('Stock Value')}</span>
-                      <span className="text-sm font-bold text-gray-900">{formatCurrency(stockLineValue(item.quantityInStock, item.costPrice))}</span>
+                      <span className="text-sm font-bold text-gray-900">{formatCurrency(
+                        item.totalStockValue != null && !isNaN(Number(item.totalStockValue))
+                          ? roundMoney(item.totalStockValue)
+                          : stockLineValue(item.quantityInStock, item.costPrice || 0)
+                      )}</span>
                     </div>
                   </div>
                 </div>
@@ -3476,7 +3478,7 @@ const StockManagement = () => {
                           e.stopPropagation();
                           handleItemClick(item);
                         }}
-                        title="View Details"
+                        title={tt('View Details')}
                       >
                         <Eye size={16} />
                       </button>
@@ -3484,7 +3486,7 @@ const StockManagement = () => {
                         <button 
                           className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                           onClick={(e) => handleEditProduct(item, e)}
-                          title="Edit Product"
+                          title={tt('Edit Product')}
                         >
                           <Edit size={16} />
                         </button>
@@ -3511,9 +3513,7 @@ const StockManagement = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">{tt('No products found')}</h3>
                 <p className="text-gray-500 mb-6 max-w-sm mx-auto">
-                  {(searchTerm || categoryFilter !== "All" || statusFilter !== "All" || locationFilter !== "All") 
-                    ? "Try adjusting your search or filter criteria" 
-                    : "Get started by adding your first product to stock"}
+                  {(searchTerm || categoryFilter !== "All" || statusFilter !== "All" || locationFilter !== "All") ? tt('Try adjusting your search or filter criteria') : tt('Get started by adding your first product to stock')}
                 </p>
                 <button 
                   className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-medium shadow-lg shadow-blue-200 hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center gap-2 mx-auto"
@@ -3535,7 +3535,7 @@ const StockManagement = () => {
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600">
                 {tt('Showing')} <span className="font-semibold text-gray-900">{(() => { const p = Number(pagination.currentPage) || 1; const s = Number(pagination.pageSize) || 20; const n = (p - 1) * s + 1; return Number.isFinite(n) ? n : 0; })()}</span> {tt('to')} <span className="font-semibold text-gray-900">{(() => { const p = Number(pagination.currentPage) || 1; const s = Number(pagination.pageSize) || 20; const t = Number(pagination.totalItems) || 0; const n = Math.min(p * s, t); return Number.isFinite(n) ? n : 0; })()}</span> {tt('of')} <span className="font-semibold text-gray-900">{Number.isFinite(Number(pagination.totalItems)) ? (Number(pagination.totalItems) || 0) : 0}</span>{" "}
-                {stockCatalog === "services" ? "services" : "products"}
+                {stockCatalog === "services" ? tt('services') : tt('products')}
               </span>
               
               <div className="flex items-center gap-2">
@@ -3910,7 +3910,7 @@ const StockManagement = () => {
                 )}
                 
                 <div className={`bg-gray-50 p-4 rounded-lg ${selectedItem.isService ? "md:col-span-2" : ""}`}>
-                  <h3 className="font-medium text-lg mb-4">{selectedItem.isService ? "Service pricing" : "Pricing"}</h3>
+                  <h3 className="font-medium text-lg mb-4">{selectedItem.isService ? tt('Service pricing') : tt('Pricing')}</h3>
                   <div className={`grid gap-4 ${selectedItem.isService ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-2"}`}>
                     {!selectedItem.isService && (
                     <div>
@@ -3919,7 +3919,7 @@ const StockManagement = () => {
                     </div>
                     )}
                     <div>
-                      <span className="text-sm text-gray-500">{selectedItem.isService ? "Rate" : "Selling Price"}</span>
+                      <span className="text-sm text-gray-500">{selectedItem.isService ? tt('Rate') : tt('Selling Price')}</span>
                       <div className="min-w-0 break-words text-base font-bold leading-tight tabular-nums sm:text-lg">{formatCurrency(selectedItem.unitPrice)}</div>
                     </div>
                     {selectedItem.isService && (
@@ -4186,7 +4186,7 @@ const StockManagement = () => {
                     handleEditProduct(selectedItem);
                   }}
                 >
-                  {selectedItem.isService ? "Edit service" : "Edit Product"}
+                  {selectedItem.isService ? tt('Edit service') : tt('Edit Product')}
                 </button>)}
               </div>
             </div>
@@ -4499,7 +4499,7 @@ const StockManagement = () => {
                 type="button"
                 onClick={() => { fetchTransfers(); fetchStockByBusiness(); }}
                 className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 hover:shadow-sm transition-all duration-200 flex items-center gap-2"
-                title="Refresh"
+                title={tt('Refresh')}
               >
                 <RefreshCw size={16} />
                 {tt('Refresh')}
@@ -4947,7 +4947,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
             {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
 
             <FormSection
-              title="Order Information"
+              title={tt('Order Information')}
               description="Supplier and timing for this purchase request."
             >
               <div className="grid gap-4 sm:grid-cols-2">
@@ -4998,7 +4998,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
             </FormSection>
 
             <FormSection
-              title="Line Items"
+              title={tt('Line Items')}
               description="Each product row drives receiving, costing, and billing."
             >
               <div className="space-y-3">
@@ -5107,7 +5107,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
               </div>
             </FormSection>
 
-            <FormSection title="Notes & Totals" description="Internal instructions and quick totals overview.">
+            <FormSection title={tt('Notes & Totals')} description="Internal instructions and quick totals overview.">
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">{tt('Notes')}</label>
@@ -5144,7 +5144,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                 disabled={saving}
                 className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                {saving ? "Saving…" : "Save Purchase Order"}
+                {saving ? tt('Saving…') : tt('Save Purchase Order')}
               </button>
             </div>
           </form>
@@ -5908,7 +5908,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
       <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden animate-fadeInUp">
         <div className="p-5 border-b border-gray-200">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">{product ? "Edit Product" : "Add New Product"}</h2>
+            <h2 className="text-xl font-semibold">{product ? tt('Edit Product') : tt('Add New Product')}</h2>
             <button 
               className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
               onClick={onClose}
@@ -6238,7 +6238,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                           checked={formData.selectedTaxIds?.includes(tax.id) || false}
                           onChange={(e) => {
                             const isChecked = e.target.checked;
-                            console.log(`Tax ${tax.taxName} ${isChecked ? 'checked' : 'unchecked'}`);
+                            console.log(`Tax ${tax.taxName} ${isChecked ? tt('checked') : tt('unchecked')}`);
                             
                             if (isChecked) {
                               const newIds = [...(formData.selectedTaxIds || []), tax.id];
@@ -6359,7 +6359,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                             type="button"
                             onClick={() => handleRemoveAllocationRow(index)}
                             className="col-span-1 p-2 text-red-600 hover:text-red-700"
-                            title="Remove row"
+                            title={tt('Remove row')}
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -6508,7 +6508,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
             ) : (
               <>
                 <Save size={16} className="mr-1" />
-                {product ? "Update Product" : "Create Product"}
+                {product ? tt('Update Product') : tt('Create Product')}
               </>
             )}
           </button>

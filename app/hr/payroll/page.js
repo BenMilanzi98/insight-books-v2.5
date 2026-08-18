@@ -490,7 +490,7 @@ export default function PayrollProcessing() {
         setToast({
           visible: true,
           type: 'success',
-          message: removeData.message || `Removed ${cancelled} payroll ${cancelled === 1 ? 'entry' : 'entries'}.`,
+          message: removeData.message || `Removed ${cancelled} payroll ${cancelled === 1 ? tt('entry') : tt('entries')}.`,
         });
         fetchPayrollRuns();
       } else if (cancelled > 0 && blocked.length > 0) {
@@ -515,7 +515,7 @@ export default function PayrollProcessing() {
           setToast({
             visible: true,
             type: 'success',
-            message: `Nothing to do — ${skippedReversed} ${skippedReversed === 1 ? 'entry was' : 'entries were'} already reversed.`,
+            message: `Nothing to do — ${skippedReversed} ${skippedReversed === 1 ? tt('entry was') : tt('entries were')} already reversed.`,
           });
           fetchPayrollRuns();
         } else {
@@ -926,7 +926,7 @@ export default function PayrollProcessing() {
         </div>
       )}
       <PosStylePageHeader
-        title="Payroll Processing"
+        title={tt('Payroll Processing')}
         description="Process payroll with Malawi tax compliance (PAYE & NPS)"
         actions={
           <>
@@ -1058,7 +1058,7 @@ export default function PayrollProcessing() {
                       <button 
                         className="text-blue-600 hover:text-blue-800" 
                         onClick={() => handleViewRun(run)}
-                        title="View Payroll"
+                        title={tt('View Payroll')}
                       >
                         <Eye size={18} />
                       </button>
@@ -1256,7 +1256,7 @@ export default function PayrollProcessing() {
                   {(processing || sendingEmails) && (
                     <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   )}
-                  {sendingEmails ? 'Sending Emails...' : processing ? 'Processing...' : 'Process Payroll'}
+                  {sendingEmails ? 'Sending Emails...' : processing ? tt('Processing...') : tt('Process Payroll')}
                 </button>
               </div>
             </div>
@@ -1322,7 +1322,7 @@ export default function PayrollProcessing() {
                                   <button 
                                     onClick={() => handleEditPayroll(entry)} 
                                     className="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 rounded border text-blue-700 flex items-center gap-1"
-                                    title="Edit Payroll"
+                                    title={tt('Edit Payroll')}
                                   >
                                     <Edit size={14} />
                                     {tt('Edit')}
@@ -1332,7 +1332,7 @@ export default function PayrollProcessing() {
                                   <button 
                                     onClick={() => handleGeneratePayslip(entry.id)} 
                                     className="px-3 py-1.5 text-xs font-medium bg-green-600 hover:bg-green-700 rounded-md text-white flex items-center gap-1.5 shadow-sm transition-colors"
-                                    title="Generate Payslip"
+                                    title={tt('Generate Payslip')}
                                   >
                                     <Receipt size={14} />
                                     {tt('Payslip')}
@@ -1342,7 +1342,7 @@ export default function PayrollProcessing() {
                                   <button 
                                     onClick={() => markDraft(entry.id)} 
                                     className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border"
-                                    title="Mark as Draft"
+                                    title={tt('Mark as Draft')}
                                   >
                                     {tt('Draft')}
                                   </button>
@@ -1443,9 +1443,7 @@ export default function PayrollProcessing() {
                   )}
                   {reversePreflight?.pending
                     ? 'Confirm'
-                    : reversePreflight?.reversalMode === 'mark_reversed'
-                      ? 'Mark reversed'
-                      : 'Confirm GL reversal'}
+                    : reversePreflight?.reversalMode === 'mark_reversed' ? tt('Mark reversed') : tt('Confirm GL reversal')}
                 </button>
               </div>
             </div>
@@ -1571,7 +1569,7 @@ export default function PayrollProcessing() {
                               }}
                               disabled={isSaving}
                               className="text-red-600 hover:text-red-800 hover:bg-red-50 text-lg font-bold px-2 py-1 rounded disabled:opacity-50 transition-colors"
-                              title="Remove deduction"
+                              title={tt('Remove deduction')}
                             >
                               ×
                             </button>
@@ -1659,7 +1657,7 @@ export default function PayrollProcessing() {
                   {isSaving && (
                     <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   )}
-                  {isSaving ? 'Saving...' : 'Save Changes'}
+                  {isSaving ? tt('Saving...') : tt('Save Changes')}
                 </button>
               </div>
             </div>
@@ -1721,7 +1719,7 @@ export default function PayrollProcessing() {
                   {isDeleting && (
                     <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   )}
-                  {isDeleting ? 'Removing...' : 'Remove run'}
+                  {isDeleting ? tt('Removing...') : tt('Remove run')}
                 </button>
               </div>
             </div>

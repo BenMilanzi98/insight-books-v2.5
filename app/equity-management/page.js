@@ -176,7 +176,7 @@ export default function EquityManagementPage() {
     <div className="w-full">
       <div className="mx-auto max-w-6xl space-y-6">
         <PosStylePageHeader
-          title="Equity Management"
+          title={tt('Equity Management')}
           description="Owners, capital, drawings, and dividends post through the Accounting Posting Engine. Balances derive from journals — never typed independently. Contributions are not revenue; drawings are not expenses; dividends are not operating expenses."
           actions={
             <PosStyleHeaderButton type="button" onClick={load}>

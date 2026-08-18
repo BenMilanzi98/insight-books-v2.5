@@ -173,7 +173,7 @@ export default function AdminPlatformPaymentsPage() {
           label="Volume"
           value={formatMoney(stats.totalAmount)}
           hint={`${stats.failed} failed`}
-          tone={stats.failed ? 'danger' : 'neutral'}
+          tone={stats.failed ? tt('danger') : tt('neutral')}
         />
       </div>
 
@@ -198,12 +198,12 @@ export default function AdminPlatformPaymentsPage() {
 
       {loading ? <AdminLoadingState label="Loading platform payments" /> : null}
       {!loading && error ? (
-        <AdminErrorState title="Unable to load payments" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Unable to load payments')} message={error} onRetry={load} />
       ) : null}
       {!loading && !error && filtered.length === 0 ? (
         <AdminEmptyState
           icon={CreditCard}
-          title="No platform payments"
+          title={tt('No platform payments')}
           description="Record platform payments via the billing API. Tenant AR payments are not shown here."
         />
       ) : null}

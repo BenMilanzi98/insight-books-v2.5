@@ -127,8 +127,8 @@ function ValidationTab() {
 
   return (
     <SectionCard
-      title="Chart of Accounts integrity"
-      subtitle="Runs the COA-001 … COA-025 integrity checks for this business"
+      title={tt('Chart of Accounts integrity')}
+      subtitle={tt('Runs the COA-001 … COA-025 integrity checks for this business')}
       actions={
         <button
           onClick={run}
@@ -233,8 +233,8 @@ function MappingsTab() {
 
   return (
     <SectionCard
-      title="System purpose mappings"
-      subtitle="Each active purpose resolves to exactly one approved account for this business"
+      title={tt('System purpose mappings')}
+      subtitle={tt('Each active purpose resolves to exactly one approved account for this business')}
       actions={
         <button
           onClick={load}
@@ -321,8 +321,8 @@ function DuplicatesTab({ onCreatePlan }) {
 
   return (
     <SectionCard
-      title="Duplicate account candidates"
-      subtitle="Classified for review — accounts are never merged or deleted automatically"
+      title={tt('Duplicate account candidates')}
+      subtitle={tt('Classified for review — accounts are never merged or deleted automatically')}
     >
       {error ? <p className="text-sm text-red-600 mb-3">{error}</p> : null}
       <div className="overflow-x-auto">
@@ -415,7 +415,7 @@ function ConsolidationTab({ refreshKey }) {
 
   return (
     <SectionCard
-      title="Consolidation plans"
+      title={tt('Consolidation plans')}
       subtitle="Approval by a different user is required; execution deprecates the duplicate for future postings only"
       actions={
         <button
@@ -570,7 +570,7 @@ function TemplatesTab() {
 
   return (
     <SectionCard
-      title="Versioned Chart of Accounts templates"
+      title={tt('Versioned Chart of Accounts templates')}
       subtitle="Templates are immutable after publication; applying additions never overwrites existing accounts"
     >
       {error ? <p className="text-sm text-red-600 mb-3">{error}</p> : null}

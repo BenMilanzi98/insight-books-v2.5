@@ -219,7 +219,7 @@ export default function ReportsDashboardView({
       showPageHeader={showPageHeader}
       reportTitle={reportTitle ?? 'Dashboard'}
       loading={loading}
-      loadingLabel="Loading financial summary…"
+      loadingLabel={tt('Loading financial summary…')}
       error={error}
       exportFormats={[]}
       reportTypeCategories={reportTypeCategories}
@@ -329,21 +329,21 @@ export default function ReportsDashboardView({
 
           <div className="grid gap-4 lg:grid-cols-3">
             <ReportsDonutChart
-              title="Revenue allocation"
+              title={tt('Revenue allocation')}
               data={revenueSplit}
               centerLabel="Revenue"
               centerValue={formatCurrency(fs.revenue?.current || 0)}
               emptyLabel="No revenue in this period"
             />
             <ReportsDonutChart
-              title="Expense breakdown"
+              title={tt('Expense breakdown')}
               data={expensePie}
               centerLabel="Total"
               centerValue={formatCurrency(fs.expenses?.current || 0)}
               emptyLabel="No expenses in this period"
             />
             <ReportsDonutChart
-              title="Balance sheet mix"
+              title={tt('Balance sheet mix')}
               data={positionPie}
               centerLabel="Exposure"
               emptyLabel="No position data"

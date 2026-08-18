@@ -59,7 +59,7 @@ function ConfirmDialog({ title, message, onConfirm, onCancel, loading }) {
             disabled={loading}
             className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white  hover:bg-red-700 disabled:opacity-50"
           >
-            {loading ? "Removing…" : "Delete"}
+            {loading ? tt('Removing…') : tt('Delete')}
           </button>
         </div>
       </div>
@@ -995,7 +995,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
         </p>
       )}
 
-      <BillFormSection title="Bill Details" description="Supplier and key dates.">
+      <BillFormSection title={tt('Bill Details')} description="Supplier and key dates.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700">
@@ -1079,7 +1079,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
         </div>
       </BillFormSection>
 
-      <BillFormSection title="Line Items" description="Add products and quantities.">
+      <BillFormSection title={tt('Line Items')} description="Add products and quantities.">
         <div className="space-y-3">
           {items.map((item, idx) => (
             <div
@@ -1140,7 +1140,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
         </div>
       </BillFormSection>
 
-      <BillFormSection title="Notes & Totals">
+      <BillFormSection title={tt('Notes & Totals')}>
         <div className="space-y-3">
           <textarea
             name="notes"
@@ -1175,7 +1175,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
           disabled={saving}
           className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          {saving ? "Saving…" : isEdit ? "Update Bill" : "Save Bill"}
+          {saving ? "Saving…" : isEdit ? tt('Update Bill') : tt('Save Bill')}
         </button>
       </div>
     </form>
@@ -1309,7 +1309,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
       {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
 
       <FormSection
-        title="Order Information"
+        title={tt('Order Information')}
         description="Supplier and timing for this purchase request."
       >
         <div className="grid gap-4 sm:grid-cols-2">
@@ -1355,7 +1355,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
       </FormSection>
 
       <FormSection
-        title="Line Items"
+        title={tt('Line Items')}
         description="Each product row drives receiving, costing, and billing."
       >
         <div className="space-y-3">
@@ -1436,7 +1436,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
         </div>
       </FormSection>
 
-      <FormSection title="Notes & Totals" description="Internal instructions and quick totals overview.">
+      <FormSection title={tt('Notes & Totals')} description="Internal instructions and quick totals overview.">
         <div className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-700">{tt('Notes')}</label>
@@ -1473,7 +1473,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
           disabled={saving}
           className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          {saving ? "Saving…" : isEdit ? "Update Purchase Order" : "Save Purchase Order"}
+          {saving ? "Saving…" : isEdit ? tt('Update Purchase Order') : tt('Save Purchase Order')}
         </button>
       </div>
     </form>
@@ -1623,7 +1623,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
         </p>
       )}
 
-      <FormSection title="Receipt Details" description="Supplier, dates, and posting status.">
+      <FormSection title={tt('Receipt Details')} description="Supplier, dates, and posting status.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700">
@@ -1686,7 +1686,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
       </FormSection>
 
       <FormSection
-        title="Items Received"
+        title={tt('Items Received')}
         description="Quantities update product stock levels using weighted cost."
       >
         <div className="space-y-3">
@@ -1750,7 +1750,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
         </div>
       </FormSection>
 
-      <FormSection title="Notes" description="Optional internal notes for this receipt.">
+      <FormSection title={tt('Notes')} description="Optional internal notes for this receipt.">
         <textarea
           name="notes"
           value={form.notes}
@@ -1774,7 +1774,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
           disabled={saving}
           className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          {saving ? "Posting..." : "Post Receipt"}
+          {saving ? tt('Posting...') : tt('Post Receipt')}
         </button>
       </div>
     </form>
@@ -1875,7 +1875,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
         </p>
       )}
 
-      <PaymentFormSection title="Payment Details" description="Who is being paid and how.">
+      <PaymentFormSection title={tt('Payment Details')} description="Who is being paid and how.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700">{tt('Supplier')}</label>
@@ -1914,7 +1914,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
               disabled={isLoadingPaymentAccounts}
             >
-              <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+              <option value="">{isLoadingPaymentAccounts ? tt('Loading accounts...') : tt('Select an account')}</option>
               {paymentAccounts.map(account => (
                 <option key={account.id} value={account.id}>
                   {account.name} {account.accountType ? `(${account.accountType})` : ''}
@@ -1937,7 +1937,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
       </PaymentFormSection>
 
       <PaymentFormSection
-        title="Allocate to Bills"
+        title={tt('Allocate to Bills')}
         description="Distribute the payment across outstanding supplier bills."
       >
         {form.supplierId ? (
@@ -1980,7 +1980,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
         )}
       </PaymentFormSection>
 
-      <PaymentFormSection title="Notes & Total" description="Optional memo plus total payment amount.">
+      <PaymentFormSection title={tt('Notes & Total')} description="Optional memo plus total payment amount.">
         <div className="space-y-3">
           <textarea
             name="notes"
@@ -2015,7 +2015,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
           disabled={saving || totalAllocations <= 0}
           className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          {saving ? "Saving…" : "Record Payment"}
+          {saving ? tt('Saving…') : tt('Record Payment')}
         </button>
       </div>
     </form>
@@ -2826,7 +2826,7 @@ export default function SuppliersPage() {
             onClick={refreshSuppliers}
             disabled={loading}
             className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-            title="Refresh supplier list"
+            title={tt('Refresh supplier list')}
           >
             {loading ? "Refreshing..." : "🔄"}
           </button>
@@ -2980,7 +2980,7 @@ export default function SuppliersPage() {
                           ? "bg-green-100 text-green-800" 
                           : "bg-gray-100 text-gray-800"
                       }`}>
-                        {supplier.isActive !== false ? "Active" : "Inactive"}
+                        {supplier.isActive !== false ? tt('Active') : tt('Inactive')}
                       </span>
                     </td>
                     <td className="px-4 py-2 text-right">
@@ -3010,7 +3010,7 @@ export default function SuppliersPage() {
                               setLoadingTransactions(false);
                             }
                           }}
-                          title="View all transactions"
+                          title={tt('View all transactions')}
                         >
                           <Eye size={14} className="inline mr-1" />
                           {tt('View')}
@@ -3944,7 +3944,7 @@ export default function SuppliersPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {formMode === "edit" ? "Edit Supplier" : "New Supplier"}
+                  {formMode === "edit" ? tt('Edit Supplier') : tt('New Supplier')}
                 </h2>
                 {formMode === "edit" && (
                   <p className="text-xs text-gray-500">{activeSupplier?.supplierCode}</p>
@@ -3974,7 +3974,7 @@ export default function SuppliersPage() {
 
       {deletingSupplier && (
         <ConfirmDialog
-          title="Delete Supplier"
+          title={tt('Delete Supplier')}
           message={`Are you sure you want to delete ${deletingSupplier.supplierName}?`}
           onConfirm={handleDeleteSupplier}
           onCancel={() => setDeletingSupplier(null)}
@@ -3984,7 +3984,7 @@ export default function SuppliersPage() {
 
       {deletingOrder && (
         <ConfirmDialog
-          title="Delete Purchase Order"
+          title={tt('Delete Purchase Order')}
           message={`Are you sure you want to delete ${deletingOrder.poNumber}?`}
           onConfirm={handleDeleteOrder}
           onCancel={() => setDeletingOrder(null)}
@@ -3998,7 +3998,7 @@ export default function SuppliersPage() {
           <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-6">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">
-                {billFormMode === "edit" ? "Edit Bill" : "New Supplier Bill"}
+                {billFormMode === "edit" ? tt('Edit Bill') : tt('New Supplier Bill')}
               </h2>
               <button
                 onClick={() => {
@@ -4029,7 +4029,7 @@ export default function SuppliersPage() {
           <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-6">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">
-                {orderFormMode === "edit" ? "Edit Purchase Order" : "New Purchase Order"}
+                {orderFormMode === "edit" ? tt('Edit Purchase Order') : tt('New Purchase Order')}
               </h2>
               <button
                 onClick={() => {

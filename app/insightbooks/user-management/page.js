@@ -327,17 +327,17 @@ export default function UserManagementPage() {
       key: 'actions', header: 'Actions',
       render: (u) => (
         <div className="flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <IconBtn title="Edit" onClick={() => setEditUser(u)}><Pencil className="h-4 w-4" /></IconBtn>
-          <IconBtn title="Lock" disabled={actionLoading} onClick={() => ask(u, 'lock', 'Lock user', `Lock ${u.email}?`)}>
+          <IconBtn title={tt('Edit')} onClick={() => setEditUser(u)}><Pencil className="h-4 w-4" /></IconBtn>
+          <IconBtn title={tt('Lock')} disabled={actionLoading} onClick={() => ask(u, 'lock', 'Lock user', `Lock ${u.email}?`)}>
             <Lock className="h-4 w-4" />
           </IconBtn>
-          <IconBtn title="Unlock" disabled={actionLoading} onClick={() => ask(u, 'unlock', 'Unlock user', `Unlock ${u.email}?`)}>
+          <IconBtn title={tt('Unlock')} disabled={actionLoading} onClick={() => ask(u, 'unlock', 'Unlock user', `Unlock ${u.email}?`)}>
             <Unlock className="h-4 w-4" />
           </IconBtn>
-          <IconBtn title="Require password reset" disabled={actionLoading} onClick={() => ask(u, 'resetPassword', 'Require password reset', `Require a password reset for ${u.email}?`)}>
+          <IconBtn title={tt('Require password reset')} disabled={actionLoading} onClick={() => ask(u, 'resetPassword', 'Require password reset', `Require a password reset for ${u.email}?`)}>
             <KeyRound className="h-4 w-4" />
           </IconBtn>
-          <IconBtn title="Delete" onClick={() => setConfirm({ type: 'delete', user: u, title: 'Delete user', description: `Delete ${u.name}? This cannot be undone.` })}>
+          <IconBtn title={tt('Delete')} onClick={() => setConfirm({ type: 'delete', user: u, title: 'Delete user', description: `Delete ${u.name}? This cannot be undone.` })}>
             <Trash2 className="h-4 w-4 text-[var(--admin-danger)]" />
           </IconBtn>
         </div>
@@ -393,11 +393,11 @@ export default function UserManagementPage() {
 
       {loading ? <AdminLoadingState label="Loading users" /> : null}
       {!loading && error && users.length === 0 ? (
-        <AdminErrorState title="User list unavailable" message={error} onRetry={() => fetchUsers(currentPage, searchTerm, selectedRole, selectedStatus)} />
+        <AdminErrorState title={tt('User list unavailable')} message={error} onRetry={() => fetchUsers(currentPage, searchTerm, selectedRole, selectedStatus)} />
       ) : null}
       {!loading && !error && users.length === 0 ? (
         <AdminEmptyState
-          title="No users found"
+          title={tt('No users found')}
           description="Adjust filters or create a new user."
           icon={Users}
           action={
@@ -436,8 +436,8 @@ export default function UserManagementPage() {
         open={Boolean(confirm)}
         title={confirm?.title || 'Confirm'}
         description={confirm?.description}
-        confirmLabel={confirm?.type === 'delete' ? 'Delete' : 'Confirm'}
-        tone={confirm?.type === 'delete' || confirm?.action === 'lock' ? 'danger' : 'primary'}
+        confirmLabel={confirm?.type === 'delete' ? tt('Delete') : tt('Confirm')}
+        tone={confirm?.type === 'delete' || confirm?.action === 'lock' ? tt('danger') : tt('primary')}
         loading={actionLoading}
         onCancel={() => setConfirm(null)}
         onConfirm={runConfirm}
@@ -477,7 +477,7 @@ function MembershipEditor({ rows, setRows, primaryIndex, setPrimaryIndex, tenant
             value={row.roleId} required={idx === 0} disabled={!row.tenantId}
             onChange={(e) => setRows((p) => p.map((r, i) => (i === idx ? { ...r, roleId: e.target.value } : r)))}
           >
-            <option value="">{!row.tenantId ? 'Select business first' : 'Select role'}</option>
+            <option value="">{!row.tenantId ? tt('Select business first') : tt('Select role')}</option>
             {(rolesCache[row.tenantId] || []).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </AdminField.Select>
           {rows.length > 1 ? (
@@ -635,13 +635,13 @@ function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, 
     <AdminModal
       open={open}
       onClose={onClose}
-      title={isEdit ? 'Edit user' : 'Create user'}
+      title={isEdit ? tt('Edit user') : tt('Create user')}
       size="lg"
       footer={
         <>
           <button type="button" onClick={onClose} disabled={loading} className={btnGhost}>{tt('Cancel')}</button>
           <button type="submit" form="user-form" disabled={loading || detailLoading} className={btnPrimary}>
-            {loading ? (isEdit ? 'Updating…' : 'Creating…') : isEdit ? 'Update user' : 'Create user'}
+            {loading ? (isEdit ? 'Updating…' : 'Creating…') : isEdit ? tt('Update user') : tt('Create user')}
           </button>
         </>
       }
@@ -679,8 +679,8 @@ function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, 
                   <p className="text-sm font-medium text-[var(--admin-text)]">{tt('Email verification')}</p>
                   <p className="mt-0.5 text-xs text-[var(--admin-text-muted)]">{tt('For when verification email was not received.')}</p>
                 </div>
-                <AdminStatusBadge tone={verification.isEmailVerified ? 'success' : 'warning'}>
-                  {verification.isEmailVerified ? 'Verified' : 'Not verified'}
+                <AdminStatusBadge tone={verification.isEmailVerified ? tt('success') : tt('warning')}>
+                  {verification.isEmailVerified ? tt('Verified') : tt('Not verified')}
                 </AdminStatusBadge>
               </div>
               <div className="flex items-center justify-between gap-3 rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface-muted)] p-3">
@@ -688,7 +688,7 @@ function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, 
                   <p className="text-xs font-medium uppercase text-[var(--admin-text-muted)]">{tt('Current OTP')}</p>
                   <p className="mt-1 font-mono text-lg tracking-widest text-[var(--admin-text)]">{verification.otpCode || 'No active OTP'}</p>
                   <p className={`mt-1 text-xs ${otpExpired ? 'text-[var(--admin-danger)]' : 'text-[var(--admin-text-muted)]'}`}>
-                    {verification.otpExpiry ? `${otpExpired ? 'Expired' : 'Expires'}: ${fmtDateTime(verification.otpExpiry)}` : 'No OTP expiry recorded.'}
+                    {verification.otpExpiry ? `${otpExpired ? tt('Expired') : tt('Expires')}: ${fmtDateTime(verification.otpExpiry)}` : 'No OTP expiry recorded.'}
                   </p>
                 </div>
                 {verification.otpCode ? (
@@ -716,7 +716,7 @@ function UserFormModal({ mode, open, user, tenants, loading, onClose, onSubmit, 
                 className="inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius)] bg-[var(--status-success)] px-3 text-sm font-medium text-white disabled:opacity-50"
               >
                 <CheckCircle className="h-4 w-4" />
-                {activationLoading ? 'Activating…' : 'Manually activate account'}
+                {activationLoading ? tt('Activating…') : tt('Manually activate account')}
               </button>
             </div>
           ) : null}

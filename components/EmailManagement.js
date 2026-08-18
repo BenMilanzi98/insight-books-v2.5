@@ -392,7 +392,7 @@ const EmailManagement = () => {
                 ) : (
                   <Square className="h-4 w-4" />
                 )}
-                {selectedUsers.length === filteredUsers.length ? 'Deselect All' : 'Select All'}
+                {selectedUsers.length === filteredUsers.length ? tt('Deselect All') : tt('Select All')}
               </button>
             </div>
           </div>
@@ -550,7 +550,7 @@ const EmailManagement = () => {
                   className="flex items-center gap-2 text-blue-600 hover:text-blue-800"
                 >
                   {showPreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  {showPreview ? 'Hide Preview' : 'Show Preview'}
+                  {showPreview ? tt('Hide Preview') : tt('Show Preview')}
                 </button>
                 <div className="flex gap-3">
                   <button
@@ -569,7 +569,7 @@ const EmailManagement = () => {
                     ) : (
                       <Send className="h-4 w-4" />
                     )}
-                    {sending ? 'Sending...' : 'Send Email'}
+                    {sending ? tt('Sending...') : tt('Send Email')}
                   </button>
                 </div>
               </div>

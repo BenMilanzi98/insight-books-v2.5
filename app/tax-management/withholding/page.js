@@ -105,7 +105,7 @@ export default function TaxWithholdingPage() {
   return (
     <div className="container mx-auto py-2">
       <PageHeader
-        title="Withholding tax"
+        title={tt('Withholding tax')}
         description="Withholding remittance register. Remit status after the V2 payment journal is posted."
       />
       {error ? (

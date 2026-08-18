@@ -18,7 +18,7 @@ function HiringsHubInner() {
     <PermissionGuard permissions={['rentals.view']}>
       <div className="w-full p-4 sm:p-6">
         <PosStylePageHeader
-          title="Hirings"
+          title={tt('Hirings')}
           description="Customer hire (outbound) and supplier hire (inbound)"
         />
         <div className="mb-4 flex gap-2" role="tablist" aria-label={tt('Hiring type')}>

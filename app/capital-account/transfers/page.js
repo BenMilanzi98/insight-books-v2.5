@@ -353,7 +353,7 @@ const CapitalAccountTransfersPage = () => {
                         <td className="px-6 py-4">
                           <div>
                             <div className="text-sm font-medium text-gray-900">
-                              {transfer.type === 'outgoing' ? 'To:' : 'From:'} {
+                              {transfer.type === 'outgoing' ? tt('To:') : tt('From:')} {
                                 transfer.type === 'outgoing' 
                                   ? getPaymentMethodName(transfer.destinationAccount)
                                   : getPaymentMethodName(transfer.sourceAccount)
@@ -374,7 +374,7 @@ const CapitalAccountTransfersPage = () => {
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getTransferTypeColor(transfer.type)}`}>
                             {getTransferTypeIcon(transfer.type)}
                             <span className="ml-1">
-                              {transfer.type === 'outgoing' ? 'Outgoing' : 'Incoming'}
+                              {transfer.type === 'outgoing' ? tt('Outgoing') : tt('Incoming')}
                             </span>
                           </span>
                         </td>

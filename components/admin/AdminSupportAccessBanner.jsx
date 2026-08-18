@@ -75,7 +75,7 @@ export default function AdminSupportAccessBanner() {
         disabled={ending}
         className="shrink-0 rounded-[var(--radius-md)] bg-amber-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-900 disabled:opacity-60"
       >
-        {ending ? 'Ending…' : 'Exit support access'}
+        {ending ? tt('Ending…') : tt('Exit support access')}
       </button>
     </div>
   );

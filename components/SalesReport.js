@@ -34,7 +34,7 @@ export const SalesReport = ({
   
   return (
     <FinancialReport
-      title="Sales Report"
+      title={tt('Sales Report')}
       subtitle={data?.period ? formatPeriodRange(data.period.startDate, data.period.endDate) : "Sales Analysis"}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}
@@ -207,7 +207,7 @@ export const SalesReport = ({
           {data.accountLines?.length > 0 && (
             <ReportAccountTable
               lines={data.accountLines}
-              title="Income Accounts — General Ledger Detail"
+              title={tt('Income Accounts — General Ledger Detail')}
               showOpeningClosing
             />
           )}

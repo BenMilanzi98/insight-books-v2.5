@@ -181,7 +181,7 @@ const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0, taxTy
                 disabled={isSubmitting || loadingPaymentMethods}
               >
                 <option value="">
-                  {loadingPaymentMethods ? 'Loading accounts...' : 'Select an account'}
+                  {loadingPaymentMethods ? tt('Loading accounts...') : tt('Select an account')}
                 </option>
                 {paymentAccounts.map(account => (
                   <option key={account.id} value={account.id}>
@@ -253,7 +253,7 @@ const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0, taxTy
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? 'Recording...' : 'Record Settlement'}
+                {isSubmitting ? tt('Recording...') : tt('Record Settlement')}
               </button>
             </div>
           </form>

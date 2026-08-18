@@ -331,7 +331,7 @@ export default function DownloadAppPage() {
                   disabled={!canDownload || busy}
                   className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-sky-500 px-8 py-4 text-base font-extrabold text-white shadow-xl shadow-blue-500/30 transition hover:-translate-y-0.5 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 >
-                  {busy ? 'Downloading...' : 'Download latest APK'}
+                  {busy ? tt('Downloading...') : tt('Download latest APK')}
                 </button>
                 <span className="text-sm font-bold text-emerald-200">
                   {tt('Download only from this official Insight Books page.')}
@@ -364,7 +364,7 @@ export default function DownloadAppPage() {
                 <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
                   <p className="text-xs text-blue-200">{tt('Availability')}</p>
                   <p className="mt-1 text-lg font-extrabold">
-                    {canDownload ? 'Ready' : 'Unavailable'}
+                    {canDownload ? tt('Ready') : tt('Unavailable')}
                   </p>
                 </div>
               </div>
@@ -412,7 +412,7 @@ export default function DownloadAppPage() {
                       {(downloadPhase === 'loading' || downloadPhase === 'saving') && (
                         <div className="space-y-3">
                           <div className="flex justify-between text-sm font-semibold text-slate-700">
-                            <span>{downloadPhase === 'saving' ? 'Saving' : 'Downloading'}</span>
+                            <span>{downloadPhase === 'saving' ? tt('Saving') : tt('Downloading')}</span>
                             <span>
                               {downloadPhase === 'loading' && progressIndeterminate
                                 ? '...'
@@ -515,19 +515,19 @@ export default function DownloadAppPage() {
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 text-left">
                   <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-indigo-600">
-                    Windows x64
+                    {tt('Windows x64')}
                   </p>
-                  <h3 className="mt-2 text-lg font-bold text-slate-950">Insight Books Desktop</h3>
+                  <h3 className="mt-2 text-lg font-bold text-slate-950">{tt('Insight Books Desktop')}</h3>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Offline-capable POS for Windows. Requires an active subscription and one-time online setup.
+                    {tt('Offline-capable POS for Windows. Requires an active subscription and one-time online setup.')}
                   </p>
                   <dl className="mt-4 space-y-2 text-sm">
                     <div className="flex justify-between gap-4">
-                      <dt className="text-slate-500">Compatibility</dt>
+                      <dt className="text-slate-500">{tt('Compatibility')}</dt>
                       <dd className="font-semibold text-slate-900">{WINDOWS_MIN_VERSION}</dd>
                     </div>
                     <div className="flex justify-between gap-4">
-                      <dt className="text-slate-500">Updated</dt>
+                      <dt className="text-slate-500">{tt('Updated')}</dt>
                       <dd className="font-semibold text-slate-900">{formatDate(null)}</dd>
                     </div>
                   </dl>
@@ -536,10 +536,10 @@ export default function DownloadAppPage() {
                     download={WINDOWS_FILENAME}
                     className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-slate-800 to-slate-950 px-6 py-4 font-extrabold text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
                   >
-                    Download Windows installer
+                    {tt('Download Windows installer')}
                   </a>
                   <p className="mt-3 text-xs leading-5 text-slate-500">
-                    If the installer is not yet published, check back shortly or contact your administrator.
+                    {tt('If the installer is not yet published, check back shortly or contact your administrator.')}
                   </p>
                 </div>
               </div>

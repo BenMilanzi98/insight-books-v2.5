@@ -61,7 +61,7 @@ export default function EISDashboardPage() {
               : 'bg-red-50 text-red-700 border border-red-200'
           }`}>
             {health?.mraConnected ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-            {health?.mraConnected ? 'MRA Connected' : 'MRA Disconnected'}
+            {health?.mraConnected ? tt('MRA Connected') : tt('MRA Disconnected')}
             {health?.latency && <span className="text-xs opacity-70">({health.latency})</span>}
           </div>
           <button onClick={loadDashboard} className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg">

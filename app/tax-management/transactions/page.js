@@ -63,7 +63,7 @@ export default function TaxTransactionsPage() {
   return (
     <div className="container mx-auto py-2">
       <PageHeader
-        title="Tax transactions"
+        title={tt('Tax transactions')}
         description="Subledger projected from posted journal lines (Wave 3)."
         actions={
           canUpdate ? (
@@ -73,7 +73,7 @@ export default function TaxTransactionsPage() {
               onClick={runBackfill}
               className="rounded bg-[var(--brand-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              {backfilling ? "Backfilling…" : "Backfill from journals"}
+              {backfilling ? tt('Backfilling…') : tt('Backfill from journals')}
             </button>
           ) : null
         }

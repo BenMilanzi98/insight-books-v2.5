@@ -12,7 +12,7 @@ function expenseDisplayTitle(expense) {
     expense.displayTitle ||
     expense.description ||
     (expense.documentNumber
-      ? `COGS — ${expense.documentType === "sale" ? "Sale" : "Invoice"} ${expense.documentNumber}`
+      ? `COGS — ${expense.documentType === "sale" ? tt('Sale') : tt('Invoice')} ${expense.documentNumber}`
       : null);
   if (label && !String(label).startsWith("cogs-v2-") && !String(label).startsWith("cogs-")) {
     return label;
@@ -204,9 +204,7 @@ const ExpenseModal = ({
                         System COGS from{" "}
                         {cogsSource?.documentType === "sale"
                           ? "POS sale"
-                          : cogsSource?.documentType === "invoice"
-                            ? "invoice"
-                            : "sales document"}
+                          : cogsSource?.documentType === "invoice" ? tt('invoice') : tt('sales document')}
                         {cogsSource?.documentNumber
                           ? ` ${cogsSource.documentNumber}`
                           : expense.documentNumber
@@ -314,7 +312,7 @@ const ExpenseModal = ({
                   ) : (
                     <>
                       <p className="text-xs text-gray-500 mb-3">
-                        From {cogsSource.documentType === "sale" ? "POS sale" : "invoice"}{" "}
+                        From {cogsSource.documentType === "sale" ? tt('POS sale') : tt('invoice')}{" "}
                         <span className="font-semibold text-gray-700">
                           {cogsSource.documentNumber}
                         </span>

@@ -134,7 +134,7 @@ export default function EmailSuppressionPage() {
         </AdminField>
         <button type="submit" disabled={saving} className={btnPrimary}>
           <Plus className="h-4 w-4" aria-hidden />
-          {saving ? 'Saving…' : 'Suppress'}
+          {saving ? tt('Saving…') : tt('Suppress')}
         </button>
       </form>
 
@@ -143,7 +143,7 @@ export default function EmailSuppressionPage() {
         <AdminErrorState message={error} onRetry={load} />
       ) : null}
       {!loading && !error && rows.length === 0 ? (
-        <AdminEmptyState title="No suppressions" description="Suppressed addresses will appear here." />
+        <AdminEmptyState title={tt('No suppressions')} description="Suppressed addresses will appear here." />
       ) : null}
       {!loading && rows.length > 0 ? <AdminDataTable columns={columns} rows={rows} rowKey="id" /> : null}
     </AdminPageContainer>

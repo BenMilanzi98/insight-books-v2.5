@@ -197,7 +197,7 @@ export default function PayrollCreation() {
     <div className="w-full">
       <div className="max-w-7xl mx-auto">
         <PosStylePageHeader
-          title="Payroll Creation"
+          title={tt('Payroll Creation')}
           description="Create payroll with Malawi PAYE calculation and custom deductions"
         />
 
@@ -335,7 +335,7 @@ export default function PayrollCreation() {
                     className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Calculator size={20} className="mr-2" />
-                    {loading ? 'Calculating...' : 'Calculate Payroll'}
+                    {loading ? tt('Calculating...') : tt('Calculate Payroll')}
                   </button>
                 </div>
               )}
@@ -405,7 +405,7 @@ export default function PayrollCreation() {
               className="flex items-center px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
             >
               <Save size={20} className="mr-2" />
-              {saving ? 'Saving...' : 'Save Payroll'}
+              {saving ? tt('Saving...') : tt('Save Payroll')}
             </button>
           </PosStylePanel>
         )}

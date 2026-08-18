@@ -143,7 +143,7 @@ export default function SystemMraEisTerminalsPage() {
 
       {loading ? <AdminLoadingState label="Loading terminals" /> : null}
       {!loading && error ? (
-        <AdminErrorState title="Terminals unavailable" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Terminals unavailable')} message={error} onRetry={load} />
       ) : null}
       {!loading && !error ? (
         <AdminDataTable

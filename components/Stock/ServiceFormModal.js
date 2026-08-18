@@ -224,7 +224,7 @@ export default function ServiceFormModal({
             </div>
             <div className="min-w-0">
               <h2 id="service-form-title" className="text-lg font-semibold text-slate-900 truncate">
-                {isEdit ? "Edit service" : "Add service"}
+                {isEdit ? tt('Edit service') : tt('Add service')}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Billable item — no inventory. Revenue posts to account{" "}

@@ -1,5 +1,6 @@
 'use client';
 
+import { tt } from '@/lib/i18n/runtime';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Expand, Loader2 } from 'lucide-react';
 import {
@@ -199,15 +200,15 @@ function ProfitAnalysisFilters({
   return (
     <aside className="w-full border-t border-slate-200 bg-white lg:w-80 lg:shrink-0 lg:border-l lg:border-t-0">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-        <h2 className="text-sm font-bold text-slate-900">Filters</h2>
+        <h2 className="text-sm font-bold text-slate-900">{tt('Filters')}</h2>
         <button type="button" onClick={onReset} className="text-sm font-medium text-blue-600 hover:text-blue-800">
-          Reset all
+          {tt('Reset all')}
         </button>
       </div>
 
       <div className="space-y-5 px-4 py-4">
         <label className="block text-sm">
-          <span className="font-medium text-slate-700">Date range</span>
+          <span className="font-medium text-slate-700">{tt('Date range')}</span>
           <select
             className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
             value={draft.preset}
@@ -219,17 +220,17 @@ function ProfitAnalysisFilters({
           >
             {DATE_PRESETS.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.label}
+                {tt(p.label)}
               </option>
             ))}
-            <option value="custom">Custom</option>
+            <option value="custom">{tt('Custom')}</option>
           </select>
         </label>
 
         {draft.preset === 'custom' ? (
           <div className="grid grid-cols-2 gap-2">
             <label className="text-xs text-slate-600">
-              From
+              {tt('From')}
               <input
                 type="date"
                 className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm"
@@ -238,7 +239,7 @@ function ProfitAnalysisFilters({
               />
             </label>
             <label className="text-xs text-slate-600">
-              To
+              {tt('To')}
               <input
                 type="date"
                 className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm"
@@ -250,7 +251,7 @@ function ProfitAnalysisFilters({
         ) : null}
 
         <fieldset>
-          <legend className="text-sm font-medium text-slate-700">Chart grouping</legend>
+          <legend className="text-sm font-medium text-slate-700">{tt('Chart grouping')}</legend>
           <div className="mt-2 space-y-2">
             {[
               { id: 'day', label: 'Daily' },
@@ -264,14 +265,14 @@ function ProfitAnalysisFilters({
                   checked={draft.groupBy === g.id}
                   onChange={() => set({ groupBy: g.id })}
                 />
-                {g.label}
+                {tt(g.label)}
               </label>
             ))}
           </div>
         </fieldset>
 
         <fieldset>
-          <legend className="text-sm font-medium text-slate-700">Focus metric</legend>
+          <legend className="text-sm font-medium text-slate-700">{tt('Focus metric')}</legend>
           <div className="mt-2 space-y-1.5">
             {FOCUS_METRICS.map((m) => {
               const selected = focusMetric === m.id;
@@ -295,7 +296,7 @@ function ProfitAnalysisFilters({
                     className={`h-2 w-2 shrink-0 rounded-full ${selected ? 'bg-white' : 'bg-slate-300'}`}
                     aria-hidden
                   />
-                  {m.shortLabel}
+                  {tt(m.shortLabel)}
                 </label>
               );
             })}
@@ -303,16 +304,16 @@ function ProfitAnalysisFilters({
         </fieldset>
 
         <label className="block text-sm">
-          <span className="font-medium text-slate-700">Inventory category</span>
+          <span className="font-medium text-slate-700">{tt('Inventory category')}</span>
           <select
             className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
             value={draft.categoryId}
             onChange={(e) => set({ categoryId: e.target.value })}
           >
-            <option value="">All categories</option>
+            <option value="">{tt('All categories')}</option>
             {categories.map((cat, idx) => (
               <option key={`${cat.id || cat.name}-${idx}`} value={cat.id || ''}>
-                {cat.name || 'Uncategorized'}
+                {cat.name || tt('Uncategorized')}
               </option>
             ))}
           </select>
@@ -325,7 +326,7 @@ function ProfitAnalysisFilters({
               onClick={onClose}
               className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
             >
-              Close
+              {tt('Close')}
             </button>
           ) : null}
           <button
@@ -334,7 +335,7 @@ function ProfitAnalysisFilters({
             onClick={onApply}
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
           >
-            {applying ? 'Applying…' : 'Apply'}
+            {applying ? tt('Applying…') : tt('Apply')}
           </button>
         </div>
       </div>
@@ -346,8 +347,8 @@ function SectionCard({ title, hint, children, className = '' }) {
   return (
     <div className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${className}`}>
       <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-        <h3 className="text-sm font-bold text-slate-900">{title}</h3>
-        {hint ? <span className="text-xs text-slate-500">{hint}</span> : null}
+        <h3 className="text-sm font-bold text-slate-900">{tt(title)}</h3>
+        {hint ? <span className="text-xs text-slate-500">{tt(hint)}</span> : null}
       </div>
       {children}
     </div>
@@ -515,7 +516,7 @@ export default function ProfitAnalysisReportView({
     setFocusMetric('profit');
   };
 
-  const periodLabel = `For ${applied.fromDate} — ${applied.toDate}`;
+  const periodLabel = `${tt('For')} ${applied.fromDate} — ${applied.toDate}`;
   const groupLabel = applied.groupBy === 'day' ? 'day' : applied.groupBy === 'week' ? 'week' : 'month';
   const activeFocus = focusMeta(focusMetric);
   const productFocus = productFocusAmount(focusMetric, productProfit?.summary, analytics?.totals);
@@ -537,7 +538,7 @@ export default function ProfitAnalysisReportView({
       showPageHeader={showPageHeader}
       reportTitle={reportTitle ?? 'Profit Analysis'}
       loading={loading && !analytics}
-      loadingLabel="Generating Profit Analysis…"
+      loadingLabel={tt('Generating {{report}}…', { report: tt('Profit Analysis') })}
       error={error}
       reportTypeCategories={reportTypeCategories}
       reportType={reportType}
@@ -563,7 +564,7 @@ export default function ProfitAnalysisReportView({
         <button
           type="button"
           className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"
-          title="Expand"
+          title={tt('Expand')}
           onClick={() => setFiltersOpen(false)}
         >
           <Expand className="h-4 w-4" />
@@ -590,13 +591,13 @@ export default function ProfitAnalysisReportView({
                 <span
                   className={`absolute right-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${meta.chip}`}
                 >
-                  Focus
+                  {tt('Focus')}
                 </span>
               ) : null}
               <p className="mb-1 pr-14 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                {metric.label}
+                {tt(metric.label)}
               </p>
-              {metric.subtitle ? <p className="mb-1 text-[11px] text-slate-400">{metric.subtitle}</p> : null}
+              {metric.subtitle ? <p className="mb-1 text-[11px] text-slate-400">{tt(metric.subtitle)}</p> : null}
               <p className={`text-xl font-bold tabular-nums ${metric.valueClass}`}>
                 {formatCurrency(metric.value)}
               </p>
@@ -606,7 +607,7 @@ export default function ProfitAnalysisReportView({
       </div>
 
       <SectionCard
-        title="Product and line sales"
+        title={tt('Product and line sales')}
         hint="Invoice + POS lines in this period"
         className="mb-6"
       >
@@ -618,7 +619,7 @@ export default function ProfitAnalysisReportView({
         {productLoading ? (
           <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
             <Loader2 size={18} className="animate-spin text-emerald-600" />
-            Loading product-level sales…
+            {tt('Loading product-level sales…')}
           </div>
         ) : productError ? (
           <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
@@ -634,12 +635,12 @@ export default function ProfitAnalysisReportView({
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${activeFocus.chip}`}
                   >
-                    Focus
+                    {tt('Focus')}
                   </span>
-                  <span className="text-sm font-semibold text-slate-900">{productFocus.label}</span>
+                  <span className="text-sm font-semibold text-slate-900">{tt(productFocus.label)}</span>
                 </div>
                 {productFocus.note ? (
-                  <p className="mt-0.5 text-[11px] text-slate-500">{productFocus.note}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">{tt(productFocus.note)}</p>
                 ) : null}
               </div>
               <p className={`text-xl font-bold tabular-nums ${activeFocus.amount}`}>
@@ -655,23 +656,23 @@ export default function ProfitAnalysisReportView({
               <table className="w-full min-w-[920px] text-left text-sm">
                 <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50">
                   <tr className="text-[11px] uppercase tracking-wide text-slate-500">
-                    <th className="px-3 py-2.5 font-semibold">Product / line</th>
+                    <th className="px-3 py-2.5 font-semibold">{tt('Product / line')}</th>
                     <th className="px-2 py-2.5 font-semibold">SKU</th>
-                    <th className="px-2 py-2.5 font-semibold">Category</th>
-                    <th className="px-2 py-2.5 text-right font-semibold">Qty</th>
-                    <th className={thFocus('avgSell')}>Avg sell</th>
-                    <th className="px-2 py-2.5 text-right font-semibold">Avg cost</th>
-                    <th className={thFocus('revenue')}>Revenue</th>
+                    <th className="px-2 py-2.5 font-semibold">{tt('Category')}</th>
+                    <th className="px-2 py-2.5 text-right font-semibold">{tt('Qty')}</th>
+                    <th className={thFocus('avgSell')}>{tt('Avg sell')}</th>
+                    <th className="px-2 py-2.5 text-right font-semibold">{tt('Avg cost')}</th>
+                    <th className={thFocus('revenue')}>{tt('Revenue')}</th>
                     <th className={thFocus('cogs')}>COGS</th>
-                    <th className={thFocus('profit')}>Profit</th>
-                    <th className="py-2.5 pl-2 pr-3 text-right font-semibold">Margin</th>
+                    <th className={thFocus('profit')}>{tt('Profit')}</th>
+                    <th className="py-2.5 pl-2 pr-3 text-right font-semibold">{tt('Margin')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(productProfit.rows || []).length === 0 ? (
                     <tr>
                       <td colSpan={10} className="py-10 text-center text-slate-500">
-                        No invoice or POS lines in this period for the current filters.
+                        {tt('No invoice or POS lines in this period for the current filters.')}
                       </td>
                     </tr>
                   ) : (
@@ -730,7 +731,7 @@ export default function ProfitAnalysisReportView({
                         colSpan={6}
                         className="px-3 py-2.5 text-right text-[11px] uppercase tracking-wide text-slate-500"
                       >
-                        Totals
+                        {tt('Totals')}
                       </td>
                       <td className={tfFocus('revenue')}>
                         {formatCurrency(productProfit.summary.productSalesRevenue)}
@@ -761,7 +762,7 @@ export default function ProfitAnalysisReportView({
             </p>
           </>
         ) : (
-          <p className="py-8 text-center text-sm text-slate-500">No product sales data.</p>
+          <p className="py-8 text-center text-sm text-slate-500">{tt('No product sales data.')}</p>
         )}
       </SectionCard>
 
@@ -774,12 +775,12 @@ export default function ProfitAnalysisReportView({
             expenses={trend.map((row) => Number(row.expenses) || 0)}
           />
         ) : (
-          <SectionCard title="Profit trend" hint={`Grouped by ${groupLabel}`}>
+          <SectionCard title={tt('Profit trend')} hint={`Grouped by ${groupLabel}`}>
             <EmptyChart height="h-56" label="Not enough data for this period." />
           </SectionCard>
         )}
 
-        <SectionCard title="Expense breakdown" hint={`${expenseBreakdown.length} top accounts`}>
+        <SectionCard title={tt('Expense breakdown')} hint={`${expenseBreakdown.length} top accounts`}>
           {expenseBreakdown.length > 0 ? (
             <div className="h-[360px] w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -815,20 +816,20 @@ export default function ProfitAnalysisReportView({
         </SectionCard>
 
         <CategoryForecastTable
-          title="Revenue vs budget by inventory category"
+          title={tt('Revenue vs budget by inventory category')}
           hint="Actual, forecast, and budget variance"
           rows={revenueCategoryForecast}
           expenseStyle={false}
         />
         <CategoryForecastTable
-          title="Expenditure vs budget by inventory category"
+          title={tt('Expenditure vs budget by inventory category')}
           hint="Actual, forecast, and budget variance"
           rows={expenseCategoryForecast}
           expenseStyle
         />
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <SectionCard title="Revenue by source" className="xl:col-span-1">
+          <SectionCard title={tt('Revenue by source')} className="xl:col-span-1">
             {revenueSources.length > 0 ? (
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center xl:flex-col">
                 <div className="relative mx-auto h-48 w-48 shrink-0">
@@ -859,7 +860,7 @@ export default function ProfitAnalysisReportView({
                         {formatCurrency(revenueSourceTotal)}
                       </div>
                       <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        Total
+                        {tt('Total')}
                       </div>
                     </div>
                   </div>
@@ -890,16 +891,16 @@ export default function ProfitAnalysisReportView({
             )}
           </SectionCard>
 
-          <SectionCard title="Top customers" className="xl:col-span-2">
+          <SectionCard title={tt('Top customers')} className="xl:col-span-2">
             {topCustomers.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wide text-slate-500">
                       <th className="py-2.5 font-semibold">#</th>
-                      <th className="py-2.5 font-semibold">Customer</th>
-                      <th className="py-2.5 text-right font-semibold">Revenue</th>
-                      <th className="hidden py-2.5 text-right font-semibold sm:table-cell">Share</th>
+                      <th className="py-2.5 font-semibold">{tt('Customer')}</th>
+                      <th className="py-2.5 text-right font-semibold">{tt('Revenue')}</th>
+                      <th className="hidden py-2.5 text-right font-semibold sm:table-cell">{tt('Share')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -950,7 +951,7 @@ export default function ProfitAnalysisReportView({
 
 function EmptyChart({ height = 'h-[200px]', label }) {
   return (
-    <div className={`flex ${height} items-center justify-center text-sm text-slate-500`}>{label}</div>
+    <div className={`flex ${height} items-center justify-center text-sm text-slate-500`}>{tt(label)}</div>
   );
 }
 
@@ -962,12 +963,12 @@ function CategoryForecastTable({ title, hint, rows, expenseStyle }) {
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wide text-slate-500">
-                <th className="py-2.5 pr-2 font-semibold">Category</th>
-                <th className="px-2 py-2.5 text-right font-semibold">Actual</th>
-                <th className="px-2 py-2.5 text-right font-semibold">Forecast</th>
-                <th className="px-2 py-2.5 text-right font-semibold">Budget</th>
-                <th className="px-2 py-2.5 text-right font-semibold">Actual variance</th>
-                <th className="py-2.5 pl-2 text-right font-semibold">Forecast variance</th>
+                <th className="py-2.5 pr-2 font-semibold">{tt('Category')}</th>
+                <th className="px-2 py-2.5 text-right font-semibold">{tt('Actual')}</th>
+                <th className="px-2 py-2.5 text-right font-semibold">{tt('Forecast')}</th>
+                <th className="px-2 py-2.5 text-right font-semibold">{tt('Budget')}</th>
+                <th className="px-2 py-2.5 text-right font-semibold">{tt('Actual variance')}</th>
+                <th className="py-2.5 pl-2 text-right font-semibold">{tt('Forecast variance')}</th>
               </tr>
             </thead>
             <tbody>
@@ -984,7 +985,7 @@ function CategoryForecastTable({ title, hint, rows, expenseStyle }) {
                     className="border-b border-slate-100 last:border-b-0"
                   >
                     <td className="py-2.5 pr-2 font-medium text-slate-800">
-                      {row.categoryName || 'Uncategorized'}
+                      {row.categoryName || tt('Uncategorized')}
                     </td>
                     <td className="px-2 py-2.5 text-right tabular-nums text-slate-700">
                       {formatCurrency(row.actualAmount || 0)}

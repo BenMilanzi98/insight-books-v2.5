@@ -651,7 +651,7 @@ const GeneralLedger = () => {
                 )}
               >
                 <SlidersHorizontal size={18} />
-                {showAdvancedFilters ? "Hide filters" : "More filters"}
+                {showAdvancedFilters ? tt('Hide filters') : tt('More filters')}
               </button>
             </div>
           </div>
@@ -796,7 +796,7 @@ const GeneralLedger = () => {
                           <button
                             type="button"
                             className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                            title="View details"
+                            title={tt('View details')}
                             onClick={() => openDetails(transaction)}
                           >
                             <Eye size={18} />

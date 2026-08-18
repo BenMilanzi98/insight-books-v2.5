@@ -365,7 +365,7 @@ export default function TaxSettings() {
                         onClick={() => removeTaxRate(rate.id)}
                         className="text-red-600 hover:text-red-800"
                         disabled={rate.isDefault}
-                        title={rate.isDefault ? "Cannot remove default rate" : "Remove tax rate"}
+                        title={rate.isDefault ? tt('Cannot remove default rate') : tt('Remove tax rate')}
                       >
                         <Trash size={16} />
                       </button>

@@ -1,9 +1,10 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { cn } from '@/lib/utils';
 
 export default function AdminEmptyState({
-  title = 'No results',
+  title = {tt('No results')},
   description,
   action,
   className,

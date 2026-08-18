@@ -154,7 +154,7 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
             onClick={() => load()}
             disabled={loading}
             className="p-2.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50"
-            title="Refresh"
+            title={tt('Refresh')}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>

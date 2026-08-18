@@ -34,6 +34,8 @@ export async function POST(request) {
       await initializeNewTenantFinancialDefaults(user.tenantId, tx, {
         preferSystemCoaDefinition: false,
       });
+      const { repairTenantCoaStructure } = await import('@/lib/coaStructureRepair.js');
+      await repairTenantCoaStructure(user.tenantId, { dryRun: false, tx });
     });
 
     const [accountCount, paymentAccountCount] = await Promise.all([

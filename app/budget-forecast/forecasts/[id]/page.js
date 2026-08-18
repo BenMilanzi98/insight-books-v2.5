@@ -14,9 +14,16 @@ import BfShell, {
   BF_THEAD_CLASS,
 } from '@/components/budget-forecast/BfShell';
 import PosStylePanel from '@/components/shell/PosStylePanel';
+import PnlBudgetGrid from '@/components/budget-forecast/PnlBudgetGrid';
 import { formatCurrency } from '@/lib/currencyUtils';
-
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+import { buildBudgetPeriodColumns } from '@/lib/budgetForecast/domain/periods.js';
+import { buildPnlBudgetLayout } from '@/lib/budgetForecast/domain/pnlBudgetLayout.js';
+import {
+  BUDGET_GROWTH_MODES,
+  applyGrowthToPeriodMap,
+  parseLineGrowthAssumptions,
+  serializeLineGrowthAssumptions,
+} from '@/lib/budgetForecast/domain/budgetGrowth.js';
 
 const METHODS = [
   'CURRENT_RUN_RATE',
@@ -29,29 +36,16 @@ const METHODS = [
   'MANUAL',
 ];
 
-function buildMonthKeys(startDate, endDate) {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const keys = [];
-  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
-  const endMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
-  let guard = 0;
-  while (cursor <= endMonth && guard < 120) {
-    const y = cursor.getUTCFullYear();
-    const m = cursor.getUTCMonth();
-    keys.push({
-      key: `${y}-${String(m + 1).padStart(2, '0')}`,
-      label: `${MONTH_SHORT[m]} ${String(y).slice(2)}`,
-      periodStart: new Date(Date.UTC(y, m, 1)).toISOString(),
-      periodEnd: new Date(Date.UTC(y, m + 1, 0, 23, 59, 59, 999)).toISOString(),
-    });
-    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-    guard += 1;
-  }
-  return keys;
-}
-
 function periodKeyFromRow(p) {
+  if (p.key) return p.key;
+  if (p.quarterNumber && !p.monthNumber) {
+    const d = new Date(p.periodStart);
+    return `${d.getUTCFullYear()}-Q${p.quarterNumber}`;
+  }
+  if (!p.monthNumber && !p.quarterNumber) {
+    const d = new Date(p.periodStart);
+    return String(d.getUTCFullYear());
+  }
   const d = new Date(p.periodStart);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
@@ -95,6 +89,9 @@ export default function ForecastDetailPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [growthSettings, setGrowthSettings] = useState({});
+  const [exporting, setExporting] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [demand, setDemand] = useState(null);
   const [aiBusy, setAiBusy] = useState(false);
@@ -109,13 +106,38 @@ export default function ForecastDetailPage() {
 
   const monthKeys = useMemo(() => {
     if (!forecast?.startDate || !forecast?.endDate) return [];
-    return buildMonthKeys(forecast.startDate, forecast.endDate);
-  }, [forecast?.startDate, forecast?.endDate]);
+    const sourceBudget = budgets.find((b) => b.id === forecast.sourceBudgetId);
+    const frequency = sourceBudget?.frequency || 'MONTHLY';
+    return buildBudgetPeriodColumns(frequency, forecast.startDate, forecast.endDate).map((p) => ({
+      ...p,
+      periodStart: p.periodStart.toISOString(),
+      periodEnd: p.periodEnd.toISOString(),
+    }));
+  }, [forecast?.startDate, forecast?.endDate, forecast?.sourceBudgetId, budgets]);
+
+  function buildMonthsForForecast(data, budgetRows) {
+    const sourceBudget = budgetRows.find((b) => b.id === data.sourceBudgetId);
+    const frequency = sourceBudget?.frequency || 'MONTHLY';
+    return buildBudgetPeriodColumns(frequency, data.startDate, data.endDate).map((p) => ({
+      ...p,
+      periodStart: p.periodStart.toISOString(),
+      periodEnd: p.periodEnd.toISOString(),
+    }));
+  }
 
   function seedEdits(data, months) {
     const edits = {};
+    const growth = {};
     const ids = (data.lines || []).map((l) => l.accountId);
     for (const line of data.lines || []) {
+      growth[line.accountId] = parseLineGrowthAssumptions(line.notes);
+      if (line.growthRate != null && growth[line.accountId].mode === BUDGET_GROWTH_MODES.MANUAL) {
+        growth[line.accountId] = {
+          ...growth[line.accountId],
+          mode: BUDGET_GROWTH_MODES.GROWTH_PERCENT,
+          growthPercent: line.growthRate,
+        };
+      }
       const monthsMap = emptyMonths(months);
       for (const p of line.periodAmounts || []) {
         const key = periodKeyFromRow(p);
@@ -127,10 +149,11 @@ export default function ForecastDetailPage() {
       edits[line.accountId] = monthsMap;
     }
     setPeriodEdits(edits);
+    setGrowthSettings(growth);
     setSelectedAccountIds(ids);
   }
 
-  async function load() {
+  async function load(budgetRows = budgets) {
     setError('');
     const res = await fetch(`/api/budget-forecast/forecasts/${id}`);
     const json = await res.json();
@@ -139,8 +162,7 @@ export default function ForecastDetailPage() {
       return;
     }
     setForecast(json.data);
-    const months = buildMonthKeys(json.data.startDate, json.data.endDate);
-    seedEdits(json.data, months);
+    seedEdits(json.data, buildMonthsForForecast(json.data, budgetRows));
     setRegen((prev) => ({
       ...prev,
       method: json.data.lines?.[0]?.forecastMethod || prev.method,
@@ -160,7 +182,8 @@ export default function ForecastDetailPage() {
       fetch(`/api/budget-forecast/forecasts/${id}/demand?lookbackMonths=6&horizonMonths=3`),
     ]);
     const budgetJson = await budgetRes.json();
-    if (budgetRes.ok) setBudgets(budgetJson.data || []);
+    const budgetRows = budgetRes.ok ? budgetJson.data || [] : [];
+    if (budgetRes.ok) setBudgets(budgetRows);
     const accJson = await accRes.json();
     const rows = accJson.data || accJson.accounts || accJson || [];
     setAccounts(Array.isArray(rows) ? rows : []);
@@ -170,6 +193,7 @@ export default function ForecastDetailPage() {
     if (sugRes.ok) setSuggestions(sugJson.data || []);
     const demJson = await demRes.json();
     if (demRes.ok) setDemand(demJson.data);
+    return budgetRows;
   }
 
   async function generateAi() {
@@ -220,25 +244,90 @@ export default function ForecastDetailPage() {
   }
 
   useEffect(() => {
-    if (id) {
-      load();
-      loadMeta();
-    }
+    if (!id) return;
+    (async () => {
+      const budgetRows = await loadMeta();
+      await load(budgetRows);
+    })();
   }, [id]);
 
-  const totals = useMemo(() => {
-    let rev = 0;
-    let exp = 0;
-    for (const accountId of selectedAccountIds) {
-      const line = (forecast?.lines || []).find((l) => l.accountId === accountId);
-      const acc = accounts.find((a) => (a.id || a.accountId) === accountId);
-      const t = String(line?.accountTypeSnapshot || acc?.accountType || '').toLowerCase();
-      const amt = sumMonths(periodEdits[accountId]);
-      if (t.includes('income') || t.includes('revenue')) rev += amt;
-      else exp += amt;
+  const projectionSummary = useMemo(() => {
+    if (!monthKeys.length) return { rev: 0, exp: 0, profit: 0, grossProfit: 0, netProfit: 0 };
+    const { summary } = buildPnlBudgetLayout({
+      accounts,
+      selectedAccountIds,
+      periodEdits,
+      periodKeys: monthKeys.map((m) => m.key),
+      showAdvanced: false,
+    });
+    return {
+      rev: summary.revenue,
+      exp: summary.operatingExpenses,
+      profit: summary.netProfit,
+      grossProfit: summary.grossProfit,
+      netProfit: summary.netProfit,
+    };
+  }, [accounts, selectedAccountIds, periodEdits, monthKeys]);
+
+  function addAccount(accountId) {
+    if (selectedAccountIds.includes(accountId)) return;
+    setSelectedAccountIds((prev) => [...prev, accountId]);
+    setPeriodEdits((edits) => ({
+      ...edits,
+      [accountId]: edits[accountId] || emptyMonths(monthKeys),
+    }));
+    setGrowthSettings((prev) => ({
+      ...prev,
+      [accountId]: prev[accountId] || { mode: BUDGET_GROWTH_MODES.MANUAL, growthPercent: 0, fixedIncrement: 0 },
+    }));
+  }
+
+  function removeAccount(accountId) {
+    setSelectedAccountIds((prev) => prev.filter((x) => x !== accountId));
+  }
+
+  function setGrowthForAccount(accountId, patch) {
+    setGrowthSettings((prev) => ({
+      ...prev,
+      [accountId]: { mode: BUDGET_GROWTH_MODES.MANUAL, growthPercent: 0, fixedIncrement: 0, ...prev[accountId], ...patch },
+    }));
+  }
+
+  function applyGrowthForAccount(accountId) {
+    const settings = growthSettings[accountId];
+    if (!settings || settings.mode === BUDGET_GROWTH_MODES.MANUAL) return;
+    const keys = monthKeys.map((m) => m.key);
+    const existing = periodEdits[accountId] || emptyMonths(monthKeys);
+    const next = applyGrowthToPeriodMap(keys, existing, settings);
+    setPeriodEdits((prev) => ({ ...prev, [accountId]: next }));
+  }
+
+  async function exportProjection(format) {
+    setExporting(format);
+    setError('');
+    try {
+      const res = await fetch('/api/budget-forecast/reports/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportId: 'PROJECTION', forecastId: id, format }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || 'Export failed');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `projection-${id}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExporting(null);
     }
-    return { rev, exp, profit: rev - exp };
-  }, [selectedAccountIds, periodEdits, forecast, accounts]);
+  }
 
   async function run(command, extra = {}) {
     setError('');
@@ -254,7 +343,7 @@ export default function ForecastDetailPage() {
       return;
     }
     setForecast(json.data);
-    seedEdits(json.data, buildMonthKeys(json.data.startDate, json.data.endDate));
+    seedEdits(json.data, buildMonthsForForecast(json.data, budgets));
     setMessage(`Command “${command}” completed. No journals were created.`);
   }
 
@@ -285,11 +374,15 @@ export default function ForecastDetailPage() {
       const lines = selectedAccountIds.map((accountId) => {
         const months = periodEdits[accountId] || emptyMonths(monthKeys);
         const projected = sumMonths(months);
+        const growth = growthSettings[accountId] || { mode: BUDGET_GROWTH_MODES.MANUAL };
         return {
           accountId,
-          forecastMethod: 'MANUAL',
+          forecastMethod: growth.mode === BUDGET_GROWTH_MODES.MANUAL ? 'MANUAL' : 'CURRENT_RUN_RATE',
           projectedAmount: projected,
+          growthRate: growth.mode === BUDGET_GROWTH_MODES.GROWTH_PERCENT ? growth.growthPercent : null,
+          notes: serializeLineGrowthAssumptions(growth),
           periods: monthKeys.map((m) => ({
+            key: m.key,
             periodStart: m.periodStart,
             periodEnd: m.periodEnd,
             forecastAmount: Number(months[m.key] || 0),
@@ -312,17 +405,6 @@ export default function ForecastDetailPage() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function toggleAccount(accountId) {
-    setSelectedAccountIds((prev) => {
-      if (prev.includes(accountId)) return prev.filter((x) => x !== accountId);
-      setPeriodEdits((edits) => ({
-        ...edits,
-        [accountId]: edits[accountId] || emptyMonths(monthKeys),
-      }));
-      return [...prev, accountId];
-    });
   }
 
   function setMonthAmount(accountId, key, value) {
@@ -350,7 +432,7 @@ export default function ForecastDetailPage() {
   if (!forecast && !error) {
     return (
       <PermissionGuard requiredPermission="budgets.view">
-        <BfShell title="Forecast" subtitle="Loading…" />
+        <BfShell title={tt('Forecast')} subtitle={tt('Loading…')} />
       </PermissionGuard>
     );
   }
@@ -396,10 +478,27 @@ export default function ForecastDetailPage() {
           <StatusBadge status={forecast?.status} />
         </div>
 
-        <div className="mb-6 grid gap-4 sm:grid-cols-3">
-          <SummaryCard label="Projected revenue" value={formatCurrency(totals.rev)} />
-          <SummaryCard label="Projected expenses" value={formatCurrency(totals.exp)} />
-          <SummaryCard label="Projected profit" value={formatCurrency(totals.profit)} />
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryCard
+            label="Projected revenue"
+            value={formatCurrency(projectionSummary.rev)}
+            barClassName="from-emerald-400 via-green-500 to-teal-500"
+          />
+          <SummaryCard
+            label="Gross profit"
+            value={formatCurrency(projectionSummary.grossProfit)}
+            barClassName="from-violet-400 via-purple-500 to-indigo-500"
+          />
+          <SummaryCard
+            label="Projected expenses"
+            value={formatCurrency(projectionSummary.exp)}
+            barClassName="from-rose-400 via-rose-500 to-orange-500"
+          />
+          <SummaryCard
+            label="Net profit"
+            value={formatCurrency(projectionSummary.netProfit)}
+            barClassName="from-blue-500 via-sky-500 to-indigo-500"
+          />
         </div>
 
         <PosStylePanel accent="default" className="mb-6 p-4">
@@ -611,108 +710,44 @@ export default function ForecastDetailPage() {
           </div>
         </PosStylePanel>
 
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">{tt('Monthly projections')}</h2>
-            <p className="text-xs text-slate-500">
-              {tt('Edit months freely. Annual is the sum — or type Annual to spread evenly.')}
-            </p>
+        <PosStylePanel accent="green" className="mb-6 overflow-x-auto p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <BfSecondaryButton
+              type="button"
+              disabled={!!exporting}
+              onClick={() => exportProjection('xlsx')}
+            >
+              {exporting === 'xlsx' ? tt('Exporting…') : tt('Export Excel')}
+            </BfSecondaryButton>
+            <BfSecondaryButton
+              type="button"
+              disabled={!!exporting}
+              onClick={() => exportProjection('pdf')}
+            >
+              {exporting === 'pdf' ? tt('Exporting…') : tt('Export PDF')}
+            </BfSecondaryButton>
           </div>
-          <BfPrimaryButton type="button" onClick={saveLines} disabled={saving}>
-            {saving ? tt('Saving…') : tt('Save lines')}
-          </BfPrimaryButton>
-        </div>
-
-        <PosStylePanel accent="default" className="mb-4 p-3">
-          <p className="mb-2 text-xs font-medium text-slate-600">{tt('Add account')}</p>
-          <div className="flex max-h-36 flex-wrap gap-2 overflow-y-auto">
-            {accounts.slice(0, 80).map((a) => {
-              const aid = a.id || a.accountId;
-              const on = selectedAccountIds.includes(aid);
-              return (
-                <button
-                  key={aid}
-                  type="button"
-                  onClick={() => toggleAccount(aid)}
-                  className={`rounded-md px-2 py-1 text-xs ${
-                    on ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  {a.accountCode || a.code} {a.accountName || a.name}
-                </button>
-              );
-            })}
-          </div>
+          <PnlBudgetGrid
+            monthKeys={monthKeys}
+            accounts={accounts}
+            selectedAccountIds={selectedAccountIds}
+            periodEdits={periodEdits}
+            onAddAccount={addAccount}
+            onRemoveAccount={removeAccount}
+            onMonthChange={setMonthAmount}
+            onAnnualChange={setAnnualAmount}
+            onSave={saveLines}
+            saving={saving}
+            showAdvanced={showAdvanced}
+            onShowAdvancedChange={setShowAdvanced}
+            growthSettings={growthSettings}
+            onGrowthChange={setGrowthForAccount}
+            onApplyGrowth={applyGrowthForAccount}
+            plannerTitle="P&L projection planner"
+            plannerHint="Accounts grouped like your Profit & Loss. Growth modes apply period-over-period. Profit lines update automatically."
+            saveLabel="Save projection"
+          />
         </PosStylePanel>
-
-        <BfTableShell>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className={BF_THEAD_CLASS}>
-                  <th className="sticky left-0 z-10 bg-gradient-to-r from-gray-50 to-gray-100 px-3 py-2.5 text-left">
-                    {tt('Account')}
-                  </th>
-                  {monthKeys.map((m) => (
-                    <th key={m.key} className="px-2 py-2.5 text-right">
-                      {m.label}
-                    </th>
-                  ))}
-                  <th className="px-3 py-2.5 text-right">{tt('Annual')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedAccountIds.map((accountId) => {
-                  const line = (forecast?.lines || []).find((l) => l.accountId === accountId);
-                  const acc = accounts.find((a) => (a.id || a.accountId) === accountId);
-                  const label =
-                    line?.accountNameSnapshot ||
-                    acc?.accountName ||
-                    acc?.name ||
-                    accountId;
-                  const code = line?.accountCodeSnapshot || acc?.accountCode || acc?.code || '';
-                  const months = periodEdits[accountId] || emptyMonths(monthKeys);
-                  const annual = sumMonths(months);
-                  return (
-                    <tr key={accountId} className="border-b border-slate-100/80">
-                      <td className="sticky left-0 z-10 bg-white/95 px-3 py-1.5">
-                        <span className="font-mono text-xs text-slate-500">{code}</span>{' '}
-                        {label}
-                      </td>
-                      {monthKeys.map((m) => (
-                        <td key={m.key} className="px-1 py-1">
-                          <input
-                            type="number"
-                            step="0.01"
-                            className="w-24 rounded border border-slate-200 bg-white px-1.5 py-1 text-right text-xs"
-                            value={months[m.key] ?? '0'}
-                            onChange={(e) => setMonthAmount(accountId, m.key, e.target.value)}
-                          />
-                        </td>
-                      ))}
-                      <td className="px-1 py-1">
-                        <input
-                          type="number"
-                          step="0.01"
-                          className="w-28 rounded border border-indigo-200 bg-indigo-50/50 px-1.5 py-1 text-right text-xs font-medium"
-                          value={String(Math.round(annual * 100) / 100)}
-                          onChange={(e) => setAnnualAmount(accountId, e.target.value)}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-                {selectedAccountIds.length === 0 ? (
-                  <tr>
-                    <td colSpan={monthKeys.length + 2} className="px-3 py-8 text-center text-slate-500">
-                      {tt('No lines yet. Run Generate or add accounts above.')}
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </BfTableShell>
       </BfShell>
     </PermissionGuard>
   );

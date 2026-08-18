@@ -1112,14 +1112,14 @@ const loadSale = async (productList) => {
                       <button 
                         className="p-1 text-green-600 hover:text-green-800"
                         onClick={saveTaxRate}
-                        title="Save"
+                        title={tt('Save')}
                       >
                         <Check className="w-4 h-4" />
                       </button>
                       <button 
                         className="p-1 text-red-600 hover:text-red-800 ml-1"
                         onClick={cancelEditingTax}
-                        title="Cancel"
+                        title={tt('Cancel')}
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -1130,7 +1130,7 @@ const loadSale = async (productList) => {
                       <button 
                         className="ml-2 text-gray-500 hover:text-gray-700"
                         onClick={startEditingTax}
-                        title="Edit Tax Rate"
+                        title={tt('Edit Tax Rate')}
                       >
                         <Edit className="w-4 h-4" />
                       </button>

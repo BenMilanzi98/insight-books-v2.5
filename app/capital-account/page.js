@@ -13,7 +13,7 @@ function CapitalAccountPageInner() {
   return (
     <div className="w-full">
       <PosStylePageHeader
-        title="Capital Account Management"
+        title={tt('Capital Account Management')}
         description="Manage your business capital, set initial balances, and transfer funds between accounts"
       />
       <CapitalAccountManager onboarding={onboarding} />

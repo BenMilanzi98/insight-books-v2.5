@@ -442,7 +442,7 @@ export default function ReversalModal({
                 </svg>
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {result?.pendingApproval ? 'Submitted for Approval' : 'Reversal Successful'}
+                {result?.pendingApproval ? tt('Submitted for Approval') : tt('Reversal Successful')}
               </h3>
               <p className="text-gray-500 mb-6">
                 {result?.pendingApproval

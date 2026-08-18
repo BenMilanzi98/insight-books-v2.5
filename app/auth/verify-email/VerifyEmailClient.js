@@ -312,7 +312,7 @@ export default function VerifyEmailClient() {
               disabled={isVerifying || otp.join("").length < 6}
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-semibold rounded-xl transition-colors"
             >
-              {isVerifying ? "Verifying..." : "Verify Email"}
+              {isVerifying ? tt('Verifying...') : tt('Verify Email')}
             </button>
 
             <div className="mt-6 text-center text-sm text-gray-500">

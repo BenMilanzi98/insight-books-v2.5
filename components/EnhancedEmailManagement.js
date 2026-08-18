@@ -295,7 +295,7 @@ const EnhancedEmailManagement = () => {
             type="button"
             onClick={() => handleSelectUser(user.id)}
             className="text-[var(--action-primary)]"
-            aria-label={selectedUsers.includes(user.id) ? 'Deselect user' : 'Select user'}
+            aria-label={selectedUsers.includes(user.id) ? tt('Deselect user') : tt('Select user')}
           >
             {selectedUsers.includes(user.id) ? (
               <CheckSquare className="h-4 w-4" />
@@ -355,9 +355,7 @@ const EnhancedEmailManagement = () => {
         </p>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={handleSelectAll} className={btnGhost} disabled={filteredUsers.length === 0}>
-            {selectedUsers.length === filteredUsers.length && filteredUsers.length > 0
-              ? 'Deselect all'
-              : 'Select all'}
+            {selectedUsers.length === filteredUsers.length && filteredUsers.length > 0 ? tt('Deselect all') : tt('Select all')}
           </button>
           <button
             type="button"
@@ -429,7 +427,7 @@ const EnhancedEmailManagement = () => {
 
       {loading ? <AdminLoadingState label="Loading users" /> : null}
       {!loading && filteredUsers.length === 0 ? (
-        <AdminEmptyState title="No users match" description="Adjust filters to find recipients." />
+        <AdminEmptyState title={tt('No users match')} description="Adjust filters to find recipients." />
       ) : null}
       {!loading && filteredUsers.length > 0 ? (
         <AdminDataTable columns={columns} rows={filteredUsers} rowKey="id" />
@@ -438,7 +436,7 @@ const EnhancedEmailManagement = () => {
       <AdminModal
         open={showEmailForm}
         onClose={() => setShowEmailForm(false)}
-        title="Send Rich Email"
+        title={tt('Send Rich Email')}
         size="lg"
         className="max-w-4xl"
       >

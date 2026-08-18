@@ -168,7 +168,7 @@ export default function AdminMraEisPage() {
       header: 'Environment',
       render: (row) => (
         <span className="text-xs text-[var(--admin-text)]">
-          {row.productionAllowed ? 'Production allowed' : 'Sandbox only'}
+          {row.productionAllowed ? tt('Production allowed') : tt('Sandbox only')}
         </span>
       ),
     },
@@ -334,10 +334,10 @@ export default function AdminMraEisPage() {
         {loading ? (
           <AdminLoadingState label="Loading entitlements" />
         ) : error && items.length === 0 ? (
-          <AdminErrorState title="Entitlements unavailable" message={error} onRetry={load} />
+          <AdminErrorState title={tt('Entitlements unavailable')} message={error} onRetry={load} />
         ) : items.length === 0 ? (
           <AdminEmptyState
-            title="No entitlement records yet"
+            title={tt('No entitlement records yet')}
             description="Ordinary tenants default to not entitled."
           />
         ) : (

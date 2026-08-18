@@ -1,6 +1,6 @@
 /**
- * Wrap JSX text and placeholders with tt("...").
- * Idempotent. Does not match `=>` arrow functions.
+ * Wrap JSX text, titles, and UI ternaries with tt("...").
+ * Idempotent. Does not match `=>` arrow functions or quoted JS strings.
  * Run: node scripts/wire-ui-tt.cjs
  */
 const fs = require('fs');
@@ -16,7 +16,25 @@ const SKIP_FILES = new Set([
   'AdminLanguageSwitcher.jsx',
   'PageHeader.jsx',
 ]);
-const ATTRS = ['placeholder', 'aria-label', 'alt'];
+const ATTRS = ['placeholder', 'aria-label', 'alt', 'title'];
+const SKIP_TERNARY_ATTRS = new Set([
+  'className',
+  'class',
+  'style',
+  'variant',
+  'size',
+  'type',
+  'href',
+  'name',
+  'id',
+  'as',
+  'role',
+  'target',
+  'rel',
+  'method',
+  'value',
+  'key',
+]);
 const IMPORT_LINE = "import { tt } from '@/lib/i18n/runtime';";
 
 function walk(dir, out = []) {
@@ -38,6 +56,7 @@ function shouldWrap(text) {
   if (/^https?:\/\//i.test(t)) return false;
   if (/^\/[a-z0-9\-_/]*$/i.test(t)) return false;
   if (/^(bg-|text-|border-|flex|grid|w-|h-|p-|m-|sm:|md:|lg:)/.test(t)) return false;
+  if (/^(hidden|block|inline|absolute|relative|sticky|fixed|truncate|sr-only)$/.test(t)) return false;
   if (/[<>{}?=]|&&|\|\||=>/.test(t)) return false;
   if (/;|return\s*\(|case\s+['"]|^\s*!/.test(t)) return false;
   if (t.includes(');') || t.includes('(') || t.includes(')')) return false;
@@ -46,7 +65,6 @@ function shouldWrap(text) {
   if (/^[A-Z][A-Z0-9_]{2,}$/.test(t) && t.length <= 16) return false;
   if (/^[\s.·•|—–-]+$/.test(t)) return false;
   if (t.includes('tt(')) return false;
-  // Must look like a user-facing label (letter, space, or punctuation), not code
   if (!/^[A-Za-zÀ-ž0-9]/.test(t)) return false;
   return true;
 }
@@ -77,6 +95,14 @@ function transform(src) {
     return `>${pre}{tt(${quote(trimmed)})}${post}<`;
   });
 
+  // Button/chip text after a JSX expression: )}\n  Refresh\n</button>
+  out = out.replace(/\)\}\s*\r?\n(\s*)([A-Za-z][^<>{}\n]{1,80})\s*\r?\n(\s*)</g, (all, pre, text, post) => {
+    const trimmed = text.replace(/\s+/g, ' ').trim();
+    if (!shouldWrap(trimmed)) return all;
+    changed = true;
+    return `)}\n${pre}{tt(${quote(trimmed)})}\n${post}<`;
+  });
+
   for (const attr of ATTRS) {
     const re = new RegExp(`(${attr}\\s*=\\s*)(["'])([^"'\\n]+)\\2`, 'g');
     out = out.replace(re, (all, prefix, _q, text) => {
@@ -85,6 +111,22 @@ function transform(src) {
       return `${prefix}{tt(${quote(text)})}`;
     });
   }
+
+  // JSX / visible-prop ternaries: {cond ? 'Apply' : 'Save'}
+  out = out.replace(
+    /(\w+\s*=\s*)?\{([^{}]+?)\s*\?\s*(['"])([^'"\n]+)\3\s*:\s*(['"])([^'"\n]+)\5\}/g,
+    (all, attrAssign, cond, _q1, a, _q2, b) => {
+      if (all.includes('tt(')) return all;
+      if (/querySelector|innerHTML|content:/.test(all)) return all;
+      if (attrAssign) {
+        const attr = attrAssign.replace(/\s*=\s*$/, '').trim();
+        if (SKIP_TERNARY_ATTRS.has(attr)) return all;
+      }
+      if (!shouldWrap(a) || !shouldWrap(b)) return all;
+      changed = true;
+      return `${attrAssign || ''}{${cond} ? tt(${quote(a)}) : tt(${quote(b)})}`;
+    }
+  );
 
   if (!changed) return { src, changed: false };
   return { src: addImport(out), changed: true };

@@ -327,9 +327,7 @@ const SettingsPage = () => {
             ) : (
               <AlertCircle className="w-5 h-5 mr-2" />
             )}
-            {exportStatus === 'success' 
-              ? 'Data export prepared. Check your downloads for the ZIP archive.' 
-              : 'Failed to export data. Please try again.'}
+            {exportStatus === 'success' ? tt('Data export prepared. Check your downloads for the ZIP archive.') : tt('Failed to export data. Please try again.')}
           </div>
         )}
 

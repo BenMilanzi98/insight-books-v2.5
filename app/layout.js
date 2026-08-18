@@ -80,7 +80,7 @@ export default async function RootLayout({ children }) {
   const locale = coerceLocale(cookieStore.get(LOCALE_COOKIE)?.value);
 
   return (
-    <html lang={locale === "ny" ? "ny" : "en"}>
+    <html lang={locale}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={{

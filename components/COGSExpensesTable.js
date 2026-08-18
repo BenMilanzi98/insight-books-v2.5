@@ -329,7 +329,7 @@ const COGSExpensesTable = ({ expenses }) => {
                     onClick={() => handlePageChange(1)}
                     disabled={currentPage === 1}
                     className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    title="First page"
+                    title={tt('First page')}
                   >
                     <ChevronLeft className="w-4 h-4" />
                     <ChevronLeft className="w-4 h-4 -ml-2" />
@@ -340,7 +340,7 @@ const COGSExpensesTable = ({ expenses }) => {
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1}
                     className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    title="Previous page"
+                    title={tt('Previous page')}
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -373,7 +373,7 @@ const COGSExpensesTable = ({ expenses }) => {
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
                     className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    title="Next page"
+                    title={tt('Next page')}
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -383,7 +383,7 @@ const COGSExpensesTable = ({ expenses }) => {
                     onClick={() => handlePageChange(totalPages)}
                     disabled={currentPage === totalPages}
                     className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    title="Last page"
+                    title={tt('Last page')}
                   >
                     <ChevronRight className="w-4 h-4" />
                     <ChevronRight className="w-4 h-4 -ml-2" />

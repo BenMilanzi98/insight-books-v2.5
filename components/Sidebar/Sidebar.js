@@ -1340,7 +1340,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
               isUserLoading
                 ? null
                 : (subscription?.isTrial && subscription?.trialEndDate) || subscription?.expiresAt
-                  ? `${subscription?.isTrial ? 'Ends' : 'Renews'} ${formatDate(
+                  ? `${subscription?.isTrial ? tt('Ends') : tt('Renews')} ${formatDate(
                       subscription?.isTrial ? subscription?.trialEndDate : subscription?.expiresAt
                     )}`
                   : null

@@ -675,7 +675,7 @@ export default function RentalsClient({ mode, embedded = false }) {
             <>
               <section className="mb-8 grid gap-4 sm:grid-cols-3">
                 <StatCard
-                  label={kind === "rental" ? "Rental assets" : "Pool items"}
+                  label={kind === "rental" ? tt('Rental assets') : tt('Pool items')}
                   value={kind === "rental" ? stats?.totalRentalAssets ?? 0 : stats?.totalHiringAssets ?? 0}
                   icon={kind === "rental" ? Building2 : Package}
                 />
@@ -685,7 +685,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                   icon={ClipboardList}
                 />
                 <StatCard
-                  label={kind === "rental" ? "Assets available" : "Fleet status"}
+                  label={kind === "rental" ? tt('Assets available') : tt('Fleet status')}
                   value={
                     kind === "rental"
                       ? `${stats?.rentalUnitsAvailable ?? 0} of ${stats?.totalRentalAssets ?? 0} available`
@@ -1160,7 +1160,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   onClick={submitBooking}
                 >
-                  {saving ? "Saving…" : "Confirm"}
+                  {saving ? tt('Saving…') : tt('Confirm')}
                 </button>
               </div>
             </div>
@@ -1234,7 +1234,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   onClick={submitCreateTax}
                 >
-                  {createTaxSaving ? "Saving…" : "Save tax type"}
+                  {createTaxSaving ? tt('Saving…') : tt('Save tax type')}
                 </button>
               </div>
             </div>
@@ -1307,7 +1307,7 @@ export default function RentalsClient({ mode, embedded = false }) {
                   className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   onClick={submitAsset}
                 >
-                  {saving ? "Saving…" : "Save"}
+                  {saving ? tt('Saving…') : tt('Save')}
                 </button>
               </div>
             </div>

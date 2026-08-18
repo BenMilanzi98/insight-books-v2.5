@@ -134,7 +134,7 @@ export default function AdminMraEisMappingsPage() {
 
       {loading ? <AdminLoadingState label="Loading mapping health" /> : null}
       {!loading && error ? (
-        <AdminErrorState title="Mapping health unavailable" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Mapping health unavailable')} message={error} onRetry={load} />
       ) : null}
 
       {!loading && !error ? (

@@ -10,7 +10,7 @@ import { ExternalLink } from 'lucide-react';
  */
 export default function ReportAccountTable({
   lines = [],
-  title = 'General Ledger — Account Detail',
+  title = {tt('General Ledger — Account Detail')},
   className = '',
   showOpeningClosing = true,
   onDrillDown,
@@ -115,7 +115,7 @@ export default function ReportAccountTable({
                       type="button"
                       onClick={() => handleDrill(line)}
                       className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-900 font-medium"
-                      title="View ledger entries"
+                      title={tt('View ledger entries')}
                     >
                       <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                       {tt('Trace')}

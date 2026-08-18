@@ -48,7 +48,7 @@ export default function MarketingLeadSourcesView() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="CRM lead sources"
+        title={tt('CRM lead sources')}
         description="Read-only evidence from CRM Lead and capture records. CRM Lead Source is the source of truth — not replaced by Marketing taxonomy."
       />
 
@@ -74,7 +74,7 @@ export default function MarketingLeadSourcesView() {
           />
         </AdminField>
         <button type="submit" className={btnPrimary} disabled={loading || !leadId.trim()}>
-          {loading ? 'Loading…' : 'Load evidence'}
+          {loading ? tt('Loading…') : tt('Load evidence')}
         </button>
       </form>
 

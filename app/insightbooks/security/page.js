@@ -206,7 +206,7 @@ export default function SecurityPage() {
             </button>
             <button type="button" onClick={handleSaveSettings} disabled={saving} className={btnPrimary}>
               <Save className="h-4 w-4" aria-hidden />
-              {saving ? 'Saving…' : 'Save settings'}
+              {saving ? tt('Saving…') : tt('Save settings')}
             </button>
           </>
         }
@@ -233,7 +233,7 @@ export default function SecurityPage() {
       {!settingsLoaded ? (
         <div className="mb-4">
           <AdminErrorState
-            title="Settings could not be loaded"
+            title={tt('Settings could not be loaded')}
             message="Showing local defaults until the security settings API responds. Save may still fail if the endpoint is unavailable."
             onRetry={load}
           />
@@ -241,7 +241,7 @@ export default function SecurityPage() {
       ) : null}
 
       <div className="space-y-6">
-        <Section title="Password policy" icon={Lock}>
+        <Section title={tt('Password policy')} icon={Lock}>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <AdminField label="Minimum length" htmlFor="pw-min">
               <AdminField.Input
@@ -291,7 +291,7 @@ export default function SecurityPage() {
           </div>
         </Section>
 
-        <Section title="Multi-factor authentication" icon={Smartphone}>
+        <Section title={tt('Multi-factor authentication')} icon={Smartphone}>
           <div className="space-y-2">
             <AdminField.Checkbox
               id="mfa-enabled"
@@ -323,7 +323,7 @@ export default function SecurityPage() {
           </div>
         </Section>
 
-        <Section title="Session settings" icon={Clock}>
+        <Section title={tt('Session settings')} icon={Clock}>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <AdminField label="Max session duration (hours)" htmlFor="sess-max">
               <AdminField.Input
@@ -388,7 +388,7 @@ export default function SecurityPage() {
           />
         </Section>
 
-        <Section title="Security features" icon={Shield}>
+        <Section title={tt('Security features')} icon={Shield}>
           <div className="space-y-2">
             {[
               ['rateLimiting', 'Enable rate limiting'],
@@ -429,7 +429,7 @@ export default function SecurityPage() {
               </AdminField>
               {whitelistedIPs.length === 0 ? (
                 <AdminEmptyState
-                  title="No whitelisted IPs"
+                  title={tt('No whitelisted IPs')}
                   description="Add IP addresses to restrict access when the whitelist is enabled."
                 />
               ) : (
@@ -456,17 +456,17 @@ export default function SecurityPage() {
           ) : null}
         </Section>
 
-        <Section title="Active sessions" icon={User}>
+        <Section title={tt('Active sessions')} icon={User}>
           {sessionsError ? (
             <AdminErrorState
-              title="Sessions unavailable"
+              title={tt('Sessions unavailable')}
               message={sessionsError}
               onRetry={load}
             />
           ) : null}
           {!sessionsError && activeSessions.length === 0 ? (
             <AdminEmptyState
-              title="No active sessions"
+              title={tt('No active sessions')}
               description="When the sessions API returns live admin sessions, they will appear here. Nothing is invented when the list is empty."
             />
           ) : null}
@@ -493,13 +493,13 @@ export default function SecurityPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <AdminStatusBadge tone={sessionTone(session)}>
-                      {sessionTone(session) === 'warning' ? 'Idle' : 'Active'}
+                      {sessionTone(session) === 'warning' ? tt('Idle') : tt('Active')}
                     </AdminStatusBadge>
                     <button
                       type="button"
                       onClick={() => handleTerminateSession(session.id)}
                       className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--admin-radius)] text-[var(--admin-danger)] hover:bg-[var(--admin-surface-muted)]"
-                      title="Terminate session"
+                      title={tt('Terminate session')}
                       aria-label={tt('Terminate session')}
                     >
                       <Trash2 className="h-4 w-4" />

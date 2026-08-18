@@ -71,7 +71,7 @@ function JournalModal({ journalId, onClose }) {
           <div className="space-y-4 text-sm">
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
               <div><span className="text-slate-500">{tt('Number:')}</span> {journal.journalNumber ?? journal.reference ?? journal.journalId}</div>
-              <div><span className="text-slate-500">{tt('Status:')}</span> <Badge tone={journal.status === 'POSTED' ? 'ok' : 'muted'}>{journal.status}</Badge></div>
+              <div><span className="text-slate-500">{tt('Status:')}</span> <Badge tone={journal.status === 'POSTED' ? tt('ok') : tt('muted')}>{journal.status}</Badge></div>
               <div><span className="text-slate-500">{tt('Kind:')}</span> {journal.journalKind}</div>
               <div><span className="text-slate-500">{tt('Posting date:')}</span> {String(journal.postingDate).slice(0, 10)}</div>
               <div><span className="text-slate-500">{tt('Type:')}</span> {journal.entryType}</div>
@@ -305,7 +305,7 @@ export default function GeneralLedgerV2Page() {
     <div className="w-full">
       <div className="mx-auto max-w-6xl space-y-6">
       <PosStylePageHeader
-        title="General Ledger"
+        title={tt('General Ledger')}
         description="Canonical ledger — every figure derives exclusively from posted journal lines. Read-only."
         actions={
           !selectedAccount ? (

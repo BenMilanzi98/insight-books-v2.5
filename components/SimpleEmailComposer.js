@@ -131,7 +131,7 @@ const SimpleEmailComposer = ({
             type="button"
             onClick={() => insertFormatting('bold')}
             className="p-2 hover:bg-gray-200 rounded-md transition-colors"
-            title="Bold"
+            title={tt('Bold')}
           >
             <Bold className="h-4 w-4" />
           </button>
@@ -139,7 +139,7 @@ const SimpleEmailComposer = ({
             type="button"
             onClick={() => insertFormatting('italic')}
             className="p-2 hover:bg-gray-200 rounded-md transition-colors"
-            title="Italic"
+            title={tt('Italic')}
           >
             <Italic className="h-4 w-4" />
           </button>
@@ -147,7 +147,7 @@ const SimpleEmailComposer = ({
             type="button"
             onClick={() => insertFormatting('underline')}
             className="p-2 hover:bg-gray-200 rounded-md transition-colors"
-            title="Underline"
+            title={tt('Underline')}
           >
             <Underline className="h-4 w-4" />
           </button>
@@ -156,7 +156,7 @@ const SimpleEmailComposer = ({
             type="button"
             onClick={() => insertFormatting('list')}
             className="p-2 hover:bg-gray-200 rounded-md transition-colors"
-            title="Bullet List"
+            title={tt('Bullet List')}
           >
             <List className="h-4 w-4" />
           </button>

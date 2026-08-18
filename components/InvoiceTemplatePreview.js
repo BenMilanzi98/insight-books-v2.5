@@ -514,8 +514,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                   'text-red-600'
                 }`}>
                   {displayData.paymentInfo.isFullyPaid ? 'Fully Paid' : 
-                   displayData.paymentInfo.isPartiallyPaid ? 'Partially Paid' : 
-                   'Unpaid'}
+                   displayData.paymentInfo.isPartiallyPaid ? tt('Partially Paid') : tt('Unpaid')}
                 </span>
               </div>
               
@@ -720,8 +719,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                   'text-red-600'
                 }`}>
                   {displayData.paymentInfo.isFullyPaid ? 'Fully Paid' : 
-                   displayData.paymentInfo.isPartiallyPaid ? 'Partially Paid' : 
-                   'Unpaid'}
+                   displayData.paymentInfo.isPartiallyPaid ? tt('Partially Paid') : tt('Unpaid')}
                 </span>
               </div>
               

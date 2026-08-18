@@ -231,7 +231,7 @@ export const EnhancedFinancialReport = ({
                 ) : (
                   <RefreshCw size={15} className="mr-1" />
                 )}
-                Refresh
+                {tt('Refresh')}
               </button>
             )}
             

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -263,7 +264,7 @@ export default function CrmLeadDetailView({ leadId }) {
                   {(readiness.checklist || []).map((c) => (
                     <li key={c.key} className="flex flex-wrap gap-2">
                       <AdminStatusBadge
-                        tone={c.ok ? 'success' : c.blocker ? 'danger' : 'warning'}
+                        tone={c.ok ? 'success' : c.blocker ? tt('danger') : tt('warning')}
                       >
                         {c.key}
                       </AdminStatusBadge>

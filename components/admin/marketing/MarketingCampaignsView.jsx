@@ -166,7 +166,7 @@ export default function MarketingCampaignsView() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Marketing campaigns"
+        title={tt('Marketing campaigns')}
         description="Governed campaigns with MKT numbering. Distinct from Affiliate referrals and Product Analytics."
         actions={
           <button type="button" className={btnGhost} onClick={load} disabled={loading}>
@@ -252,7 +252,7 @@ export default function MarketingCampaignsView() {
           </AdminField>
           <div className="md:col-span-2 flex flex-wrap items-center gap-3">
             <button type="submit" className={btnPrimary} disabled={creating}>
-              {creating ? 'Creating…' : 'Create campaign'}
+              {creating ? tt('Creating…') : tt('Create campaign')}
             </button>
             {formError ? (
               <p className="text-sm text-[var(--admin-danger)]" role="alert">
@@ -267,7 +267,7 @@ export default function MarketingCampaignsView() {
       {!loading && error ? <AdminErrorState message={error} onRetry={load} /> : null}
       {!loading && !error && items.length === 0 ? (
         <AdminEmptyState
-          title="No campaigns yet"
+          title={tt('No campaigns yet')}
           description="Create a campaign above or seed taxonomy defaults first."
         />
       ) : null}

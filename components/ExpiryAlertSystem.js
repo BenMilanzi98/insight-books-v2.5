@@ -301,7 +301,7 @@ const ExpiryAlertSystem = ({
               disabled={savingThresholds}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {savingThresholds ? "Saving…" : "Save alerts"}
+              {savingThresholds ? tt('Saving…') : tt('Save alerts')}
             </button>
           </div>
         </div>
@@ -446,7 +446,7 @@ const ExpiryAlertSystem = ({
                 className="px-4 py-2 rounded-md bg-red-600 text-white disabled:opacity-50"
                 onClick={handleWriteOff}
               >
-                {writeOffSubmitting ? "Processing…" : "Confirm write-off"}
+                {writeOffSubmitting ? tt('Processing…') : tt('Confirm write-off')}
               </button>
             </div>
           </div>
@@ -506,7 +506,7 @@ const ExpiryAlertSystem = ({
                 className="px-4 py-2 rounded-md bg-blue-600 text-white disabled:opacity-50"
                 onClick={handleRestock}
               >
-                {restockSubmitting ? "Saving…" : "Create batch"}
+                {restockSubmitting ? tt('Saving…') : tt('Create batch')}
               </button>
             </div>
           </div>

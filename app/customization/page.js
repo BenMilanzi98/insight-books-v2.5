@@ -1087,7 +1087,7 @@ function CustomizationContent() {
                 <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col animate-fadeInUp">
                   <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
                     <h3 className="text-lg font-medium">
-                      {isPreviewMode ? 'Preview Template' : 'Edit Template'}: {activeTemplate.name}
+                      {isPreviewMode ? tt('Preview Template') : tt('Edit Template')}: {activeTemplate.name}
                     </h3>
                     <div className="flex items-center space-x-2">
                       <button

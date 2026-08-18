@@ -369,7 +369,7 @@ export default function TaxManagement() {
               className="btn bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <FaHandHoldingUsd className="text-lg" />
-              {isSettlingTax ? 'Settling...' : 'Settle Tax'}
+              {isSettlingTax ? tt('Settling...') : tt('Settle Tax')}
             </button>
           )}
           {exportTaxPermissions && (
@@ -717,7 +717,7 @@ export default function TaxManagement() {
                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
                 >
                   {!taxPayAccounts.length && (
-                    <option value="">{taxPayAccountsLoading ? "Loading accounts…" : "No payment accounts"}</option>
+                    <option value="">{taxPayAccountsLoading ? tt('Loading accounts…') : tt('No payment accounts')}</option>
                   )}
                   {taxPayAccounts.map((acc) => (
                     <option key={acc.id} value={acc.id}>

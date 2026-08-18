@@ -269,7 +269,7 @@ export default function LoanReadinessPage() {
   return (
     <div className="w-full space-y-6">
       <PosStylePageHeader
-        title="Loan Readiness Centre"
+        title={tt('Loan Readiness Centre')}
         description="Internal advisory financing preparation. Scores and capacity estimates are not lender decisions and do not guarantee funding. Proposed facilities never post to the General Ledger."
         actions={
           <PosStyleHeaderButton type="button" onClick={load} disabled={busy}>
@@ -393,7 +393,7 @@ export default function LoanReadinessPage() {
             onClick={reviewAssessment}
             disabled={busy || !activeVersion?.id}
             className="px-3 py-2 text-sm rounded border border-slate-400 text-slate-800"
-            title="Must be a different user than the preparer"
+            title={tt('Must be a different user than the preparer')}
           >
             {tt('Mark reviewed')}
           </button>

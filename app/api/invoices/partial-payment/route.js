@@ -6,15 +6,24 @@ import { ensureInvoicePaymentRevenueRecognition } from '@/lib/ensureInvoicePayme
 import { ensureInvoiceSalesAccounting } from '@/lib/ensureInvoiceSalesAccounting';
 import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
+import { computeInvoicePaymentWithholding } from '@/lib/invoicePaymentWithholding.js';
 
 // POST - Process a partial payment for an invoice
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { invoiceId, amount, paymentMethod, paymentDate, reference, notes } = body;
+    const {
+      invoiceId,
+      amount,
+      paymentMethod,
+      paymentDate,
+      reference,
+      notes,
+      withholdingPercent,
+      applyWithholding,
+    } = body;
     
-    // Convert amount to a safe 2-decimal money number
-    const numericAmount = parseMoney(amount);
+    const cashReceived = parseMoney(amount);
     
     // Get user from session
     const user = await getUserFromSession(request);
@@ -33,12 +42,27 @@ export async function POST(request) {
       );
     }
 
-    if (!amount || isNaN(numericAmount) || numericAmount <= 0) {
+    if (!amount || isNaN(cashReceived) || cashReceived <= 0) {
       return NextResponse.json(
         { error: 'Payment amount must be a valid number greater than 0' },
         { status: 400 }
       );
     }
+
+    let whtSplit = {
+      cashReceived,
+      withholdingAmount: 0,
+      grossAppliedToAr: cashReceived,
+      withholdingPercent: 0,
+    };
+    if (applyWithholding && withholdingPercent != null && Number(withholdingPercent) > 0) {
+      try {
+        whtSplit = computeInvoicePaymentWithholding(cashReceived, withholdingPercent);
+      } catch (whtErr) {
+        return NextResponse.json({ error: whtErr.message }, { status: whtErr.statusCode || 400 });
+      }
+    }
+    const grossAppliedToAr = whtSplit.grossAppliedToAr;
 
     if (!paymentMethod) {
       return NextResponse.json(
@@ -85,10 +109,16 @@ export async function POST(request) {
     const invTotal = parseMoney(invoice.total);
     const remainingBalance = subtractMoney(invTotal, totalPaid);
 
-    // Validate payment amount
-    if (numericAmount > remainingBalance) {
+    // Validate gross amount applied to invoice (cash + WHT)
+    if (grossAppliedToAr > remainingBalance) {
       return NextResponse.json(
-        { error: `Payment amount exceeds remaining balance of ${remainingBalance.toLocaleString()}` },
+        {
+          error: `Payment exceeds remaining balance of ${remainingBalance.toLocaleString()}${
+            whtSplit.withholdingAmount > 0
+              ? ` (cash ${whtSplit.cashReceived.toLocaleString()} + WHT ${whtSplit.withholdingAmount.toLocaleString()})`
+              : ''
+          }`,
+        },
         { status: 400 }
       );
     }
@@ -110,7 +140,10 @@ export async function POST(request) {
       // Create the payment record
       const payment = await tx.payment.create({
         data: {
-          amount: numericAmount,
+          amount: grossAppliedToAr,
+          cashReceivedAmount: whtSplit.cashReceived,
+          withholdingAmount: whtSplit.withholdingAmount > 0 ? whtSplit.withholdingAmount : null,
+          withholdingPercent: whtSplit.withholdingPercent > 0 ? whtSplit.withholdingPercent : null,
           paymentMethod: paymentMethod,
           paymentDate: paymentDateObj,
           reference: reference || '',
@@ -123,8 +156,8 @@ export async function POST(request) {
         }
       });
 
-      // Update invoice payment totals
-      const newTotalPaid = addMoney(totalPaid, numericAmount);
+      // Update invoice payment totals (gross applied to AR)
+      const newTotalPaid = addMoney(totalPaid, grossAppliedToAr);
       const newRemainingBalance = subtractMoney(invTotal, newTotalPaid);
       const lastPaymentDate = paymentDateObj;
 
@@ -163,7 +196,7 @@ export async function POST(request) {
         userId: user.id,
         paymentId: payment.id,
         invoiceId: invoice.id,
-        paymentAmount: numericAmount,
+        paymentAmount: grossAppliedToAr,
         paymentDate: paymentDateObj,
         paymentMethod,
       });
@@ -174,7 +207,7 @@ export async function POST(request) {
         userId: user.id,
         invoiceId,
         paymentId: payment.id,
-        paymentAmount: numericAmount,
+        paymentAmount: grossAppliedToAr,
         paymentDate: paymentDateObj,
       });
 

@@ -45,7 +45,7 @@ export function ReportDateRangeModals({
           aria-modal="true"
         >
           <ModalPanel>
-            <ModalHeader title="Custom date range" onClose={onCloseCustom} />
+            <ModalHeader title={tt('Custom date range')} onClose={onCloseCustom} />
             <div className="space-y-4">
               <DateField
                 label="Start date"

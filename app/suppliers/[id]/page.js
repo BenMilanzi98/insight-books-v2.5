@@ -179,7 +179,7 @@ export default function SupplierDetailPage() {
                       : "bg-gray-100 text-gray-600 border border-gray-300"
                   }`}>
                     {supplier.isActive ? <CheckCircle size={12} /> : <XCircle size={12} />}
-                    {supplier.isActive ? "Active" : "Inactive"}
+                    {supplier.isActive ? tt('Active') : tt('Inactive')}
                   </span>
                 </div>
                 <p className="text-sm text-gray-500 mt-1">Supplier Code: {supplier.supplierCode}</p>

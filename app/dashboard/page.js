@@ -214,7 +214,7 @@ const DashboardBarChart = ({ data }) => {
               onClick={handlePrevious}
               disabled={currentPage === 0}
               className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-              title="Previous"
+              title={tt('Previous')}
             >
               <ChevronLeft size={20} />
             </button>
@@ -225,7 +225,7 @@ const DashboardBarChart = ({ data }) => {
               onClick={handleNext}
               disabled={currentPage === totalPages - 1}
               className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-              title="Next"
+              title={tt('Next')}
             >
               <ChevronRight size={20} />
             </button>
@@ -1183,7 +1183,7 @@ const BusinessOwnerDashboard = () => {
         )}
         <div className="w-full py-6 sm:py-8">
           <PageHeader
-            title="Dashboard"
+            title={tt('Dashboard')}
             description="Overview of performance, cash position, receivables, payables, and inventory."
             status={
               <span
@@ -1288,7 +1288,7 @@ const BusinessOwnerDashboard = () => {
                       onClick={refreshDashboard}
                       disabled={isLoading}
                       className="p-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 rounded-xl transition-all duration-200 hover:shadow-md"
-                      title="Refresh dashboard data"
+                      title={tt('Refresh dashboard data')}
                     >
                       <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
                     </button>
@@ -1444,7 +1444,7 @@ const BusinessOwnerDashboard = () => {
               <MultiBusinessComparisonPanel
                 byTenant={metricsByTenant}
                 columns={DASHBOARD_METRICS_COMPARE_COLUMNS}
-                title="Financial summary by business"
+                title={tt('Financial summary by business')}
                 className="mb-5"
               />
             ) : null}
@@ -1470,7 +1470,7 @@ const BusinessOwnerDashboard = () => {
                 icon={CreditCard}
                 barClassName="from-green-400 via-emerald-500 to-teal-500"
                 iconWrapClassName="bg-emerald-100 text-emerald-600"
-                title="View invoices for selected period"
+                title={tt('View invoices for selected period')}
                 onClick={() => {
                   const { from, to } = getDashboardRangeYmd();
                   openInvoicesForRange(from, to);
@@ -1498,7 +1498,7 @@ const BusinessOwnerDashboard = () => {
                 icon={ShoppingCart}
                 barClassName="from-orange-400 via-red-500 to-rose-500"
                 iconWrapClassName="bg-orange-100 text-orange-700"
-                title="View expenses for selected period"
+                title={tt('View expenses for selected period')}
                 onClick={() => {
                   const { from, to } = getDashboardRangeYmd();
                   openExpensesForRange(from, to);
@@ -1694,7 +1694,7 @@ const BusinessOwnerDashboard = () => {
                             <div className="flex-1 mx-3">
                               <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full transition-all duration-500 shadow-sm ${colors[index]} ${index === 0 ? 'shadow-green-300' : index === 1 ? 'shadow-yellow-300' : index === 2 ? 'shadow-orange-300' : 'shadow-red-300'}`}
+                                  className={`h-full rounded-full transition-all duration-500 shadow-sm ${colors[index]} ${index === 0 ? 'shadow-green-300' : index === 1 ? 'shadow-yellow-300' : index === 2 ? tt('shadow-orange-300') : tt('shadow-red-300')}`}
                                   style={{ width: `${Math.max(percentage, 2)}%` }}
                                 ></div>
                               </div>
@@ -1793,7 +1793,7 @@ const BusinessOwnerDashboard = () => {
                             <div className="flex-1 mx-3">
                               <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full transition-all duration-500 shadow-sm ${colors[index]} ${index === 0 ? 'shadow-green-300' : index === 1 ? 'shadow-yellow-300' : index === 2 ? 'shadow-orange-300' : 'shadow-red-300'}`}
+                                  className={`h-full rounded-full transition-all duration-500 shadow-sm ${colors[index]} ${index === 0 ? 'shadow-green-300' : index === 1 ? 'shadow-yellow-300' : index === 2 ? tt('shadow-orange-300') : tt('shadow-red-300')}`}
                                   style={{ width: `${Math.max(percentage, 2)}%` }}
                                 ></div>
                               </div>

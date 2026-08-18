@@ -146,7 +146,7 @@ export default function AdminBillingReconciliationPage() {
         header: 'Severity',
         render: (c) => (
           <AdminStatusBadge
-            tone={c.severity === 'critical' || c.severity === 'high' ? 'danger' : 'warning'}
+            tone={c.severity === 'critical' || c.severity === 'high' ? tt('danger') : tt('warning')}
           >
             {c.severity || 'medium'}
           </AdminStatusBadge>
@@ -183,7 +183,7 @@ export default function AdminBillingReconciliationPage() {
           <AdminSummaryCard
             label="Failed"
             value={summary.failed ?? checks.length}
-            tone={(summary.failed ?? checks.length) > 0 ? 'danger' : 'neutral'}
+            tone={(summary.failed ?? checks.length) > 0 ? tt('danger') : tt('neutral')}
           />
           <AdminSummaryCard
             label="Checked"
@@ -196,7 +196,7 @@ export default function AdminBillingReconciliationPage() {
       {!loading && error ? <AdminErrorState message={error} onRetry={load} /> : null}
       {!loading && !error && checks.length === 0 ? (
         <AdminEmptyState
-          title="All checks passed"
+          title={tt('All checks passed')}
           description="No platform billing variances detected for the scanned set."
         />
       ) : null}
@@ -228,7 +228,7 @@ export default function AdminBillingReconciliationPage() {
               disabled={backfillLoading || backfillBusy}
               className={btnGhost}
             >
-              {backfillLoading ? 'Planning…' : 'Dry-run plan'}
+              {backfillLoading ? tt('Planning…') : tt('Dry-run plan')}
             </button>
             <button
               type="button"
@@ -256,7 +256,7 @@ export default function AdminBillingReconciliationPage() {
 
         {backfillPlan ? (
           <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
-            <AdminSummaryCard label="Actions" value={toCreate} tone={toCreate ? 'warning' : 'success'} />
+            <AdminSummaryCard label="Actions" value={toCreate} tone={toCreate ? tt('warning') : tt('success')} />
             <AdminSummaryCard
               label="Skipped"
               value={backfillPlan.summary?.skipped ?? backfillPlan.skipped?.length ?? 0}
@@ -268,7 +268,7 @@ export default function AdminBillingReconciliationPage() {
             <AdminSummaryCard
               label="Unmatched orphans"
               value={backfillPlan.summary?.unmatchedOrphans ?? unmatchedOrphans.length}
-              tone={unmatchedOrphans.length ? 'warning' : 'neutral'}
+              tone={unmatchedOrphans.length ? tt('warning') : tt('neutral')}
             />
           </div>
         ) : null}

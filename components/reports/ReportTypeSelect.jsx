@@ -1,5 +1,6 @@
 'use client';
 
+import { tt } from '@/lib/i18n/runtime';
 import { useMemo, useRef, useState } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -49,7 +50,7 @@ export default function ReportTypeSelect({ categories, value, onChange, classNam
           ref={triggerRef}
           compact
           icon={BarChart3}
-          label={report?.name || 'Select report'}
+          label={tt(report?.name || 'Select report')}
           open={open}
           onClick={() => setOpen((v) => !v)}
         />
@@ -69,20 +70,20 @@ export default function ReportTypeSelect({ categories, value, onChange, classNam
             {categories.map((cat, catIdx) => (
               <div key={cat.name} className={catIdx > 0 ? 'mt-1.5 border-t border-gray-100 pt-1.5' : ''}>
                 <p className="mb-0.5 px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                  {cat.name}
+                  {tt(cat.name)}
                 </p>
                 <div>
                   {cat.reports.map((r) => (
                     <CompactReportOption
                       key={r.type}
                       active={value === r.type}
-                      title={r.description}
+                      title={r.description ? tt(r.description) : undefined}
                       onClick={() => {
                         onChange(r.type);
                         setOpen(false);
                       }}
                     >
-                      {r.name}
+                      {tt(r.name)}
                     </CompactReportOption>
                   ))}
                 </div>

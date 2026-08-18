@@ -83,7 +83,7 @@ export default function AffiliatePayoutsPage() {
       header: 'Status',
       render: (r) => (
         <AdminStatusBadge
-          tone={r.status === 'paid' ? 'success' : r.status === 'approved' ? 'info' : 'neutral'}
+          tone={r.status === 'paid' ? 'success' : r.status === 'approved' ? tt('info') : tt('neutral')}
         >
           {r.status}
         </AdminStatusBadge>
@@ -117,7 +117,7 @@ export default function AffiliatePayoutsPage() {
       {!loading && error ? <AdminErrorState message={error} onRetry={load} /> : null}
       {!loading && !error && rows.length === 0 ? (
         <AdminEmptyState
-          title="No payouts yet"
+          title={tt('No payouts yet')}
           description="Approved period payouts will appear here with period keys and references."
         />
       ) : null}

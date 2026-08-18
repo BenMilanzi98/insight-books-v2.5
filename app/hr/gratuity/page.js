@@ -175,7 +175,7 @@ export default function GratuityManagement() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <PosStylePageHeader
-        title="Gratuity Management"
+        title={tt('Gratuity Management')}
         description="Track and manage employee gratuity accruals and payments"
         actions={
           <>
@@ -292,7 +292,7 @@ export default function GratuityManagement() {
                             setShowPaymentModal(true);
                           }}
                           className="text-green-600 hover:text-green-900"
-                          title="Record Payment"
+                          title={tt('Record Payment')}
                         >
                           <DollarSign size={18} />
                         </button>
@@ -302,7 +302,7 @@ export default function GratuityManagement() {
                             setShowClearModal(true);
                           }}
                           className="text-orange-600 hover:text-orange-900"
-                          title="Clear Account"
+                          title={tt('Clear Account')}
                         >
                           <X size={18} />
                         </button>
@@ -312,7 +312,7 @@ export default function GratuityManagement() {
                             setShowDeleteModal(true);
                           }}
                           className="text-red-600 hover:text-red-900"
-                          title="Delete Account"
+                          title={tt('Delete Account')}
                         >
                           <Trash2 size={18} />
                         </button>
@@ -429,7 +429,7 @@ export default function GratuityManagement() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                   disabled={isLoadingPaymentAccounts}
                 >
-                  <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                  <option value="">{isLoadingPaymentAccounts ? tt('Loading accounts...') : tt('Select an account')}</option>
                   {paymentAccounts.map(account => (
                     <option key={account.id} value={account.id}>
                       {account.name} {account.accountType ? `(${account.accountType})` : ''}

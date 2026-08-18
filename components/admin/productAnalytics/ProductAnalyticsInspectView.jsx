@@ -156,7 +156,7 @@ export default function ProductAnalyticsInspectView({ kind }) {
         <section className="rounded-[var(--admin-radius)] border border-[var(--admin-border)] bg-[var(--admin-surface)] p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {status ? (
-              <AdminStatusBadge tone={honestBlocked ? 'danger' : 'info'}>{status}</AdminStatusBadge>
+              <AdminStatusBadge tone={honestBlocked ? tt('danger') : tt('info')}>{status}</AdminStatusBadge>
             ) : null}
             {honestBlocked ? (
               <span className="text-sm text-[var(--admin-danger)]">

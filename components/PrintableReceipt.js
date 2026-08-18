@@ -130,7 +130,7 @@ const PrintableReceipt = ({ receiptData }) => {
                   <div className="text-2xl font-bold">{formatCurrency(payment?.amount || 0)}</div>
                 </div>
                 <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold">
-                  {payment?.amount >= documentTotal ? 'Full Payment' : 'Partial Payment'}
+                  {payment?.amount >= documentTotal ? tt('Full Payment') : tt('Partial Payment')}
                 </div>
               </div>
             </div>
@@ -176,7 +176,7 @@ const PrintableReceipt = ({ receiptData }) => {
                   <div className="text-2xl font-bold">{formatCurrency(totalPaid || 0)}</div>
                 </div>
                 <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold">
-                  {isFullyPaid ? 'Fully Paid' : 'Partially Paid'}
+                  {isFullyPaid ? tt('Fully Paid') : tt('Partially Paid')}
                 </div>
               </div>
             </div>
@@ -216,7 +216,7 @@ const PrintableReceipt = ({ receiptData }) => {
               </div>
               <div className="flex justify-between font-bold text-lg text-blue-600 border-t-2 border-blue-600 pt-3 mt-3">
                 <span>{tt('Status:')}</span>
-                <span>{isFullyPaid ? 'FULLY PAID' : 'PARTIALLY PAID'}</span>
+                <span>{isFullyPaid ? tt('FULLY PAID') : tt('PARTIALLY PAID')}</span>
               </div>
             </div>
 
@@ -300,7 +300,7 @@ const PrintableReceipt = ({ receiptData }) => {
 
       {/* Footer */}
       <div className="mt-10 text-center text-gray-600 text-sm border-t border-gray-200 pt-5">
-        <p>Thank you for your {type === 'individual' ? 'payment' : 'payments'}!</p>
+        <p>Thank you for your {type === 'individual' ? tt('payment') : tt('payments')}!</p>
         <p>Generated on {new Date().toLocaleString()}</p>
         <p className="mt-4 text-xs text-gray-500">
           {tt('Powered by')} <a href="https://insightbooksafrica.com/" className="text-blue-600 no-underline">{tt('InsightBooks')}</a>

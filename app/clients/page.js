@@ -294,7 +294,7 @@ const ClientForm = ({ client, onSubmit, onCancel, isSubmitting }) => {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">{client ? "Edit Client" : "Add New Client"}</h2>
+        <h2 className="text-xl font-semibold">{client ? tt('Edit Client') : tt('Add New Client')}</h2>
         <button className="text-gray-500 hover:text-gray-700" onClick={onCancel}>
           <X size={20} />
         </button>
@@ -423,7 +423,7 @@ const ClientForm = ({ client, onSubmit, onCancel, isSubmitting }) => {
             {isSubmitting && (
               <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
             )}
-            {client ? "Update Client" : "Create Client"}
+            {client ? tt('Update Client') : tt('Create Client')}
           </button>
         </div>
       </form>
@@ -1230,7 +1230,7 @@ const ClientManagement = () => {
       )}
 
       <PageHeader
-        title="Client Management"
+        title={tt('Client Management')}
         description="Manage your clients, view activities, and track payment history"
         actions={
           pagePermissions.canCreateClient ? (
@@ -1349,7 +1349,7 @@ const ClientManagement = () => {
           <button 
             className="flex items-center border border-gray-300 rounded-md px-4 py-2 bg-white gap-2 hover:bg-gray-50"
             onClick={handleOpenBalanceReminderTemplate}
-            title="Edit balance reminder email template"
+            title={tt('Edit balance reminder email template')}
           >
             <FileText size={18} className="text-gray-500" />
             <span>{tt('Balance reminder template')}</span>
@@ -1375,7 +1375,7 @@ const ClientManagement = () => {
               onClick={handleSendBulkBalanceReminders}
               disabled={sendingBulkReminders}
               className="px-4 py-1.5 text-sm bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              title="Send balance reminder email to all selected clients"
+              title={tt('Send balance reminder email to all selected clients')}
             >
               {sendingBulkReminders ? (
                 <>
@@ -1577,14 +1577,14 @@ const ClientManagement = () => {
                       {pagePermissions.canUpdateClients &&(<button 
                           className="text-blue-600 hover:text-blue-800 p-1 rounded"
                           onClick={(e) => handleEditClient(client, e)}
-                          title="Edit Client"
+                          title={tt('Edit Client')}
                         >
                           <Edit size={16} />
                         </button>)}
                         {pagePermissions.canDeleteClients &&(<button 
                           className="text-red-600 hover:text-red-800 p-1 rounded"
                           onClick={(e) => handleDeleteClient(client.id, e)}
-                          title="Delete Client"
+                          title={tt('Delete Client')}
                         >
                           <Trash2 size={16} />
                         </button>)}
@@ -2003,18 +2003,18 @@ const ClientManagement = () => {
                       onClick={handleSendBalanceReminder}
                       disabled={sendingBalanceReminder}
                       className="group flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-amber-300 hover:bg-amber-50 hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50"
-                      title="Send payment reminder using your template"
+                      title={tt('Send payment reminder using your template')}
                     >
                       <div className="p-2 bg-amber-100 rounded-full group-hover:bg-amber-200 transition-colors">
                         <AlertCircle size={16} className="text-amber-600" />
                       </div>
-                      <span className="font-medium text-gray-900">{sendingBalanceReminder ? 'Sending…' : 'Send payment reminder'}</span>
+                      <span className="font-medium text-gray-900">{sendingBalanceReminder ? tt('Sending…') : tt('Send payment reminder')}</span>
                     </button>
                     <button
                       onClick={handleDownloadBalanceReminderPdf}
                       disabled={downloadingReminderPdf}
                       className="group flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-amber-300 hover:bg-amber-50 hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50"
-                      title="Download balance reminder as PDF to send manually"
+                      title={tt('Download balance reminder as PDF to send manually')}
                     >
                       <div className="p-2 bg-amber-100 rounded-full group-hover:bg-amber-200 transition-colors">
                         <Download size={16} className="text-amber-600" />
@@ -2028,7 +2028,7 @@ const ClientManagement = () => {
                           onClick={() => handleDownloadAccountSummary('pdf')}
                           disabled={downloadingAccountSummary}
                           className="group flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-teal-300 hover:bg-teal-50 text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50"
-                          title="Download client record as PDF"
+                          title={tt('Download client record as PDF')}
                         >
                           <Download size={14} className="text-teal-600" />
                           <span>PDF</span>
@@ -2037,7 +2037,7 @@ const ClientManagement = () => {
                           onClick={() => handleDownloadAccountSummary('xlsx')}
                           disabled={downloadingAccountSummary}
                           className="group flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-teal-300 hover:bg-teal-50 text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50"
-                          title="Download client record as Excel"
+                          title={tt('Download client record as Excel')}
                         >
                           <Download size={14} className="text-teal-600" />
                           <span>{tt('Excel')}</span>
@@ -2046,7 +2046,7 @@ const ClientManagement = () => {
                           onClick={() => handleDownloadAccountSummary('csv')}
                           disabled={downloadingAccountSummary}
                           className="group flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-teal-300 hover:bg-teal-50 text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50"
-                          title="Download client trading history as CSV"
+                          title={tt('Download client trading history as CSV')}
                         >
                           <Download size={14} className="text-teal-600" />
                           <span>CSV</span>
@@ -2210,7 +2210,7 @@ const ClientManagement = () => {
                   }
                 }}
               >
-                {isSendingEmail ? 'Sending...' : 'Send Email'}
+                {isSendingEmail ? tt('Sending...') : tt('Send Email')}
               </button>
             </div>
           </div>
@@ -2263,7 +2263,7 @@ const ClientManagement = () => {
                 disabled={balanceReminderTemplateSaving}
                 onClick={handleSaveBalanceReminderTemplate}
               >
-                {balanceReminderTemplateSaving ? 'Saving…' : 'Save template'}
+                {balanceReminderTemplateSaving ? tt('Saving…') : tt('Save template')}
               </button>
             </div>
           </div>

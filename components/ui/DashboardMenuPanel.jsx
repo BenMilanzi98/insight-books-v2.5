@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { tx } from '@/lib/i18n/runtime';
 
 /**
  * Visual shell matching the Dashboard date-range menu:
@@ -36,7 +37,7 @@ export function DashboardMenuChip({ active, className, children, ...props }) {
       )}
       {...props}
     >
-      {children}
+      {tx(children)}
     </button>
   );
 }
@@ -55,7 +56,7 @@ export function DashboardMenuItem({ active, className, children, ...props }) {
       )}
       {...props}
     >
-      {children}
+      {tx(children)}
     </button>
   );
 }

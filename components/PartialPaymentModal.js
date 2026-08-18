@@ -14,7 +14,9 @@ const PartialPaymentModal = ({
     paymentMethod: '',
     paymentDate: new Date().toISOString().split('T')[0],
     reference: '',
-    notes: ''
+    notes: '',
+    applyWithholding: false,
+    withholdingPercent: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -37,7 +39,9 @@ const PartialPaymentModal = ({
         paymentMethod: defaultAccount?.id || '',
         paymentDate: new Date().toISOString().split('T')[0],
         reference: '',
-        notes: ''
+        notes: '',
+        applyWithholding: false,
+        withholdingPercent: '',
       });
       setError('');
     }
@@ -54,6 +58,18 @@ const PartialPaymentModal = ({
     if (error) setError('');
   };
 
+  const previewWithholding = () => {
+    const cash = parseFloat(formData.amount) || 0;
+    const pct = parseFloat(formData.withholdingPercent) || 0;
+    if (!formData.applyWithholding || pct <= 0 || pct >= 100) {
+      return { cash, wht: 0, gross: cash };
+    }
+    const wht = Math.round(((cash * pct) / (100 - pct)) * 100) / 100;
+    return { cash, wht, gross: Math.round((cash + wht) * 100) / 100 };
+  };
+
+  const whtPreview = previewWithholding();
+
   const handleAmountChange = (e) => {
     const value = e.target.value;
     setFormData(prev => ({
@@ -61,16 +77,25 @@ const PartialPaymentModal = ({
       amount: value
     }));
     
-    // Validate amount
     const amount = parseFloat(value) || 0;
-    if (amount > remainingBalance) {
-      setError(`Amount cannot exceed remaining balance of ${remainingBalance.toFixed(2)}`);
+    const { gross } = previewWithholdingFrom(amount, formData.applyWithholding, formData.withholdingPercent);
+    if (gross > remainingBalance) {
+      setError(`Total applied (cash + WHT) cannot exceed remaining balance of ${remainingBalance.toFixed(2)}`);
     } else if (amount <= 0) {
       setError('Amount must be greater than 0');
     } else {
       setError('');
     }
   };
+
+  function previewWithholdingFrom(cash, applyWht, pctStr) {
+    const pct = parseFloat(pctStr) || 0;
+    if (!applyWht || pct <= 0 || pct >= 100) {
+      return { cash, wht: 0, gross: cash };
+    }
+    const wht = Math.round(((cash * pct) / (100 - pct)) * 100) / 100;
+    return { cash, wht, gross: Math.round((cash + wht) * 100) / 100 };
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -85,9 +110,23 @@ const PartialPaymentModal = ({
       return;
     }
 
-    if (parseFloat(formData.amount) > remainingBalance) {
+    if (parseFloat(formData.amount) > remainingBalance && !formData.applyWithholding) {
       setError(`Amount cannot exceed remaining balance of ${remainingBalance.toFixed(2)}`);
       return;
+    }
+
+    const { gross, wht } = previewWithholding();
+    if (gross > remainingBalance) {
+      setError(`Total applied (cash + WHT ${wht.toFixed(2)}) exceeds remaining balance`);
+      return;
+    }
+
+    if (formData.applyWithholding) {
+      const pct = parseFloat(formData.withholdingPercent);
+      if (!pct || pct <= 0 || pct >= 100) {
+        setError('Enter a valid withholding percentage (0–99.99)');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -101,7 +140,9 @@ const PartialPaymentModal = ({
         },
         body: JSON.stringify({
           invoiceId: invoice.id,
-          ...formData
+          ...formData,
+          applyWithholding: formData.applyWithholding,
+          withholdingPercent: formData.applyWithholding ? formData.withholdingPercent : undefined,
         }),
       });
 
@@ -185,10 +226,10 @@ const PartialPaymentModal = ({
             </div>
           )}
 
-          {/* Payment Amount */}
+          {/* Payment Amount (cash received) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {tt('Payment Amount *')}
+              {formData.applyWithholding ? tt('Cash received *') : tt('Payment Amount *')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -201,15 +242,52 @@ const PartialPaymentModal = ({
                 onChange={handleAmountChange}
                 step="0.01"
                 min="0.01"
-                max={remainingBalance}
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="0.00"
                 required
               />
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              Maximum: {formatCurrency(remainingBalance)}
+              {formData.applyWithholding
+                ? `${tt('Applied to invoice')}: ${formatCurrency(whtPreview.gross)} (${tt('incl. WHT')} ${formatCurrency(whtPreview.wht)})`
+                : `${tt('Maximum')}: ${formatCurrency(remainingBalance)}`}
             </p>
+          </div>
+
+          {/* Optional withholding tax */}
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                type="checkbox"
+                checked={formData.applyWithholding}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, applyWithholding: e.target.checked }));
+                  setError('');
+                }}
+              />
+              {tt('Apply withholding tax (WHT)')}
+            </label>
+            {formData.applyWithholding ? (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  {tt('Withholding % on gross payment')}
+                </label>
+                <input
+                  type="number"
+                  name="withholdingPercent"
+                  value={formData.withholdingPercent}
+                  onChange={handleInputChange}
+                  step="0.01"
+                  min="0.01"
+                  max="99.99"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  placeholder="e.g. 10"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {tt('Posts Dr Cash + Dr WHT receivable, Cr AR for the full amount cleared.')}
+                </p>
+              </div>
+            ) : null}
           </div>
 
           {/* Payment Method */}
@@ -225,7 +303,7 @@ const PartialPaymentModal = ({
               required
               disabled={isLoadingPaymentAccounts}
             >
-              <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+              <option value="">{isLoadingPaymentAccounts ? tt('Loading accounts...') : tt('Select an account')}</option>
               {paymentAccounts.map(account => (
                 <option key={account.id} value={account.id}>
                   {account.name} {account.accountType ? `(${account.accountType})` : ''}

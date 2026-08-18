@@ -163,7 +163,7 @@ export default function SecurityMonitoringPage() {
       {isLoading ? <AdminLoadingState label="Loading security monitoring" /> : null}
 
       {!isLoading && error && !threatMetrics && securityEvents.length === 0 ? (
-        <AdminErrorState title="Monitoring unavailable" message={error} onRetry={fetchSecurityData} />
+        <AdminErrorState title={tt('Monitoring unavailable')} message={error} onRetry={fetchSecurityData} />
       ) : null}
 
       {!isLoading && (threatMetrics || securityEvents.length > 0 || !error) ? (
@@ -270,7 +270,7 @@ export default function SecurityMonitoringPage() {
                 </ul>
               ) : (
                 <AdminEmptyState
-                  title="No security events"
+                  title={tt('No security events')}
                   description="No events returned for this timeframe."
                 />
               )}

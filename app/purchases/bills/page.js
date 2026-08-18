@@ -123,7 +123,7 @@ function ReverseDialog({ billNumber, onConfirm, onCancel, loading }) {
             disabled={loading || reason.trim().length < 10}
             className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
           >
-            {loading ? "Reversing…" : "Reverse"}
+            {loading ? tt('Reversing…') : tt('Reverse')}
           </button>
         </div>
       </div>
@@ -249,7 +249,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
         </p>
       )}
 
-      <BillFormSection title="Bill Details" description="Supplier and key dates.">
+      <BillFormSection title={tt('Bill Details')} description="Supplier and key dates.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700">
@@ -307,7 +307,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
       </BillFormSection>
 
       <BillFormSection
-        title="Line Items"
+        title={tt('Line Items')}
         description="Quick inputs for quantity × unit cost. Expand later if we add full expense categories."
       >
         <div className="space-y-3">
@@ -362,7 +362,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
         </div>
       </BillFormSection>
 
-      <BillFormSection title="Notes & Totals">
+      <BillFormSection title={tt('Notes & Totals')}>
         <div className="space-y-3">
           <textarea
             name="notes"
@@ -397,7 +397,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
           disabled={saving}
           className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white  hover:bg-indigo-700 disabled:opacity-50"
         >
-          {saving ? "Saving…" : isEdit ? "Update Bill" : "Save Bill"}
+          {saving ? "Saving…" : isEdit ? tt('Update Bill') : tt('Save Bill')}
         </button>
       </div>
     </form>

@@ -3,6 +3,7 @@
 import { forwardRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { tx } from '@/lib/i18n/runtime';
 
 /** Trigger button matching Dashboard date-range / business-scope dropdowns. */
 export const DashboardDropdownTrigger = forwardRef(function DashboardDropdownTrigger(
@@ -24,7 +25,7 @@ export const DashboardDropdownTrigger = forwardRef(function DashboardDropdownTri
     >
       <div className="mr-2 flex min-w-0 items-center">
         {Icon ? <Icon size={compact ? 14 : 16} className="mr-1.5 shrink-0 text-gray-500" /> : null}
-        <div className="min-w-0 truncate text-left font-medium text-gray-900">{label}</div>
+        <div className="min-w-0 truncate text-left font-medium text-gray-900">{tx(label)}</div>
       </div>
       <ChevronDown
         size={14}

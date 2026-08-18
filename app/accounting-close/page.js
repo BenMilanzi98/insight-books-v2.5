@@ -169,7 +169,7 @@ export default function AccountingClosePage() {
     <div className="w-full">
       <div className="mx-auto max-w-6xl space-y-6">
         <PosStylePageHeader
-          title="Year-End Close"
+          title={tt('Year-End Close')}
           description="Period-end close stays on Financial Calendar. This workspace owns year-end closing journals, profit transfer, post-closing trial balance, and FY lock."
           actions={
             <PosStyleHeaderButton type="button" onClick={load} disabled={busy}>

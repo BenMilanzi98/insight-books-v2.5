@@ -153,7 +153,7 @@ export default function SecurityGovernancePage() {
             </div>
             <div>
               <dt className="text-slate-500">{tt('Impersonating')}</dt>
-              <dd>{actor.isImpersonating ? 'Yes' : 'No'}</dd>
+              <dd>{actor.isImpersonating ? tt('Yes') : tt('No')}</dd>
             </div>
           </dl>
         ) : (

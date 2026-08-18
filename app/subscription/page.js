@@ -243,14 +243,12 @@ function SubscriptionContent() {
       {/* Header */}
       <div className="text-center">
         <h1 className="text-3xl font-bold text-gray-900 mb-4">
-          {redirected || noActiveSubscription ? "Upgrade Required" : isTrialActive ? "Upgrade Your Trial" : "Subscription & Payments"}
+          {redirected || noActiveSubscription ? "Upgrade Required" : isTrialActive ? tt('Upgrade Your Trial') : tt('Subscription & Payments')}
         </h1>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
           {redirected || noActiveSubscription
             ? "Choose a subscription plan to unlock all features and continue using the application."
-            : isTrialActive
-            ? "Unlock premium features and continue growing your business with our professional plans."
-            : "Manage your subscription and view payment history."}
+            : isTrialActive ? tt('Unlock premium features and continue growing your business with our professional plans.') : tt('Manage your subscription and view payment history.')}
         </p>
       </div>
 
@@ -400,9 +398,7 @@ function SubscriptionContent() {
                               ? plan.ctaText || 'Subscribe to MRA EIS'
                               : redirected
                                 ? 'Choose Plan'
-                                : isTrialActive
-                                  ? 'Upgrade Now'
-                                  : 'Choose Plan'}
+                                : isTrialActive ? tt('Upgrade Now') : tt('Choose Plan')}
                             <ArrowRight className="h-4 w-4 ml-2" />
                           </div>
                         )}
@@ -539,7 +535,7 @@ function SubscriptionContent() {
                             : "bg-purple-100 text-purple-800"
                         }`}
                       >
-                        {payment.isTrial ? "Trial" : "Paid"}
+                        {payment.isTrial ? tt('Trial') : tt('Paid')}
                       </span>
                     </td>
                   </tr>

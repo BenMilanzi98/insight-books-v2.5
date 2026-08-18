@@ -634,7 +634,7 @@ const ChartOfAccountsPage = () => {
       <div className="w-full">
           {/* Header */}
           <PosStylePageHeader
-            title="Chart of accounts"
+            title={tt('Chart of accounts')}
             description={headerDescription}
             actions={
               <>
@@ -647,7 +647,7 @@ const ChartOfAccountsPage = () => {
               <PosStyleHeaderButton
                 type="button"
                 onClick={handleInitializeBaseline}
-                title="Creates missing standard GL accounts, default payment accounts, and tax accounts"
+                title={tt('Creates missing standard GL accounts, default payment accounts, and tax accounts')}
               >
                 <CheckCircle size={16} strokeWidth={2} className="mr-2 text-emerald-600" />
                 {tt('Sync')}
@@ -900,7 +900,7 @@ const ChartOfAccountsPage = () => {
         {/* Add Account Modal */}
         {showAddModal && (
           <AccountModal
-            title="Add New Account"
+            title={tt('Add New Account')}
             formData={formData}
             setFormData={setFormData}
             accountTypes={accountTypes}
@@ -918,7 +918,7 @@ const ChartOfAccountsPage = () => {
         {/* Edit Account Modal */}
         {showEditModal && selectedAccount && (
           <AccountModal
-            title="Edit Account"
+            title={tt('Edit Account')}
             formData={formData}
             setFormData={setFormData}
             accountTypes={accountTypes}
@@ -1066,7 +1066,7 @@ const ChartOfAccountsPage = () => {
                       className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={mergeLoading || !mergeTargetId}
                     >
-                      {mergeLoading ? 'Merging…' : 'Merge accounts'}
+                      {mergeLoading ? tt('Merging…') : tt('Merge accounts')}
                     </button>
                   </div>
                 </div>
@@ -1164,7 +1164,7 @@ const AccountModal = ({
               {isNewCustomExpense ? (
                 <div
                   className={`${field} bg-slate-50 text-sm text-slate-700`}
-                  title="The next free code in 5701–5899 is assigned when you create the account."
+                  title={tt('The next free code in 5701–5899 is assigned when you create the account.')}
                 >
                   {nextCustomExpenseCodeHint(accounts)}
                   {!parent5700Id ? (
@@ -1354,7 +1354,7 @@ const AccountModal = ({
             onClick={onSave}
             className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-600/20 transition hover:bg-blue-700"
           >
-            {isEdit ? 'Save changes' : 'Create account'}
+            {isEdit ? tt('Save changes') : tt('Create account')}
           </button>
         </div>
       </div>
@@ -1903,7 +1903,7 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                             <span className="text-right tabular-nums text-slate-600" title="This invoice (accumulated)">
                               {formatCurrency(inv.accumulatedAmount ?? inv.actualRemaining)}
                             </span>
-                            <span className="text-right tabular-nums font-semibold text-blue-900" title="Running AR total">
+                            <span className="text-right tabular-nums font-semibold text-blue-900" title={tt('Running AR total')}>
                               {inv.runningTotalAfterThisSource != null
                                 ? formatCurrency(inv.runningTotalAfterThisSource)
                                 : '—'}

@@ -467,7 +467,7 @@ const FinancialSetupPage = () => {
                     </div>
                     <div className="flex items-center ml-4 space-x-2">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${method.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                        {method.enabled ? 'Enabled' : 'Disabled'}
+                        {method.enabled ? tt('Enabled') : tt('Disabled')}
                       </span>
                       <label className="relative inline-flex items-center">
                         <input 

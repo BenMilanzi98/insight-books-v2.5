@@ -235,7 +235,7 @@ export default function AdminSidebar({
                             : undefined
                         }
                         aria-expanded={expanded}
-                        data-active={active ? 'true' : 'false'}
+                        data-active={active ? tt('true') : tt('false')}
                         className={cn(
                           'admin-nav-item flex min-h-11 w-full items-center gap-3 rounded-[var(--admin-radius)] px-3 py-2.5 text-left text-sm',
                           active
@@ -305,7 +305,7 @@ export default function AdminSidebar({
                           ? resolveAdminNavLabel(item, t)
                           : undefined
                       }
-                      data-active={active ? 'true' : 'false'}
+                      data-active={active ? tt('true') : tt('false')}
                       className={cn(
                         'admin-nav-item flex min-h-11 items-center gap-3 rounded-[var(--admin-radius)] px-3 py-2.5 text-sm',
                         active
@@ -358,7 +358,7 @@ export default function AdminSidebar({
             onClick={() => setCollapsed(!collapsed)}
             className="mt-1 hidden w-full rounded-[var(--radius-md)] px-3 py-2 text-xs text-white/50 hover:bg-white/5 hover:text-white/80 md:block"
           >
-            {collapsed ? 'Expand' : 'Collapse'}
+            {collapsed ? tt('Expand') : tt('Collapse')}
           </button>
         ) : null}
       </div>

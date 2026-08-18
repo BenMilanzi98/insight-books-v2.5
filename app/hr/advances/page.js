@@ -224,7 +224,7 @@ export default function SalaryAdvancesManagement() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <PosStylePageHeader
-        title="Salary Advances Management"
+        title={tt('Salary Advances Management')}
         description="Manage employee salary advances and track repayments"
         actions={
           <button
@@ -373,7 +373,7 @@ export default function SalaryAdvancesManagement() {
                         <button
                           onClick={() => handleViewDetails(advance)}
                           className="text-blue-600 hover:text-blue-900"
-                          title="View Details"
+                          title={tt('View Details')}
                         >
                           <Eye size={18} />
                         </button>
@@ -382,7 +382,7 @@ export default function SalaryAdvancesManagement() {
                             <button
                               onClick={() => handleEdit(advance)}
                               className="text-yellow-600 hover:text-yellow-900"
-                              title="Edit"
+                              title={tt('Edit')}
                             >
                               <Edit size={18} />
                             </button>
@@ -392,7 +392,7 @@ export default function SalaryAdvancesManagement() {
                                 setShowDeleteModal(true);
                               }}
                               className="text-red-600 hover:text-red-900"
-                              title="Delete"
+                              title={tt('Delete')}
                             >
                               <Trash2 size={18} />
                             </button>
@@ -457,7 +457,7 @@ export default function SalaryAdvancesManagement() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                   disabled={isLoadingPaymentAccounts}
                 >
-                  <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                  <option value="">{isLoadingPaymentAccounts ? tt('Loading accounts...') : tt('Select an account')}</option>
                   {paymentAccounts.map(account => (
                     <option key={account.id} value={account.id}>
                       {account.name} {account.accountType ? `(${account.accountType})` : ''}

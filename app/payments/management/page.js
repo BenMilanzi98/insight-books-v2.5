@@ -14,7 +14,7 @@ function PaymentManagementPageInner() {
   const [success, setSuccess] = useState(null);
 
   const handleDelete = async (account) => {
-    if (!confirm(`Are you sure you want to ${account.isActive ? 'deactivate' : 'delete'} "${account.name}"?`)) {
+    if (!confirm(`Are you sure you want to ${account.isActive ? tt('deactivate') : tt('delete')} "${account.name}"?`)) {
       return;
     }
     try {

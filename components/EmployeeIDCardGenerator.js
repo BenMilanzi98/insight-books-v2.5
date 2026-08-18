@@ -218,8 +218,8 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
               src="${employeePhoto}"
               alt="${selectedEmployee.name}"
               style="
-                width: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? '80px' : '120px'};
-                height: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? '80px' : '120px'};
+                width: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? tt('80px') : tt('120px')};
+                height: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? tt('80px') : tt('120px')};
                 border-radius: 8px;
                 object-fit: cover;
                 border: 3px solid ${idCardDesign.primaryColor};
@@ -229,8 +229,8 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
             />
           ` : `
             <div style="
-              width: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? '80px' : '120px'};
-              height: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? '80px' : '120px'};
+              width: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? tt('80px') : tt('120px')};
+              height: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? tt('80px') : tt('120px')};
               border-radius: 8px;
               background: #e5e7eb;
               border: 3px solid ${idCardDesign.primaryColor};
@@ -262,7 +262,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
             <title>Employee ID Card - ${selectedEmployee.name}</title>
             <style>
               @page {
-                size: ${idCardDesign.cardSize === 'large' ? 'A4 landscape' : idCardDesign.cardSize === 'compact' ? 'A6' : 'A7'};
+                size: ${idCardDesign.cardSize === 'large' ? 'A4 landscape' : idCardDesign.cardSize === 'compact' ? tt('A6') : tt('A7')};
                 margin: 0.5cm;
               }
               body {
@@ -279,9 +279,9 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                 background: ${idCardDesign.backgroundColor};
                 border: ${idCardDesign.borderWidth}px ${idCardDesign.borderStyle} ${idCardDesign.borderColor};
                 border-radius: 12px;
-                padding: ${idCardDesign.cardSize === 'large' ? '30px' : idCardDesign.cardSize === 'compact' ? '15px' : '20px'};
+                padding: ${idCardDesign.cardSize === 'large' ? '30px' : idCardDesign.cardSize === 'compact' ? tt('15px') : tt('20px')};
                 box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                max-width: ${idCardDesign.layout === 'horizontal' ? '600px' : '400px'};
+                max-width: ${idCardDesign.layout === 'horizontal' ? tt('600px') : tt('400px')};
                 width: 100%;
               }
               .id-card-header {
@@ -295,14 +295,14 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
               .id-card-body {
                 display: ${idCardDesign.layout === 'horizontal' ? 'flex' : 'block'};
                 gap: 20px;
-                align-items: ${idCardDesign.layout === 'horizontal' ? 'center' : 'stretch'};
+                align-items: ${idCardDesign.layout === 'horizontal' ? tt('center') : tt('stretch')};
               }
               .id-card-photo-container {
                 ${idCardDesign.layout === 'vertical' ? 'display: flex; justify-content: center; margin-bottom: 20px; width: 100%;' : 'flex-shrink: 0;'}
               }
               .id-card-photo {
-                width: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? '80px' : '120px'};
-                height: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? '80px' : '120px'};
+                width: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? tt('80px') : tt('120px')};
+                height: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? tt('80px') : tt('120px')};
                 border-radius: 8px;
                 object-fit: cover;
                 border: 3px solid ${idCardDesign.primaryColor};
@@ -317,14 +317,14 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                 ${idCardDesign.layout === 'vertical' ? 'text-align: center;' : ''}
               }
               .id-card-name {
-                font-size: ${idCardDesign.fontSize === 'large' ? '24px' : idCardDesign.fontSize === 'small' ? '18px' : '20px'};
+                font-size: ${idCardDesign.fontSize === 'large' ? '24px' : idCardDesign.fontSize === 'small' ? tt('18px') : tt('20px')};
                 font-weight: bold;
                 margin-bottom: 10px;
                 color: ${idCardDesign.primaryColor};
               }
               .id-card-detail {
                 margin: 8px 0;
-                font-size: ${idCardDesign.fontSize === 'large' ? '14px' : idCardDesign.fontSize === 'small' ? '12px' : '13px'};
+                font-size: ${idCardDesign.fontSize === 'large' ? '14px' : idCardDesign.fontSize === 'small' ? tt('12px') : tt('13px')};
               }
               .id-card-label {
                 font-weight: 600;
@@ -386,9 +386,9 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
               background: ${idCardDesign.backgroundColor};
               border: ${idCardDesign.borderWidth}px ${idCardDesign.borderStyle} ${idCardDesign.borderColor};
               border-radius: 12px;
-              padding: ${idCardDesign.cardSize === 'large' ? '30px' : idCardDesign.cardSize === 'compact' ? '15px' : '20px'};
+              padding: ${idCardDesign.cardSize === 'large' ? '30px' : idCardDesign.cardSize === 'compact' ? tt('15px') : tt('20px')};
               box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-              max-width: ${idCardDesign.layout === 'horizontal' ? '600px' : '400px'};
+              max-width: ${idCardDesign.layout === 'horizontal' ? tt('600px') : tt('400px')};
               width: 100%;
               font-family: ${idCardDesign.fontFamily || 'Arial'}, sans-serif;
             ">
@@ -416,7 +416,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
               <div class="id-card-body" style="
                 display: ${idCardDesign.layout === 'horizontal' ? 'flex' : 'block'};
                 gap: ${idCardDesign.layout === 'horizontal' ? '20px' : '0'};
-                align-items: ${idCardDesign.layout === 'horizontal' ? 'center' : 'stretch'};
+                align-items: ${idCardDesign.layout === 'horizontal' ? tt('center') : tt('stretch')};
               ">
                 ${idCardDesign.showEmployeePhoto ? `
                   <div style="
@@ -432,8 +432,8 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                         src="${employeePhoto}"
                         alt="${selectedEmployee.name}"
                         style="
-                          width: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? '80px' : '120px'};
-                          height: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? '80px' : '120px'};
+                          width: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? tt('80px') : tt('120px')};
+                          height: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? tt('80px') : tt('120px')};
                           border-radius: 8px;
                           object-fit: cover;
                           border: 3px solid ${idCardDesign.primaryColor};
@@ -443,8 +443,8 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                       />
                     ` : `
                       <div style="
-                        width: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? '80px' : '120px'};
-                        height: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? '80px' : '120px'};
+                        width: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? tt('80px') : tt('120px')};
+                        height: ${idCardDesign.cardSize === 'large' ? '150px' : idCardDesign.cardSize === 'compact' ? tt('80px') : tt('120px')};
                         border-radius: 8px;
                         background: #e5e7eb;
                         border: 3px solid ${idCardDesign.primaryColor};
@@ -466,14 +466,14 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                   flex: ${idCardDesign.layout === 'horizontal' ? '1' : 'none'};
                   color: ${idCardDesign.textColor};
                   width: ${idCardDesign.layout === 'vertical' ? '100%' : 'auto'};
-                  text-align: ${idCardDesign.layout === 'vertical' ? 'center' : 'left'};
+                  text-align: ${idCardDesign.layout === 'vertical' ? tt('center') : tt('left')};
                 ">
                   <div class="id-card-name" style="
-                    font-size: ${idCardDesign.fontSize === 'large' ? '24px' : idCardDesign.fontSize === 'small' ? '18px' : '20px'};
+                    font-size: ${idCardDesign.fontSize === 'large' ? '24px' : idCardDesign.fontSize === 'small' ? tt('18px') : tt('20px')};
                     font-weight: bold;
                     margin-bottom: 10px;
                     color: ${idCardDesign.primaryColor};
-                    text-align: ${idCardDesign.layout === 'vertical' ? 'center' : 'left'};
+                    text-align: ${idCardDesign.layout === 'vertical' ? tt('center') : tt('left')};
                   ">
                     ${selectedEmployee.name}
                   </div>
@@ -486,8 +486,8 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                   ">
                     <div class="id-card-detail" style="
                       margin: 0;
-                      font-size: ${idCardDesign.fontSize === 'large' ? '14px' : idCardDesign.fontSize === 'small' ? '12px' : '13px'};
-                      text-align: ${idCardDesign.layout === 'vertical' ? 'center' : 'left'};
+                      font-size: ${idCardDesign.fontSize === 'large' ? '14px' : idCardDesign.fontSize === 'small' ? tt('12px') : tt('13px')};
+                      text-align: ${idCardDesign.layout === 'vertical' ? tt('center') : tt('left')};
                       width: ${idCardDesign.layout === 'vertical' ? '100%' : 'auto'};
                     ">
                       <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">{tt('Employee ID:')} </span>
@@ -495,8 +495,8 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                     </div>
                     <div class="id-card-detail" style="
                       margin: 0;
-                      font-size: ${idCardDesign.fontSize === 'large' ? '14px' : idCardDesign.fontSize === 'small' ? '12px' : '13px'};
-                      text-align: ${idCardDesign.layout === 'vertical' ? 'center' : 'left'};
+                      font-size: ${idCardDesign.fontSize === 'large' ? '14px' : idCardDesign.fontSize === 'small' ? tt('12px') : tt('13px')};
+                      text-align: ${idCardDesign.layout === 'vertical' ? tt('center') : tt('left')};
                       width: ${idCardDesign.layout === 'vertical' ? '100%' : 'auto'};
                     ">
                       <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">{tt('Position:')} </span>
@@ -504,8 +504,8 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                     </div>
                     <div class="id-card-detail" style="
                       margin: 0;
-                      font-size: ${idCardDesign.fontSize === 'large' ? '14px' : idCardDesign.fontSize === 'small' ? '12px' : '13px'};
-                      text-align: ${idCardDesign.layout === 'vertical' ? 'center' : 'left'};
+                      font-size: ${idCardDesign.fontSize === 'large' ? '14px' : idCardDesign.fontSize === 'small' ? tt('12px') : tt('13px')};
+                      text-align: ${idCardDesign.layout === 'vertical' ? tt('center') : tt('left')};
                       width: ${idCardDesign.layout === 'vertical' ? '100%' : 'auto'};
                     ">
                       <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">{tt('Department:')} </span>
@@ -513,8 +513,8 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                     </div>
                     <div class="id-card-detail" style="
                       margin: 0;
-                      font-size: ${idCardDesign.fontSize === 'large' ? '14px' : idCardDesign.fontSize === 'small' ? '12px' : '13px'};
-                      text-align: ${idCardDesign.layout === 'vertical' ? 'center' : 'left'};
+                      font-size: ${idCardDesign.fontSize === 'large' ? '14px' : idCardDesign.fontSize === 'small' ? tt('12px') : tt('13px')};
+                      text-align: ${idCardDesign.layout === 'vertical' ? tt('center') : tt('left')};
                       width: ${idCardDesign.layout === 'vertical' ? '100%' : 'auto'};
                     ">
                       <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">{tt('Start Date:')} </span>
@@ -523,8 +523,8 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                     ${selectedEmployee.email ? `
                       <div class="id-card-detail" style="
                         margin: 0;
-                        font-size: ${idCardDesign.fontSize === 'large' ? '14px' : idCardDesign.fontSize === 'small' ? '12px' : '13px'};
-                        text-align: ${idCardDesign.layout === 'vertical' ? 'center' : 'left'};
+                        font-size: ${idCardDesign.fontSize === 'large' ? '14px' : idCardDesign.fontSize === 'small' ? tt('12px') : tt('13px')};
+                        text-align: ${idCardDesign.layout === 'vertical' ? tt('center') : tt('left')};
                         width: ${idCardDesign.layout === 'vertical' ? '100%' : 'auto'};
                       ">
                         <span class="id-card-label" style="font-weight: 600; color: ${idCardDesign.textColor}; opacity: 0.7;">{tt('Email:')} </span>
@@ -635,7 +635,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                           disabled={isUploadingPhoto}
                         >
                           <Upload size={16} />
-                          {isUploadingPhoto ? 'Uploading...' : 'Change Photo'}
+                          {isUploadingPhoto ? tt('Uploading...') : tt('Change Photo')}
                         </button>
                       </div>
                     ) : (
@@ -647,7 +647,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                           disabled={isUploadingPhoto}
                         >
                           <Upload size={16} />
-                          {isUploadingPhoto ? 'Uploading...' : 'Upload Photo'}
+                          {isUploadingPhoto ? tt('Uploading...') : tt('Upload Photo')}
                         </button>
                       </div>
                     )}
@@ -682,7 +682,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                         disabled={isUploadingLogo}
                       >
                         <Upload size={16} />
-                        {isUploadingLogo ? 'Uploading...' : 'Change Logo'}
+                        {isUploadingLogo ? tt('Uploading...') : tt('Change Logo')}
                       </button>
                     </div>
                   ) : (
@@ -694,7 +694,7 @@ const EmployeeIDCardGenerator = ({ employees, onClose, tenantInfo }) => {
                         disabled={isUploadingLogo}
                       >
                         <Upload size={16} />
-                        {isUploadingLogo ? 'Uploading...' : 'Upload Logo'}
+                        {isUploadingLogo ? tt('Uploading...') : tt('Upload Logo')}
                       </button>
                     </div>
                   )}

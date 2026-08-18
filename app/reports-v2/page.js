@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 /**
  * Financial Reports — canonical reporting UI (R3-C sole hub).
@@ -51,17 +52,19 @@ function DrillDownModal({ drill, onClose }) {
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Drill-down — {drill.lineLabel}</h2>
+            <h2 className="text-lg font-bold text-slate-900">
+              {tt('Drill-down')} — {drill.lineLabel}
+            </h2>
             <p className="text-sm text-slate-500">
-              Line {fmt(drill.lineAmount)} · Ledger {fmt(drill.ledgerTotal)}{' '}
-              {drill.reconciles ? <Badge tone="ok">reconciles</Badge> : <Badge tone="bad">REP-025 difference</Badge>}
+              {tt('Line')} {fmt(drill.lineAmount)} · {tt('Ledger')} {fmt(drill.ledgerTotal)}{' '}
+              {drill.reconciles ? <Badge tone="ok">{tt('reconciles')}</Badge> : <Badge tone="bad">{tt('REP-025 difference')}</Badge>}
             </p>
           </div>
           <button
             type="button"
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={tt('Close')}
           >
             ✕
           </button>
@@ -75,11 +78,11 @@ function DrillDownModal({ drill, onClose }) {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b-2 border-blue-600 text-left text-blue-600">
-                    <th className="px-3 py-2 pr-2 font-semibold">Date</th>
-                    <th className="px-3 py-2 pr-2 font-semibold">Journal</th>
-                    <th className="px-3 py-2 pr-2 font-semibold">Description</th>
-                    <th className="px-3 py-2 pr-2 text-right font-semibold">Debit</th>
-                    <th className="px-3 py-2 pr-2 text-right font-semibold">Credit</th>
+                    <th className="px-3 py-2 pr-2 font-semibold">{tt('Date')}</th>
+                    <th className="px-3 py-2 pr-2 font-semibold">{tt('Journal')}</th>
+                    <th className="px-3 py-2 pr-2 font-semibold">{tt('Description')}</th>
+                    <th className="px-3 py-2 pr-2 text-right font-semibold">{tt('Debit')}</th>
+                    <th className="px-3 py-2 pr-2 text-right font-semibold">{tt('Credit')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -206,7 +209,7 @@ export default function ReportsPage() {
         <div className="flex items-center justify-center p-8">
           <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm">
             <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-            Loading reports…
+            {tt('Loading reports…')}
           </div>
         </div>
       }

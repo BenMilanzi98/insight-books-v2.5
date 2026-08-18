@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
+import { OUTSTANDING_RECEIVABLE_INVOICE_FILTER } from '@/lib/receivablesInvoiceFilter';
 
 export async function GET(request) {
   try {
@@ -23,14 +24,7 @@ export async function GET(request) {
     // Build filter for outstanding invoices only
     const where = {
       tenantId: user.tenantId,
-      // Exclude voided and refunded invoices
-      voidedAt: null,
-      refundedAt: null,
-      // Include invoices with status Pending or Partial, or any invoice with remaining balance > 0
-      OR: [
-        { status: { in: ['Pending', 'Partial', 'pending', 'partial'] } },
-        { remainingBalance: { gt: 0 } }
-      ]
+      ...OUTSTANDING_RECEIVABLE_INVOICE_FILTER,
     };
 
     // Add search filter if provided

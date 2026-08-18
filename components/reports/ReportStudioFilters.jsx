@@ -33,7 +33,7 @@ export default function ReportStudioFilters({
 
       <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
         <label className="block text-sm">
-          <span className="font-medium text-slate-700">{showAsOf ? 'As of' : 'Date range'}</span>
+          <span className="font-medium text-slate-700">{showAsOf ? tt('As of') : tt('Date range')}</span>
           <select
             className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
             value={draft.preset}
@@ -41,7 +41,7 @@ export default function ReportStudioFilters({
           >
             {DATE_PRESETS.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.label}
+                {tt(p.label)}
               </option>
             ))}
           </select>
@@ -61,7 +61,7 @@ export default function ReportStudioFilters({
               </label>
             ) : null}
             <label className="text-xs text-slate-600">
-              {showAsOf ? 'As of date' : 'To'}
+              {showAsOf ? tt('As of date') : tt('To')}
               <input
                 type="date"
                 className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm"
@@ -84,7 +84,7 @@ export default function ReportStudioFilters({
                     checked={draft.groupBy === g}
                     onChange={() => set({ groupBy: g })}
                   />
-                  {g === 'MONTH' ? 'Month' : 'Quarter'}
+                  {g === 'MONTH' ? tt('Month') : tt('Quarter')}
                 </label>
               ))}
             </div>
@@ -167,7 +167,7 @@ export default function ReportStudioFilters({
           onClick={onApply}
           className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
         >
-          {applying ? 'Applying…' : 'Apply'}
+          {applying ? tt('Applying…') : tt('Apply')}
         </button>
       </div>
     </aside>

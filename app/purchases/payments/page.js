@@ -172,7 +172,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
         </p>
       )}
 
-      <PaymentFormSection title="Payment Details" description="Who is being paid and how.">
+      <PaymentFormSection title={tt('Payment Details')} description="Who is being paid and how.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700">{tt('Supplier')}</label>
@@ -211,7 +211,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
               disabled={isLoadingPaymentAccounts}
             >
-              <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+              <option value="">{isLoadingPaymentAccounts ? tt('Loading accounts...') : tt('Select an account')}</option>
               {paymentAccounts.map(account => (
                 <option key={account.id} value={account.id}>
                   {formatPaymentAccountOptionLabel(account)}
@@ -253,7 +253,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
       </PaymentFormSection>
 
       <PaymentFormSection
-        title="Allocate to Bills"
+        title={tt('Allocate to Bills')}
         description="Distribute the payment across outstanding supplier bills."
       >
         {form.supplierId ? (
@@ -293,7 +293,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
         )}
       </PaymentFormSection>
 
-      <PaymentFormSection title="Notes & Total" description="Optional memo plus total payment amount.">
+      <PaymentFormSection title={tt('Notes & Total')} description="Optional memo plus total payment amount.">
         <div className="space-y-3">
           <textarea
             name="notes"
@@ -328,7 +328,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
           disabled={saving || totalAllocations <= 0}
           className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white  hover:bg-indigo-700 disabled:opacity-50"
         >
-          {saving ? "Saving…" : "Record Payment"}
+          {saving ? tt('Saving…') : tt('Record Payment')}
         </button>
       </div>
     </form>

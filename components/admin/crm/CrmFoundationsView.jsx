@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -68,7 +69,7 @@ export default function CrmFoundationsView() {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-semibold">{item.kind}</span>
                 <AdminStatusBadge
-                  tone={item.status === 'NOT_AVAILABLE' ? 'warning' : 'info'}
+                  tone={item.status === 'NOT_AVAILABLE' ? tt('warning') : tt('info')}
                 >
                   {item.status}
                 </AdminStatusBadge>

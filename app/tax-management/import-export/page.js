@@ -50,7 +50,7 @@ export default function TaxImportExportPage() {
   return (
     <div className="container mx-auto py-2">
       <PageHeader
-        title="Import / Export"
+        title={tt('Import / Export')}
         description="Controlled tax mapping imports with dry-run by default. Exports use Reports."
       />
       {!canUpdate ? (

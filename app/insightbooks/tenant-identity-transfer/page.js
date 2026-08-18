@@ -136,7 +136,7 @@ export default function TenantIdentityTransferPage() {
                 : "border-transparent text-slate-500 hover:text-slate-700"
             }`}
           >
-            {t === "export" ? "Export" : "Import"}
+            {t === "export" ? tt('Export') : tt('Import')}
           </button>
         ))}
       </div>
@@ -239,7 +239,7 @@ export default function TenantIdentityTransferPage() {
                       <td className="py-2 pr-3">{t.name}</td>
                       <td className="py-2 pr-3 font-mono text-xs">{t.subdomain}</td>
                       <td className="py-2 pr-3">{t.subscriptionStatus}</td>
-                      <td className="py-2 pr-3">{t.paidBefore ? "yes" : "no"}</td>
+                      <td className="py-2 pr-3">{t.paidBefore ? tt('yes') : tt('no')}</td>
                       <td className="py-2 pr-3">{t.userCount}</td>
                     </tr>
                   ))}

@@ -189,8 +189,8 @@ export default function ForecastsPage() {
   return (
     <PermissionGuard requiredPermission="budgets.view">
       <BfShell
-        title="Forecasts"
-        subtitle="Rolling, cash flow and scenario forecasts. Deterministic methods only — never posts to the ledger."
+        title={tt('Forecasts')}
+        subtitle={tt('Rolling, cash flow and scenario forecasts. Deterministic methods only — never posts to the ledger.')}
         actions={
           primaryId ? (
             <Link

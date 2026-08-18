@@ -60,7 +60,7 @@ export default function AdminEmailManagementPage() {
     return (
       <AdminPageContainer>
         <AdminErrorState
-          title="Access denied"
+          title={tt('Access denied')}
           message={error}
           onRetry={() => router.push('/insightbooks/login')}
         />

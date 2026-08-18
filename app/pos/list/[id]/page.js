@@ -353,7 +353,7 @@ const handleDeleteSale = async () => {
               setReceiptPaperWidthMm(normalizeReceiptPaperWidthMm(e.target.value))
             }
             className="px-2 py-2 border border-gray-300 bg-white rounded-md text-sm"
-            title="Thermal paper width"
+            title={tt('Thermal paper width')}
           >
             {RECEIPT_PAPER_WIDTH_UI_OPTIONS_MM.map((mm) => (
               <option key={mm} value={mm}>

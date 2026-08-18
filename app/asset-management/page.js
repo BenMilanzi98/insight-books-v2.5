@@ -22,6 +22,10 @@ import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  DEPRECIATION_PERIOD_PRESETS,
+  rangeForPreset,
+} from '@/lib/assets/depreciationPeriods';
 
 const interestTypeOptions = [
   { value: "reducing_balance", label: "Reducing Balance" },
@@ -477,11 +481,35 @@ const AssetManagement = () => {
     { value: "annually", label: "Annually" }
   ];
   
-  const [depreciationFormData, setDepreciationFormData] = useState({
-    periodStart: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-    periodEnd: new Date().toISOString().split('T')[0],
-    assetIds: []
+  const [depreciationFormData, setDepreciationFormData] = useState(() => {
+    const range = rangeForPreset('month', 1);
+    return {
+      frequency: 'month',
+      periodCount: 1,
+      periodStart: toInputDate(range.periodStart),
+      periodEnd: toInputDate(range.periodEnd),
+      assetIds: [],
+    };
   });
+
+  const applyDepreciationFrequency = (frequency, periodCount = 1) => {
+    if (frequency === 'custom') {
+      setDepreciationFormData((prev) => ({
+        ...prev,
+        frequency: 'custom',
+        periodCount: 1,
+      }));
+      return;
+    }
+    const range = rangeForPreset(frequency, periodCount);
+    setDepreciationFormData((prev) => ({
+      ...prev,
+      frequency,
+      periodCount,
+      periodStart: toInputDate(range.periodStart),
+      periodEnd: toInputDate(range.periodEnd),
+    }));
+  };
   
   // Asset pagination
   const [assetPage, setAssetPage] = useState(1);
@@ -874,7 +902,7 @@ const AssetManagement = () => {
       }
       
       // Show success message
-      setAlertMessage(`Asset successfully ${assetEditId ? 'updated' : 'created'}`);
+      setAlertMessage(`Asset successfully ${assetEditId ? tt('updated') : tt('created')}`);
       setAlertType("success");
       setShowAlert(true);
       
@@ -939,38 +967,62 @@ const AssetManagement = () => {
     }
   };
   
-  // Submit depreciation calculation
+  // Submit depreciation calculation (bulk: all active assets for the period)
   const handleDepreciationSubmit = async (e) => {
     e.preventDefault();
-    
+
+    const { periodStart, periodEnd, frequency, periodCount } = depreciationFormData;
+    if (!periodStart || !periodEnd) {
+      setAlertMessage('Please select period start and end dates');
+      setAlertType('error');
+      setShowAlert(true);
+      return;
+    }
+    if (periodEnd < periodStart) {
+      setAlertMessage('Period end must be on or after period start');
+      setAlertType('error');
+      setShowAlert(true);
+      return;
+    }
+
     try {
       const response = await fetch('/api/assets/depreciation', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(depreciationFormData)
+        body: JSON.stringify({
+          frequency: frequency || 'custom',
+          periodCount: periodCount || 1,
+          periodStart,
+          periodEnd,
+          assetIds: depreciationFormData.assetIds || [],
+        }),
       });
-      
+
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to calculate depreciation");
+        throw new Error(data.error || data.details || 'Failed to calculate depreciation');
       }
-      
-      const data = await response.json();
-      
-      // Show success message
-      setAlertMessage(`Depreciation calculated for ${data.summary.assetsProcessed} assets. Total: ${formatCurrency(data.summary.totalDepreciation)}`);
-      setAlertType("success");
+
+      const processed = data.summary?.assetsProcessed ?? 1;
+      const total = data.summary?.totalDepreciation ?? data.depreciation?.depreciationAmount ?? 0;
+      const freqLabel =
+        DEPRECIATION_PERIOD_PRESETS.find((p) => p.id === (data.summary?.frequency || frequency))
+          ?.label || frequency;
+
+      setAlertMessage(
+        `Depreciation (${freqLabel}) calculated for ${processed} asset${processed === 1 ? '' : 's'}. Total: ${formatCurrency(total)}`
+      );
+      setAlertType('success');
       setShowAlert(true);
-      
-      // Close modal and refresh assets
+
       setShowDepreciationModal(false);
       fetchAssets();
     } catch (error) {
-      console.error("Error calculating depreciation:", error);
-      setAlertMessage(error.message || "Failed to calculate depreciation");
-      setAlertType("error");
+      console.error('Error calculating depreciation:', error);
+      setAlertMessage(error.message || 'Failed to calculate depreciation');
+      setAlertType('error');
       setShowAlert(true);
     }
   };
@@ -1196,7 +1248,7 @@ const AssetManagement = () => {
         throw new Error(errorData.error || "Failed to save liability");
       }
       
-      setAlertMessage(`Liability successfully ${liabilityEditId ? 'updated' : 'created'}`);
+      setAlertMessage(`Liability successfully ${liabilityEditId ? tt('updated') : tt('created')}`);
       setAlertType("success");
       setShowAlert(true);
       
@@ -1729,7 +1781,7 @@ const AssetManagement = () => {
                           <button 
                             className="text-blue-600 hover:text-blue-800"
                             onClick={() => handleViewAsset(asset)}
-                            title="View"
+                            title={tt('View')}
                           >
                             <Eye size={16} />
                           </button>
@@ -1737,7 +1789,7 @@ const AssetManagement = () => {
                             <button
                               type="button"
                               className="text-blue-600 hover:text-blue-800"
-                              title="Transfer to another business"
+                              title={tt('Transfer to another business')}
                               onClick={() => openTransferModal(asset)}
                             >
                               <ArrowLeftRight size={16} />
@@ -1747,7 +1799,7 @@ const AssetManagement = () => {
                             className={`${asset.status === 'disposed' ? 'text-gray-400 cursor-not-allowed' : 'text-orange-600 hover:text-orange-800'}`}
                             onClick={() => asset.status !== 'disposed' && handleEditAsset(asset)}
                             disabled={asset.status === 'disposed'}
-                            title={asset.status === 'disposed' ? 'Cannot edit disposed asset' : 'Edit asset'}
+                            title={asset.status === 'disposed' ? tt('Cannot edit disposed asset') : tt('Edit asset')}
                           >
                             <Edit size={16} />
                           </button>
@@ -1755,7 +1807,7 @@ const AssetManagement = () => {
                             className={`${asset.status === 'disposed' ? 'text-gray-400 cursor-not-allowed' : 'text-red-600 hover:text-red-800'}`}
                             onClick={() => asset.status !== 'disposed' && handleDeleteAsset(asset.id)}
                             disabled={asset.status === 'disposed'}
-                            title={asset.status === 'disposed' ? 'Cannot delete disposed asset' : 'Delete asset'}
+                            title={asset.status === 'disposed' ? tt('Cannot delete disposed asset') : tt('Delete asset')}
                           >
                             <Trash size={16} />
                           </button>
@@ -1974,21 +2026,21 @@ const AssetManagement = () => {
                                 <button 
                                   className="text-blue-600 hover:text-blue-800"
                                   onClick={() => handleViewLiability(liability)}
-                                  title="View details"
+                                  title={tt('View details')}
                                 >
                                   <Eye size={16} />
                                 </button>
                                 <button 
                                   className="text-orange-600 hover:text-orange-800"
                                   onClick={() => handleEditLiability(liability)}
-                                  title="Edit liability"
+                                  title={tt('Edit liability')}
                                 >
                                   <Edit size={16} />
                                 </button>
                                 <button 
                                   className="text-green-600 hover:text-green-800"
                                   onClick={() => handleRecordPayment(liability)}
-                                  title="Record payment"
+                                  title={tt('Record payment')}
                                   disabled={liability.status === 'paid_off'}
                                 >
                                   <DollarSign size={16} />
@@ -1996,7 +2048,7 @@ const AssetManagement = () => {
                                 <button 
                                   className="text-red-600 hover:text-red-800"
                                   onClick={() => handleDeleteLiability(liability.id)}
-                                  title="Delete liability"
+                                  title={tt('Delete liability')}
                                 >
                                   <Trash size={16} />
                                 </button>
@@ -2186,7 +2238,7 @@ const AssetManagement = () => {
             <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">{assetEditId ? 'Edit Asset' : 'New Asset'}</h2>
+                  <h2 className="text-xl font-semibold">{assetEditId ? tt('Edit Asset') : tt('New Asset')}</h2>
                   <button 
                     onClick={() => {
                       setShowAssetModal(false);
@@ -2274,7 +2326,7 @@ const AssetManagement = () => {
                       disabled={!assetGlSubtreeAccounts.length}
                     >
                       <option value="">
-                        {assetGlSubtreeAccounts.length ? 'Select GL account' : 'Loading chart accounts…'}
+                        {assetGlSubtreeAccounts.length ? tt('Select GL account') : tt('Loading chart accounts…')}
                       </option>
                       {assetGlSubtreeAccounts.map((row) => (
                         <option key={row.id} value={row.id}>
@@ -2460,7 +2512,7 @@ const AssetManagement = () => {
                     type="submit"
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                   >
-                    {assetEditId ? 'Update Asset' : 'Create Asset'}
+                    {assetEditId ? tt('Update Asset') : tt('Create Asset')}
                   </button>
                 </div>
               </form>
@@ -2487,43 +2539,103 @@ const AssetManagement = () => {
               <form onSubmit={handleDepreciationSubmit}>
                 <div className="p-6">
                   <div className="mb-4">
+                    <label className="block text-sm font-medium mb-2">{tt('Period')}</label>
+                    <div className="flex flex-wrap gap-2">
+                      {DEPRECIATION_PERIOD_PRESETS.map((preset) => {
+                        const active = depreciationFormData.frequency === preset.id;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => applyDepreciationFrequency(preset.id, 1)}
+                            className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                              active
+                                ? 'border-blue-600 bg-blue-600 text-white'
+                                : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
+                            }`}
+                          >
+                            {tt(preset.label)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      {tt('Amount is a fraction of annual depreciation: hour 1/8766, day 1/365.25, week 1/52, month 1/12, quarter 1/4, year 1/1.')}
+                    </p>
+                  </div>
+
+                  {depreciationFormData.frequency !== 'custom' &&
+                  depreciationFormData.frequency !== 'hour' ? (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium mb-1">{tt('Number of periods')}</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={120}
+                        className="w-full rounded border border-gray-200 p-2"
+                        value={depreciationFormData.periodCount}
+                        onChange={(e) => {
+                          const n = Math.max(1, parseInt(e.target.value, 10) || 1);
+                          applyDepreciationFrequency(depreciationFormData.frequency, n);
+                        }}
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="mb-4">
                     <label className="block text-sm font-medium mb-1">{tt('Period Start *')}</label>
                     <input
                       type="date"
-                      className="w-full p-2 border border-gray-200 rounded"
+                      className="w-full rounded border border-gray-200 p-2"
                       value={depreciationFormData.periodStart}
-                      onChange={(e) => setDepreciationFormData({...depreciationFormData, periodStart: e.target.value})}
+                      onChange={(e) =>
+                        setDepreciationFormData({
+                          ...depreciationFormData,
+                          frequency: 'custom',
+                          periodStart: e.target.value,
+                        })
+                      }
                       required
                     />
                   </div>
-                  
+
                   <div className="mb-4">
                     <label className="block text-sm font-medium mb-1">{tt('Period End *')}</label>
                     <input
                       type="date"
-                      className="w-full p-2 border border-gray-200 rounded"
+                      className="w-full rounded border border-gray-200 p-2"
                       value={depreciationFormData.periodEnd}
-                      onChange={(e) => setDepreciationFormData({...depreciationFormData, periodEnd: e.target.value})}
+                      onChange={(e) =>
+                        setDepreciationFormData({
+                          ...depreciationFormData,
+                          frequency: 'custom',
+                          periodEnd: e.target.value,
+                        })
+                      }
                       required
                     />
                   </div>
-                  
-                  <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
-                    <p>{tt('This will calculate depreciation for all active assets for the specified period and post journal entries automatically.')}</p>
+
+                  <div className="rounded bg-blue-50 p-3 text-sm text-blue-800">
+                    <p>
+                      {tt(
+                        'This will calculate depreciation for all active assets for the selected period and post journal entries automatically.'
+                      )}
+                    </p>
                   </div>
                 </div>
-                
-                <div className="p-6 border-t bg-gray-50 flex justify-end gap-3">
+
+                <div className="flex justify-end gap-3 border-t bg-gray-50 p-6">
                   <button
                     type="button"
-                    className="px-4 py-2 border border-gray-200 rounded"
+                    className="rounded border border-gray-200 px-4 py-2"
                     onClick={() => setShowDepreciationModal(false)}
                   >
                     {tt('Cancel')}
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                    className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
                   >
                     {tt('Calculate & Post')}
                   </button>
@@ -2819,7 +2931,7 @@ const AssetManagement = () => {
                     disabled={transferSubmitting || !transferTargetTenantId}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                   >
-                    {transferSubmitting ? "Transferring…" : "Confirm transfer"}
+                    {transferSubmitting ? tt('Transferring…') : tt('Confirm transfer')}
                   </button>
                 </div>
               </form>
@@ -2939,7 +3051,7 @@ const AssetManagement = () => {
             <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">{liabilityEditId ? 'Edit Liability' : 'New Liability'}</h2>
+                  <h2 className="text-xl font-semibold">{liabilityEditId ? tt('Edit Liability') : tt('New Liability')}</h2>
                   <button 
                     onClick={() => {
                       setShowLiabilityModal(false);
@@ -3032,7 +3144,7 @@ const AssetManagement = () => {
                       }
                     >
                       <option value="">
-                        {liabilityGlSubtreeAccounts.length ? 'Select GL account' : 'Loading chart accounts…'}
+                        {liabilityGlSubtreeAccounts.length ? tt('Select GL account') : tt('Loading chart accounts…')}
                       </option>
                       {liabilityGlSubtreeAccounts.map((row) => (
                         <option key={row.id} value={row.id}>
@@ -3198,7 +3310,7 @@ const AssetManagement = () => {
                                 className="w-full p-2 border border-gray-200 rounded"
                                 value={liabilityFormData.interestRate}
                                 onChange={(e) => setLiabilityFormData({...liabilityFormData, interestRate: e.target.value})}
-                                placeholder={liabilityFormData.interestRateMode === 'monthly' ? 'Monthly percentage rate' : 'Annual percentage rate'}
+                                placeholder={liabilityFormData.interestRateMode === 'monthly' ? tt('Monthly percentage rate') : tt('Annual percentage rate')}
                               />
                               <p className="text-xs text-gray-500 mt-1">
                                 {tt('Monthly rates are converted to an annual APR when calculating the schedule.')}
@@ -3335,7 +3447,7 @@ const AssetManagement = () => {
                     type="submit"
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                   >
-                    {liabilityEditId ? 'Update' : 'Create'} Liability
+                    {liabilityEditId ? tt('Update') : tt('Create')} Liability
                   </button>
                 </div>
               </form>

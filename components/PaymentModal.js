@@ -208,9 +208,7 @@ const PaymentModal = ({
           <h2 className="text-xl font-semibold">
             {transferFundsOnly
               ? "Record New Transaction"
-              : mode === "create"
-                ? "Record New Transaction"
-                : "Edit Transaction"}
+              : mode === "create" ? tt('Record New Transaction') : tt('Edit Transaction')}
           </h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 focus:outline-none">
             <X className="h-6 w-6" />
@@ -379,7 +377,7 @@ const PaymentModal = ({
             disabled={loading}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
-            {loading ? "Saving…" : transferFundsOnly ? "Transfer" : mode === "create" ? "Record" : "Update"}
+            {loading ? "Saving…" : transferFundsOnly ? "Transfer" : mode === "create" ? tt('Record') : tt('Update')}
           </button>
         </div>
       </div>

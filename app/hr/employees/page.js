@@ -701,7 +701,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">{employee ? "Edit Employee" : "Add New Employee"}</h2>
+        <h2 className="text-xl font-semibold">{employee ? tt('Edit Employee') : tt('Add New Employee')}</h2>
         <button className="text-gray-500 hover:text-gray-700" onClick={onCancel}>
           <X size={20} />
         </button>
@@ -1117,7 +1117,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                       disabled={calculating || !formData.grossSalary}
                       className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {calculating ? 'Calculating...' : 'Calculate Net Salary'}
+                      {calculating ? tt('Calculating...') : tt('Calculate Net Salary')}
                     </button>
                   </div>
 
@@ -1466,7 +1466,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 {(isSubmitting || uploadingDocuments) && (
                   <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                 )}
-                Save
+                {tt('Save')}
               </button>
             )}
             
@@ -1566,7 +1566,7 @@ const DeductionModal = ({ deduction, deductionType, setDeductionType, onClose, o
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-900">
-            {deduction ? 'Edit Deduction' : 'Create Deduction'}
+            {deduction ? tt('Edit Deduction') : tt('Create Deduction')}
           </h2>
           <button
             onClick={onClose}
@@ -1626,7 +1626,7 @@ const DeductionModal = ({ deduction, deductionType, setDeductionType, onClose, o
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {formData.type === 'percentage' ? 'Percentage' : 'Amount'} <span className="text-red-500">*</span>
+              {formData.type === 'percentage' ? tt('Percentage') : tt('Amount')} <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               {formData.type === 'percentage' ? (
@@ -1697,7 +1697,7 @@ const DeductionModal = ({ deduction, deductionType, setDeductionType, onClose, o
               disabled={isSubmitting}
               className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Saving...' : deduction ? 'Update' : 'Create'}
+              {isSubmitting ? 'Saving...' : deduction ? tt('Update') : tt('Create')}
             </button>
           </div>
         </form>
@@ -2602,7 +2602,7 @@ const EmployeeManagement = () => {
       )}
 
       <PosStylePageHeader
-        title="Employee Management"
+        title={tt('Employee Management')}
         description="Manage your employees and their information"
         actions={
         <>
@@ -2625,7 +2625,7 @@ const EmployeeManagement = () => {
               <option value="pdf">PDF (print / archive)</option>
             </select>
           </label>
-          <PosStyleHeaderButton type="button" onClick={handleDownloadTemplate} title="Download Excel import template">
+          <PosStyleHeaderButton type="button" onClick={handleDownloadTemplate} title={tt('Download Excel import template')}>
             <Download size={16} className="mr-2" />
             {tt('Download Template')}
           </PosStyleHeaderButton>
@@ -2640,7 +2640,7 @@ const EmployeeManagement = () => {
             <Upload size={16} className="mr-2" />
             {tt('Import Employees')}
           </PosStyleHeaderButton>
-          <PosStyleHeaderButton type="button" onClick={() => setShowIDCardGenerator(true)} title="Generate Employee ID Cards">
+          <PosStyleHeaderButton type="button" onClick={() => setShowIDCardGenerator(true)} title={tt('Generate Employee ID Cards')}>
             <CreditCard size={16} className="mr-2" />
             {tt('Generate ID Cards')}
           </PosStyleHeaderButton>
@@ -2709,7 +2709,7 @@ const EmployeeManagement = () => {
           icon={DollarSign}
           active={false}
           onClick={() => router.push('/hr/payroll')}
-          title="Open payroll processing"
+          title={tt('Open payroll processing')}
           valueClassName="text-amber-700"
           iconWrapClassName="bg-yellow-100 text-yellow-600"
           barClassName="from-amber-400 via-yellow-500 to-orange-500"
@@ -2822,7 +2822,7 @@ const EmployeeManagement = () => {
                       checked={filteredEmployees.length > 0 && selectedEmployeeIds.size === filteredEmployees.length}
                       onChange={toggleSelectAll}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      title="Select all"
+                      title={tt('Select all')}
                     />
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{tt('Employee')}</th>
@@ -2899,14 +2899,14 @@ const EmployeeManagement = () => {
                         <button 
                           className="text-green-600 hover:text-green-800 p-1 rounded"
                           onClick={(e) => handleViewEmployee(employee, e)}
-                          title="View Employee"
+                          title={tt('View Employee')}
                         >
                           <Eye size={16} />
                         </button>
                         <button 
                           className="text-blue-600 hover:text-blue-800 p-1 rounded"
                           onClick={(e) => handleEditEmployee(employee, e)}
-                          title="Edit Employee"
+                          title={tt('Edit Employee')}
                         >
                           <Edit size={16} />
                         </button>
@@ -2915,14 +2915,14 @@ const EmployeeManagement = () => {
                             <button 
                               className="text-yellow-600 hover:text-yellow-800 p-1 rounded"
                               onClick={(e) => handleSuspendEmployee(employee, e)}
-                              title="Suspend Employee"
+                              title={tt('Suspend Employee')}
                             >
                               <Ban size={16} />
                             </button>
                             <button 
                               className="text-orange-600 hover:text-orange-800 p-1 rounded"
                               onClick={(e) => handleTerminateEmployee(employee, e)}
-                              title="Terminate Employee"
+                              title={tt('Terminate Employee')}
                             >
                               <UserX size={16} />
                             </button>
@@ -2932,7 +2932,7 @@ const EmployeeManagement = () => {
                           <button 
                             className="text-green-600 hover:text-green-800 p-1 rounded"
                             onClick={(e) => handleReactivateEmployee(employee, e)}
-                            title="Reactivate Employee"
+                            title={tt('Reactivate Employee')}
                           >
                             <UserCheck size={16} />
                           </button>
@@ -2940,7 +2940,7 @@ const EmployeeManagement = () => {
                         <button 
                           className="text-red-600 hover:text-red-800 p-1 rounded"
                           onClick={(e) => handleDeleteEmployee(employee.id, e)}
-                          title="Delete Employee"
+                          title={tt('Delete Employee')}
                         >
                           <Trash2 size={16} />
                         </button>
@@ -3077,14 +3077,14 @@ const EmployeeManagement = () => {
                         <button
                           onClick={() => editDeduction(deduction)}
                           className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
-                          title="Edit deduction"
+                          title={tt('Edit deduction')}
                         >
                           <Edit size={12} />
                         </button>
                         <button
                           onClick={() => deleteDeduction(deduction.id)}
                           className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                          title="Delete deduction"
+                          title={tt('Delete deduction')}
                         >
                           <Trash2 size={12} />
                         </button>
@@ -3124,7 +3124,7 @@ const EmployeeManagement = () => {
                               ? 'bg-green-100 text-green-800' 
                               : 'bg-gray-100 text-gray-800'
                           }`}>
-                            {deduction.isActive ? 'Active' : 'Inactive'}
+                            {deduction.isActive ? tt('Active') : tt('Inactive')}
                           </span>
                         </div>
                       </div>
@@ -3234,7 +3234,7 @@ const EmployeeManagement = () => {
                   <button
                     onClick={handlePrintEmployee}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2 print:hidden"
-                    title="Print Employee Details"
+                    title={tt('Print Employee Details')}
                   >
                     <Printer size={18} />
                     {tt('Print')}
@@ -3339,7 +3339,7 @@ const EmployeeManagement = () => {
                       <span className={`ml-2 px-2.5 py-1 rounded-full text-xs ${
                         viewingEmployee.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                       }`}>
-                        {viewingEmployee.isActive ? 'Active' : 'Inactive'}
+                        {viewingEmployee.isActive ? tt('Active') : tt('Inactive')}
                       </span>
                     </div>
                   </div>
@@ -3817,7 +3817,7 @@ const EmployeeManagement = () => {
                 disabled={payeBulkSubmitting}
                 onClick={handleSubmitBulkPaye}
               >
-                {payeBulkSubmitting ? "Saving…" : "Apply"}
+                {payeBulkSubmitting ? tt('Saving…') : tt('Apply')}
               </button>
             </div>
           </div>
@@ -3897,7 +3897,7 @@ const EmployeeManagement = () => {
                 onClick={handleImportEmployees}
                 disabled={!importFile || isImporting}
               >
-                {isImporting ? 'Importing...' : 'Start Import'}
+                {isImporting ? tt('Importing...') : tt('Start Import')}
               </button>
             </div>
           </div>

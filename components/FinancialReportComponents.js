@@ -93,7 +93,7 @@ export const FinancialReport = ({
                 ) : (
                   <RefreshCw size={15} className="mr-1" />
                 )}
-                Refresh
+                {tt('Refresh')}
               </button>
             )}
             {onExport && canExportReports && (
@@ -262,7 +262,7 @@ export const ProfitLossReport = ({
 
   return (
     <FinancialReport
-      title="Income Statement"
+      title={tt('Income Statement')}
       subtitle={periodLabel}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}
@@ -307,14 +307,14 @@ export const ProfitLossReport = ({
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 sm:p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium text-emerald-800">
-                  {data.comparisonType === 'previousPeriod' ? 'Comparing with previous period' : 'Comparing with previous year'}
+                  {data.comparisonType === 'previousPeriod' ? tt('Comparing with previous period') : tt('Comparing with previous year')}
                 </span>
                 <button
                   type="button"
                   onClick={() => setExpandedSections(prev => ({ ...prev, comparison: !prev.comparison }))}
                   className="text-sm font-medium text-emerald-600 hover:text-emerald-800 transition-colors"
                 >
-                  {expandedSections.comparison ? 'Hide' : 'Show'} comparison
+                  {expandedSections.comparison ? tt('Hide') : tt('Show')} comparison
                 </button>
               </div>
             </div>
@@ -592,7 +592,7 @@ export const ProfitLossReport = ({
           {data.accountLines?.length > 0 && (
             <ReportAccountTable
               lines={data.accountLines}
-              title="P&L Accounts — General Ledger Detail"
+              title={tt('P&L Accounts — General Ledger Detail')}
               showOpeningClosing
             />
           )}
@@ -627,7 +627,7 @@ const IncomeStatementRow = ({ label, value, totalRevenue, hasDetails, onDrillDow
               type="button"
               onClick={onDrillDown}
               className="text-emerald-600 hover:text-emerald-700 transition-colors p-0.5 rounded"
-              title="View details"
+              title={tt('View details')}
             >
               <Eye size={14} />
             </button>
@@ -763,7 +763,7 @@ export const BalanceSheetReport = ({
   
   return (
     <FinancialReport
-      title="Balance Sheet"
+      title={tt('Balance Sheet')}
       subtitle={asOfDate ? `As of ${asOfDate}` : "Statement of Financial Position"}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}
@@ -810,7 +810,7 @@ export const BalanceSheetReport = ({
                   onClick={() => setExpandedSections(prev => ({ ...prev, comparison: !prev.comparison }))}
                   className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
                 >
-                  {expandedSections.comparison ? 'Hide' : 'Show'} comparison
+                  {expandedSections.comparison ? tt('Hide') : tt('Show')} comparison
                 </button>
               </div>
             </div>
@@ -941,12 +941,12 @@ export const BalanceSheetReport = ({
                                 items: data.assets?.nonCurrentAssets?.propertyPlantEquipment?.items || [] 
                               })}
                               className="mr-2 text-blue-600 hover:text-blue-800"
-                              title="Click to view details"
+                              title={tt('Click to view details')}
                             >
                               <Eye size={14} />
                             </button>
                           )}
-                          Property, Plant & Equipment
+                          {tt('Property, Plant & Equipment')}
                         </div>
                       </td>
                       {hasComparison && expandedSections.comparison && (
@@ -1317,7 +1317,7 @@ export const BalanceSheetReport = ({
           {data.accountLines?.length > 0 && (
             <ReportAccountTable
               lines={data.accountLines}
-              title="Balance Sheet Accounts — General Ledger Detail"
+              title={tt('Balance Sheet Accounts — General Ledger Detail')}
               showOpeningClosing
             />
           )}
@@ -1348,7 +1348,7 @@ const BalanceSheetRow = ({ label, value, totalAssets, previousValue, showCompari
             <button
               onClick={onDrillDown}
               className="mr-2 text-emerald-600 hover:text-emerald-700"
-              title="View details"
+              title={tt('View details')}
             >
               <Eye size={14} />
             </button>
@@ -1588,7 +1588,7 @@ export const TaxSummaryReport = ({
 
   return (
     <FinancialReport
-      title="Tax Summary"
+      title={tt('Tax Summary')}
       subtitle={data?.period ? formatPeriodRange(data.period.startDate, data.period.endDate) : "Tax Report"}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}
@@ -1614,7 +1614,7 @@ export const TaxSummaryReport = ({
             <div className="bg-gradient-to-br from-sky-50 to-white p-4 sm:p-5 rounded-2xl border border-sky-200/80 shadow-sm border-l-4 border-l-sky-500">
               <h3 className="text-sm font-medium text-sky-700 mb-1">{tt('Net tax liability')}</h3>
               <p className={`min-w-0 break-words text-xl font-semibold leading-tight tabular-nums sm:text-2xl ${data.netTaxLiability >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(data.netTaxLiability)}</p>
-              <p className="text-xs text-slate-500 mt-1">{data.netTaxLiability >= 0 ? 'Tax to be paid' : 'Tax credit'}</p>
+              <p className="text-xs text-slate-500 mt-1">{data.netTaxLiability >= 0 ? tt('Tax to be paid') : tt('Tax credit')}</p>
             </div>
           </div>
 
@@ -1697,7 +1697,7 @@ export const TaxSummaryReport = ({
                 <p className="text-sm text-slate-600 mb-1">{tt('Net tax position')}</p>
                 <p className={`text-lg font-semibold ${data.netTaxLiability >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(data.netTaxLiability)}</p>
                 <p className="text-xs text-slate-500 mt-1">
-                  {data.netTaxLiability >= 0 ? 'You need to remit this amount to the tax authority' : 'You may be due a tax refund of this amount'}
+                  {data.netTaxLiability >= 0 ? tt('You need to remit this amount to the tax authority') : tt('You may be due a tax refund of this amount')}
                 </p>
               </div>
             </div>
@@ -1884,7 +1884,7 @@ export const AgingReportTable = ({
   
   return (
     <FinancialReport
-      title={title || `${type === 'receivable' ? 'Accounts Receivable' : 'Accounts Payable'} Aging`}
+      title={title || `${type === 'receivable' ? tt('Accounts Receivable') : tt('Accounts Payable')} Aging`}
       subtitle={data?.asOfDate ? `As of ${data.asOfDate}` : "Aging Report"}
       onRefresh={onRefresh}
       onExport={onExport}
@@ -1897,17 +1897,17 @@ export const AgingReportTable = ({
           <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-50/80 via-slate-50 to-sky-50/60 border border-slate-200">
             <div className="flex flex-wrap justify-between items-center gap-2 border-l-4 border-blue-500 pl-3">
               <h3 className="font-semibold text-slate-800">
-                {type === 'receivable' ? 'Outstanding invoices' : 'Outstanding bills'}
+                {type === 'receivable' ? tt('Outstanding invoices') : tt('Outstanding bills')}
               </h3>
               <span className="text-xs text-slate-600">As of {data.asOfDate}</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
               <div className="p-3 rounded-xl bg-white/80 border border-blue-100">
-                <p className="text-sm text-blue-700 mb-1">Total {type === 'receivable' ? 'receivables' : 'payables'}</p>
+                <p className="text-sm text-blue-700 mb-1">Total {type === 'receivable' ? tt('receivables') : tt('payables')}</p>
                 <p className="text-xl font-semibold text-slate-800">{formatCurrency(grandTotal)}</p>
               </div>
               <div className="p-3 rounded-xl bg-white/80 border border-sky-100">
-                <p className="text-sm text-sky-700 mb-1">{type === 'receivable' ? 'Customers' : 'Vendors'} with outstanding balances</p>
+                <p className="text-sm text-sky-700 mb-1">{type === 'receivable' ? tt('Customers') : tt('Vendors')} with outstanding balances</p>
                 <p className="text-xl font-semibold text-slate-800">{groupedData.length}</p>
               </div>
             </div>
@@ -1917,7 +1917,7 @@ export const AgingReportTable = ({
             <table className="min-w-full">
               <thead>
                 <tr className="bg-slate-50">
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{type === 'receivable' ? 'Customer' : 'Vendor'}</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{type === 'receivable' ? tt('Customer') : tt('Vendor')}</th>
                   {agingBuckets.map(bucket => (
                     <th key={bucket.label} className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{bucket.label}</th>
                   ))}
@@ -1936,7 +1936,7 @@ export const AgingReportTable = ({
                 ))}
                 {groupedData.length === 0 && (
                   <tr>
-                    <td colSpan={agingBuckets.length + 2} className="px-4 py-6 text-sm text-slate-500 text-center">No outstanding {type === 'receivable' ? 'invoices' : 'bills'}</td>
+                    <td colSpan={agingBuckets.length + 2} className="px-4 py-6 text-sm text-slate-500 text-center">No outstanding {type === 'receivable' ? tt('invoices') : tt('bills')}</td>
                   </tr>
                 )}
                 <tr className="font-semibold bg-slate-50 border-t-2 border-slate-200">
@@ -1952,14 +1952,14 @@ export const AgingReportTable = ({
 
           <div className="mt-8">
             <h3 className="text-lg font-semibold text-slate-800 mb-4">
-              {type === 'receivable' ? 'Outstanding Invoices Detail' : 'Outstanding Bills Detail'}
+              {type === 'receivable' ? tt('Outstanding Invoices Detail') : tt('Outstanding Bills Detail')}
             </h3>
             <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
               <table className="min-w-full">
                 <thead>
                   <tr className="bg-slate-50">
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{type === 'receivable' ? 'Invoice #' : 'Bill #'}</th>
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{type === 'receivable' ? 'Customer' : 'Vendor'}</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{type === 'receivable' ? tt('Invoice #') : tt('Bill #')}</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{type === 'receivable' ? tt('Customer') : tt('Vendor')}</th>
                     <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Date')}</th>
                     <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Due date')}</th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{tt('Days past due')}</th>
@@ -1997,7 +1997,7 @@ export const AgingReportTable = ({
                   })}
                   {(!data?.invoices || data.invoices.length === 0) && processedItems.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-6 text-sm text-slate-500 text-center">No outstanding {type === 'receivable' ? 'invoices' : 'bills'}</td>
+                      <td colSpan={6} className="px-4 py-6 text-sm text-slate-500 text-center">No outstanding {type === 'receivable' ? tt('invoices') : tt('bills')}</td>
                     </tr>
                   )}
                 </tbody>
@@ -2319,7 +2319,7 @@ const CashFlowRow = ({ label, value, isNegative = false, hasDetails, onDrillDown
             <button
               onClick={onDrillDown}
               className="mr-2 text-blue-600 hover:text-blue-800"
-              title="Click to view details"
+              title={tt('Click to view details')}
             >
               <Eye size={14} />
             </button>

@@ -222,7 +222,7 @@ export default function BankReconciliationPage() {
     <div className="w-full">
       <div className="mx-auto max-w-7xl space-y-6">
         <PosStylePageHeader
-          title="Bank Reconciliation"
+          title={tt('Bank Reconciliation')}
           description="Match bank statement evidence to posted General Ledger lines. Totals are calculated on the server — difference must be zero to complete (no plug journals)."
           actions={
             <PosStyleHeaderButton

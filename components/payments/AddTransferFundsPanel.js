@@ -308,7 +308,7 @@ export default function AddTransferFundsPanel({
             disabled={submitting || success}
             className="rounded-md bg-amber-800 px-3 py-2 text-sm font-medium text-white hover:bg-amber-900 disabled:opacity-50"
           >
-            {submitting ? 'Transferring…' : 'Transfer funds'}
+            {submitting ? tt('Transferring…') : tt('Transfer funds')}
           </button>
         </div>
       </form>

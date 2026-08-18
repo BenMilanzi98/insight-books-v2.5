@@ -35,7 +35,7 @@ export function ReportReconciliationBadge({ reconciliationMeta, className = '' }
           <StatusIcon size={18} className="shrink-0 mt-0.5" />
           <div className="min-w-0">
             <p className="text-sm font-semibold">
-              {allReconciled ? 'Reconciled with General Ledger' : 'GL reconciliation variance detected'}
+              {allReconciled ? tt('Reconciled with General Ledger') : tt('GL reconciliation variance detected')}
             </p>
             <p className="text-xs opacity-80 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
               {glBacked && (
@@ -57,7 +57,7 @@ export function ReportReconciliationBadge({ reconciliationMeta, className = '' }
             onClick={() => setExpanded((v) => !v)}
             className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg hover:bg-white/60 transition-colors shrink-0"
           >
-            {expanded ? 'Hide detail' : 'View detail'}
+            {expanded ? tt('Hide detail') : tt('View detail')}
             {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
         )}

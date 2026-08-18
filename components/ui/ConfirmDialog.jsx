@@ -8,7 +8,7 @@ export default function ConfirmDialog({
   open,
   onClose,
   onConfirm,
-  title = 'Confirm',
+  title = {tt('Confirm')},
   description,
   children,
   confirmLabel = 'Confirm',

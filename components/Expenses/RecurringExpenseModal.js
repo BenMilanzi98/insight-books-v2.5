@@ -181,7 +181,7 @@ const RecurringExpenseModal = ({
           <div className="flex justify-between items-center">
             <h3 className="text-xl font-semibold flex items-center">
               <RefreshCw className="w-5 h-5 mr-2 text-green-600" />
-              {initialData ? 'Edit Recurring Expense' : 'Create Recurring Expense'}
+              {initialData ? tt('Edit Recurring Expense') : tt('Create Recurring Expense')}
             </h3>
             <button 
               className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
@@ -441,7 +441,7 @@ const RecurringExpenseModal = ({
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4 mr-2" />
-                  <span>{initialData ? 'Update Recurring Expense' : 'Create Recurring Expense'}</span>
+                  <span>{initialData ? tt('Update Recurring Expense') : tt('Create Recurring Expense')}</span>
                 </>
               )}
             </button>

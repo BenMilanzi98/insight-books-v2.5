@@ -196,7 +196,7 @@ const ProfessionalEmailComposer = ({
               type="button"
               onClick={() => insertFormatting('h1')}
               className="p-2 hover:bg-gray-200 rounded-md transition-colors text-sm font-bold"
-              title="Heading 1"
+              title={tt('Heading 1')}
             >
               {tt('H1')}
             </button>
@@ -204,7 +204,7 @@ const ProfessionalEmailComposer = ({
               type="button"
               onClick={() => insertFormatting('h2')}
               className="p-2 hover:bg-gray-200 rounded-md transition-colors text-sm font-bold"
-              title="Heading 2"
+              title={tt('Heading 2')}
             >
               {tt('H2')}
             </button>
@@ -212,7 +212,7 @@ const ProfessionalEmailComposer = ({
               type="button"
               onClick={() => insertFormatting('h3')}
               className="p-2 hover:bg-gray-200 rounded-md transition-colors text-sm font-bold"
-              title="Heading 3"
+              title={tt('Heading 3')}
             >
               {tt('H3')}
             </button>
@@ -221,7 +221,7 @@ const ProfessionalEmailComposer = ({
               type="button"
               onClick={() => insertFormatting('bold')}
               className="p-2 hover:bg-gray-200 rounded-md transition-colors"
-              title="Bold"
+              title={tt('Bold')}
             >
               <Bold className="h-4 w-4" />
             </button>
@@ -229,7 +229,7 @@ const ProfessionalEmailComposer = ({
               type="button"
               onClick={() => insertFormatting('italic')}
               className="p-2 hover:bg-gray-200 rounded-md transition-colors"
-              title="Italic"
+              title={tt('Italic')}
             >
               <Italic className="h-4 w-4" />
             </button>
@@ -237,7 +237,7 @@ const ProfessionalEmailComposer = ({
               type="button"
               onClick={() => insertFormatting('underline')}
               className="p-2 hover:bg-gray-200 rounded-md transition-colors"
-              title="Underline"
+              title={tt('Underline')}
             >
               <Underline className="h-4 w-4" />
             </button>
@@ -246,7 +246,7 @@ const ProfessionalEmailComposer = ({
               type="button"
               onClick={() => insertFormatting('list')}
               className="p-2 hover:bg-gray-200 rounded-md transition-colors"
-              title="Bullet List"
+              title={tt('Bullet List')}
             >
               <List className="h-4 w-4" />
             </button>
@@ -254,7 +254,7 @@ const ProfessionalEmailComposer = ({
               type="button"
               onClick={() => insertFormatting('quote')}
               className="p-2 hover:bg-gray-200 rounded-md transition-colors"
-              title="Quote"
+              title={tt('Quote')}
             >
               <Quote className="h-4 w-4" />
             </button>
@@ -262,7 +262,7 @@ const ProfessionalEmailComposer = ({
               type="button"
               onClick={() => insertFormatting('link')}
               className="p-2 hover:bg-gray-200 rounded-md transition-colors"
-              title="Link"
+              title={tt('Link')}
             >
               <Link className="h-4 w-4" />
             </button>
@@ -273,7 +273,7 @@ const ProfessionalEmailComposer = ({
               type="button"
               onClick={() => setShowImageUpload(true)}
               className="p-2 hover:bg-gray-200 rounded-md transition-colors text-blue-600"
-              title="Insert Image"
+              title={tt('Insert Image')}
             >
               <Image className="h-4 w-4" />
             </button>

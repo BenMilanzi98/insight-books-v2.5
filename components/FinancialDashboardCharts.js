@@ -1,4 +1,5 @@
 "use client";
+import { tt } from '@/lib/i18n/runtime';
 
 import { useState, useEffect } from "react";
 import FinancialChart from "./FinancialChart";
@@ -219,7 +220,7 @@ const FinancialDashboardCharts = ({ timeframe = "thisMonth" }) => {
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <FinancialChart
-          title="Revenue Trend"
+          title={tt('Revenue Trend')}
           data={revenueData}
           type="line"
           height={320}
@@ -229,7 +230,7 @@ const FinancialDashboardCharts = ({ timeframe = "thisMonth" }) => {
         />
         
         <FinancialChart
-          title="Expenses Trend"
+          title={tt('Expenses Trend')}
           data={expensesData}
           type="line"
           height={320}
@@ -241,7 +242,7 @@ const FinancialDashboardCharts = ({ timeframe = "thisMonth" }) => {
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <FinancialChart
-          title="Profit Trend"
+          title={tt('Profit Trend')}
           data={profitData}
           type="bar"
           height={280}
@@ -251,7 +252,7 @@ const FinancialDashboardCharts = ({ timeframe = "thisMonth" }) => {
         />
         
         <FinancialChart
-          title="Expense Breakdown"
+          title={tt('Expense Breakdown')}
           data={expenseBreakdown}
           type="pie"
           height={280}
@@ -259,7 +260,7 @@ const FinancialDashboardCharts = ({ timeframe = "thisMonth" }) => {
         />
         
         <FinancialChart
-          title="Sales by Category"
+          title={tt('Sales by Category')}
           data={salesByCategory}
           type="pie"
           height={280}

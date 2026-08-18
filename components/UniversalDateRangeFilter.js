@@ -114,7 +114,7 @@ export const UniversalDateRangeFilter = ({
     if (timeframe === 'custom' && customStartDate && customEndDate) {
       return formatPeriodRange(customStartDate, customEndDate, ' – ') || getTimeframeLabel('custom');
     }
-    return getTimeframeLabel(timeframe);
+    return tt(getTimeframeLabel(timeframe));
   };
 
   // Get current timeframe description
@@ -123,10 +123,10 @@ export const UniversalDateRangeFilter = ({
       const start = new Date(customStartDate);
       const end = new Date(customEndDate);
       const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-      return `${daysDiff} day${daysDiff !== 1 ? 's' : ''}`;
+      return `${daysDiff} ${daysDiff === 1 ? tt('day') : tt('days')}`;
     }
     const selected = timeframes.find(t => t.value === timeframe);
-    return selected ? selected.description : '';
+    return selected ? tt(selected.description) : '';
   };
 
   // Size classes
@@ -304,7 +304,7 @@ export const UniversalDateRangeFilter = ({
           ) : (
             <RefreshCw size={size === 'small' ? 14 : 16} className="mr-2" />
           )}
-          Refresh
+          {tt('Refresh')}
         </button>
       )}
     </div>

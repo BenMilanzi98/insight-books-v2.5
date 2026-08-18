@@ -300,7 +300,7 @@ export default function TaxCodesManagement() {
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `Failed to ${nextStatus === "Active" ? "activate" : "deactivate"} tax type`);
+        throw new Error(errData.error || `Failed to ${nextStatus === "Active" ? tt('activate') : tt('deactivate')} tax type`);
       }
 
       setSuccess(
@@ -496,7 +496,7 @@ export default function TaxCodesManagement() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `reversed-taxes-${new Date().toISOString().slice(0, 10)}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+      a.download = `reversed-taxes-${new Date().toISOString().slice(0, 10)}.${format === 'pdf' ? tt('pdf') : tt('xlsx')}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -583,7 +583,7 @@ export default function TaxCodesManagement() {
                 <span className={`px-2 py-0.5 text-xs rounded-full ${
                   flow === "inflow" ? "bg-emerald-100 text-emerald-800" : "bg-orange-100 text-orange-800"
                 }`}>
-                  {flow === "inflow" ? "2041 Inflow" : "2045 Outflow"}
+                  {flow === "inflow" ? tt('2041 Inflow') : tt('2045 Outflow')}
                 </span>
                 <span className={`px-2 py-0.5 text-xs rounded-full ${
                   tax.status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
@@ -593,7 +593,7 @@ export default function TaxCodesManagement() {
                 {tax.supersededById ? (
                   <span
                     className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800"
-                    title="Replaced by a newer rate version. Activate this code to make it current again, or activate the new version."
+                    title={tt('Replaced by a newer rate version. Activate this code to make it current again, or activate the new version.')}
                   >
                     {tt('Replaced')}
                   </span>
@@ -657,7 +657,7 @@ export default function TaxCodesManagement() {
 
         <div className="bg-gray-50 px-5 py-3 border-t border-gray-100">
           <div className="flex items-center justify-end gap-2">
-            <button onClick={() => handleViewReports(tax)} className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="View Reports">
+            <button onClick={() => handleViewReports(tax)} className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title={tt('View Reports')}>
               <FileText size={18} />
             </button>
             {canUpdateTax && tax.status === "Active" && !tax.supersededById && (
@@ -667,13 +667,13 @@ export default function TaxCodesManagement() {
                   setSupersedeRate(String(tax.taxRate ?? ""));
                 }}
                 className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                title="Supersede with new rate version"
+                title={tt('Supersede with new rate version')}
               >
                 <RotateCcw size={18} />
               </button>
             )}
             {canUpdateTax && (
-              <button onClick={() => handleEdit(tax)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit rate or value">
+              <button onClick={() => handleEdit(tax)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title={tt('Edit rate or value')}>
                 <Edit size={18} />
               </button>
             )}
@@ -685,13 +685,13 @@ export default function TaxCodesManagement() {
                     ? "text-amber-700 hover:bg-amber-50"
                     : "text-green-700 hover:bg-green-50"
                 }`}
-                title={tax.status === "Active" ? "Deactivate" : "Activate"}
+                title={tax.status === "Active" ? tt('Deactivate') : tt('Activate')}
               >
-                {tax.status === "Active" ? "Deactivate" : "Activate"}
+                {tax.status === "Active" ? tt('Deactivate') : tt('Activate')}
               </button>
             )}
             {canUpdateTax && !tax.isSystem && (
-              <button onClick={() => handleDelete(tax.id, tax)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+              <button onClick={() => handleDelete(tax.id, tax)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title={tt('Delete')}>
                 <Trash2 size={18} />
               </button>
             )}
@@ -1021,7 +1021,7 @@ export default function TaxCodesManagement() {
               disabled={loadingReversedTaxes}
               className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50"
             >
-              {loadingReversedTaxes ? 'Loading...' : 'Apply'}
+              {loadingReversedTaxes ? tt('Loading...') : tt('Apply')}
             </button>
             <button
               type="button"
@@ -1161,7 +1161,7 @@ export default function TaxCodesManagement() {
                 }}
                 className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg disabled:opacity-50"
               >
-                {supersedeBusy ? "Saving…" : "Supersede"}
+                {supersedeBusy ? tt('Saving…') : tt('Supersede')}
               </button>
             </div>
           </div>
@@ -1176,7 +1176,7 @@ export default function TaxCodesManagement() {
             <div className="p-6 border-b bg-gradient-to-r from-blue-500 to-blue-600 rounded-t-2xl">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white">
-                  {editingId ? "Edit Tax Type" : "Add New Tax Type"}
+                  {editingId ? tt('Edit Tax Type') : tt('Add New Tax Type')}
                 </h2>
                 <button
                   onClick={() => {
@@ -1241,7 +1241,7 @@ export default function TaxCodesManagement() {
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     value={formData.taxRate}
                     onChange={(e) => setFormData({ ...formData, taxRate: e.target.value })}
-                    placeholder={formData.calculationType === "Fixed" ? "e.g., 500" : "e.g., 17.5"}
+                    placeholder={formData.calculationType === "Fixed" ? tt('e.g., 500') : tt('e.g., 17.5')}
                   />
                   {editingIsSystem && catalogDefaultRate != null && (
                     <p className="text-xs text-indigo-600 mt-1">
@@ -1351,7 +1351,7 @@ export default function TaxCodesManagement() {
                   className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all flex items-center justify-center gap-2"
                 >
                   <Save size={18} />
-                  {editingId ? "Update" : "Create"}
+                  {editingId ? tt('Update') : tt('Create')}
                 </button>
               </div>
             </form>
@@ -1464,7 +1464,7 @@ export default function TaxCodesManagement() {
                                   <span className={`px-2 py-1 text-xs rounded-full ${
                                     !product.isDeleted ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
                                   }`}>
-                                    {product.isDeleted ? 'Deleted' : 'Active'}
+                                    {product.isDeleted ? tt('Deleted') : tt('Active')}
                                   </span>
                                 </td>
                               </tr>

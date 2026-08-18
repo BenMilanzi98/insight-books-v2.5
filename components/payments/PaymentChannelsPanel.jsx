@@ -141,7 +141,7 @@ export function PaymentAccountFormModal({
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <h3 className="text-lg font-semibold text-slate-900">
-            {editingAccount ? "Edit payment account" : "Add payment account"}
+            {editingAccount ? tt('Edit payment account') : tt('Add payment account')}
           </h3>
           <button
             type="button"
@@ -548,9 +548,7 @@ export default function PaymentChannelsPanel({
         <div className="mb-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{tt('Banks')}</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            {isManagement
-              ? "Parent accounts 1131–1138 show accumulated totals. Post to child GL accounts only."
-              : "Only bank accounts you have added. Manage channels under Payment accounts management."}
+            {isManagement ? tt('Parent accounts 1131–1138 show accumulated totals. Post to child GL accounts only.') : tt('Only bank accounts you have added. Manage channels under Payment accounts management.')}
           </p>
         </div>
         {bankChannels.length ? (

@@ -551,7 +551,7 @@ const QuotationModal = ({
     }
     
     if (!formData.title) {
-      newErrors.title = "Title is required";
+      newErrors.title = {tt('Title is required')};
     }
     
     if (!formData.issueDate) {
@@ -779,7 +779,7 @@ const QuotationModal = ({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center p-4 border-b border-gray-200">
           <h2 className="text-xl font-semibold">
-            {mode === "create" ? "Create New Quotation" : "Edit Quotation"}
+            {mode === "create" ? tt('Create New Quotation') : tt('Edit Quotation')}
           </h2>
           <button
             onClick={onClose}
@@ -815,7 +815,7 @@ const QuotationModal = ({
                     type="text"
                     id="orderNumber"
                     name="orderNumber"
-                    placeholder={formData.orderNumberAutogenerate ? "Auto-generated" : "Enter order number"}
+                    placeholder={formData.orderNumberAutogenerate ? tt('Auto-generated') : tt('Enter order number')}
                     className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition disabled:bg-gray-100 disabled:text-gray-500 ${errors.orderNumber ? 'border-red-500' : 'border-gray-300'}`}
                     value={formData.orderNumber || ""}
                     onChange={(e) => setFormData({ ...formData, orderNumber: e.target.value })}
@@ -1039,7 +1039,7 @@ const QuotationModal = ({
                             value={item.quantity || ''}
                             step="1"
                             onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                            title="Enter the quantity of items"
+                            title={tt('Enter the quantity of items')}
                           />
                         )}
                         {errors[`items.${index}.quantity`] && (
@@ -1061,7 +1061,7 @@ const QuotationModal = ({
                             value={item.unitPrice || ''}
                             step="0.01"
                             onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
-                            title="Enter the price per unit in MWK"
+                            title={tt('Enter the price per unit in MWK')}
                           />
                         )}
                         {errors[`items.${index}.unitPrice`] && (
@@ -1078,7 +1078,7 @@ const QuotationModal = ({
                             step="0.01"
                             placeholder="0.00"
                             onChange={(e) => handleItemChange(index, "discountAmount", e.target.value)}
-                            title="Enter the discount amount in MWK per individual item"
+                            title={tt('Enter the discount amount in MWK per individual item')}
                           />
                         </div>
                         {errors[`items.${index}.discountAmount`] && (
@@ -1094,7 +1094,7 @@ const QuotationModal = ({
                               type="button"
                               className="text-blue-600 hover:text-blue-800"
                               onClick={() => setShowNewTaxForm(!showNewTaxForm)}
-                              title="Add new tax type"
+                              title={tt('Add new tax type')}
                             >
                               <Plus className="w-3.5 h-3.5" />
                             </button>
@@ -1294,7 +1294,7 @@ const QuotationModal = ({
                       min="0"
                       value={formData.discount || ''}
                       onChange={(e) => updateDiscount(e.target.value)}
-                      title="Enter the global discount amount in MWK"
+                      title={tt('Enter the global discount amount in MWK')}
                       placeholder="0.00"
                     />
                   </div>

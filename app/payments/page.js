@@ -215,7 +215,7 @@ const PaymentAccountsPage = () => {
               disabled={syncingPayments}
             >
               <RefreshCw size={16} className={syncingPayments ? "animate-spin" : ""} />
-              {syncingPayments ? "Syncing…" : "Sync payments"}
+              {syncingPayments ? tt('Syncing…') : tt('Sync payments')}
             </button>
             {pagePermissions.canCreatePayments && (
               <button

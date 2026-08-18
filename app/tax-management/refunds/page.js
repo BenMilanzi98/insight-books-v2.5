@@ -105,7 +105,7 @@ export default function TaxRefundsPage() {
   return (
     <div className="container mx-auto py-2">
       <PageHeader
-        title="Tax refunds"
+        title={tt('Tax refunds')}
         description="Refund workflow register. Mark posted after the V2 refund settlement journal exists."
       />
       {error ? (

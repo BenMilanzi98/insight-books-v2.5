@@ -1024,7 +1024,7 @@ const handleFileUpload = async (e) => {
       
     } catch (error) {
       console.error("Error saving recurring expense:", error);
-      alert(`Failed to ${editingRecurringExpense ? 'update' : 'create'} recurring expense. Please try again.`);
+      alert(`Failed to ${editingRecurringExpense ? tt('update') : tt('create')} recurring expense. Please try again.`);
     } finally {
       setIsSubmittingRecurring(false);
     }
@@ -2132,14 +2132,14 @@ const handleFileUpload = async (e) => {
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 className="px-3 py-3 border-2 border-gray-200 rounded-lg bg-white text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                title="From date"
+                title={tt('From date')}
               />
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
                 className="px-3 py-3 border-2 border-gray-200 rounded-lg bg-white text-sm shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                title="To date"
+                title={tt('To date')}
               />
               {(dateFrom || dateTo) && (
                 <button
@@ -2156,7 +2156,7 @@ const handleFileUpload = async (e) => {
                   onClick={() => setShowDeletedExpenses(!showDeletedExpenses)}
                 >
                   <RefreshCw className="w-4 h-4 mr-2" />
-                          {showDeletedExpenses ? 'Active' : 'Deleted'}
+                          {showDeletedExpenses ? tt('Active') : tt('Deleted')}
                 </button>
                 {pagePermissions.canExportExpenses && (
                   <button 
@@ -2212,9 +2212,7 @@ const handleFileUpload = async (e) => {
             <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-3" />
             <h3 className="text-lg font-medium text-gray-900 mb-1">{tt('No expenses found')}</h3>
             <p className="text-gray-500 mb-4">
-              {activeTab !== "all" || selectedCategory !== "all" || searchQuery || cardFilter
-                ? "Try changing your filters or search query"
-                : "Get started by adding your first expense"}
+              {activeTab !== "all" || selectedCategory !== "all" || searchQuery || cardFilter ? tt('Try changing your filters or search query') : tt('Get started by adding your first expense')}
             </p>
             {pagePermissions.canCreateExpenses &&(   <button 
               className="px-4 py-2 bg-blue-600 text-white rounded-md"
@@ -2394,7 +2392,7 @@ const handleFileUpload = async (e) => {
                               <button 
                                       className="text-green-600 hover:text-green-800 hover:bg-green-50 transition-all rounded-lg p-1.5"
                                 onClick={() => openUploadModal(expense)}
-                                title="Add more receipts"
+                                title={tt('Add more receipts')}
                               >
                                 <PlusCircle className="w-4 h-4" />
                               </button>
@@ -2422,7 +2420,7 @@ const handleFileUpload = async (e) => {
                             {!isCogsListRow(expense) && (
                               <button 
                                 className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-all rounded-lg p-2"
-                              title="View Payment History"
+                              title={tt('View Payment History')}
                               onClick={() => togglePaymentHistory(expense)}
                             >
                                 <FileText size={18} />
@@ -2433,7 +2431,7 @@ const handleFileUpload = async (e) => {
                             {isEligibleForPartialPayment(expense) && (
                               <button
                                 className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-all rounded-lg p-2"
-                                title="Record Payment"
+                                title={tt('Record Payment')}
                                 onClick={() => handlePartialPayment(expense)}
                               >
                                 <DollarSign size={18} />
@@ -2443,7 +2441,7 @@ const handleFileUpload = async (e) => {
                             {pagePermissions.canUpdateExpenses && (
                               <button 
                                   className="text-gray-600 hover:text-gray-700 hover:bg-gray-50 transition-all rounded-lg p-2"
-                                title="View Expense Details"
+                                title={tt('View Expense Details')}
                                 onClick={() => handleViewExpense(expense)}
                               >
                                 <Eye className="w-4 h-4" />
@@ -2452,7 +2450,7 @@ const handleFileUpload = async (e) => {
                             {pagePermissions.canUpdateExpenses && !isCogsListRow(expense) && (
                               <button 
                                   className="text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50 transition-all rounded-lg p-2"
-                                title="Edit Expense"
+                                title={tt('Edit Expense')}
                                 onClick={() => handleEditExpense(expense)}
                               >
                                   <Edit className="w-4 h-4" />
@@ -2461,7 +2459,7 @@ const handleFileUpload = async (e) => {
                             {pagePermissions.canDeleteExpenses && (
                               <button 
                                   className="text-red-600 hover:text-red-700 hover:bg-red-50 transition-all rounded-lg p-2"
-                                title={isCogsListRow(expense) ? "Remove COGS entry" : "Delete Expense"}
+                                title={isCogsListRow(expense) ? tt('Remove COGS entry') : tt('Delete Expense')}
                                 onClick={() => handleDeleteExpense(expense.id)}
                               >
                                   <Trash2 className="w-4 h-4" />
@@ -2471,7 +2469,7 @@ const handleFileUpload = async (e) => {
                         ) : (
                           <button 
                               className="text-green-600 hover:text-green-700 hover:bg-green-50 transition-all rounded-lg p-2"
-                            title="Restore Expense"
+                            title={tt('Restore Expense')}
                             onClick={() => handleRestoreExpense(expense.id)}
                           >
                               <RefreshCw className="w-4 h-4" />
@@ -2541,7 +2539,7 @@ const handleFileUpload = async (e) => {
                 <button
                   onClick={handlePreviousPage}
                   className="p-1 rounded-md hover:bg-gray-100 transition-colors"
-                  title="Previous page"
+                  title={tt('Previous page')}
                 >
                   <ChevronLeft className="w-4 h-4 text-gray-600" />
                 </button>
@@ -2551,7 +2549,7 @@ const handleFileUpload = async (e) => {
                 <button
                   onClick={handleNextPage}
                   className="p-1 rounded-md hover:bg-gray-100 transition-colors"
-                  title="Next page"
+                  title={tt('Next page')}
                 >
                   <ChevronRight className="w-4 h-4 text-gray-600" />
                 </button>
@@ -2657,7 +2655,7 @@ const handleFileUpload = async (e) => {
                         <button
                           onClick={() => handleViewRecurringExpense(expense)}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="View"
+                          title={tt('View')}
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -2665,7 +2663,7 @@ const handleFileUpload = async (e) => {
                           <button
                             onClick={() => handleEditRecurringExpense(expense)}
                             className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                            title="Edit"
+                            title={tt('Edit')}
                           >
                             <Edit className="w-4 h-4" />
                           </button>
@@ -2674,7 +2672,7 @@ const handleFileUpload = async (e) => {
                           <button
                             onClick={() => handleDeleteRecurringExpense(expense)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete"
+                            title={tt('Delete')}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -2724,7 +2722,7 @@ const handleFileUpload = async (e) => {
         <div className="flex justify-between items-center">
           <h3 className="text-xl font-semibold flex items-center">
             <Paperclip className="w-5 h-5 mr-2 text-blue-600" />
-            {isScanning ? "Scanning Receipt..." : "Upload Receipts"}
+            {isScanning ? tt('Scanning Receipt...') : tt('Upload Receipts')}
             {selectedExpense && !isScanning && (
               <span className="ml-2 text-sm text-gray-500">for {selectedExpense.id}</span>
             )}
@@ -2858,7 +2856,7 @@ const handleFileUpload = async (e) => {
             ) : (
               <>
                 <Upload className="w-4 h-4 mr-2" />
-                {selectedExpense ? "Attach to Expense" : "Create Expense with Receipts"}
+                {selectedExpense ? tt('Attach to Expense') : tt('Create Expense with Receipts')}
               </>
             )}
           </button>
@@ -2882,7 +2880,7 @@ const handleFileUpload = async (e) => {
                   <Receipt className="w-5 h-5 mr-2 text-blue-600" />
                   Receipts for {selectedExpense.id}
                   <span className="ml-2 text-sm text-gray-500">
-                    ({selectedExpense.attachments.length} {selectedExpense.attachments.length === 1 ? 'receipt' : 'receipts'})
+                    ({selectedExpense.attachments.length} {selectedExpense.attachments.length === 1 ? tt('receipt') : tt('receipts')})
                   </span>
                 </h3>
                 <div className="flex items-center space-x-2">
@@ -2915,7 +2913,7 @@ const handleFileUpload = async (e) => {
                       <div className="flex items-center space-x-1 flex-shrink-0">
                         {/* <button 
                           className="text-blue-600 hover:text-blue-800 p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full" 
-                          title="Download"
+                          title={tt('Download')}
                         >
                           <Download className="w-4 h-4" />
                         </button> */}
@@ -2923,13 +2921,13 @@ const handleFileUpload = async (e) => {
                             type="button"
                             onClick={() => downloadExpenseAttachment(attachment)}
                             className="text-blue-600 hover:text-blue-800 p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
-                            title="Download"
+                            title={tt('Download')}
                           >
                           <Download className="w-4 h-4" />
                         </button>
                         <button 
                           className="text-red-600 hover:text-red-800 p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 rounded-full" 
-                          title="Delete"
+                          title={tt('Delete')}
                           onClick={() => handleDeleteAttachment(selectedExpense.id, attachment.id)}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -3175,7 +3173,7 @@ const handleFileUpload = async (e) => {
                               setViewAllRecurringExpensesModalOpen(false);
                             }}
                             className="px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center"
-                            title="View"
+                            title={tt('View')}
                           >
                             <Eye className="w-4 h-4 mr-1" />
                             {tt('View')}
@@ -3187,7 +3185,7 @@ const handleFileUpload = async (e) => {
                                 setViewAllRecurringExpensesModalOpen(false);
                               }}
                               className="px-3 py-1.5 text-sm text-green-600 hover:bg-green-50 rounded-lg transition-colors flex items-center"
-                              title="Edit"
+                              title={tt('Edit')}
                             >
                               <Edit className="w-4 h-4 mr-1" />
                               {tt('Edit')}
@@ -3197,7 +3195,7 @@ const handleFileUpload = async (e) => {
                             <button
                               onClick={() => handleDeleteRecurringExpense(expense)}
                               className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center"
-                              title="Delete"
+                              title={tt('Delete')}
                             >
                               <Trash2 className="w-4 h-4 mr-1" />
                               {tt('Delete')}
@@ -3453,7 +3451,7 @@ const handleFileUpload = async (e) => {
       {deleteModalOpen && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div
-            className={`bg-white rounded-lg shadow-xl w-full ${deleteModalCogsCtx.hasCogs ? 'max-w-lg' : 'max-w-md'}`}
+            className={`bg-white rounded-lg shadow-xl w-full ${deleteModalCogsCtx.hasCogs ? tt('max-w-lg') : tt('max-w-md')}`}
           >
             <div className="p-6">
               <div className="flex items-center mb-4">
@@ -3836,7 +3834,7 @@ const handleFileUpload = async (e) => {
                         });
                       }}
                       className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all font-medium text-sm border border-gray-300"
-                      title="Reset to current month"
+                      title={tt('Reset to current month')}
                     >
                       <RefreshCw className="w-4 h-4" />
                     </button>

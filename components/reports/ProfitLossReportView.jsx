@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Expand } from 'lucide-react';
@@ -90,7 +91,7 @@ export default function ProfitLossReportView({
       showPageHeader={showPageHeader}
       reportTitle={reportTitle ?? 'Profit & Loss'}
       loading={loading}
-      loadingLabel="Generating Profit & Loss…"
+      loadingLabel={tt('Generating {{report}}…', { report: tt('Profit & Loss') })}
       error={error}
       exportUrl={exportUrl}
       reportTypeCategories={reportTypeCategories}
@@ -115,7 +116,7 @@ export default function ProfitLossReportView({
         <button
           type="button"
           className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"
-          title="Expand"
+          title={tt('Expand')}
           onClick={() => setFiltersOpen(false)}
         >
           <Expand className="h-4 w-4" />
@@ -125,7 +126,7 @@ export default function ProfitLossReportView({
       {report ? (
         <ProfitLossTable report={report} onDrill={(line) => onDrill?.(line, applied)} />
       ) : !loading ? (
-        <p className="py-8 text-sm text-slate-500">No report data.</p>
+        <p className="py-8 text-sm text-slate-500">{tt('No report data.')}</p>
       ) : null}
     </ReportStudioShell>
   );

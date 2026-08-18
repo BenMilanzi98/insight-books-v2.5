@@ -186,12 +186,12 @@ export default function AdminPlatformInvoicesPage() {
 
       {loading ? <AdminLoadingState label="Loading platform invoices" /> : null}
       {!loading && error ? (
-        <AdminErrorState title="Unable to load invoices" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Unable to load invoices')} message={error} onRetry={load} />
       ) : null}
       {!loading && !error && filtered.length === 0 ? (
         <AdminEmptyState
           icon={FileText}
-          title="No platform invoices"
+          title={tt('No platform invoices')}
           description="Create platform invoices via the billing API. Tenant AR invoices are not shown here."
         />
       ) : null}

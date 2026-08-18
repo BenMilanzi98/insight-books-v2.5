@@ -441,7 +441,7 @@ const handleDeleteEntry = async (entryId) => {
               )}
 
               <PosStylePageHeader
-                title="Journal Entries"
+                title={tt('Journal Entries')}
                 description="View and manage general ledger entries"
                 actions={
                   <>
@@ -643,7 +643,7 @@ const handleDeleteEntry = async (entryId) => {
                                   type="button"
                                   className="text-blue-600 hover:text-blue-800"
                                   onClick={() => handleViewEntry(entry)}
-                                  title="View"
+                                  title={tt('View')}
                                 >
                                   <Eye size={16} />
                                 </button>
@@ -652,7 +652,7 @@ const handleDeleteEntry = async (entryId) => {
                                     type="button"
                                     className="text-blue-600 hover:text-blue-800"
                                     onClick={() => handleEditEntry(entry)}
-                                    title="Edit"
+                                    title={tt('Edit')}
                                   >
                                     <Edit size={16} />
                                   </button>
@@ -662,7 +662,7 @@ const handleDeleteEntry = async (entryId) => {
                                     type="button"
                                     className="text-green-600 hover:text-green-800"
                                     onClick={() => handlePostEntry(entry)}
-                                    title="Post"
+                                    title={tt('Post')}
                                   >
                                     <Check size={16} />
                                   </button>
@@ -672,7 +672,7 @@ const handleDeleteEntry = async (entryId) => {
                                     type="button"
                                     className="text-red-600 hover:text-red-800"
                                     onClick={() => handleDeleteEntry(entry.id)}
-                                    title="Delete"
+                                    title={tt('Delete')}
                                   >
                                     <Trash size={16} />
                                   </button>

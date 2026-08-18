@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { formatCurrency } from '@/lib/currencyUtils';
 
@@ -114,7 +115,7 @@ function formatCell(value, format) {
 export default function MultiBusinessComparisonPanel({
   byTenant,
   columns = INCOME_STATEMENT_COMPARE_COLUMNS,
-  title = 'Business comparison',
+  title = tt('Business comparison'),
   className = '',
 }) {
   if (!Array.isArray(byTenant) || byTenant.length < 2) return null;

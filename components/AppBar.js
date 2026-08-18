@@ -8,6 +8,7 @@ import { isPosDefaultLandingRole } from "@/lib/tenantRoleAccess";
 import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { translateNavLabel } from "@/lib/i18n/navLabelMap";
+import AppBarProfileMenu from "@/components/AppBarProfileMenu";
 
 const AppBar = ({
   toggleSidebar,
@@ -31,6 +32,7 @@ const AppBar = ({
   
   const notificationRef = useRef(null);
   const profileRef = useRef(null);
+  const profileTriggerRef = useRef(null);
   
   // Function to get initials from name
   const getInitials = (name) => {
@@ -81,22 +83,33 @@ const AppBar = ({
     fetchUserData();
   }, [skipUserFetch, adminUser]);
   
-  // Handle clicks outside to close dropdowns
+  // Notifications stay in-tree; profile uses PortalPopover (handles its own outside click).
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
         setNotificationsOpen(false);
       }
-      if (profileRef.current && !profileRef.current.contains(event.target)) {
-        setProfileOpen(false);
-      }
     };
-    
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  const tenantLogoSrc = (logoUrl) => {
+    if (typeof window !== "undefined" && logoUrl?.startsWith("/uploads/")) {
+      return `/api/uploads/${logoUrl.replace(/^\/+uploads\//, "")}`;
+    }
+    return logoUrl;
+  };
+
+  const initialsPlaceholderSrc = (name) =>
+    "data:image/svg+xml," +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%233b82f6" rx="20"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="system-ui">${name ? getInitials(name) : "?"}</text></svg>`
+    );
+
   
   // Mock notifications
   const notifications = [];
@@ -150,7 +163,7 @@ const AppBar = ({
           ref={menuButtonRef}
           type="button"
           onClick={toggleSidebar}
-          aria-label={sidebarOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-label={sidebarOpen ? tt('Close navigation menu') : tt('Open navigation menu')}
           aria-expanded={Boolean(sidebarOpen)}
           aria-controls={navId}
           className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[var(--text-secondary,#4b5563)] transition-colors hover:bg-gray-100 hover:text-gray-900 md:hidden"
@@ -169,7 +182,7 @@ const AppBar = ({
           }`}
         >
           <Menu size={16} />
-          <span>{sidebarOpen ? "Close" : "Open"}</span>
+          <span>{sidebarOpen ? tt('Close') : tt('Open')}</span>
         </button>
 
         <div className="hidden min-w-0 flex-col gap-0.5 sm:flex">
@@ -320,44 +333,47 @@ const AppBar = ({
           </div>
         )}
         
-        {/* Desktop Search */}
+        {/* Desktop Search — avoid global .search-container (min-width: 300px) */}
         {!isMobile && (
-          <div className={`search-container ${searchFocused ? "focused" : ""}`} style={{ 
-            position: "relative", 
-            width: searchFocused ? "360px" : "280px", 
-            transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)" 
-          }}>
-            <input 
-              type="text" 
-              placeholder={t('common.actions.search')} 
-              className="search-input"
+          <div
+            className="relative shrink-0"
+            style={{
+              width: searchFocused ? "148px" : "112px",
+              transition: "width 0.25s ease",
+            }}
+          >
+            <input
+              type="text"
+              placeholder={t('common.actions.search')}
               style={{
                 width: "100%",
-                padding: "10px 16px 10px 42px",
+                height: "30px",
+                padding: "4px 8px 4px 28px",
                 border: `1px solid ${searchFocused ? "#3b82f6" : "#e5e7eb"}`,
-                borderRadius: "12px",
-                fontSize: "14px",
+                borderRadius: "7px",
+                fontSize: "12px",
                 outline: "none",
                 backgroundColor: searchFocused ? "#ffffff" : "#f9fafb",
-                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                boxShadow: searchFocused 
-                  ? "0 0 0 3px rgba(59, 130, 246, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.05)" 
-                  : "0 1px 2px 0 rgba(0, 0, 0, 0.05)"
+                transition: "border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease",
+                boxShadow: searchFocused
+                  ? "0 0 0 2px rgba(59, 130, 246, 0.12)"
+                  : "none",
               }}
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
             />
-            <Search style={{ 
-              position: "absolute", 
-              left: "14px", 
-              top: "50%", 
-              transform: "translateY(-50%)", 
-              color: searchFocused ? "#3b82f6" : "#9ca3af",
-              width: "18px",
-              height: "18px",
-              pointerEvents: "none",
-              transition: "color 0.2s ease"
-            }} />
+            <Search
+              style={{
+                position: "absolute",
+                left: "8px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: searchFocused ? "#3b82f6" : "#9ca3af",
+                width: "13px",
+                height: "13px",
+                pointerEvents: "none",
+              }}
+            />
           </div>
         )}
         
@@ -559,405 +575,55 @@ const AppBar = ({
             )}
           </div>
           
-          {/* Profile Button and Dropdown */}
-          <div ref={profileRef} style={{ position: "relative" }}>
-            <button 
+          {/* Profile Button and Dropdown — Dashboard picker chrome */}
+          <div ref={profileRef} className="relative">
+            <button
+              ref={profileTriggerRef}
+              type="button"
               onClick={handleToggleProfile}
               aria-label={tt('Profile')}
-              style={{
-                background: "none",
-                border: "2px solid transparent",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "2px",
-                borderRadius: "50%",
-                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#e5e7eb";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "transparent";
-              }}
+              aria-expanded={profileOpen}
+              aria-haspopup="menu"
+              className="flex items-center justify-center rounded-full border-2 border-transparent p-0.5 transition-colors hover:border-gray-200"
             >
-              <div style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "50%",
-                backgroundColor: "#3b82f6",
-                color: "white",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: "600",
-                fontSize: "14px",
-                boxShadow: "0 2px 4px 0 rgba(59, 130, 246, 0.2)",
-                border: "2px solid #ffffff"
-              }}>
-                {/* {isUserLoading ? (
-                  <div style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "50%",
-                    border: "2px solid rgba(255, 255, 255, 0.5)",
-                    borderTop: "2px solid white",
-                    animation: "spin 1s linear infinite"
-                  }}></div>
-                ) : (
-                  getInitials(user?.name)
-                )} */}
+              <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-blue-500 text-sm font-semibold text-white shadow-sm">
                 {isUserLoading ? (
-                  // Show loading spinner
-                  <div style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "50%",
-                    border: "2px solid rgba(255, 255, 255, 0.5)",
-                    borderTop: "2px solid white",
-                    animation: "spin 1s linear infinite"
-                  }}></div>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white" />
                 ) : user?.tenant?.logoUrl ? (
-                  // Show logo if available; on error or 1x1 placeholder (missing file) show initials
                   <img
-                    src={typeof window !== 'undefined' && user.tenant.logoUrl?.startsWith('/uploads/')
-                      ? `/api/uploads/${user.tenant.logoUrl.replace(/^\/+uploads\//, '')}`
-                      : user.tenant.logoUrl}
+                    src={tenantLogoSrc(user.tenant.logoUrl)}
                     alt={tt('Logo')}
+                    className="h-full w-full rounded-full object-cover"
                     onError={(e) => {
                       e.target.onerror = null;
-                      e.target.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%233b82f6" rx="20"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="system-ui">' + (user?.name ? getInitials(user.name) : '?') + '</text></svg>');
+                      e.target.src = initialsPlaceholderSrc(user?.name);
                     }}
                     onLoad={(e) => {
                       const img = e.target;
                       if (img.naturalWidth <= 1 && img.naturalHeight <= 1) {
-                        img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%233b82f6" rx="20"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="system-ui">' + (user?.name ? getInitials(user.name) : '?') + '</text></svg>');
+                        img.src = initialsPlaceholderSrc(user?.name);
                       }
-                    }}
-                    style={{
-                      borderRadius: "50%",
-                      objectFit: "cover"
                     }}
                   />
                 ) : (
-                  // Fallback to initials
                   getInitials(user?.name)
                 )}
               </div>
             </button>
-            
-            {profileOpen && (
-              <div style={{
-                position: "absolute",
-                top: "calc(100% + 12px)",
-                right: 0,
-                width: isMobile ? "calc(100vw - 32px)" : "320px",
-                maxWidth: "calc(100vw - 32px)",
-                backgroundColor: "#ffffff",
-                borderRadius: "12px",
-                boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-                border: "1px solid #e5e7eb",
-                overflow: "hidden",
-                zIndex: 200,
-                animation: "slideDown 0.2s ease-out"
-              }}>
-                <div style={{
-                  padding: "20px",
-                  borderBottom: "1px solid #f3f4f6",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "14px",
-                  backgroundColor: "#fafafa"
-                }}>
-                  <div style={{
-                    width: "48px",
-                    height: "48px",
-                    borderRadius: "50%",
-                    backgroundColor: "#3b82f6",
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: "600",
-                    fontSize: "18px",
-                    boxShadow: "0 2px 4px 0 rgba(59, 130, 246, 0.2)",
-                    border: "2px solid #ffffff",
-                    flexShrink: 0
-                  }}>
-                    {/* {isUserLoading ? (
-                      <div style={{
-                        width: "20px",
-                        height: "20px",
-                        borderRadius: "50%",
-                        border: "2px solid rgba(255, 255, 255, 0.5)",
-                        borderTop: "2px solid white",
-                        animation: "spin 1s linear infinite"
-                      }}></div>
-                    ) : (
-                      getInitials(user?.name)
-                    )} */}
-                    {isUserLoading ? (
-                     // Show loading spinner
-                        <div style={{
-                          width: "18px",
-                          height: "18px",
-                          borderRadius: "50%",
-                          border: "2px solid rgba(255, 255, 255, 0.5)",
-                          borderTop: "2px solid white",
-                          animation: "spin 1s linear infinite"
-                        }}></div>
-                      ) : user?.tenant?.logoUrl ? (
-                        // Show logo if available; on error or 1x1 placeholder (missing file) show initials
-                        <img
-                          src={typeof window !== 'undefined' && user.tenant.logoUrl?.startsWith('/uploads/')
-                            ? `/api/uploads/${user.tenant.logoUrl.replace(/^\/+uploads\//, '')}`
-                            : user.tenant.logoUrl}
-                          alt={tt('Logo')}
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%233b82f6" rx="20"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="system-ui">' + (user?.name ? getInitials(user.name) : '?') + '</text></svg>');
-                          }}
-                          onLoad={(e) => {
-                            const img = e.target;
-                            if (img.naturalWidth <= 1 && img.naturalHeight <= 1) {
-                              img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%233b82f6" rx="20"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="system-ui">' + (user?.name ? getInitials(user.name) : '?') + '</text></svg>');
-                            }
-                          }}
-                          style={{
-                            borderRadius: "50%",
-                            objectFit: "cover"
-                          }}
-                        />
-                      ) : (
-                        // Fallback to initials
-                        getInitials(user?.name)
-                      )}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {isUserLoading ? (
-                      /* Show loading skeleton for name */
-                      <>
-                        <div style={{ 
-                          width: "150px", 
-                          height: "18px", 
-                          backgroundColor: "#e5e7eb",
-                          borderRadius: "6px",
-                          marginBottom: "8px",
-                          animation: "pulse 1.5s infinite ease-in-out"
-                        }}></div>
-                        <div style={{ 
-                          width: "120px", 
-                          height: "14px", 
-                          backgroundColor: "#e5e7eb",
-                          borderRadius: "6px",
-                          animation: "pulse 1.5s infinite ease-in-out"
-                        }}></div>
-                      </>
-                    ) : (
-                      <>
-                        <h3 style={{ 
-                          margin: "0 0 6px 0", 
-                          fontSize: "16px", 
-                          fontWeight: "600",
-                          color: "#111827",
-                          lineHeight: "1.2"
-                        }}>
-                          {user?.name || "User"}
-                        </h3>
-                        <div style={{ 
-                          fontSize: "13px", 
-                          color: "#6b7280",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap"
-                        }}>
-                          {user?.email || "user@example.com"}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-                
-                <div style={{ padding: "8px" }}>
-                  <Link 
-                    href="/profile" 
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      padding: "10px 14px",
-                      color: "#374151",
-                      textDecoration: "none",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      transition: "all 0.15s ease"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#f3f4f6";
-                      e.currentTarget.style.color = "#111827";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                      e.currentTarget.style.color = "#374151";
-                    }}
-                  >
-                    <span style={{ fontSize: "18px" }}>👤</span>
-                    <span>{tt('My Profile')}</span>
-                  </Link>
-                  <Link 
-                    href="/account" 
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      padding: "10px 14px",
-                      color: "#374151",
-                      textDecoration: "none",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      transition: "all 0.15s ease"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#f3f4f6";
-                      e.currentTarget.style.color = "#111827";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                      e.currentTarget.style.color = "#374151";
-                    }}
-                  >
-                    <span style={{ fontSize: "18px" }}>⚙️</span>
-                    <span>{tt('Settings')}</span>
-                  </Link>
-                  <Link 
-                    href="/switch-tenant" 
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      padding: "10px 14px",
-                      color: "#374151",
-                      textDecoration: "none",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      transition: "all 0.15s ease"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#f3f4f6";
-                      e.currentTarget.style.color = "#111827";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                      e.currentTarget.style.color = "#374151";
-                    }}
-                  >
-                    <span style={{ fontSize: "18px" }}>🏢</span>
-                    <span>{tt('Switch Or Add Business')}</span>
-                  </Link>
-                  
-                  <div style={{ height: "1px", backgroundColor: "#e5e7eb", margin: "8px 0" }}></div>
 
-                  <Link
-                    href="/terms"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      padding: "10px 14px",
-                      color: "#374151",
-                      textDecoration: "none",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      transition: "all 0.15s ease"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#f3f4f6";
-                      e.currentTarget.style.color = "#111827";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                      e.currentTarget.style.color = "#374151";
-                    }}
-                  >
-                    <span style={{ fontSize: "18px" }}>📄</span>
-                    <span>{tt('Terms of Service')}</span>
-                  </Link>
-                  <Link
-                    href="/privacy"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      padding: "10px 14px",
-                      color: "#374151",
-                      textDecoration: "none",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      transition: "all 0.15s ease"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#f3f4f6";
-                      e.currentTarget.style.color = "#111827";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                      e.currentTarget.style.color = "#374151";
-                    }}
-                  >
-                    <span style={{ fontSize: "18px" }}>🔒</span>
-                    <span>{tt('Privacy Policy')}</span>
-                  </Link>
-
-                  <div style={{ height: "1px", backgroundColor: "#e5e7eb", margin: "8px 0" }}></div>
-
-                  <button
-                    onClick={async() => {
-                        await fetch("/api/auth/logout", {
-                          method: "POST",
-                        });
-                        window.location.href = "/auth/login";
-                      }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      padding: "10px 14px",
-                      color: "#dc2626",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      width: "100%",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      transition: "all 0.15s ease",
-                      textAlign: "left"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#fef2f2";
-                      e.currentTarget.style.color = "#b91c1c";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                      e.currentTarget.style.color = "#dc2626";
-                    }}
-                  >
-                    <span style={{ fontSize: "18px" }}>🚪</span>
-                    <span>{tt('Logout')}</span>
-                  </button>
-                </div>
-              </div>
-            )}
+            <AppBarProfileMenu
+              open={profileOpen}
+              onClose={() => setProfileOpen(false)}
+              anchorRef={profileTriggerRef}
+              user={user}
+              isUserLoading={isUserLoading}
+              getInitials={getInitials}
+              isMobile={isMobile}
+            />
           </div>
         </div>
       </div>
-      
+
       {/* Animation styles */}
       <style jsx>{`
         @keyframes pulse {

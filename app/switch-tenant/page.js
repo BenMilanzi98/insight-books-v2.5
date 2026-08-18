@@ -235,7 +235,7 @@ export default function SwitchTenantPage() {
               className="inline-flex items-center justify-center px-5 sm:px-6 py-2.5 sm:py-3 border border-slate-300 bg-white text-slate-800 rounded-lg hover:bg-slate-50 transition-all duration-200 shadow-sm text-sm sm:text-base font-medium disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? 'Syncing…' : 'Sync linked businesses'}
+              {isSyncing ? tt('Syncing…') : tt('Sync linked businesses')}
             </button>
             <button
               type="button"
@@ -320,7 +320,7 @@ export default function SwitchTenantPage() {
                             <span className={`text-xs sm:text-sm font-medium ${
                               daysRemaining <= 7 ? 'text-amber-700' : 'text-green-700'
                             }`}>
-                              {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} remaining
+                              {daysRemaining} {daysRemaining === 1 ? tt('day') : tt('days')} remaining
                             </span>
                           </>
                         )}
@@ -351,7 +351,7 @@ export default function SwitchTenantPage() {
                         </span>
                       ) : (
                         <span className="flex items-center justify-center">
-                          {currentTenantId === tenant.id ? 'Current' : 'Switch to'}
+                          {currentTenantId === tenant.id ? tt('Current') : tt('Switch to')}
                           {currentTenantId !== tenant.id && <ArrowRight className="w-4 h-4 ml-1" />}
                         </span>
                       )}
@@ -362,7 +362,7 @@ export default function SwitchTenantPage() {
                         setShowDeleteModal(true);
                       }}
                       className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                      title="Delete business"
+                      title={tt('Delete business')}
                     >
                       <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
@@ -380,7 +380,7 @@ export default function SwitchTenantPage() {
               <Building className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400" />
             </div>
             <h3 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">
-              {searchTerm ? 'No businesses found' : 'No businesses yet'}
+              {searchTerm ? tt('No businesses found') : tt('No businesses yet')}
             </h3>
             <p className="text-gray-600 mb-6 sm:mb-8 text-sm sm:text-base max-w-md mx-auto">
               {searchTerm 

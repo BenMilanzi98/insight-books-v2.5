@@ -127,7 +127,7 @@ const TrialCountdown = ({ subscriptionData, onUpgrade, onDismiss, className = ""
           className={`flex-shrink-0 p-2 rounded-lg hover:bg-white hover:bg-opacity-50 transition-colors ${
             urgentTrial ? 'text-orange-500 hover:text-orange-700' : 'text-blue-500 hover:text-blue-700'
           }`}
-          title="Dismiss notification"
+          title={tt('Dismiss notification')}
         >
           <X className="h-5 w-5" />
         </button>

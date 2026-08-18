@@ -163,11 +163,11 @@ export default function EISInvoicesPage() {
                       <div className="flex items-center justify-end gap-2">
                         {['Pending', 'Submitted'].includes(inv.status) && (
                           <button onClick={() => refreshStatus(inv.id)} disabled={refreshingId === inv.id}
-                            className="text-indigo-600 hover:text-indigo-800 disabled:opacity-50" title="Refresh Status">
+                            className="text-indigo-600 hover:text-indigo-800 disabled:opacity-50" title={tt('Refresh Status')}>
                             <RefreshCw className={`h-4 w-4 ${refreshingId === inv.id ? 'animate-spin' : ''}`} />
                           </button>
                         )}
-                        <button onClick={() => setSelectedInvoice(inv)} className="text-gray-500 hover:text-gray-700" title="View Details">
+                        <button onClick={() => setSelectedInvoice(inv)} className="text-gray-500 hover:text-gray-700" title={tt('View Details')}>
                           <Eye className="h-4 w-4" />
                         </button>
                       </div>

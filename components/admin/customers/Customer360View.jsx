@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -327,7 +328,7 @@ export default function Customer360View() {
           <SectionCard
             title={t('admin-pages.customers.detail.signals')}
             status={pack.signals?.status || (signalCount ? 'READY_WITH_LIMITATIONS' : 'EMPTY')}
-            statusTone={signalCount ? 'info' : 'neutral'}
+            statusTone={signalCount ? tt('info') : tt('neutral')}
           >
             {pack.signals?.ruleVersion ? (
               <p className="mb-2 text-xs text-[var(--admin-text-muted)]">

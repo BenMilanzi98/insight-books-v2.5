@@ -261,7 +261,7 @@ export const StockTransferModal = ({
                         </option>
                       ))
                     ) : (
-                      <option value="" disabled>{loadingTenants ? "Loading businesses..." : "No businesses available"}</option>
+                      <option value="" disabled>{loadingTenants ? tt('Loading businesses...') : tt('No businesses available')}</option>
                     )}
                   </select>
                   {errors.fromTenant && (
@@ -292,7 +292,7 @@ export const StockTransferModal = ({
                     disabled={!fromTenantId || loadingTenants}
                     className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${errors.toTenant ? 'border-red-500' : 'border-gray-300'} ${!fromTenantId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   >
-                    <option value="">{fromTenantId ? 'Select destination business' : 'Select source business first'}</option>
+                    <option value="">{fromTenantId ? tt('Select destination business') : tt('Select source business first')}</option>
                     {fromTenantId
                       ? tenants
                           .filter((t) => t.id !== fromTenantId)
@@ -379,7 +379,7 @@ export const StockTransferModal = ({
                                 type="button"
                                 onClick={() => handleRemoveProduct(index)}
                                 className="ml-2 p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded"
-                                title="Remove product"
+                                title={tt('Remove product')}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -451,9 +451,7 @@ export const StockTransferModal = ({
                       <span className="text-sm text-gray-700">
                         <span className="font-medium text-gray-900">{tt('Complete immediately')}</span>
                         <span className="block text-xs text-gray-500 mt-0.5">
-                          {completeImmediately
-                            ? "Stock moves now — both businesses update right away."
-                            : "Creates a pending transfer. Approve from the sending business, then receive at the destination."}
+                          {completeImmediately ? tt('Stock moves now — both businesses update right away.') : tt('Creates a pending transfer. Approve from the sending business, then receive at the destination.')}
                         </span>
                       </span>
                     </label>

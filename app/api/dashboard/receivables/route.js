@@ -10,6 +10,7 @@ import {
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
+import { OUTSTANDING_RECEIVABLE_INVOICE_FILTER } from '@/lib/receivablesInvoiceFilter';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -203,14 +204,8 @@ export async function GET(request) {
               }
             }
           : {}),
-        // Exclude voided and refunded invoices
-        voidedAt: null,
-        refundedAt: null,
-        // Include invoices with status Pending or Partial, or any invoice with remaining balance > 0
-        OR: [
-          { status: { in: ['Pending', 'Partial', 'pending', 'partial'] } },
-          { remainingBalance: { gt: 0 } }
-        ]
+        // Exclude voided, refunded, deleted, and fully paid invoices
+        ...OUTSTANDING_RECEIVABLE_INVOICE_FILTER,
       }),
       select: {
         id: true,

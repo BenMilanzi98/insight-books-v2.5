@@ -119,7 +119,7 @@ export default function TaxPeriodsPage() {
   return (
     <div className="container mx-auto py-2">
       <PageHeader
-        title="Tax periods"
+        title={tt('Tax periods')}
         description="Filing calendar with open → closed → filed state machine."
         actions={
           canUpdate ? (

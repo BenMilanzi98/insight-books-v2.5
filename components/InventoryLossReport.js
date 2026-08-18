@@ -116,7 +116,7 @@ export const InventoryLossReport = ({
                       >
                         <td className="px-4 py-2.5 text-sm text-slate-800">{new Date(item.date).toLocaleDateString()}</td>
                         <td className="px-4 py-2.5 text-sm text-slate-700">
-                          {item.eventType === 'write_off' ? 'Write-off' : 'Stock-out'}
+                          {item.eventType === 'write_off' ? tt('Write-off') : tt('Stock-out')}
                         </td>
                         <td className="px-4 py-2.5 text-sm text-slate-800">{item.description || 'Inventory adjustment loss'}</td>
                         <td className="px-4 py-2.5 text-sm text-right font-medium text-slate-800">{formatCurrency(item.amount || 0)}</td>

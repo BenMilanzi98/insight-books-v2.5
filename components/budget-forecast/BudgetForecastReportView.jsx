@@ -17,6 +17,8 @@ function defaultDraft(budgets = [], forecasts = [], seed = {}) {
     reportId: seed.reportId || 'BVA',
     budgetId: seed.budgetId || budgets[0]?.id || '',
     forecastId: seed.forecastId || forecasts[0]?.id || '',
+    periodGranularity: seed.periodGranularity || 'MONTH',
+    periodKey: seed.periodKey || 'ALL',
   };
 }
 
@@ -96,6 +98,33 @@ export default function BudgetForecastReportView() {
       setLoading(true);
       setError('');
       try {
+        if (format === 'xlsx' || format === 'pdf') {
+          const res = await fetch('/api/budget-forecast/reports/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reportId: scope.reportId,
+              budgetId: scope.budgetId || undefined,
+              forecastId: scope.forecastId || undefined,
+              periodGranularity: scope.periodGranularity || undefined,
+              periodKey: scope.periodKey || undefined,
+              format,
+            }),
+          });
+          if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            throw new Error(json.error || 'Export failed');
+          }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${String(scope.reportId).toLowerCase()}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+          a.click();
+          URL.revokeObjectURL(url);
+          return;
+        }
+
         const res = await fetch('/api/budget-forecast/reports', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -103,6 +132,8 @@ export default function BudgetForecastReportView() {
             reportId: scope.reportId,
             budgetId: scope.budgetId || undefined,
             forecastId: scope.forecastId || undefined,
+            periodGranularity: scope.periodGranularity || undefined,
+            periodKey: scope.periodKey || undefined,
             format,
           }),
         });
@@ -152,6 +183,10 @@ export default function BudgetForecastReportView() {
 
   const title = report?.name || definitions.find((d) => d.id === applied.reportId)?.name || 'Budget reports';
   const lines = displayLines(report);
+  const pnlRows = report?.pnlGrouped?.rows || [];
+  const usePnlLayout =
+    (applied.reportId === 'BVA' || applied.reportId === 'BUDGET') && pnlRows.length > 0;
+  const pnlPlanOnly = usePnlLayout && (report?.reportId === 'BUDGET' || applied.reportId === 'BUDGET');
   const cashRows = cashOutlookRows(report);
   const isPlanOnly = report?.reportId === 'BUDGET' || applied.reportId === 'BUDGET';
   const isCompletion = report?.reportId === 'COMPLETION' || applied.reportId === 'COMPLETION';
@@ -164,7 +199,7 @@ export default function BudgetForecastReportView() {
       loading={loading}
       loadingLabel={`Generating ${title}…`}
       error={error || null}
-      exportFormats={['csv']}
+      exportFormats={['csv', 'xlsx', 'pdf']}
       onExport={(format) => run(format)}
       filtersOpen={filtersOpen}
       onToggleFilters={(next) => setFiltersOpen(typeof next === 'boolean' ? next : (v) => !v)}
@@ -184,19 +219,42 @@ export default function BudgetForecastReportView() {
     >
       {isCompletion && report?.completion ? (
         <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-          Completion score: <strong>{report.completion.percent}%</strong>
+          {tt('Completion score:')} <strong>{report.completion.percent}%</strong>
           {(report.completion.remaining || []).length ? (
             <span className="ml-2 text-blue-800">
               Remaining: {(report.completion.remaining || []).join(' · ')}
             </span>
           ) : (
-            <span className="ml-2">Budget checklist is complete.</span>
+            <span className="ml-2">{tt('Budget checklist is complete.')}</span>
           )}
         </div>
       ) : null}
 
       {!report && !loading ? (
         <p className="py-8 text-sm text-slate-500">{tt('Choose a report and click Apply.')}</p>
+      ) : null}
+
+      {report?.insight && (showVariance || isPlanOnly) ? (
+        <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+          {report.insight}
+        </div>
+      ) : null}
+
+      {report?.totals && isPlanOnly && report.totals.netProfit != null ? (
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">{tt('Planned revenue')}</p>
+            <p className="text-lg font-bold text-slate-900">{formatCurrency(report.totals.revenue || 0)}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">{tt('Gross profit')}</p>
+            <p className="text-lg font-bold text-slate-900">{formatCurrency(report.totals.grossProfit || 0)}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">{tt('Net profit')}</p>
+            <p className="text-lg font-bold text-slate-900">{formatCurrency(report.totals.netProfit || 0)}</p>
+          </div>
+        </div>
       ) : null}
 
       {report?.totals && showVariance ? (
@@ -229,7 +287,7 @@ export default function BudgetForecastReportView() {
               <tbody>
                 {cashRows.map((row, i) => (
                   <tr key={row.label} className={`border-b border-slate-100 ${i % 2 ? 'bg-slate-50/70' : ''}`}>
-                    <td className={`py-2.5 pr-4 ${row.total ? 'font-bold text-slate-900' : 'font-semibold text-blue-600'}`}>
+                    <td className={`py-2.5 pr-4 ${row.total ? tt('font-bold text-slate-900') : tt('font-semibold text-blue-600')}`}>
                       {row.label}
                     </td>
                     <td className={`px-3 py-2.5 text-right tabular-nums ${row.total ? 'font-bold' : 'text-slate-700'}`}>
@@ -275,7 +333,79 @@ export default function BudgetForecastReportView() {
         </div>
       ) : null}
 
-      {lines.length ? (
+      {usePnlLayout ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b-2 border-blue-600 text-left text-xs uppercase tracking-wide text-blue-600">
+                <th className="py-3 pr-4 font-semibold">{tt('Account / Section')}</th>
+                <th className="whitespace-nowrap px-3 py-3 text-right font-semibold">
+                  {pnlPlanOnly ? tt('Planned') : tt('Budget')}
+                </th>
+                {!pnlPlanOnly ? (
+                  <>
+                    <th className="whitespace-nowrap px-3 py-3 text-right font-semibold">{tt('Actual')}</th>
+                    <th className="whitespace-nowrap px-3 py-3 text-right font-semibold">{tt('Variance')}</th>
+                  </>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody>
+              {pnlRows.map((row, i) => {
+                const colSpan = pnlPlanOnly ? 2 : 4;
+                if (row.rowType === 'SECTION') {
+                  return (
+                    <tr key={`${row.lineId}-${i}`} className="border-t-2 border-slate-200 bg-slate-100/80">
+                      <td colSpan={colSpan} className="py-2.5 pl-3 text-xs font-bold uppercase tracking-wide text-slate-700">
+                        {row.label}
+                      </td>
+                    </tr>
+                  );
+                }
+                const favourable = row.isFavourable !== false && Number(row.variance) >= 0;
+                const isCalc = row.rowType === 'CALCULATED';
+                const planned = row.budget ?? row.total ?? 0;
+                return (
+                  <tr
+                    key={row.accountId || row.lineId || i}
+                    className={`border-b border-slate-100 ${isCalc ? 'bg-indigo-50/50 font-semibold' : i % 2 ? 'bg-slate-50/70' : ''}`}
+                  >
+                    <td className={`py-2.5 pr-4 ${isCalc ? '' : 'pl-6'}`}>
+                      {row.accountCode ? (
+                        <>
+                          <span className="font-semibold text-blue-600">{row.accountCode}</span>
+                          <span className="ml-2 text-slate-700">{row.accountName}</span>
+                        </>
+                      ) : (
+                        row.label
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                      {formatCurrency(planned)}
+                    </td>
+                    {!pnlPlanOnly ? (
+                      <>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                          {formatCurrency(row.actual || 0)}
+                        </td>
+                        <td
+                          className={`whitespace-nowrap px-3 py-2.5 text-right tabular-nums ${
+                            favourable ? 'font-medium text-emerald-600' : 'text-red-600'
+                          }`}
+                        >
+                          {formatCurrency(row.variance || 0)}
+                        </td>
+                      </>
+                    ) : null}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {!usePnlLayout && lines.length ? (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>

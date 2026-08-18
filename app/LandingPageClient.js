@@ -942,7 +942,7 @@ function PricingSection() {
 
         <div className="mt-8 flex-1">
           <h4 className="mb-4 text-xs font-bold uppercase tracking-wider text-blue-900/70">
-            {plan.requiresEIS ? 'MRA EIS includes' : 'Everything included'}
+            {plan.requiresEIS ? tt('MRA EIS includes') : tt('Everything included')}
           </h4>
           <ul className="max-h-[340px] space-y-2.5 overflow-y-auto pr-1 text-sm [scrollbar-width:thin]">
             {featureList.map((feature, fIndex) => (

@@ -68,7 +68,7 @@ function ReportStudioToolbar({
                 >
                   <span className="flex items-center gap-2">
                     <Download className="h-4 w-4" />
-                    Export {f.toUpperCase()}
+                    {tt('Export')} {f.toUpperCase()}
                   </span>
                 </DashboardMenuItem>
               ))}
@@ -92,7 +92,7 @@ function ReportStudioToolbar({
       <button
         type="button"
         disabled
-        title="Email send is not configured for financial reports"
+        title={tt('Email send is not configured for financial reports')}
         className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white opacity-60"
       >
         <Send className="h-3.5 w-3.5" />
@@ -168,7 +168,7 @@ export default function ReportStudioShell({
               {tt('Financial')}
             </span>
             {reportTitle ? (
-              <span className="text-xl font-bold text-slate-800 sm:text-2xl">{reportTitle}</span>
+              <span className="text-xl font-bold text-slate-800 sm:text-2xl">{tt(reportTitle)}</span>
             ) : null}
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{toolbar}</div>
@@ -187,7 +187,7 @@ export default function ReportStudioShell({
             {loading ? (
               <div className="flex items-center gap-2 py-12 text-slate-600">
                 <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                {loadingLabel}
+                {tt(loadingLabel)}
               </div>
             ) : (
               children

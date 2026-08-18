@@ -566,7 +566,7 @@ export default function AdminDashboard() {
             <AdminChartCard
               className="xl:col-span-2"
               accent="emerald"
-              title="Tenant mix"
+              title={tt('Tenant mix')}
               description="Active, trial, and inactive tenants by subscription status."
               loading={loading && !growth}
               error={growthError || undefined}
@@ -625,7 +625,7 @@ export default function AdminDashboard() {
             <AdminChartCard
               className="xl:col-span-3"
               accent="amber"
-              title="User growth"
+              title={tt('User growth')}
               description="New users created per month (last 6 months)."
               loading={loading && !userStats && !growth}
               error={userStatsError && growthError ? userStatsError : undefined}

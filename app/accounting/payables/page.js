@@ -444,7 +444,7 @@ const AccountsPayable = () => {
           icon={Building}
           active={false}
           onClick={() => setStatusFilter('All')}
-          title="Show all payables"
+          title={tt('Show all payables')}
           iconWrapClassName="bg-blue-100 text-blue-600"
           barClassName="from-blue-400 via-sky-500 to-indigo-500"
         />
@@ -660,7 +660,7 @@ const AccountsPayable = () => {
                       <button
                         onClick={() => handleViewPayable(payable)}
                         className="text-indigo-600 hover:text-indigo-900 p-1"
-                        title="View Details"
+                        title={tt('View Details')}
                       >
                         <Eye className="h-4 w-4" />
                       </button>
@@ -670,7 +670,7 @@ const AccountsPayable = () => {
               ) : (
                 <tr>
                   <td colSpan="10" className="px-6 py-4 text-center text-sm text-gray-500">
-                    {isLoading ? "Loading payables..." : "No outstanding payables found."}
+                    {isLoading ? tt('Loading payables...') : tt('No outstanding payables found.')}
                   </td>
                 </tr>
               )}
@@ -685,7 +685,7 @@ const AccountsPayable = () => {
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
               <h2 className="text-xl font-semibold">
-                {viewingPayable.type === 'bill' ? 'Supplier Bill Details' : 'Expense Details'}
+                {viewingPayable.type === 'bill' ? tt('Supplier Bill Details') : tt('Expense Details')}
               </h2>
               <button
                 className="text-gray-400 hover:text-gray-600"

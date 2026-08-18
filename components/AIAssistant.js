@@ -146,7 +146,7 @@ const AIAssistant = () => {
               alignItems: 'center',
               justifyContent: 'center'
             }}
-            title="AI Assistant - Get Help"
+            title={tt('AI Assistant - Get Help')}
           >
             <Sparkles size={24} />
           </button>
@@ -178,14 +178,14 @@ const AIAssistant = () => {
                 <button
                   onClick={handleToggle}
                   className="text-white/80 hover:text-white transition-colors p-1"
-                  title={isMinimized ? "Maximize" : "Minimize"}
+                  title={isMinimized ? tt('Maximize') : tt('Minimize')}
                 >
                   {isMinimized ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
                 </button>
                 <button
                   onClick={handleClose}
                   className="text-white/80 hover:text-white transition-colors p-1"
-                  title="Close"
+                  title={tt('Close')}
                 >
                   <X size={16} />
                 </button>
@@ -199,7 +199,7 @@ const AIAssistant = () => {
                   {messages.map((message, index) => (
                     <div
                       key={index}
-                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                      className={`flex ${message.role === 'user' ? tt('justify-end') : tt('justify-start')}`}
                     >
                       <div
                         className={`max-w-[80%] rounded-lg px-4 py-2 ${
@@ -249,7 +249,7 @@ const AIAssistant = () => {
                       onClick={handleSend}
                       disabled={!input.trim() || isLoading}
                       className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg px-4 py-2 transition-colors duration-200 flex items-center justify-center"
-                      title="Send message"
+                      title={tt('Send message')}
                     >
                       {isLoading ? (
                         <Loader2 size={18} className="animate-spin" />

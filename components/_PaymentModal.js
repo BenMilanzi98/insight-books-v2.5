@@ -197,7 +197,7 @@ const PaymentModal = ({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center p-4 border-b border-gray-200">
           <h2 className="text-xl font-semibold">
-            {mode === "create" ? "Record New Payment" : "Edit Payment"}
+            {mode === "create" ? tt('Record New Payment') : tt('Edit Payment')}
           </h2>
           <button
             onClick={onClose}

@@ -107,7 +107,7 @@ export default function EmailTemplatesPage() {
         key: 'status',
         header: 'Status',
         render: (t) => (
-          <AdminStatusBadge tone={t.status === 'ACTIVE' ? 'success' : 'neutral'}>
+          <AdminStatusBadge tone={t.status === 'ACTIVE' ? tt('success') : tt('neutral')}>
             {t.status}
           </AdminStatusBadge>
         ),
@@ -138,7 +138,7 @@ export default function EmailTemplatesPage() {
         <AdminErrorState message={error} onRetry={load} />
       ) : null}
       {!loading && !error && templates.length === 0 ? (
-        <AdminEmptyState title="No templates" description="Create a versioned template to get started." />
+        <AdminEmptyState title={tt('No templates')} description="Create a versioned template to get started." />
       ) : null}
       {!loading && templates.length > 0 ? (
         <AdminDataTable columns={columns} rows={templates} rowKey="id" />
@@ -147,7 +147,7 @@ export default function EmailTemplatesPage() {
       <AdminModal
         open={showForm}
         onClose={() => setShowForm(false)}
-        title="New template version"
+        title={tt('New template version')}
         size="lg"
         footer={
           <>
@@ -155,7 +155,7 @@ export default function EmailTemplatesPage() {
               {tt('Cancel')}
             </button>
             <button type="submit" form="email-template-form" disabled={saving} className={btnPrimary}>
-              {saving ? 'Saving…' : 'Save version'}
+              {saving ? tt('Saving…') : tt('Save version')}
             </button>
           </>
         }

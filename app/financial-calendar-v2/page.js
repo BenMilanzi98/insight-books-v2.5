@@ -244,7 +244,7 @@ function CloseDashboard({ period, runDetail, refresh, notify }) {
               <tr key={t.taskKey} className="border-b border-slate-100">
                 <td className="px-2 py-1.5 font-medium text-slate-700">
                   {t.name}
-                  {t.blocking && <span className="ml-1 text-rose-500" title="Blocking">•</span>}
+                  {t.blocking && <span className="ml-1 text-rose-500" title={tt('Blocking')}>•</span>}
                 </td>
                 <td className="px-2 py-1.5 text-slate-500">{t.module}</td>
                 <td className="px-2 py-1.5 text-slate-500">{t.kind}</td>
@@ -388,7 +388,7 @@ function PeriodDetail({ periodId, onClose, notify, onChanged }) {
       <div className="mb-4 flex flex-wrap gap-2">
         {(period.status === 'OPEN' || period.status === 'REOPENED') && !activeCloseRun && (
           <button type="button" disabled={busy} onClick={() => act({ action: 'begin-close' }, period.status === 'REOPENED' ? 'Re-close started (new close run version).' : 'Close started.')} className="flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50">
-            <PlayCircle className="h-3.5 w-3.5" /> {period.status === 'REOPENED' ? 'Begin re-close' : 'Begin close'}
+            <PlayCircle className="h-3.5 w-3.5" /> {period.status === 'REOPENED' ? tt('Begin re-close') : tt('Begin close')}
           </button>
         )}
         {period.status === 'CLOSED' && (
@@ -692,7 +692,7 @@ export default function FinancialCalendarV2Page() {
     <div className="w-full">
       <div className="w-full px-4 py-6 pb-12 sm:px-6 lg:px-8 lg:py-8">
         <PosStylePageHeader
-          title="Financial Calendar"
+          title={tt('Financial Calendar')}
           description="Canonical financial years, controlled period close, reopening and audit — server-enforced."
         />
 
@@ -713,7 +713,7 @@ export default function FinancialCalendarV2Page() {
         ) : null}
 
         {alert && (
-          <div className={`mb-6 flex items-center gap-3 rounded-xl p-4 shadow-sm ${alert.type === 'success' ? 'border border-emerald-200 bg-emerald-50 text-emerald-800' : 'border border-rose-200 bg-rose-50 text-rose-800'}`}>
+          <div className={`mb-6 flex items-center gap-3 rounded-xl p-4 shadow-sm ${alert.type === 'success' ? tt('border border-emerald-200 bg-emerald-50 text-emerald-800') : tt('border border-rose-200 bg-rose-50 text-rose-800')}`}>
             {alert.type === 'success' ? <Check className="h-5 w-5 shrink-0" /> : <AlertCircle className="h-5 w-5 shrink-0" />}
             <span className="text-sm">{alert.message}</span>
           </div>

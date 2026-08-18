@@ -430,7 +430,7 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
                         onClick={() => downloadReceipt(payment.id, 'individual')}
                         disabled={isCapturingReceipt}
                         className="inline-flex items-center px-3 py-1 bg-gray-100 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Download Receipt"
+                        title={tt('Download Receipt')}
                       >
                       {isCapturingReceipt ? (
                         <>
@@ -445,7 +445,7 @@ const ExpensePaymentHistory = ({ expenseId, onPaymentAdded }) => {
                       )}
                       </button>
                     ) : (
-                      <span className="inline-flex items-center px-3 py-1 bg-gray-50 text-gray-500 text-sm font-medium rounded-md cursor-not-allowed" title="Receipt not available for legacy payments">
+                      <span className="inline-flex items-center px-3 py-1 bg-gray-50 text-gray-500 text-sm font-medium rounded-md cursor-not-allowed" title={tt('Receipt not available for legacy payments')}>
                         <Receipt className="h-4 w-4 mr-1" />
                         {tt('Legacy')}
                       </span>

@@ -277,7 +277,7 @@ export default function MraEisCataloguePage() {
                     <td className="px-3 py-2">{p.unitOfMeasure || '—'}</td>
                     <td className="px-3 py-2">{String(p.sellingPrice ?? '—')}</td>
                     <td className="px-3 py-2">{String(p.quantity ?? '—')}</td>
-                    <td className="px-3 py-2">{p.active ? 'Yes' : 'No'}</td>
+                    <td className="px-3 py-2">{p.active ? tt('Yes') : tt('No')}</td>
                   </tr>
                 ))}
                 {products.length === 0 && (
@@ -313,7 +313,7 @@ export default function MraEisCataloguePage() {
                     <td className="px-3 py-2">{s.name}</td>
                     <td className="px-3 py-2">{s.unitOfMeasure || '—'}</td>
                     <td className="px-3 py-2">{String(s.sellingPrice ?? '—')}</td>
-                    <td className="px-3 py-2">{s.active ? 'Yes' : 'No'}</td>
+                    <td className="px-3 py-2">{s.active ? tt('Yes') : tt('No')}</td>
                   </tr>
                 ))}
                 {services.length === 0 && (

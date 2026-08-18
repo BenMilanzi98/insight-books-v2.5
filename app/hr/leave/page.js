@@ -160,7 +160,7 @@ export default function LeaveManagement() {
   return (
     <div className="p-6">
       <PosStylePageHeader
-        title="Leave Management"
+        title={tt('Leave Management')}
         description="Manage leave policies and requests"
       />
 
@@ -256,7 +256,7 @@ export default function LeaveManagement() {
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                         policy.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                       }`}>
-                        {policy.isActive ? 'Active' : 'Inactive'}
+                        {policy.isActive ? tt('Active') : tt('Inactive')}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -342,14 +342,14 @@ export default function LeaveManagement() {
                             <button
                               onClick={() => handleApproveReject(request.id, 'approve')}
                               className="text-green-600 hover:text-green-900"
-                              title="Approve"
+                              title={tt('Approve')}
                             >
                               <CheckIcon className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => handleApproveReject(request.id, 'reject')}
                               className="text-red-600 hover:text-red-900"
-                              title="Reject"
+                              title={tt('Reject')}
                             >
                               <XMarkIcon className="h-4 w-4" />
                             </button>
@@ -361,7 +361,7 @@ export default function LeaveManagement() {
                             setShowRequestModal(true);
                           }}
                           className="text-blue-600 hover:text-blue-900"
-                          title="View Details"
+                          title={tt('View Details')}
                         >
                           <EyeIcon className="h-4 w-4" />
                         </button>
@@ -494,7 +494,7 @@ function LeaveBalancesTab() {
           disabled={loading}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? 'Recalculating...' : 'Recalculate All Balances'}
+          {loading ? tt('Recalculating...') : tt('Recalculate All Balances')}
         </button>
       </div>
 
@@ -698,7 +698,7 @@ function PolicyModal({ policy, onClose, onSubmit }) {
       <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <div className="mt-3">
           <h3 className="text-lg font-medium text-gray-900 mb-4">
-            {policy ? 'Edit Leave Policy' : 'Add Leave Policy'}
+            {policy ? tt('Edit Leave Policy') : tt('Add Leave Policy')}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -781,7 +781,7 @@ function PolicyModal({ policy, onClose, onSubmit }) {
                 type="submit"
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
               >
-                {policy ? 'Update' : 'Create'}
+                {policy ? tt('Update') : tt('Create')}
               </button>
             </div>
           </form>
@@ -864,7 +864,7 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
       <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <div className="mt-3">
           <h3 className="text-lg font-medium text-gray-900 mb-4">
-            {request ? 'View Leave Request' : 'New Leave Request'}
+            {request ? tt('View Leave Request') : tt('New Leave Request')}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             {!request && (

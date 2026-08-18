@@ -5,7 +5,7 @@ import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function AdminErrorState({
-  title = 'Something went wrong',
+  title = {tt('Something went wrong')},
   message,
   onRetry,
   className,

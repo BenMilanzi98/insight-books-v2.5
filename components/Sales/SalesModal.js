@@ -285,7 +285,7 @@ const SalesModal = ({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center p-4 border-b border-gray-200">
           <h2 className="text-xl font-semibold">
-            {mode === "create" ? "Create New POS Transaction" : "Edit POS Transaction"}
+            {mode === "create" ? tt('Create New POS Transaction') : tt('Edit POS Transaction')}
           </h2>
           <button
             onClick={onClose}
@@ -340,7 +340,7 @@ const SalesModal = ({
                   onChange={handleChange}
                   disabled={isLoadingPaymentAccounts}
                 >
-                  <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                  <option value="">{isLoadingPaymentAccounts ? tt('Loading accounts...') : tt('Select an account')}</option>
                   {paymentAccounts.map(account => (
                     <option key={account.id} value={account.id}>
                       {account.name} {account.accountType ? `(${account.accountType})` : ''}

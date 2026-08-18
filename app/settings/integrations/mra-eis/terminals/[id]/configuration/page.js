@@ -80,7 +80,7 @@ export default function TerminalConfigurationPage() {
             </div>
             <div>
               <dt className="text-slate-500">{tt('Processing paused')}</dt>
-              <dd className="font-medium">{health.processingPaused ? 'Yes' : 'No'}</dd>
+              <dd className="font-medium">{health.processingPaused ? tt('Yes') : tt('No')}</dd>
             </div>
             <div>
               <dt className="text-slate-500">{tt('Global version')}</dt>
@@ -97,7 +97,7 @@ export default function TerminalConfigurationPage() {
             <div>
               <dt className="text-slate-500">Offline (MRA flag)</dt>
               <dd className="font-medium">
-                {health.offlineAllowedByMra ? 'Allowed by MRA' : 'Not allowed'} · local offline disabled
+                {health.offlineAllowedByMra ? tt('Allowed by MRA') : tt('Not allowed')} · local offline disabled
               </dd>
             </div>
             <div>
@@ -122,7 +122,7 @@ export default function TerminalConfigurationPage() {
             className="mt-4 rounded bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
             onClick={syncNow}
           >
-            {busy ? 'Synchronizing…' : 'Request manual sync'}
+            {busy ? tt('Synchronizing…') : tt('Request manual sync')}
           </button>
         </section>
       )}

@@ -710,7 +710,7 @@ function ReviewPanel({ stepId, preview, loadPreview, runAction, run, saving }) {
           onClick={loadPreview}
           className="rounded-md border border-slate-300 px-3 py-2"
         >
-          {saving ? "Working…" : "Run Trial Balance & reconciliations"}
+          {saving ? tt('Working…') : tt('Run Trial Balance & reconciliations')}
         </button>
         {stepId === "approval" || stepId === "posting" ? (
           <>

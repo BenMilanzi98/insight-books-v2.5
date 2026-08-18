@@ -128,7 +128,7 @@ export default function AdminMraEisTenantDetailPage() {
       ) : null}
 
       {!data && error ? (
-        <AdminErrorState title="Tenant EIS unavailable" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Tenant EIS unavailable')} message={error} onRetry={load} />
       ) : null}
 
       {data ? (
@@ -147,7 +147,7 @@ export default function AdminMraEisTenantDetailPage() {
               <div>
                 <dt className="text-[var(--admin-text-muted)]">{tt('Production allowed')}</dt>
                 <dd className="mt-1 font-medium text-[var(--admin-text)]">
-                  {data?.entitlement?.productionAllowed ? 'Yes' : 'No'}
+                  {data?.entitlement?.productionAllowed ? tt('Yes') : tt('No')}
                 </dd>
               </div>
               <div>
@@ -211,7 +211,7 @@ export default function AdminMraEisTenantDetailPage() {
             <h2 className="text-base font-semibold text-[var(--admin-text)]">{tt('Audit history')}</h2>
             {(data?.audit || []).length === 0 ? (
               <div className="mt-3">
-                <AdminEmptyState title="No audit entries" description="Actions will appear here." />
+                <AdminEmptyState title={tt('No audit entries')} description="Actions will appear here." />
               </div>
             ) : (
               <ul className="mt-3 space-y-2 text-sm">

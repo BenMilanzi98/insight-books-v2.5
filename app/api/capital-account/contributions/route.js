@@ -108,6 +108,8 @@ export async function GET(request) {
         type: c.type,
         description: c.description || '',
         reference: c.reference || '',
+        journalId: c.journalId || c.id,
+        isReversed: Boolean(c.isReversed),
         debitAccountName: c.debitAccountName,
         coaAccountCode: c.contributionAccountCode,
         createdAt: c.date,

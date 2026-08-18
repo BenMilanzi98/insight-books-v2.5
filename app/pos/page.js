@@ -2456,7 +2456,7 @@ const POSPage = () => {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
             {isSyncing ? <Loader className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            {isSyncing ? 'Syncing...' : 'Sync Now'}
+            {isSyncing ? tt('Syncing...') : tt('Sync Now')}
           </button>
         </div>
       )}
@@ -2719,7 +2719,7 @@ const POSPage = () => {
                       onClick={() => setShowBatchUpload(!showBatchUpload)}
                     >
                       <Package className="w-3 h-3 mr-1" />
-                      {showBatchUpload ? 'Single Entry' : 'CSV Import'}
+                      {showBatchUpload ? tt('Single Entry') : tt('CSV Import')}
                     </button>
                   </div>
                 </div>
@@ -2962,7 +2962,7 @@ const POSPage = () => {
                                   type="button"
                                   onClick={() => removeTaxFromProduct(product.id)}
                                   className="text-gray-400 hover:text-red-500 ml-1"
-                                  title="Remove tax"
+                                  title={tt('Remove tax')}
                                 >
                                   <X className="w-3 h-3" />
                                 </button>
@@ -2993,7 +2993,7 @@ const POSPage = () => {
                                           type="button"
                                           onClick={() => { setIsAddingPosTax(true); fetchPosTaxAccounts(); }}
                                           className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
-                                          title="Add new tax type"
+                                          title={tt('Add new tax type')}
                                         >
                                           <Plus className="w-3.5 h-3.5" />
                                         </button>
@@ -3060,7 +3060,7 @@ const POSPage = () => {
                                           disabled={!newPosTax.taxName.trim() || newPosTax.taxRate === '' || !newPosTax.accountId || addingPosTaxLoading}
                                           className="px-2 py-1 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                          {addingPosTaxLoading ? 'Saving...' : 'Save'}
+                                          {addingPosTaxLoading ? tt('Saving...') : tt('Save')}
                                         </button>
                                       </div>
                                     </div>
@@ -3092,7 +3092,7 @@ const POSPage = () => {
                           <button 
                             className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
                             onClick={() => removeProduct(product.id)}
-                            title="Remove product"
+                            title={tt('Remove product')}
                           >
                             <Trash2 className="w-5 h-5" />
                           </button>
@@ -3290,7 +3290,7 @@ const POSPage = () => {
                       : 'border-gray-300 hover:bg-gray-50 text-gray-700'
                   }`}
                 >
-                  {showSplitPayment ? 'Hide Split Payment' : 'Split Payment'}
+                  {showSplitPayment ? tt('Hide Split Payment') : tt('Split Payment')}
                 </button>
                 {showSplitPayment && (
                   <div className="mt-2 p-2 border border-blue-200 bg-blue-50/40 rounded-lg space-y-2">
@@ -3830,7 +3830,7 @@ const POSPage = () => {
                   className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white disabled:opacity-50"
                   onClick={submitPosDeposits}
                 >
-                  {posCashActionLoading ? 'Saving…' : 'Save deposits'}
+                  {posCashActionLoading ? tt('Saving…') : tt('Save deposits')}
                 </button>
               </div>
             </div>
@@ -3916,7 +3916,7 @@ const POSPage = () => {
                           <button
                             className="text-blue-600 hover:text-blue-800 p-1.5 rounded-lg hover:bg-blue-100 transition-colors"
                             onClick={() => viewSaleDetails(sale.id)}
-                            title="View Details"
+                            title={tt('View Details')}
                           >
                             <Info className="w-4 h-4" />
                           </button>
@@ -3927,7 +3927,7 @@ const POSPage = () => {
                                 setSelectedSaleForAction(sale);
                                 setShowVoidModal(true);
                               }}
-                              title="Void Sale"
+                              title={tt('Void Sale')}
                             >
                               <Ban className="w-4 h-4" />
                             </button>
@@ -3939,7 +3939,7 @@ const POSPage = () => {
                                 setSelectedSaleForAction(sale);
                                 setShowRefundModal(true);
                               }}
-                              title="Refund Sale"
+                              title={tt('Refund Sale')}
                             >
                               <RotateCcw className="w-4 h-4" />
                             </button>

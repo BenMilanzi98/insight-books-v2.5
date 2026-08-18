@@ -443,7 +443,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
         </p>
       )}
 
-      <FormSection title="Receipt Details" description="Supplier, dates, and posting status.">
+      <FormSection title={tt('Receipt Details')} description="Supplier, dates, and posting status.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-gray-700">
@@ -539,7 +539,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
 
       {isServiceMode ? (
         <FormSection
-          title="Service Receipt Confirmation"
+          title={tt('Service Receipt Confirmation')}
           description="Confirms service completion for a services/mixed PO. This does not update inventory stock."
         >
           <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
@@ -547,7 +547,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
           </div>
         </FormSection>
       ) : (
-        <FormSection title="Items Received">
+        <FormSection title={tt('Items Received')}>
           <div className="space-y-3">
             {items.map((item, idx) => (
               <div
@@ -713,7 +713,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
         </FormSection>
       )}
 
-      <FormSection title="Notes" description="Optional internal notes for this receipt.">
+      <FormSection title={tt('Notes')} description="Optional internal notes for this receipt.">
         <textarea
           name="notes"
           value={form.notes}
@@ -737,7 +737,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
           disabled={saving}
           className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white  hover:bg-indigo-700 disabled:opacity-50"
         >
-          {saving ? "Posting..." : "Post Receipt"}
+          {saving ? tt('Posting...') : tt('Post Receipt')}
         </button>
       </div>
     </form>
@@ -875,7 +875,7 @@ export default function GoodsReceiptsPage() {
         fetchReceipts({ status: statusFilter, supplierId: supplierFilter }),
         fetch("/api/purchases/suppliers").then((res) => res.json()),
         fetch("/api/stock").then((res) => res.json()),
-        fetch("/api/purchases/orders?status=Approved").then((res) => res.json()),
+        fetch("/api/purchases/orders?limit=200").then((res) => res.json()),
       ]);
       const allReceipts = receiptData.receipts ?? [];
       const filteredReceipts =
@@ -964,19 +964,17 @@ export default function GoodsReceiptsPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">
-            {activeReceiptTab === "service" ? "Service Receipts" : "Goods Receipts"}
+            {activeReceiptTab === "service" ? tt('Service Receipts') : tt('Goods Receipts')}
           </h1>
           <p className="text-sm text-gray-500">
-            {activeReceiptTab === "service"
-              ? "Confirm completed service deliveries separately from inventory receipts."
-              : "Receive purchased items and update inventory with average cost."}
+            {activeReceiptTab === "service" ? tt('Confirm completed service deliveries separately from inventory receipts.') : tt('Receive purchased items and update inventory with average cost.')}
           </p>
         </div>
         <button
           onClick={() => setShowForm(true)}
           className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white  hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
-          {activeReceiptTab === "service" ? "Receive Service" : "Receive Goods"}
+          {activeReceiptTab === "service" ? tt('Receive Service') : tt('Receive Goods')}
         </button>
       </div>
 
@@ -1092,7 +1090,7 @@ export default function GoodsReceiptsPage() {
           <p className="text-sm text-red-500">{error}</p>
         ) : receipts.length === 0 ? (
           <p className="text-sm text-gray-500">
-            {activeReceiptTab === "service" ? "No service receipts found." : "No goods receipts found."}
+            {activeReceiptTab === "service" ? tt('No service receipts found.') : tt('No goods receipts found.')}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -1180,7 +1178,7 @@ export default function GoodsReceiptsPage() {
           <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-6 ">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">
-                {activeReceiptTab === "service" ? "Receive Service" : "Receive Goods"}
+                {activeReceiptTab === "service" ? tt('Receive Service') : tt('Receive Goods')}
               </h2>
               <button
                 onClick={() => setShowForm(false)}

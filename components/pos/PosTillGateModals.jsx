@@ -133,7 +133,7 @@ export default function PosTillGateModals({
                 disabled={actionLoading}
                 className="w-full rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-2.5"
               >
-                {actionLoading ? 'Opening…' : cashDayState?.tillClosed ? 'Reopen till' : 'Open till'}
+                {actionLoading ? 'Opening…' : cashDayState?.tillClosed ? tt('Reopen till') : tt('Open till')}
               </button>
             </div>
           </div>
@@ -200,7 +200,7 @@ export default function PosTillGateModals({
                   disabled={actionLoading}
                   className="flex-1 rounded-lg bg-slate-900 text-white py-2.5 font-semibold disabled:opacity-50"
                 >
-                  {actionLoading ? 'Closing…' : 'Close till now'}
+                  {actionLoading ? tt('Closing…') : tt('Close till now')}
                 </button>
               </div>
             </div>

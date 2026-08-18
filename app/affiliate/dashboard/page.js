@@ -240,7 +240,7 @@ export default function AffiliateDashboard() {
                 onClick={() => setShowReferrals(!showReferrals)}
                 className="text-sm text-indigo-600 hover:text-indigo-900"
               >
-                {showReferrals ? 'Hide Details' : 'Show Details'}
+                {showReferrals ? tt('Hide Details') : tt('Show Details')}
               </button>
             </div>
           </div>

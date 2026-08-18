@@ -55,7 +55,7 @@ export const FinancialRatiosReport = ({
   
   return (
     <FinancialReport
-      title="Financial Ratios"
+      title={tt('Financial Ratios')}
       subtitle={data?.period ? formatPeriodRange(data.period.startDate, data.period.endDate) : "Financial Health Indicators"}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}

@@ -448,7 +448,7 @@ const SalesListPage = () => {
               className="px-4 py-2 border border-emerald-300 bg-emerald-50 text-emerald-900 rounded-md flex items-center"
               onClick={handleExportReceiptsPdf}
               disabled={isExporting || isExportingReceiptsPdf}
-              title="Download all receipts in the selected date range as one PDF"
+              title={tt('Download all receipts in the selected date range as one PDF')}
             >
               {isExportingReceiptsPdf ? (
                 <>
@@ -760,7 +760,7 @@ const SalesListPage = () => {
                             <button
                               className="p-1.5 rounded-lg text-blue-600 hover:text-blue-800 hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               onClick={(e) => pagePermissions.canRefundSales && openRefundModal(sale, e)}
-                              title={pagePermissions.canRefundSales ? 'Process Refund' : 'You do not have permission to refund sales'}
+                              title={pagePermissions.canRefundSales ? tt('Process Refund') : tt('You do not have permission to refund sales')}
                               disabled={!pagePermissions.canRefundSales}
                             >
                               <RotateCcw className="w-4 h-4" />
@@ -772,7 +772,7 @@ const SalesListPage = () => {
                               e.stopPropagation();
                               viewSaleDetail(sale.id);
                             }}
-                            title="View"
+                            title={tt('View')}
                           >
                             <Eye className="w-4 h-4" />
                           </button>

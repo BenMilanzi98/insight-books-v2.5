@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 import PublicLeadCaptureForm from '@/components/crm/PublicLeadCaptureForm';
 
 export const metadata = {
@@ -9,8 +10,8 @@ export default function RequestDemoPage() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <PublicLeadCaptureForm
-        title="Request a demo"
-        subtitle="Tell us about your business and we will schedule a walkthrough."
+        title={tt('Request a demo')}
+        subtitle={tt('Tell us about your business and we will schedule a walkthrough.')}
         apiPath="/api/request-demo"
         submitLabel="Request demo"
         showPreferredTime

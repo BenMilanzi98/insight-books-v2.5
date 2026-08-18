@@ -267,7 +267,7 @@ export default function SuppliersPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Failed to update supplier");
       
-      setSuccess(`Supplier ${supplier.isActive ? 'deactivated' : 'activated'} successfully!`);
+      setSuccess(`Supplier ${supplier.isActive ? tt('deactivated') : tt('activated')} successfully!`);
       setTimeout(() => setSuccess(null), 3000);
       await loadSuppliers();
     } catch (e) {
@@ -345,7 +345,7 @@ export default function SuppliersPage() {
               ) : (
                 <Plus size={18} />
               )}
-              New Supplier
+              {tt('New Supplier')}
             </button>
           </div>
         </div>
@@ -492,7 +492,7 @@ export default function SuppliersPage() {
                           <Link
                             href={`/suppliers/${s.id}`}
                             className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
-                            title="View Details"
+                            title={tt('View Details')}
                           >
                             <ChevronRight size={14} />
                             {tt('View')}
@@ -507,10 +507,10 @@ export default function SuppliersPage() {
                                   ? "border-red-200 text-red-700 bg-red-50 hover:bg-red-100"
                                   : "border-green-200 text-green-700 bg-green-50 hover:bg-green-100"
                               }`}
-                              title={s.isActive ? "Deactivate" : "Activate"}
+                              title={s.isActive ? tt('Deactivate') : tt('Activate')}
                             >
                               {s.isActive ? <XCircle size={14} /> : <CheckCircle size={14} />}
-                              {s.isActive ? "Deactivate" : "Activate"}
+                              {s.isActive ? tt('Deactivate') : tt('Activate')}
                             </button>
                           )}
                           
@@ -520,14 +520,14 @@ export default function SuppliersPage() {
                               onClick={() => handleDeleteSupplier(s)}
                               disabled={deleting === s.id}
                               className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50"
-                              title="Delete supplier"
+                              title={tt('Delete supplier')}
                             >
                               {deleting === s.id ? (
                                 <Loader2 size={14} className="animate-spin" />
                               ) : (
                                 <Trash2 size={14} />
                               )}
-                              Delete
+                              {tt('Delete')}
                             </button>
                           )}
                         </div>

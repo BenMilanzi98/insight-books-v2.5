@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { cn } from '@/lib/utils';
@@ -22,7 +23,7 @@ export default function AdminMoney({
       console.warn(t('admin-foundation.money.missingContext'));
     }
     return (
-      <span className={cn('text-[var(--admin-danger,#b91c1c)]', className)} title="missing sourceContext">
+      <span className={cn('text-[var(--admin-danger,#b91c1c)]', className)} title={tt('missing sourceContext')}>
         —
       </span>
     );

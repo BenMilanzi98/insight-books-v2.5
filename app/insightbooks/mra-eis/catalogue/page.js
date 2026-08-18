@@ -106,7 +106,7 @@ export default function AdminMraEisCataloguePage() {
 
       {loading ? <AdminLoadingState label="Loading catalogue mappings" /> : null}
       {!loading && error ? (
-        <AdminErrorState title="Catalogue unavailable" message={error} onRetry={load} />
+        <AdminErrorState title={tt('Catalogue unavailable')} message={error} onRetry={load} />
       ) : null}
       {!loading && !error ? (
         <AdminDataTable

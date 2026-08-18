@@ -1,3 +1,4 @@
+import { tt } from '@/lib/i18n/runtime';
 import PublicLeadCaptureForm from '@/components/crm/PublicLeadCaptureForm';
 
 export const metadata = {
@@ -9,8 +10,8 @@ export default function StartTrialPage() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <PublicLeadCaptureForm
-        title="Start a trial"
-        subtitle="Share your details and our team will follow up about trial access."
+        title={tt('Start a trial')}
+        subtitle={tt('Share your details and our team will follow up about trial access.')}
         apiPath="/api/start-trial"
         submitLabel="Request trial"
       />

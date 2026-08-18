@@ -621,7 +621,7 @@ const ExpenseForm = ({
                           type="button"
                           onClick={() => { setIsAddingTax(true); fetchTaxAccounts(); setNewTax(prev => ({ ...prev, accountId: defaultTaxOutflowAccountId || prev.accountId })); }}
                           className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
-                          title="Add new tax type"
+                          title={tt('Add new tax type')}
                         >
                           <Plus size={16} />
                         </button>
@@ -690,7 +690,7 @@ const ExpenseForm = ({
                           disabled={!newTax.taxName.trim() || newTax.taxRate === '' || !newTax.accountId || addingTaxLoading}
                           className="px-2 py-1 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {addingTaxLoading ? 'Saving...' : 'Save'}
+                          {addingTaxLoading ? tt('Saving...') : tt('Save')}
                         </button>
                       </div>
                     </div>
@@ -788,7 +788,7 @@ const ExpenseForm = ({
                 required
                 disabled={isLoadingPaymentAccounts}
               >
-                <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                <option value="">{isLoadingPaymentAccounts ? tt('Loading accounts...') : tt('Select an account')}</option>
                 {paymentAccounts.map((account) => (
                   <option key={account.id} value={account.id}>
                     {formatPaymentAccountOptionLabel(account)}
@@ -1010,7 +1010,7 @@ const ExpenseForm = ({
             ) : (
               <>
                 <Save className="w-4 h-4 mr-2" />
-                {expense ? 'Update Expense' : 'Create Expense'}
+                {expense ? tt('Update Expense') : tt('Create Expense')}
               </>
             )}
           </button>

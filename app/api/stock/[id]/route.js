@@ -669,6 +669,25 @@ export async function PUT(request, { params }) {
         throw unitError;
       }
 
+      const costExplicitlyUpdated =
+        body.costPrice !== undefined || body.cost !== undefined;
+      if (costExplicitlyUpdated && Number.isFinite(numericCost) && numericCost >= 0) {
+        const { syncOpenBatchUnitCosts, reconcileProductInventoryValuation } = await import(
+          '@/lib/syncProductInventoryValuation.js'
+        );
+        await syncOpenBatchUnitCosts(tx, user.tenantId, productId, numericCost);
+        await reconcileProductInventoryValuation(tx, user.tenantId, productId);
+      } else {
+        try {
+          const { reconcileProductInventoryValuation } = await import(
+            '@/lib/syncProductInventoryValuation.js'
+          );
+          await reconcileProductInventoryValuation(tx, user.tenantId, productId);
+        } catch (valErr) {
+          console.warn('[Product Update] Inventory valuation reconcile skipped:', valErr?.message || valErr);
+        }
+      }
+
       // Barcode sync is done after the transaction using prisma (see below) so all barcodes are persisted
 
       // Create an audit log entry for the stock change if needed

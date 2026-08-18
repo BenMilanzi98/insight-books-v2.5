@@ -145,12 +145,12 @@ export default function MarketingTaxonomyView() {
   return (
     <AdminPageContainer>
       <AdminPageHeader
-        title="Marketing taxonomy"
+        title={tt('Marketing taxonomy')}
         description="Governed Channel / Source / Medium catalogues. CRM Lead source strings remain separate evidence."
         actions={
           <div className="flex flex-wrap gap-2">
             <button type="button" className={btnGhost} onClick={handleSeed} disabled={seeding}>
-              {seeding ? 'Seeding…' : 'Seed defaults'}
+              {seeding ? tt('Seeding…') : tt('Seed defaults')}
             </button>
             <button type="button" className={btnGhost} onClick={load} disabled={loading}>
               {tt('Refresh')}
@@ -218,7 +218,7 @@ export default function MarketingTaxonomyView() {
           ) : null}
           <div className="md:col-span-2 flex flex-wrap items-center gap-3">
             <button type="submit" className={btnPrimary} disabled={saving}>
-              {saving ? 'Saving…' : 'Create'}
+              {saving ? tt('Saving…') : tt('Create')}
             </button>
             {formError ? (
               <p className="text-sm text-[var(--admin-danger)]" role="alert">

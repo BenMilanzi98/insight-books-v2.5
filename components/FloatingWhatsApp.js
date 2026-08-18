@@ -61,7 +61,7 @@ const FloatingWhatsApp = () => {
             alignItems: 'center',
             justifyContent: 'center'
           }}
-          title="Get WhatsApp Support"
+          title={tt('Get WhatsApp Support')}
         >
           <WhatsAppIcon size={24} />
         </button>

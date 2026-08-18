@@ -143,7 +143,7 @@ export const StockMovementReport = ({
 
   return (
     <FinancialReport
-      title="Inventory movement report"
+      title={tt('Inventory movement report')}
       subtitle={periodLabel}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}
@@ -261,7 +261,7 @@ export const StockMovementReport = ({
                       <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{productMovement.totals?.qtyOut ?? 0}</td>
                       <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{productMovement.closingBalance ?? 0}</td>
                       <td className="px-4 py-2.5 text-sm text-slate-600">
-                        Net: {productMovement.totals?.netDisplay ?? Math.abs((productMovement.totals?.qtyIn ?? 0) - (productMovement.totals?.qtyOut ?? 0))} ({productMovement.totals?.netDirection === 'out' ? 'out' : 'in'})
+                        Net: {productMovement.totals?.netDisplay ?? Math.abs((productMovement.totals?.qtyIn ?? 0) - (productMovement.totals?.qtyOut ?? 0))} ({productMovement.totals?.netDirection === 'out' ? tt('out') : tt('in')})
                       </td>
                     </tr>
                   </tbody>
@@ -378,7 +378,7 @@ export const PosDailyReport = ({
 
   return (
     <FinancialReport
-      title="Daily POS Report"
+      title={tt('Daily POS Report')}
       subtitle={displayDateLabel !== 'N/A' && displayDateLabel !== 'Invalid Date' ? displayDateLabel : displayDate}
       onRefresh={onRefresh}
       onExport={onExport}
@@ -582,7 +582,7 @@ export const SalesAnalysisReport = ({
 
   return (
     <FinancialReport
-      title="Sales Analysis Report"
+      title={tt('Sales Analysis Report')}
       subtitle={periodLabel}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}
@@ -679,7 +679,7 @@ export const SalesAnalysisReport = ({
           {totalPages > 1 && (
             <div className="flex items-center justify-between bg-slate-50 px-4 py-2 rounded-xl">
               <div className="text-sm text-slate-700">
-                Showing {startIndex + 1} to {Math.min(endIndex, reportData.length)} of {reportData.length} {data.groupBy === 'product' ? 'products' : 'categories'}
+                Showing {startIndex + 1} to {Math.min(endIndex, reportData.length)} of {reportData.length} {data.groupBy === 'product' ? tt('products') : tt('categories')}
               </div>
             </div>
           )}
@@ -688,7 +688,7 @@ export const SalesAnalysisReport = ({
             <table className="min-w-full border-collapse">
               <thead>
                 <tr className="bg-slate-50">
-                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{data.groupBy === 'product' ? 'Product' : 'Category'}</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">{data.groupBy === 'product' ? tt('Product') : tt('Category')}</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase"># of Sales</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Quantity Sold')}</th>
                   <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">{tt('Revenue')}</th>
@@ -928,7 +928,7 @@ export const ExpenseAnalysisReport = ({
 
   return (
     <FinancialReport
-      title="Expense Analysis Report"
+      title={tt('Expense Analysis Report')}
       subtitle={periodLabel}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}
@@ -1050,7 +1050,7 @@ export const ProfitabilityAnalysisReport = ({
 
   return (
     <FinancialReport
-      title="Profitability Analysis"
+      title={tt('Profitability Analysis')}
       subtitle={periodLabel}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}

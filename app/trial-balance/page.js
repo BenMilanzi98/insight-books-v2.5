@@ -351,7 +351,7 @@ const TrialBalance = () => {
       <div className="w-full">
         <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
           <PosStylePageHeader
-            title="Trial Balance"
+            title={tt('Trial Balance')}
             description="Debits and credits by account for the selected period"
             actions={
               <>
@@ -412,7 +412,7 @@ const TrialBalance = () => {
                         className="w-full py-2 px-4 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
                         onClick={handleExport}
                       >
-                        {isExporting ? "Exporting..." : "Download"}
+                        {isExporting ? tt('Exporting...') : tt('Download')}
                       </button>
                     </PortalPopover>
                   </div>
@@ -429,7 +429,7 @@ const TrialBalance = () => {
             <MultiBusinessComparisonPanel
               byTenant={byTenant}
               columns={TRIAL_BALANCE_COMPARE_COLUMNS}
-              title="Trial balance by business"
+              title={tt('Trial balance by business')}
               className="mb-6"
             />
           ) : null}
@@ -515,7 +515,7 @@ const TrialBalance = () => {
                   ) : (
                     <tr>
                       <td colSpan={5} className="p-3 text-center text-gray-500">
-                        {searchTerm ? "No accounts match your search" : "No accounts found for this period"}
+                        {searchTerm ? tt('No accounts match your search') : tt('No accounts found for this period')}
                       </td>
                     </tr>
                   )}
@@ -551,7 +551,7 @@ const TrialBalance = () => {
           <iframe
             ref={printFrameRef}
             style={{ display: 'none' }}
-            title="Print Frame"
+            title={tt('Print Frame')}
           />
 
           {/* Account History Modal */}

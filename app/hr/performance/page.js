@@ -295,7 +295,7 @@ export default function PerformanceManagement() {
   return (
     <div className="p-6">
       <PosStylePageHeader
-        title="Performance Management"
+        title={tt('Performance Management')}
         description="Manage performance reviews, goals, and feedback"
       />
 
@@ -497,7 +497,7 @@ export default function PerformanceManagement() {
                               setShowReviewModal(true);
                             }}
                             className="text-blue-600 hover:text-blue-900"
-                            title="View/Edit"
+                            title={tt('View/Edit')}
                           >
                             <EyeIcon className="h-4 w-4" />
                           </button>
@@ -505,7 +505,7 @@ export default function PerformanceManagement() {
                             <button
                               onClick={() => handleCompleteReview(review.id)}
                               className="text-green-600 hover:text-green-900"
-                              title="Complete"
+                              title={tt('Complete')}
                             >
                               <CheckIcon className="h-4 w-4" />
                             </button>
@@ -513,7 +513,7 @@ export default function PerformanceManagement() {
                           <button
                             onClick={() => handleDeleteReview(review.id)}
                             className="text-red-600 hover:text-red-900"
-                            title="Delete"
+                            title={tt('Delete')}
                           >
                             <TrashIcon className="h-4 w-4" />
                           </button>
@@ -681,7 +681,7 @@ export default function PerformanceManagement() {
                             setShowFeedbackModal(true);
                           }}
                           className="text-blue-600 hover:text-blue-900"
-                          title="View Details"
+                          title={tt('View Details')}
                         >
                           <EyeIcon className="h-4 w-4" />
                         </button>
@@ -804,7 +804,7 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
       <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
         <div className="mt-3">
           <h3 className="text-lg font-medium text-gray-900 mb-4">
-            {review ? 'Edit Performance Review' : 'New Performance Review'}
+            {review ? tt('Edit Performance Review') : tt('New Performance Review')}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -980,7 +980,7 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
                 type="submit"
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
               >
-                {review ? 'Update' : 'Create'} Review
+                {review ? tt('Update') : tt('Create')} Review
               </button>
             </div>
           </form>
@@ -1032,7 +1032,7 @@ function GoalModal({ goal, employees, onClose, onSubmit }) {
       <div className="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
         <div className="mt-3">
           <h3 className="text-lg font-medium text-gray-900 mb-4">
-            {goal ? 'Edit Performance Goal' : 'New Performance Goal'}
+            {goal ? tt('Edit Performance Goal') : tt('New Performance Goal')}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -1167,7 +1167,7 @@ function GoalModal({ goal, employees, onClose, onSubmit }) {
                 type="submit"
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
               >
-                {goal ? 'Update' : 'Create'} Goal
+                {goal ? tt('Update') : tt('Create')} Goal
               </button>
             </div>
           </form>
@@ -1215,7 +1215,7 @@ function FeedbackModal({ feedback, employees, onClose, onSubmit }) {
       <div className="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
         <div className="mt-3">
           <h3 className="text-lg font-medium text-gray-900 mb-4">
-            {feedback ? 'View Feedback' : 'New Feedback'}
+            {feedback ? tt('View Feedback') : tt('New Feedback')}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -1338,7 +1338,7 @@ function FeedbackModal({ feedback, employees, onClose, onSubmit }) {
                 onClick={onClose}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
               >
-                {feedback ? 'Close' : 'Cancel'}
+                {feedback ? tt('Close') : tt('Cancel')}
               </button>
               {!feedback && (
                 <button

@@ -144,7 +144,7 @@ export default function BenefitsPage() {
     <div className="w-full">
       <div className="max-w-4xl mx-auto">
       <PosStylePageHeader
-        title="Benefits & Allowances"
+        title={tt('Benefits & Allowances')}
         description="Manage perks such as house allowance, airtime, and other allowances. Assign amounts per employee in Employee Management."
         actions={
           <button
@@ -230,7 +230,7 @@ export default function BenefitsPage() {
                         type="button"
                         onClick={() => openEdit(b)}
                         className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
-                        title="Edit"
+                        title={tt('Edit')}
                       >
                         <Pencil size={18} />
                       </button>
@@ -238,7 +238,7 @@ export default function BenefitsPage() {
                         type="button"
                         onClick={() => handleDelete(b.id)}
                         className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"
-                        title="Delete"
+                        title={tt('Delete')}
                       >
                         <Trash2 size={18} />
                       </button>
@@ -258,7 +258,7 @@ export default function BenefitsPage() {
             >
               <div className="flex items-center justify-between p-4 border-b">
                 <h2 className="text-lg font-semibold">
-                  {editing ? "Edit benefit" : "Add benefit"}
+                  {editing ? tt('Edit benefit') : tt('Add benefit')}
                 </h2>
                 <button
                   type="button"
@@ -358,7 +358,7 @@ export default function BenefitsPage() {
                     disabled={saving}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                   >
-                    {saving ? "Saving…" : editing ? "Update" : "Create"}
+                    {saving ? "Saving…" : editing ? tt('Update') : tt('Create')}
                   </button>
                 </div>
               </form>

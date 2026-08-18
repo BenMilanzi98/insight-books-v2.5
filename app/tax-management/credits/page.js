@@ -110,7 +110,7 @@ export default function TaxCreditsPage() {
   return (
     <div className="container mx-auto py-2">
       <PageHeader
-        title="Tax credits"
+        title={tt('Tax credits')}
         description="Credit register — apply against settlements; does not invent GL balances."
       />
       {error ? (

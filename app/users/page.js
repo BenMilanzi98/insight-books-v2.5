@@ -2818,7 +2818,7 @@ const toggleModulePermissions = (module) => {
                     disabled={addingDepartment || !newDepartmentName.trim()}
                     className="px-3 py-2 bg-gray-100 border border-gray-300 rounded text-sm font-medium hover:bg-gray-200 disabled:opacity-50"
                   >
-                    {addingDepartment ? "Adding..." : "Add"}
+                    {addingDepartment ? tt('Adding...') : tt('Add')}
                   </button>
                 </div>
               )}
@@ -3290,7 +3290,7 @@ const toggleModulePermissions = (module) => {
                                 ) : (
                                   <XCircle size={12} className="mr-1" />
                                 )}
-                                {allowed ? 'Yes' : 'No'}
+                                {allowed ? tt('Yes') : tt('No')}
                               </span>
                             </td>
                           </tr>
@@ -3312,7 +3312,7 @@ const toggleModulePermissions = (module) => {
                               ) : (
                                 <XCircle size={12} className="mr-1" />
                               )}
-                              {perms ? 'Yes' : 'No'}
+                              {perms ? tt('Yes') : tt('No')}
                             </span>
                           </td>
                         </tr>

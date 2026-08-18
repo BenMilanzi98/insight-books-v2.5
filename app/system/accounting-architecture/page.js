@@ -164,7 +164,7 @@ export default function AccountingArchitecturePage() {
                 <tr key={i} className="border-b last:border-0">
                   <td className="py-1 pr-4 font-mono text-xs">{friendlyLabel(f.flagKey)}</td>
                   <td className="py-1 pr-4 text-xs">
-                    {f.scope.tenantId === '*' ? 'global' : 'business'} / {f.scope.moduleKey} / {f.scope.eventType}
+                    {f.scope.tenantId === '*' ? tt('global') : tt('business')} / {f.scope.moduleKey} / {f.scope.eventType}
                   </td>
                   <td className="py-1">{badge(f.enabled ? 'ON' : 'OFF', f.enabled ? 'warn' : 'muted')}</td>
                 </tr>

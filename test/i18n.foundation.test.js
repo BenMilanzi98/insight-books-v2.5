@@ -12,7 +12,9 @@ import {
   translateStatus,
   setI18nRuntime,
   tt,
+  translateNavLabel,
 } from '../lib/i18n/index.js';
+import { titleForPath } from '../components/i18n/RouteDocumentTitle.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -122,9 +124,16 @@ describe('English UI literals', () => {
     setI18nRuntime({ locale: 'ny', phrasesNy: nyPhrases });
     expect(tt('Cancel')).toBe('Letsani');
     expect(tt('Save')).toBe('Sungani');
+    expect(tt('Apply')).toBe('Gwiritsani');
+    expect(tt('Filters')).toBe('Zosefera');
+    expect(tt('Reset all')).toBe('Bwezerani zonse');
+    expect(tt('This Month')).toBe('Mwezi uno');
+    expect(tt('Date range')).toBe('Masiku');
     expect(tt('Send Invoice to Client')).toBe('Tumizani inivoisi kwa kasitomala');
     expect(tt('Client Management')).toBe('Kuwongolera makasitomala');
     expect(tt('Active Clients')).toBe('Makasitomala ogwira');
+    expect(tt('Profit Analysis')).toBe('Kuwunika phindu');
+    expect(tt('Clients')).toBe('Makasitomala');
   });
 
   it('leaves English unchanged when locale is en', () => {
@@ -140,5 +149,22 @@ describe('language switcher safety (static)', () => {
       'utf8'
     );
     expect(src).not.toMatch(/postingEngine|reverseJournal|createStock/);
+  });
+});
+
+describe('page titles and nav labels', () => {
+  it('maps report query types to English titles for tt()', () => {
+    const params = new URLSearchParams('type=PROFIT_ANALYSIS');
+    expect(titleForPath('/reports-v2', params)).toBe('Profit Analysis');
+    expect(titleForPath('/clients', params)).toBe('Client Management');
+  });
+
+  it('translates unmapped nav labels via phrases', () => {
+    const nyPhrases = JSON.parse(
+      readFileSync(join(process.cwd(), 'locales/phrases/ny.json'), 'utf8')
+    );
+    setI18nRuntime({ locale: 'ny', phrasesNy: nyPhrases });
+    expect(translateNavLabel('Dashboard', () => 'Tsamba loyamba')).toBe('Tsamba loyamba');
+    expect(translateNavLabel('Business Management')).toBe('Kuwongolera bizinesi');
   });
 });

@@ -320,14 +320,14 @@ const TaxRulesManager = () => {
                       <button 
                         className="text-gray-500 hover:text-gray-700"
                         onClick={() => duplicateTaxRule(rule.id)}
-                        title="Duplicate"
+                        title={tt('Duplicate')}
                       >
                         <Copy size={16} />
                       </button>
                       <button 
                         className="text-red-500 hover:text-red-700"
                         onClick={() => deleteTaxRule(rule.id)}
-                        title="Delete"
+                        title={tt('Delete')}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -344,14 +344,14 @@ const TaxRulesManager = () => {
             className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
             onClick={() => setShowAdvanced(!showAdvanced)}
           >
-            {showAdvanced ? 'Hide Advanced Options' : 'Show Advanced Options'}
+            {showAdvanced ? tt('Hide Advanced Options') : tt('Show Advanced Options')}
           </button>
           
           <button 
             className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
             onClick={() => setShowTaxGroups(!showTaxGroups)}
           >
-            {showTaxGroups ? 'Hide Tax Groups' : 'Show Tax Groups'}
+            {showTaxGroups ? tt('Hide Tax Groups') : tt('Show Tax Groups')}
           </button>
         </div>
         

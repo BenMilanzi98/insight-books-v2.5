@@ -281,11 +281,11 @@ export default function MraEisOnboardingWizardPage() {
             </div>
             <div>
               <dt className="text-slate-500">{tt('Ready to create')}</dt>
-              <dd className="font-medium">{readiness.readyToCreateTerminal ? 'Yes' : 'No'}</dd>
+              <dd className="font-medium">{readiness.readyToCreateTerminal ? tt('Yes') : tt('No')}</dd>
             </div>
             <div>
               <dt className="text-slate-500">{tt('Ready to activate')}</dt>
-              <dd className="font-medium">{readiness.readyToSubmitActivation ? 'Yes' : 'No'}</dd>
+              <dd className="font-medium">{readiness.readyToSubmitActivation ? tt('Yes') : tt('No')}</dd>
             </div>
           </dl>
         )}

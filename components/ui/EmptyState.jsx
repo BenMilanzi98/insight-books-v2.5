@@ -6,7 +6,7 @@ import Button from './Button';
 
 export default function EmptyState({
   icon,
-  title = 'Nothing here yet',
+  title = {tt('Nothing here yet')},
   description,
   actionLabel,
   onAction,

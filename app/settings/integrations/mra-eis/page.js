@@ -152,7 +152,7 @@ export default function TenantMraEisSettingsPage() {
           <div>
             <dt className="text-slate-500">{tt('Allowed environment')}</dt>
             <dd className="font-medium">
-              {data?.entitlement?.productionAllowed ? 'Sandbox + Production (authorized)' : data?.entitlement?.sandboxAllowed ? 'Sandbox only' : 'None'}
+              {data?.entitlement?.productionAllowed ? 'Sandbox + Production (authorized)' : data?.entitlement?.sandboxAllowed ? tt('Sandbox only') : tt('None')}
             </dd>
           </div>
         </dl>

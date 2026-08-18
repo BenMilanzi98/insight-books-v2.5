@@ -432,7 +432,7 @@ const AccountsReceivable = () => {
           icon={Users}
           active={false}
           onClick={() => setStatusFilter('All')}
-          title="Show all receivables"
+          title={tt('Show all receivables')}
           iconWrapClassName="bg-blue-100 text-blue-600"
           barClassName="from-blue-400 via-sky-500 to-indigo-500"
         />
@@ -649,7 +649,7 @@ const AccountsReceivable = () => {
                             onClick={() => handleViewInvoice(invoice.id)}
                             disabled={isLoadingInvoice}
                             className="text-indigo-600 hover:text-indigo-900 inline-flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="View Invoice"
+                            title={tt('View Invoice')}
                           >
                             <Eye className="h-4 w-4" />
                           </button>

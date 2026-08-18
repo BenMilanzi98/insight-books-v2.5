@@ -148,7 +148,7 @@ export default function StudioReportView({
       showPageHeader={showPageHeader}
       reportTitle={reportTitle ?? title}
       loading={loading}
-      loadingLabel={`Generating ${title}…`}
+      loadingLabel={tt('Generating {{report}}…', { report: tt(title) })}
       error={error}
       exportUrl={exportUrl}
       reportTypeCategories={reportTypeCategories}

@@ -1,4 +1,5 @@
 'use client';
+import { tt } from '@/lib/i18n/runtime';
 
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge';
 import { METRIC_STATUS } from '@/lib/admin/intelligence/metricStates';
@@ -60,7 +61,7 @@ export default function MetricCard({ metric, className }) {
 
       {showUnavailable ? (
         <p className="mt-2 text-sm font-medium text-[var(--admin-danger)]" role="status">
-          {metric.status === 'NOT_INSTRUMENTED' ? 'Not instrumented' : 'Unavailable'}
+          {metric.status === 'NOT_INSTRUMENTED' ? tt('Not instrumented') : tt('Unavailable')}
         </p>
       ) : (
         <p className="mt-2 min-w-0 break-words text-xl font-bold leading-tight tabular-nums tracking-tight text-[var(--admin-text)] sm:text-2xl">
