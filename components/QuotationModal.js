@@ -551,7 +551,7 @@ const QuotationModal = ({
     }
     
     if (!formData.title) {
-      newErrors.title = {tt('Title is required')};
+      newErrors.title = tt('Title is required');
     }
     
     if (!formData.issueDate) {

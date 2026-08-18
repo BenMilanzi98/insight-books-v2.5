@@ -4764,6 +4764,12 @@
       "namedRegex": "^/api/budget\\-forecast/reports(?:/)?$"
     },
     {
+      "page": "/api/budget-forecast/reports/export",
+      "regex": "^/api/budget\\-forecast/reports/export(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/budget\\-forecast/reports/export(?:/)?$"
+    },
+    {
       "page": "/api/budgets",
       "regex": "^/api/budgets(?:/)?$",
       "routeKeys": {},
@@ -4786,6 +4792,12 @@
       "regex": "^/api/capital\\-account/contributions(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/capital\\-account/contributions(?:/)?$"
+    },
+    {
+      "page": "/api/capital-account/contributions/reverse",
+      "regex": "^/api/capital\\-account/contributions/reverse(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/capital\\-account/contributions/reverse(?:/)?$"
     },
     {
       "page": "/api/capital-account/transfers",

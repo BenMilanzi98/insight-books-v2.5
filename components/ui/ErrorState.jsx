@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import Button from './Button';
 
 export default function ErrorState({
-  title = {tt('Something went wrong')},
+  title = tt('Something went wrong'),
   message,
   onRetry,
   className,

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 
 const QuickActions = ({ 
-  title = {tt('Quick Actions')}, 
+  title = tt('Quick Actions'), 
   actions = [], 
   columns = 4, 
   variant = "default",

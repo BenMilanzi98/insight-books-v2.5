@@ -345,7 +345,8 @@
       "exceljs",
       "jsqr",
       "pngjs",
-      "qrcode"
+      "qrcode",
+      "better-sqlite3"
     ],
     "distDirRoot": ".next",
     "_originalRedirects": [

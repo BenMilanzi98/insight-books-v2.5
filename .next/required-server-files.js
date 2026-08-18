@@ -345,7 +345,8 @@ self.__SERVER_FILES_MANIFEST={
       "exceljs",
       "jsqr",
       "pngjs",
-      "qrcode"
+      "qrcode",
+      "better-sqlite3"
     ],
     "distDirRoot": ".next",
     "_originalRedirects": [

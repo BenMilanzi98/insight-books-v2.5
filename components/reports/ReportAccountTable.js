@@ -10,7 +10,7 @@ import { ExternalLink } from 'lucide-react';
  */
 export default function ReportAccountTable({
   lines = [],
-  title = {tt('General Ledger — Account Detail')},
+  title = tt('General Ledger — Account Detail'),
   className = '',
   showOpeningClosing = true,
   onDrillDown,
