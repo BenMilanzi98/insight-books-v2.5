@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { shouldUseSecureCookies } from '@/lib/sessionCookie';
 
 export async function POST() {
   try {
@@ -10,7 +11,7 @@ export async function POST() {
     // Clear the affiliate token cookie
     response.cookies.set('affiliate_token', '', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: shouldUseSecureCookies(),
       sameSite: 'strict',
       maxAge: 0 // Expire immediately
     });

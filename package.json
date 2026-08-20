@@ -11,6 +11,8 @@
     "build:vps": "rimraf .next && prisma generate && cross-env NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 UV_THREADPOOL_SIZE=1 NODE_OPTIONS=--max-old-space-size=1280 next build --webpack",
     "build:vps-2gb": "node scripts/vps-build-2gb.cjs",
     "build:vps-8gb": "node scripts/vps-build-8gb.cjs",
+    "deploy:push": "powershell -ExecutionPolicy Bypass -File scripts/push-build-to-vps.ps1",
+    "deploy:push:skip-build": "powershell -ExecutionPolicy Bypass -File scripts/push-build-to-vps.ps1 -SkipBuild",
     "start": "cross-env NODE_ENV=production next start",
     "start:vps": "cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=512 next start",
     "lint": "eslint . --max-warnings 999",

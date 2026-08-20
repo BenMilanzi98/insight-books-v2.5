@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '@/lib/serverJwtSecret';
+import { shouldUseSecureCookies } from '@/lib/sessionCookie';
 
 export async function POST(request) {
   try {
@@ -221,7 +222,7 @@ export async function POST(request) {
 
     response.cookies.set('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: shouldUseSecureCookies(),
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 // 7 days
     });

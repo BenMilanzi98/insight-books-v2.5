@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '@/lib/serverJwtSecret';
+import { shouldUseSecureCookies } from '@/lib/sessionCookie';
 
 
 export async function POST(request) {
@@ -88,7 +89,7 @@ export async function POST(request) {
     // Set secure HTTP-only cookie (exact same pattern as admin login)
     response.cookies.set('affiliate_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: shouldUseSecureCookies(),
       sameSite: 'strict',
       maxAge: 24 * 60 * 60, // 24 hours (same as admin)
       path: '/'

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '@/lib/serverJwtSecret';
+import { shouldUseSecureCookies } from '@/lib/sessionCookie';
 
 
 export async function POST(request) {
@@ -41,7 +42,7 @@ export async function POST(request) {
     // Clear admin token cookie
     response.cookies.set('admin_token', '', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: shouldUseSecureCookies(),
       sameSite: 'strict',
       maxAge: 0,
       path: '/'
