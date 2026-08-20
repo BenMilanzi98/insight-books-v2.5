@@ -209,7 +209,9 @@ export async function middleware(request) {
         console.error('Invalid session, redirecting to login:', error);
         const url = request.nextUrl.clone();
         url.pathname = '/auth/login';
-        return NextResponse.redirect(url);
+        const res = NextResponse.redirect(url);
+        res.cookies.set('session', '', { path: '/', maxAge: 0 });
+        return res;
       }
     }
     
@@ -298,10 +300,12 @@ export async function middleware(request) {
       return finishTenantRouteAccess(request, sessionCookie, pathname, requestHeaders);
     } catch (error) {
       console.error('Invalid session, redirecting to login:', error);
-      // Invalid session - redirect to login
+      // Invalid session - redirect to login and clear bad cookie
       const url = request.nextUrl.clone();
       url.pathname = '/auth/login';
-      return NextResponse.redirect(url);
+      const res = NextResponse.redirect(url);
+      res.cookies.set('session', '', { path: '/', maxAge: 0 });
+      return res;
     }
   }
 }

@@ -3,7 +3,7 @@ import { tt } from '@/lib/i18n/runtime';
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Bell, User, Search, X } from "lucide-react";
+import { Menu, Bell, User } from "lucide-react";
 import { isPosDefaultLandingRole } from "@/lib/tenantRoleAccess";
 import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
 import { useI18n } from "@/components/i18n/I18nProvider";
@@ -19,10 +19,8 @@ const AppBar = ({
   menuButtonRef = null,
   navId = undefined,
 }) => {
-  const [searchFocused, setSearchFocused] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
   const pathname = usePathname();
   const { t } = useI18n();
   
@@ -151,11 +149,6 @@ const AppBar = ({
     if (notificationsOpen) setNotificationsOpen(false);
   };
 
-  // Toggle mobile search
-  const toggleSearch = () => {
-    setShowSearch(!showSearch);
-  };
-
   return (
     <header className="app-bar sticky top-0 z-[var(--z-sticky,100)] grid h-[72px] shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-[var(--border-default,#e5e7eb)] bg-[var(--surface-primary,#ffffff)] px-3 shadow-[var(--shadow-card)] sm:gap-3 sm:px-4">
       <div className="app-bar-left flex min-w-0 items-center gap-2 sm:gap-3 md:gap-4">
@@ -220,163 +213,7 @@ const AppBar = ({
       
       <div className="app-bar-right relative z-20 flex min-w-0 items-center justify-end gap-2 bg-[var(--surface-primary,#ffffff)] pl-1 sm:gap-3 sm:pl-2">
         <LanguageSwitcher compact />
-        {/* Mobile Search Icon */}
-        {isMobile && !showSearch && (
-          <button
-            onClick={toggleSearch}
-            aria-label={tt('Show search')}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "8px",
-              borderRadius: "8px",
-              color: "#6b7280",
-              transition: "all 0.2s ease"
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#f3f4f6";
-              e.currentTarget.style.color = "#111827";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "#6b7280";
-            }}
-          >
-            <Search size={20} />
-          </button>
-        )}
 
-        {/* Mobile search - Full width */}
-        {isMobile && showSearch && (
-          <div style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: "72px",
-            backgroundColor: "#ffffff",
-            borderBottom: "1px solid #e5e7eb",
-            display: "flex",
-            alignItems: "center",
-            padding: "0 20px",
-            gap: "12px",
-            zIndex: 51,
-            boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)"
-          }}>
-            <div style={{ position: "relative", flex: 1 }}>
-              <input 
-                type="text" 
-                placeholder={t('common.actions.search')} 
-                style={{
-                  width: "100%",
-                  padding: "10px 16px 10px 40px",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "10px",
-                  fontSize: "14px",
-                  outline: "none",
-                  backgroundColor: "#f9fafb",
-                  transition: "all 0.2s ease"
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "#3b82f6";
-                  e.target.style.backgroundColor = "#ffffff";
-                  e.target.style.boxShadow = "0 0 0 3px rgba(59, 130, 246, 0.1)";
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "#e5e7eb";
-                  e.target.style.backgroundColor = "#f9fafb";
-                  e.target.style.boxShadow = "none";
-                }}
-                autoFocus
-              />
-              <Search style={{ 
-                position: "absolute", 
-                left: "14px", 
-                top: "50%", 
-                transform: "translateY(-50%)", 
-                color: "#9ca3af",
-                width: "18px",
-                height: "18px",
-                pointerEvents: "none" 
-              }} />
-            </div>
-            <button
-              onClick={toggleSearch}
-              aria-label={tt('Close search')}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "8px",
-                borderRadius: "8px",
-                color: "#6b7280",
-                transition: "all 0.2s ease"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#f3f4f6";
-                e.currentTarget.style.color = "#111827";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-                e.currentTarget.style.color = "#6b7280";
-              }}
-            >
-              <X size={20} />
-            </button>
-          </div>
-        )}
-        
-        {/* Desktop Search — avoid global .search-container (min-width: 300px) */}
-        {!isMobile && (
-          <div
-            className="relative shrink-0"
-            style={{
-              width: searchFocused ? "148px" : "112px",
-              transition: "width 0.25s ease",
-            }}
-          >
-            <input
-              type="text"
-              placeholder={t('common.actions.search')}
-              style={{
-                width: "100%",
-                height: "30px",
-                padding: "4px 8px 4px 28px",
-                border: `1px solid ${searchFocused ? "#3b82f6" : "#e5e7eb"}`,
-                borderRadius: "7px",
-                fontSize: "12px",
-                outline: "none",
-                backgroundColor: searchFocused ? "#ffffff" : "#f9fafb",
-                transition: "border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease",
-                boxShadow: searchFocused
-                  ? "0 0 0 2px rgba(59, 130, 246, 0.12)"
-                  : "none",
-              }}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-            />
-            <Search
-              style={{
-                position: "absolute",
-                left: "8px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: searchFocused ? "#3b82f6" : "#9ca3af",
-                width: "13px",
-                height: "13px",
-                pointerEvents: "none",
-              }}
-            />
-          </div>
-        )}
-        
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {/* Notifications Button and Dropdown */}
           <div ref={notificationRef} style={{ position: "relative" }}>
