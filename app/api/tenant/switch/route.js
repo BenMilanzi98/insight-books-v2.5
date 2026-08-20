@@ -7,6 +7,7 @@ import {
   getSessionTokenFromRequest,
 } from '@/lib/auth';
 import { getSessionCookieOptions, parseSessionPayload } from '@/lib/sessionCookie';
+import { encodeSessionToken } from '@/lib/securityGovernance/domain/sessionToken.js';
 
 export async function POST(request) {
   try {
@@ -85,7 +86,13 @@ export async function POST(request) {
     }
 
     sessionData.tenantId = tenantId;
-    const updatedSession = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+    const updatedSession = encodeSessionToken({
+      userId: sessionData.userId,
+      tenantId,
+      branchId: sessionData.branchId ?? null,
+      role: sessionData.role ?? null,
+      sessionId: sessionData.sessionId,
+    });
 
     const cookieStore = await cookies();
     cookieStore.set({

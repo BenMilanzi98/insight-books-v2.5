@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
+import { parseSessionPayload } from '@/lib/sessionCookie';
 
 export async function POST(request) {
   try {
@@ -10,10 +11,10 @@ export async function POST(request) {
     
     if (sessionCookie) {
       try {
-        // Parse session data to get user ID for audit log
-        const sessionData = JSON.parse(Buffer.from(sessionCookie.value, 'base64').toString());
+        // Parse session data to get user ID for audit log (v2 or legacy)
+        const sessionData = parseSessionPayload(sessionCookie.value);
         
-        if (sessionData.userId) {
+        if (sessionData?.userId) {
           // Log the logout action
           await prisma.auditLog.create({
             data: {

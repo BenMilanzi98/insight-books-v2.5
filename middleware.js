@@ -262,11 +262,21 @@ export async function middleware(request) {
             const statusData = await statusRes.json();
             console.log(`📊 API Response Data:`, JSON.stringify(statusData, null, 2));
 
-            // FIXED: Check for active subscription OR active trial
-            const hasAccess = statusData.subscription?.isActive || 
-                            (statusData.isTrialActive && statusData.remainingTrialDays > 0);
-            
-   
+            // Session parse failures on the status API return HTTP 200 with error + isActive:false.
+            // Do not treat that as "no subscription" — fail open so login works with v2 cookies.
+            if (statusData?.error && !statusData?.user) {
+              console.warn(
+                `⚠️ Subscription status returned auth/session error; allowing request:`,
+                statusData.error
+              );
+              return finishTenantRouteAccess(request, sessionCookie, pathname, requestHeaders);
+            }
+
+            const hasAccess =
+              statusData.subscription?.isActive ||
+              statusData.subscription?.hasActiveSubscription ||
+              statusData.subscriptionStatus?.isActive ||
+              (statusData.isTrialActive && statusData.remainingTrialDays > 0);
 
             if (!hasAccess) {
               console.log(`❌ No access, redirecting to subscription page`);

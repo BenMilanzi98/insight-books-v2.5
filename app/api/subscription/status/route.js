@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { getTenantSubscription, getRemainingTrialDays, isTenantTrialActive } from '@/lib/subscriptionService';
+import { parseSessionPayload } from '@/lib/sessionCookie';
 
 export async function GET() {
   try {
@@ -47,10 +48,10 @@ export async function GET() {
     }
    
     try {
-      // Parse session data
-      const sessionData = JSON.parse(Buffer.from(sessionCookie.value, 'base64').toString());
+      // Supports v2 signed sessions and legacy base64 payloads
+      const sessionData = parseSessionPayload(sessionCookie.value);
      
-      if (!sessionData.userId) {
+      if (!sessionData?.userId) {
         throw new Error('Invalid session');
       }
      

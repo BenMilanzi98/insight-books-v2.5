@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getUserFromSession, getSessionTokenFromRequest } from '@/lib/auth';
-import { getSessionCookieOptions } from '@/lib/sessionCookie';
+import { getSessionCookieOptions, parseSessionPayload } from '@/lib/sessionCookie';
+import { encodeSessionToken } from '@/lib/securityGovernance/domain/sessionToken.js';
 import { applyHiddenPrimaryBranchToUser } from '@/lib/hiddenPrimaryBranch';
 
 /**
@@ -20,9 +21,18 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No session found' }, { status: 401 });
     }
 
-    const sessionData = JSON.parse(Buffer.from(sessionValue, 'base64').toString());
+    const sessionData = parseSessionPayload(sessionValue);
+    if (!sessionData?.userId) {
+      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+    }
     sessionData.branchId = primaryBranchId;
-    const updatedSession = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+    const updatedSession = encodeSessionToken({
+      userId: sessionData.userId,
+      tenantId: sessionData.tenantId,
+      branchId: primaryBranchId,
+      role: sessionData.role ?? null,
+      sessionId: sessionData.sessionId,
+    });
 
     const cookieStore = await cookies();
     cookieStore.set({
