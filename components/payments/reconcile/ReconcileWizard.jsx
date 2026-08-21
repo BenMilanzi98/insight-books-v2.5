@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button';
 import StatementStep from './StatementStep.jsx';
 import ImportStep from './ImportStep.jsx';
 import MatchStep from './MatchStep.jsx';
+import ResolveStep from './ResolveStep.jsx';
 import {
   WIZARD_STEPS,
   getReconciliationWorkspace,
@@ -192,7 +193,13 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
             onRefresh={refreshWorkspace}
           />
         ) : null}
-        {!loading && stepKey === 'resolve' ? <PlaceholderStep name="Resolve" /> : null}
+        {!loading && stepKey === 'resolve' ? (
+          <ResolveStep
+            reconciliationId={reconciliationId}
+            workspace={workspace}
+            onRefresh={refreshWorkspace}
+          />
+        ) : null}
         {!loading && stepKey === 'complete' ? <PlaceholderStep name="Complete" /> : null}
 
         <div className="mt-6 flex flex-wrap gap-2">

@@ -28,6 +28,13 @@ import {
   rejectSuggestedMatch,
   selectedBookSumMinor,
   statementBankAbsMinor,
+  buildAdjustBody,
+  canCreateTransactionForStatement,
+  classificationForResolveType,
+  listOffsetAccounts,
+  offsetAccountTypeForResolveType,
+  postReconAdjustment,
+  unmatchedStatementLines,
 } from '../components/payments/reconcile/reconApi.js';
 
 function fakeStatementFile(name) {
@@ -389,5 +396,101 @@ describe('guided reconcile match API helpers', () => {
     expect(fetchMock.mock.calls[1][0]).toBe('/api/bank-reconciliation/matches/m-1/accept');
     expect(fetchMock.mock.calls[1][1].method).toBe('POST');
     expect(fetchMock.mock.calls[2][0]).toBe('/api/bank-reconciliation/matches/m-1/reject');
+  });
+});
+
+describe('guided reconcile resolve helpers', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('maps Expense to BANK_CHARGE and Money in to INTEREST with expense vs income CoA types', () => {
+    expect(classificationForResolveType('EXPENSE')).toBe('BANK_CHARGE');
+    expect(classificationForResolveType('MONEY_IN')).toBe('INTEREST');
+    expect(offsetAccountTypeForResolveType('EXPENSE')).toBe('Expense');
+    expect(offsetAccountTypeForResolveType('MONEY_IN')).toBe('Income');
+  });
+
+  it('builds adjust body with postAdjustment true and statement description default', () => {
+    const statement = {
+      id: 'stmt-9',
+      description: 'Bank fee August',
+      matchingStatus: 'UNMATCHED',
+    };
+    expect(
+      buildAdjustBody({
+        reconciliationId: 'rec-1',
+        statement,
+        resolveType: 'EXPENSE',
+        offsetAccountId: 'acc-exp',
+      })
+    ).toEqual({
+      reconciliationId: 'rec-1',
+      statementTransactionId: 'stmt-9',
+      classification: 'BANK_CHARGE',
+      postAdjustment: true,
+      offsetAccountId: 'acc-exp',
+      description: 'Bank fee August',
+    });
+    expect(
+      buildAdjustBody({
+        reconciliationId: 'rec-1',
+        statement,
+        resolveType: 'MONEY_IN',
+        offsetAccountId: 'acc-inc',
+        description: 'Interest received',
+      }).classification
+    ).toBe('INTEREST');
+  });
+
+  it('offers Create Transaction only for unmatched bank lines', () => {
+    const rows = [
+      { id: 'a', matchingStatus: 'UNMATCHED' },
+      { id: 'b', matchingStatus: 'PARTIAL' },
+      { id: 'c', matchingStatus: 'MATCHED' },
+      { id: 'd', matchingStatus: 'CLASSIFIED' },
+      { id: 'e', matchingStatus: 'SUGGESTED' },
+    ];
+    expect(canCreateTransactionForStatement(rows[0])).toBe(true);
+    expect(canCreateTransactionForStatement(rows[1])).toBe(true);
+    expect(canCreateTransactionForStatement(rows[2])).toBe(false);
+    expect(canCreateTransactionForStatement(rows[3])).toBe(false);
+    expect(unmatchedStatementLines(rows).map((row) => row.id)).toEqual(['a', 'b']);
+  });
+
+  it('lists offset CoA accounts by type and posts adjust then can refresh workspace', async () => {
+    const fetchMock = vi.fn(async (url) => ({
+      ok: true,
+      status: url.includes('/adjust') ? 201 : 200,
+      json: async () =>
+        url.includes('/accounts')
+          ? { accounts: [{ id: 'acc-exp', accountCode: '5500', accountName: 'Bank Charges' }] }
+          : { posted: { journalEntryId: 'je-1' } },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const listed = await listOffsetAccounts('Expense');
+    await postReconAdjustment(
+      buildAdjustBody({
+        reconciliationId: 'rec-1',
+        statement: { id: 'stmt-1', description: 'Fee' },
+        resolveType: 'EXPENSE',
+        offsetAccountId: 'acc-exp',
+      })
+    );
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/accounts?forSelect=true&type=Expense');
+    expect(listed.accounts[0].id).toBe('acc-exp');
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/bank-reconciliation/adjust');
+    expect(fetchMock.mock.calls[1][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+      reconciliationId: 'rec-1',
+      statementTransactionId: 'stmt-1',
+      classification: 'BANK_CHARGE',
+      postAdjustment: true,
+      offsetAccountId: 'acc-exp',
+      description: 'Fee',
+    });
   });
 });

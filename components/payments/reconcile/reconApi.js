@@ -267,3 +267,54 @@ export function rejectSuggestedMatch(matchId) {
     }
   );
 }
+
+export function classificationForResolveType(resolveType) {
+  return resolveType === 'MONEY_IN' ? 'INTEREST' : 'BANK_CHARGE';
+}
+
+export function offsetAccountTypeForResolveType(resolveType) {
+  return resolveType === 'MONEY_IN' ? 'Income' : 'Expense';
+}
+
+export function canCreateTransactionForStatement(row) {
+  return isStatementSelectable(row);
+}
+
+export function unmatchedStatementLines(statements) {
+  return (statements || []).filter((row) => canCreateTransactionForStatement(row));
+}
+
+export function statementDescriptionDefault(statement) {
+  return statement?.description ? String(statement.description) : '';
+}
+
+export function buildAdjustBody({
+  reconciliationId,
+  statement,
+  resolveType,
+  offsetAccountId,
+  description,
+}) {
+  return {
+    reconciliationId,
+    statementTransactionId: statement?.id,
+    classification: classificationForResolveType(resolveType),
+    postAdjustment: true,
+    offsetAccountId,
+    description: description != null && description !== '' ? description : statementDescriptionDefault(statement),
+  };
+}
+
+export function listOffsetAccounts(accountType) {
+  return reconFetch(
+    `/api/accounts?forSelect=true&type=${encodeURIComponent(accountType)}`
+  );
+}
+
+export function postReconAdjustment(body) {
+  return reconFetch('/api/bank-reconciliation/adjust', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
