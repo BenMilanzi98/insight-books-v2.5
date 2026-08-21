@@ -10,6 +10,7 @@ import {
   buildPreviewImportFormData,
   canConfirmGuidedImportPreview,
   confirmStatementImport,
+  importExistingLinesCopy,
   previewStatementImport,
 } from './reconApi.js';
 
@@ -133,6 +134,7 @@ export default function ImportStep({
       ? preview.batch.parseWarnings
       : balanceCheck?.warnings || []
   ).filter(Boolean);
+  const existingCopy = importExistingLinesCopy({ existingCount, readOnly });
 
   return (
     <div className="space-y-4">
@@ -142,45 +144,47 @@ export default function ImportStep({
         </p>
       ) : null}
 
-      {existingCount > 0 ? (
+      {existingCopy ? (
         <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" role="status">
-          {tt('This reconciliation already has')} {existingCount} {tt('imported statement line(s). You can import another CSV or Excel file, or continue to Match.')}
+          {tt(existingCopy)}
         </p>
       ) : null}
 
-      <form onSubmit={handlePreview} className="space-y-4">
-        <FormField
-          label="Statement file"
-          htmlFor="recon-import-file"
-          hint="CSV or Excel only (.csv, .xlsx, .xls). OFX is not accepted here."
-          required
-        >
-          {({ id, ...a11y }) => (
-            <Input
-              id={id}
-              type="file"
-              accept={GUIDED_IMPORT_ACCEPT}
-              onChange={handleFileChange}
-              disabled={readOnly}
-              {...a11y}
-            />
-          )}
-        </FormField>
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" loading={busy} disabled={!file || readOnly}>
-            {tt('Preview')}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            loading={busy}
-            disabled={!canConfirm || readOnly}
-            onClick={handleConfirm}
+      {readOnly ? null : (
+        <form onSubmit={handlePreview} className="space-y-4">
+          <FormField
+            label="Statement file"
+            htmlFor="recon-import-file"
+            hint="CSV or Excel only (.csv, .xlsx, .xls). OFX is not accepted here."
+            required
           >
-            {tt('Confirm import')}
-          </Button>
-        </div>
-      </form>
+            {({ id, ...a11y }) => (
+              <Input
+                id={id}
+                type="file"
+                accept={GUIDED_IMPORT_ACCEPT}
+                onChange={handleFileChange}
+                disabled={readOnly}
+                {...a11y}
+              />
+            )}
+          </FormField>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" loading={busy} disabled={!file || readOnly}>
+              {tt('Preview')}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              loading={busy}
+              disabled={!canConfirm || readOnly}
+              onClick={handleConfirm}
+            >
+              {tt('Confirm import')}
+            </Button>
+          </div>
+        </form>
+      )}
 
       {emptyPreview ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950" role="status">

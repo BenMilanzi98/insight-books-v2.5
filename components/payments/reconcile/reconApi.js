@@ -72,6 +72,20 @@ export function canConfirmGuidedImportPreview(preview, file) {
   return Number(preview.totalRows) > 0;
 }
 
+export function importExistingLinesCopy({ existingCount, readOnly } = {}) {
+  const count = Number(existingCount) || 0;
+  if (readOnly) {
+    if (count > 0) {
+      return `This reconciliation has ${count} imported statement line(s). Import is locked because this period is completed.`;
+    }
+    return 'This completed reconciliation has no imported statement lines. Import is locked.';
+  }
+  if (count > 0) {
+    return `This reconciliation already has ${count} imported statement line(s). You can import another CSV or Excel file, or continue to Match.`;
+  }
+  return null;
+}
+
 export async function reconFetch(url, options) {
   const res = await fetch(url, options);
   const data = await res.json().catch(() => ({}));
@@ -370,6 +384,16 @@ export function canCreateTransactionForStatement(row) {
 
 export function unmatchedStatementLines(statements) {
   return (statements || []).filter((row) => canCreateTransactionForStatement(row));
+}
+
+export function resolveUnmatchedEmptyCopy(statements) {
+  const hasPartial = (statements || []).some(
+    (row) => row?.matchingStatus === StatementMatchingStatus.PARTIAL
+  );
+  if (hasPartial) {
+    return 'No fully unmatched bank lines. Partial matches can be finished on Match, or left for a later period.';
+  }
+  return 'No unmatched bank lines. Matched and classified lines are done.';
 }
 
 export function statementDescriptionDefault(statement) {

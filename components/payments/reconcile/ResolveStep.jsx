@@ -13,6 +13,7 @@ import {
   offsetAccountTypeForResolveType,
   postReconAdjustment,
   unmatchedStatementLines,
+  resolveUnmatchedEmptyCopy,
 } from './reconApi.js';
 
 function dateParam(value) {
@@ -211,7 +212,7 @@ export default function ResolveStep({ reconciliationId, workspace, onRefresh, re
               ) : (
                 <tr>
                   <td colSpan={5} className="px-3 py-3 text-gray-500">
-                    {tt('No unmatched bank lines. Matched and classified lines are done.')}
+                    {tt(resolveUnmatchedEmptyCopy(workspace?.statements))}
                   </td>
                 </tr>
               )}

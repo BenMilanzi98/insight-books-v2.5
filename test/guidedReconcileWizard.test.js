@@ -36,11 +36,13 @@ import {
   historyHrefForReconciliation,
   historyRowsFromPayload,
   accountNameMapFromPayload,
+  importExistingLinesCopy,
   isWizardReadOnly,
   listOffsetAccounts,
   listReconcilableAccounts,
   offsetAccountTypeForResolveType,
   postReconAdjustment,
+  resolveUnmatchedEmptyCopy,
   unmatchedStatementLines,
 } from '../components/payments/reconcile/reconApi.js';
 
@@ -232,6 +234,19 @@ describe('guided reconcile CSV/Excel import helpers', () => {
     expect(canConfirmGuidedImportPreview(noBatch, file)).toBe(false);
     expect(canConfirmGuidedImportPreview(withRows, null)).toBe(false);
     expect(canConfirmGuidedImportPreview(null, file)).toBe(false);
+  });
+
+  it('does not invite another upload when the wizard is completed read-only', () => {
+    const locked = importExistingLinesCopy({ existingCount: 3, readOnly: true });
+    expect(locked).toMatch(/3/);
+    expect(locked).not.toMatch(/import another/i);
+    expect(locked).toMatch(/completed|locked/i);
+    expect(importExistingLinesCopy({ existingCount: 0, readOnly: true })).not.toMatch(/import another/i);
+
+    const open = importExistingLinesCopy({ existingCount: 3, readOnly: false });
+    expect(open).toMatch(/already has/);
+    expect(open).toMatch(/import another/i);
+    expect(importExistingLinesCopy({ existingCount: 0, readOnly: false })).toBeNull();
   });
 });
 
@@ -465,6 +480,18 @@ describe('guided reconcile resolve helpers', () => {
     expect(canCreateTransactionForStatement(rows[3])).toBe(false);
     expect(canCreateTransactionForStatement(rows[4])).toBe(false);
     expect(unmatchedStatementLines(rows).map((row) => row.id)).toEqual(['a']);
+  });
+
+  it('softens Resolve empty copy when only PARTIAL bank lines remain', () => {
+    const partialOnly = resolveUnmatchedEmptyCopy([
+      { matchingStatus: 'PARTIAL' },
+      { matchingStatus: 'MATCHED' },
+    ]);
+    expect(partialOnly).toMatch(/partial/i);
+    expect(partialOnly).not.toMatch(/done/i);
+
+    expect(resolveUnmatchedEmptyCopy([{ matchingStatus: 'MATCHED' }])).toMatch(/done/i);
+    expect(resolveUnmatchedEmptyCopy([])).toMatch(/done/i);
   });
 
   it('lists offset CoA accounts by type and posts adjust then can refresh workspace', async () => {
