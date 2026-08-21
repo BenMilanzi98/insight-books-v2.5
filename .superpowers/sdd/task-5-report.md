@@ -74,4 +74,4 @@ Confirm was enabled whenever `preview.batch.id` and file existed. Empty/unmapped
 
 ### Commit
 - **Subject:** `fix(payments): block confirm on empty statement preview`
-- **SHA:** _(pending)_
+- **SHA:** `22715e297`
