@@ -1,63 +1,103 @@
-# Task 3 Report: Operational path lists + runtime flag
+# Task 3 Report: Reconcile Account CTA on hub
 
-**Status:** DONE  
-**Date:** 2026-08-15  
-**Commit:** `b404f4e15 feat(desktop): classify operational vs online-only API paths`
+## Status
+**DONE**
 
 ## Summary
+Added a permission-gated **Reconcile Account** CTA on `/payments` for Bank and Mobile Money rows, navigating to `/payments/reconcile/[paymentAccountId]`. Hub title/subtitle now use **Accounts & Reconciliation** language. Cash (and other ineligible types) do not show the CTA.
 
-Added pure desktop runtime helpers and API path classification for offline sync. Operational path exceptions are evaluated before operational prefixes so cloud-dependent actions remain online-only.
+## Changes implemented
 
-## Files committed
+### Step 1: Pass reconcile handler into panel (`app/payments/page.js`)
+- Load `bankReconciliation.view` alongside `payments.create` in the existing `getPermission` `useEffect`.
+- `canReconcile` from page permissions.
+- `handleReconcileAccount` → `router.push(`/payments/reconcile/${account.id}`)`.
+- Pass `onReconcileAccount={canReconcile ? handleReconcileAccount : undefined}` into `PaymentChannelsPanel`.
+- Hub copy:
+  - Title: **Accounts & Reconciliation**
+  - Subtitle: Reconcile Bank and Mobile Money against statements; Cash stays without a Reconcile action; manage channels under Manage accounts.
 
-- `lib/desktop/runtime.js`
-  - Exports `DESKTOP_COOKIE = 'ib_desktop'`.
-  - `isDesktopRuntime()` is true only when `process.env.DESKTOP_RUNTIME === '1'`.
-  - `isDesktopCookie(value)` recognizes the desktop cookie value `1`.
-- `lib/desktop/paths.js`
-  - Returns only `operational`, `desktop-cloud`, `desktop-local`, `auth-ok`, or `online-only`.
-  - Includes all operational, auth, desktop cloud, desktop local, and online-only paths from the task brief.
-  - Evaluates fixed and wildcard online-only exceptions before operational prefix matching.
-- `test/desktop/paths.test.js`
-  - Covers all five classifications, every listed online-only exception, and all runtime helper behavior.
+### Step 2: AccountRow CTA (`components/payments/PaymentChannelsPanel.jsx`)
+- Import `isGuidedReconcilableAccountType` from `@/lib/bankReconciliation/domain/guidedLabels`.
+- Thread `onReconcileAccount` through `PaymentChannelsPanel` → `ChannelCard` → `AccountRow` (also cash and other rows so eligibility is the only gate).
+- Non-management `AccountRow`: if eligible and handler provided, render **Reconcile Account** button with `stopPropagation` then `onReconcileAccount(account)`.
+- Row click still opens history/select.
+- Outer dashboard row changed from `<button>` to `<div>` so the CTA is not a nested button.
 
-## TDD evidence
+### Step 3: Verify
+Bank / Mobile Money show CTA; Cash does not. See Verification below.
 
-### RED
+### Step 4: Commit
+- **SHA:** `38c111b61`
+- **Subject:** `feat(payments): Reconcile Account CTA for Bank and Mobile Money`
+- **Files committed (2):**
+  - `app/payments/page.js`
+  - `components/payments/PaymentChannelsPanel.jsx`
 
-Command:
+## Verification
 
-`npx vitest run test/desktop/paths.test.js`
+| Check | Result |
+|-------|--------|
+| CTA text is `Reconcile Account` | Pass (source) |
+| Condition uses `isGuidedReconcilableAccountType(account.accountType) && onReconcileAccount` | Pass |
+| `handleReconcileAccount` pushes `/payments/reconcile/${account.id}` | Pass |
+| Handler omitted when `!canReconcile` | Pass |
+| Permission loaded: `bankReconciliation.view` via `getPermission` | Pass |
+| Title is Accounts & Reconciliation | Pass |
+| CTA not rendered in management mode (early return) | Pass |
+| Linter on changed files | Pass (0 errors) |
+| `test/bankReconciliation.guidedEligibility.test.js` | **3/3 passed** (`npx vitest run test/bankReconciliation.guidedEligibility.test.js`) |
+| Eligibility matrix (`isGuidedReconcilableAccountType` + handler) | Bank: true, Mobile Money: true, Cash: false, Wallet: false, Bank with no handler: false |
+| Browser check of `/payments` rows | Not run (no UI test harness / RTL in repo) |
 
-Result: exit code 1. Vitest reported one failed suite because `../../lib/desktop/paths.js` did not exist. This was the expected feature-missing failure before any production files were created.
+## TDD Evidence
+Task brief did not include a new test file; the repo has no React Testing Library. Eligibility behavior was already covered by Task 1 tests (re-run green). CTA visibility is `isGuidedReconcilableAccountType` plus the permission-gated handler.
 
-### GREEN
-
-Command:
-
-`npx vitest run test/desktop/paths.test.js`
-
-Result: exit code 0; 1 test file passed and 11 tests passed.
-
-### Regression verification
-
-Command:
-
-`npx vitest run test/desktop`
-
-Result: exit code 0; all 4 desktop test files passed and all 25 tests passed.
-
-IDE lint diagnostics reported no errors in the three Task 3 files. `git diff --cached --check` also completed with exit code 0 before commit.
+- **RED:** N/A (no new test file in brief; committing only the two specified files).
+- **GREEN:** `npx vitest run test/bankReconciliation.guidedEligibility.test.js` — Test Files 1 passed, Tests 3 passed.
 
 ## Self-review
+- Scope matches brief; unrelated dirty files were not staged.
+- Nested `<button>` avoided by wrapping the dashboard row in a clickable `div` (required so `stopPropagation` works without invalid HTML).
+- Ineligible types (Cash, Wallet, POS, etc.) share the same row component; the helper is the only gate.
+- Missing `bankReconciliation.view` hides the CTA (spec: show account without Reconcile).
 
-- Confirmed online-only exceptions execute before operational prefix checks.
-- Confirmed wildcard invoice/client exceptions require a non-empty path segment.
-- Confirmed prefix matching respects path-segment boundaries.
-- Confirmed all exact constants and return strings match the brief.
-- Confirmed only the three authorized implementation/test files were staged and committed.
-- Confirmed Tasks 1–2 lock, document-number, and outbox helpers were not modified.
+## Concerns / follow-ups
+1. **`/payments/reconcile/[id]` does not exist yet** — CTA navigates there; 404 until Task 4 (expected).
+2. **Subtitle copy** was inferred from spec (no exact string in brief); title is the specified **Accounts & Reconciliation**.
+3. **Dashboard row is no longer a native `<button>`** — history click is `div` onClick; keyboard activation of the row is weaker than before (CTA remains a real button).
+4. **No component-level UI test** — brief did not list a test file; verification is source + eligibility unit tests, not a rendered row snapshot.
+5. **Management mode** has no CTA (brief: non-management `AccountRow` only).
 
-## Concerns
+---
 
-None.
+## Review fix: keyboard access on dashboard AccountRow
+
+**Status:** DONE  
+**Commit:** (see below after commit)
+
+### Problem
+Task 3 review flagged that the dashboard `AccountRow` used a clickable `<div>` wrapper so the Reconcile CTA would not be a nested `<button>`. That removed native keyboard and screen-reader access for history/select.
+
+### Fix
+- Non-interactive wrapper `<div>` with **two sibling `<button>` elements** (no `role="button"` on parent).
+- **History/select:** `flex-1` button → `onSelect?.(account)`; includes account label, balance, chevron; focus-visible ring for keyboard users.
+- **Reconcile CTA:** `shrink-0` sibling when `isGuidedReconcilableAccountType(account.accountType) && onReconcileAccount`; `px-2 py-1.5` for touch target; no `stopPropagation` (siblings).
+- Eligibility gate unchanged; management mode unchanged.
+
+### Files
+- `components/payments/PaymentChannelsPanel.jsx` only (no `page.js` change).
+
+### Verification
+
+| Check | Result |
+|-------|--------|
+| No nested buttons | Pass — wrapper is plain `div`, two sibling buttons |
+| History row is focusable/activatable | Pass — native `<button type="button">` |
+| Reconcile CTA still gated by `isGuidedReconcilableAccountType` + handler | Pass (source) |
+| Linter on changed file | Pass (0 errors) |
+| `npx vitest run test/bankReconciliation.guidedEligibility.test.js` | **3/3 passed** |
+
+### Commit
+- **Subject:** `fix(payments): restore keyboard access on reconcile account rows`
+

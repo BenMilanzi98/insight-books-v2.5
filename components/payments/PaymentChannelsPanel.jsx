@@ -345,35 +345,35 @@ function AccountRow({ account, mode, onSelect, onEdit, onDelete, onReconcileAcco
   }
 
   return (
-    <div
-      onClick={() => onSelect?.(account)}
-      className="w-full text-left flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg hover:bg-white/80 transition group cursor-pointer"
-    >
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-slate-900 truncate">{account.name}</p>
-        <p className="text-[11px] text-slate-500 font-mono">
-          {account.coaCode || "Pending GL"}
-          {account.reference ? ` · ${account.reference}` : ""}
-        </p>
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {isGuidedReconcilableAccountType(account.accountType) && onReconcileAccount ? (
-          <button
-            type="button"
-            className="text-xs font-semibold text-indigo-700 hover:text-indigo-900"
-            onClick={(e) => {
-              e.stopPropagation();
-              onReconcileAccount(account);
-            }}
-          >
-            {tt('Reconcile Account')}
-          </button>
-        ) : null}
-        <span className="text-sm font-semibold tabular-nums text-slate-900">
-          {formatCurrency(account.balance)}
-        </span>
-        <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500" />
-      </div>
+    <div className="w-full flex items-center gap-2 py-2.5 px-3 rounded-lg hover:bg-white/80 transition group">
+      <button
+        type="button"
+        onClick={() => onSelect?.(account)}
+        className="flex-1 min-w-0 text-left flex items-center justify-between gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+      >
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-900 truncate">{account.name}</p>
+          <p className="text-[11px] text-slate-500 font-mono">
+            {account.coaCode || "Pending GL"}
+            {account.reference ? ` · ${account.reference}` : ""}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-sm font-semibold tabular-nums text-slate-900">
+            {formatCurrency(account.balance)}
+          </span>
+          <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500" />
+        </div>
+      </button>
+      {isGuidedReconcilableAccountType(account.accountType) && onReconcileAccount ? (
+        <button
+          type="button"
+          className="shrink-0 px-2 py-1.5 text-xs font-semibold text-indigo-700 hover:text-indigo-900 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          onClick={() => onReconcileAccount(account)}
+        >
+          {tt('Reconcile Account')}
+        </button>
+      ) : null}
     </div>
   );
 }
