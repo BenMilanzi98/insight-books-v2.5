@@ -15,6 +15,7 @@ import {
   Trash2,
   CreditCard,
 } from "lucide-react";
+import { isGuidedReconcilableAccountType } from "@/lib/bankReconciliation/domain/guidedLabels";
 
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-US", {
@@ -301,7 +302,7 @@ export function PaymentAccountFormModal({
   );
 }
 
-function AccountRow({ account, mode, onSelect, onEdit, onDelete }) {
+function AccountRow({ account, mode, onSelect, onEdit, onDelete, onReconcileAccount }) {
   if (mode === "management") {
     return (
       <div className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg hover:bg-slate-50/80">
@@ -344,10 +345,9 @@ function AccountRow({ account, mode, onSelect, onEdit, onDelete }) {
   }
 
   return (
-    <button
-      type="button"
+    <div
       onClick={() => onSelect?.(account)}
-      className="w-full text-left flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg hover:bg-white/80 transition group"
+      className="w-full text-left flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg hover:bg-white/80 transition group cursor-pointer"
     >
       <div className="min-w-0">
         <p className="text-sm font-medium text-slate-900 truncate">{account.name}</p>
@@ -357,12 +357,24 @@ function AccountRow({ account, mode, onSelect, onEdit, onDelete }) {
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {isGuidedReconcilableAccountType(account.accountType) && onReconcileAccount ? (
+          <button
+            type="button"
+            className="text-xs font-semibold text-indigo-700 hover:text-indigo-900"
+            onClick={(e) => {
+              e.stopPropagation();
+              onReconcileAccount(account);
+            }}
+          >
+            {tt('Reconcile Account')}
+          </button>
+        ) : null}
         <span className="text-sm font-semibold tabular-nums text-slate-900">
           {formatCurrency(account.balance)}
         </span>
         <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500" />
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -374,6 +386,7 @@ function ChannelCard({
   onSelectAccount,
   onEditAccount,
   onDeleteAccount,
+  onReconcileAccount,
 }) {
   const [open, setOpen] = useState(true);
   const hasAccounts = channel.accounts?.length > 0;
@@ -424,6 +437,7 @@ function ChannelCard({
                 onSelect={onSelectAccount}
                 onEdit={onEditAccount}
                 onDelete={onDeleteAccount}
+                onReconcileAccount={onReconcileAccount}
               />
             ))
           ) : (
@@ -442,6 +456,7 @@ export default function PaymentChannelsPanel({
   onSelectAccount,
   onEditAccount,
   onDeleteAccount,
+  onReconcileAccount,
   refreshKey = 0,
 }) {
   const [loading, setLoading] = useState(true);
@@ -531,6 +546,7 @@ export default function PaymentChannelsPanel({
               onSelect={onSelectAccount}
               onEdit={openEdit}
               onDelete={onDeleteAccount}
+              onReconcileAccount={onReconcileAccount}
             />
           ))}
           {!(data.cash?.accounts || []).length ? (
@@ -563,6 +579,7 @@ export default function PaymentChannelsPanel({
               onSelectAccount={onSelectAccount}
               onEditAccount={openEdit}
               onDeleteAccount={onDeleteAccount}
+              onReconcileAccount={onReconcileAccount}
             />
           ))}
         </div>
@@ -597,6 +614,7 @@ export default function PaymentChannelsPanel({
               onSelectAccount={onSelectAccount}
               onEditAccount={openEdit}
               onDeleteAccount={onDeleteAccount}
+              onReconcileAccount={onReconcileAccount}
             />
           ))}
         </div>
@@ -620,6 +638,7 @@ export default function PaymentChannelsPanel({
                 onSelect={onSelectAccount}
                 onEdit={openEdit}
                 onDelete={onDeleteAccount}
+                onReconcileAccount={onReconcileAccount}
               />
             ))}
           </div>

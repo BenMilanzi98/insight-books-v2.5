@@ -28,6 +28,7 @@ const PaymentAccountsPage = () => {
   const [notification, setNotification] = useState(null);
   const [pagePermissions, setPagePermissions] = useState({
     canCreatePayments: false,
+    canReconcile: false,
   });
 
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -39,11 +40,20 @@ const PaymentAccountsPage = () => {
 
   useEffect(() => {
     const fetchPermissions = async () => {
-      const canCreatePayments = await getPermission("payments.create");
-      setPagePermissions({ canCreatePayments });
+      const [canCreatePayments, canReconcile] = await Promise.all([
+        getPermission("payments.create"),
+        getPermission("bankReconciliation.view"),
+      ]);
+      setPagePermissions({ canCreatePayments, canReconcile });
     };
     fetchPermissions();
   }, []);
+
+  const canReconcile = pagePermissions.canReconcile;
+
+  const handleReconcileAccount = (account) => {
+    router.push(`/payments/reconcile/${account.id}`);
+  };
 
   const showNotification = (message, type = "info") => {
     setNotification({ message, type });
@@ -194,9 +204,9 @@ const PaymentAccountsPage = () => {
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{tt('Payment Accounts')}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{tt('Accounts & Reconciliation')}</h1>
             <p className="text-sm text-gray-500 mt-1">
-              {tt('Active cash, bank, and mobile accounts. Add or activate channels under Manage accounts.')}
+              {tt('Reconcile Bank and Mobile Money against statements. Cash stays on this hub without a Reconcile action. Add or activate channels under Manage accounts.')}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -234,6 +244,7 @@ const PaymentAccountsPage = () => {
           mode="dashboard"
           refreshKey={channelRefreshKey}
           onSelectAccount={openHistory}
+          onReconcileAccount={canReconcile ? handleReconcileAccount : undefined}
         />
 
         <PaymentModal
