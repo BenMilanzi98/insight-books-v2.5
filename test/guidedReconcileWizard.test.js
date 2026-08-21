@@ -31,6 +31,10 @@ import {
   buildAdjustBody,
   canCreateTransactionForStatement,
   classificationForResolveType,
+  historyActionLabel,
+  historyHrefForReconciliation,
+  historyRowsFromPayload,
+  isWizardReadOnly,
   listOffsetAccounts,
   offsetAccountTypeForResolveType,
   postReconAdjustment,
@@ -493,5 +497,101 @@ describe('guided reconcile resolve helpers', () => {
       offsetAccountId: 'acc-exp',
       description: 'Fee',
     });
+  });
+});
+
+describe('guided reconcile history helpers', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('lists hub history without an account filter and account history with paymentAccountId', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ reconciliations: [] }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await listReconciliations();
+    await listReconciliations('pa-1');
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/bank-reconciliation/reconciliations');
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      '/api/bank-reconciliation/reconciliations?paymentAccountId=pa-1'
+    );
+  });
+
+  it('maps open and completed recs and skips reversed', () => {
+    const rows = historyRowsFromPayload({
+      reconciliations: [
+        {
+          id: 'done-1',
+          paymentAccountId: 'pa-1',
+          status: 'COMPLETED',
+          periodStart: '2026-07-01T00:00:00.000Z',
+          periodEnd: '2026-07-31T00:00:00.000Z',
+          statementClosingBalance: '1500.00',
+          differenceMinor: 0,
+          completedBy: 'user-9',
+          completedAt: '2026-08-01T09:30:00.000Z',
+        },
+        {
+          id: 'draft-1',
+          paymentAccountId: 'pa-1',
+          status: 'DRAFT',
+          periodStart: '2026-08-01',
+          periodEnd: '2026-08-31',
+          statementClosingBalance: 250,
+          differenceMinor: 1250,
+          completedBy: null,
+          completedAt: null,
+        },
+        {
+          id: 'rev-1',
+          paymentAccountId: 'pa-1',
+          status: 'REVERSED',
+          periodEnd: '2026-06-30',
+          statementClosingBalance: '10.00',
+          differenceMinor: 0,
+        },
+      ],
+    });
+
+    expect(rows.map((row) => row.id)).toEqual(['done-1', 'draft-1']);
+    expect(rows[0]).toMatchObject({
+      period: '2026-07-01 – 2026-07-31',
+      closing: '1500.00',
+      difference: '0.00',
+      status: 'Reconciled',
+      completedBy: 'user-9',
+      completedAt: '2026-08-01',
+      actionLabel: 'View',
+      href: '/payments/reconcile/pa-1?id=done-1',
+      readOnly: true,
+    });
+    expect(rows[1]).toMatchObject({
+      period: '2026-08-01 – 2026-08-31',
+      closing: '250',
+      difference: '12.50',
+      status: 'DRAFT',
+      completedBy: '—',
+      completedAt: '—',
+      actionLabel: 'Continue',
+      href: '/payments/reconcile/pa-1?id=draft-1',
+      readOnly: false,
+    });
+  });
+
+  it('builds Continue/View hrefs and locks only completed wizard workspaces', () => {
+    expect(
+      historyHrefForReconciliation({ id: 'rec 1', paymentAccountId: 'pa 2' })
+    ).toBe('/payments/reconcile/pa%202?id=rec%201');
+    expect(historyActionLabel({ status: 'COMPLETED' })).toBe('View');
+    expect(historyActionLabel({ status: 'IN_PROGRESS' })).toBe('Continue');
+    expect(isWizardReadOnly({ reconciliation: { status: 'COMPLETED' } })).toBe(true);
+    expect(isWizardReadOnly({ reconciliation: { status: 'DRAFT' } })).toBe(false);
+    expect(isWizardReadOnly({ status: 'COMPLETED' })).toBe(true);
   });
 });

@@ -75,6 +75,7 @@ export default function MatchStep({
   reconciliationId,
   workspace,
   onRefresh,
+  readOnly = false,
 }) {
   const recon = workspace?.reconciliation;
   const statements = Array.isArray(workspace?.statements) ? workspace.statements : [];
@@ -157,6 +158,7 @@ export default function MatchStep({
   };
 
   const handleAutoMatch = async () => {
+    if (readOnly) return;
     setError('');
     setBusy(true);
     try {
@@ -175,6 +177,7 @@ export default function MatchStep({
   };
 
   const handleManualMatch = async () => {
+    if (readOnly) return;
     setError('');
     if (!reconciliationId) {
       setError('Start a reconciliation before matching.');
@@ -217,6 +220,7 @@ export default function MatchStep({
   };
 
   const handleSuggestion = async (matchId, action) => {
+    if (readOnly) return;
     setError('');
     setBusy(true);
     try {
@@ -248,7 +252,7 @@ export default function MatchStep({
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" loading={busy} onClick={handleAutoMatch}>
+        <Button type="button" loading={busy} disabled={readOnly} onClick={handleAutoMatch}>
           {tt('Auto Match')}
         </Button>
         <p className="text-sm text-gray-600">
@@ -286,7 +290,7 @@ export default function MatchStep({
                             name="recon-match-statement"
                             value={row.id}
                             checked={selectedStatementId === row.id}
-                            disabled={!selectable || busy}
+                            disabled={!selectable || busy || readOnly}
                             onChange={() => setSelectedStatementId(row.id)}
                             aria-label={`${tt('Select statement')} ${row.description || row.id}`}
                           />
@@ -343,7 +347,7 @@ export default function MatchStep({
                           <input
                             type="checkbox"
                             checked={selectedBookIds.has(id)}
-                            disabled={busy || !id}
+                            disabled={busy || !id || readOnly}
                             onChange={() => toggleBook(id)}
                             aria-label={`${tt('Select outstanding')} ${row.description || id}`}
                           />
@@ -395,7 +399,7 @@ export default function MatchStep({
             type="text"
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
-            disabled={busy}
+            disabled={busy || readOnly}
             {...a11y}
           />
         )}
@@ -405,7 +409,7 @@ export default function MatchStep({
         type="button"
         variant="secondary"
         loading={busy}
-        disabled={!canMatch}
+        disabled={!canMatch || readOnly}
         onClick={handleManualMatch}
       >
         {tt('Match')}
@@ -430,6 +434,7 @@ export default function MatchStep({
                     type="button"
                     size="compact"
                     loading={busy}
+                    disabled={readOnly}
                     onClick={() => handleSuggestion(match.id, 'accept')}
                   >
                     {tt('Accept')}
@@ -439,6 +444,7 @@ export default function MatchStep({
                     size="compact"
                     variant="secondary"
                     loading={busy}
+                    disabled={readOnly}
                     onClick={() => handleSuggestion(match.id, 'reject')}
                   >
                     {tt('Reject')}

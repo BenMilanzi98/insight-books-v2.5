@@ -80,9 +80,10 @@ export async function reconFetch(url, options) {
 }
 
 export function listReconciliations(paymentAccountId) {
-  return reconFetch(
-    `/api/bank-reconciliation/reconciliations?paymentAccountId=${encodeURIComponent(paymentAccountId)}`
-  );
+  const qs = paymentAccountId
+    ? `?paymentAccountId=${encodeURIComponent(paymentAccountId)}`
+    : '';
+  return reconFetch(`/api/bank-reconciliation/reconciliations${qs}`);
 }
 
 export function createReconciliation(body) {
@@ -194,6 +195,76 @@ export function canPostManualMatch(statement, books) {
 
 export function formatMinorAsAmount(minor) {
   return (toFiniteNumber(minor) / 100).toFixed(2);
+}
+
+function historyDatePart(value) {
+  if (value == null || value === '') return '';
+  const s = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  return s;
+}
+
+export function isWizardReadOnly(workspaceOrRecon) {
+  const status = workspaceOrRecon?.reconciliation?.status ?? workspaceOrRecon?.status;
+  return status === BankRecStatus.COMPLETED;
+}
+
+export function historyActionLabel(row) {
+  return isWizardReadOnly(row) ? 'View' : 'Continue';
+}
+
+export function historyHrefForReconciliation(row) {
+  const accountId = encodeURIComponent(row?.paymentAccountId || '');
+  const id = encodeURIComponent(row?.id || '');
+  return `/payments/reconcile/${accountId}?id=${id}`;
+}
+
+function isHistoryReconciliation(row) {
+  return OPEN_RECON_STATUSES.includes(row?.status) || row?.status === BankRecStatus.COMPLETED;
+}
+
+function historyPeriodLabel(row) {
+  const start = historyDatePart(row?.periodStart);
+  const end = historyDatePart(row?.periodEnd || row?.statementDate);
+  if (start && end) return `${start} – ${end}`;
+  return end || start || '—';
+}
+
+function historyClosingLabel(row) {
+  if (row?.statementClosingBalance == null || row.statementClosingBalance === '') return '—';
+  return String(row.statementClosingBalance);
+}
+
+function historyDifferenceLabel(row) {
+  if (row?.differenceMinor == null || row.differenceMinor === '') return '—';
+  return formatMinorAsAmount(row.differenceMinor);
+}
+
+function historyStatusLabel(row) {
+  if (row?.status === BankRecStatus.COMPLETED) return 'Reconciled';
+  return row?.status || '—';
+}
+
+export function historyRowFromReconciliation(row) {
+  const completed = isWizardReadOnly(row);
+  return {
+    id: row?.id,
+    paymentAccountId: row?.paymentAccountId,
+    period: historyPeriodLabel(row),
+    closing: historyClosingLabel(row),
+    difference: historyDifferenceLabel(row),
+    status: historyStatusLabel(row),
+    completedBy: row?.completedBy || '—',
+    completedAt: completed ? historyDatePart(row?.completedAt) || '—' : '—',
+    href: historyHrefForReconciliation(row),
+    actionLabel: historyActionLabel(row),
+    readOnly: completed,
+  };
+}
+
+export function historyRowsFromPayload(payload) {
+  const rows = Array.isArray(payload) ? payload : payload?.reconciliations || [];
+  return rows.filter(isHistoryReconciliation).map(historyRowFromReconciliation);
 }
 
 export function manualMatchAmountError(statement, books) {

@@ -27,6 +27,7 @@ export default function StatementStep({
   reconciliationId,
   workspace,
   onActivated,
+  readOnly = false,
 }) {
   const recon = workspace?.reconciliation;
   const [periodStart, setPeriodStart] = useState(dateInput(recon?.periodStart));
@@ -78,6 +79,7 @@ export default function StatementStep({
   }, [paymentAccountId, reconciliationId]);
 
   const continueDraft = (id) => {
+    if (readOnly) return;
     setError('');
     setNotice('');
     onActivated?.(id);
@@ -85,6 +87,7 @@ export default function StatementStep({
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (readOnly) return;
     setError('');
     setNotice('');
     setBusy(true);
@@ -142,7 +145,7 @@ export default function StatementStep({
         </p>
       ) : null}
 
-      {canContinue ? (
+      {canContinue && !readOnly ? (
         <div className="flex flex-col gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-indigo-950">{tt('Open reconciliation found')}</p>
@@ -170,7 +173,7 @@ export default function StatementStep({
               type="date"
               value={periodStart}
               onChange={(e) => setPeriodStart(e.target.value)}
-              disabled={Boolean(activeId)}
+              disabled={Boolean(activeId) || readOnly}
               {...a11y}
             />
           )}
@@ -183,7 +186,7 @@ export default function StatementStep({
               value={periodEnd}
               onChange={(e) => setPeriodEnd(e.target.value)}
               required
-              disabled={Boolean(activeId)}
+              disabled={Boolean(activeId) || readOnly}
               {...a11y}
             />
           )}
@@ -196,7 +199,7 @@ export default function StatementStep({
               step="0.01"
               value={opening}
               onChange={(e) => setOpening(e.target.value)}
-              disabled={Boolean(activeId)}
+              disabled={Boolean(activeId) || readOnly}
               {...a11y}
             />
           )}
@@ -210,13 +213,13 @@ export default function StatementStep({
               value={closing}
               onChange={(e) => setClosing(e.target.value)}
               required
-              disabled={Boolean(activeId)}
+              disabled={Boolean(activeId) || readOnly}
               {...a11y}
             />
           )}
         </FormField>
         <div className="sm:col-span-2">
-          <Button type="submit" loading={busy} disabled={Boolean(activeId) || checking}>
+          <Button type="submit" loading={busy} disabled={Boolean(activeId) || checking || readOnly}>
             {tt('Start reconciliation')}
           </Button>
         </div>

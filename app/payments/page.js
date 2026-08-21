@@ -16,6 +16,7 @@ import {
 import { useRouter } from "next/navigation";
 import PaymentModal from "@/components/PaymentModal";
 import PaymentChannelsPanel from "@/components/payments/PaymentChannelsPanel";
+import ReconciliationHistoryPanel from "@/components/payments/ReconciliationHistoryPanel";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
@@ -246,6 +247,12 @@ const PaymentAccountsPage = () => {
           onSelectAccount={openHistory}
           onReconcileAccount={canReconcile ? handleReconcileAccount : undefined}
         />
+
+        {canReconcile ? (
+          <div className="mt-8">
+            <ReconciliationHistoryPanel />
+          </div>
+        ) : null}
 
         <PaymentModal
           isOpen={isModalOpen}

@@ -31,6 +31,7 @@ export default function ImportStep({
   reconciliationId,
   workspace,
   onConfirmed,
+  readOnly = false,
 }) {
   const recon = workspace?.reconciliation;
   const existingCount = Array.isArray(workspace?.statements) ? workspace.statements.length : 0;
@@ -40,6 +41,7 @@ export default function ImportStep({
   const [error, setError] = useState('');
 
   const handleFileChange = (event) => {
+    if (readOnly) return;
     const next = event.target.files?.[0] || null;
     setPreview(null);
     setError('');
@@ -59,6 +61,7 @@ export default function ImportStep({
 
   const handlePreview = async (event) => {
     event.preventDefault();
+    if (readOnly) return;
     setError('');
     setBusy(true);
     try {
@@ -83,6 +86,7 @@ export default function ImportStep({
   };
 
   const handleConfirm = async () => {
+    if (readOnly) return;
     setError('');
     setBusy(true);
     try {
@@ -157,19 +161,20 @@ export default function ImportStep({
               type="file"
               accept={GUIDED_IMPORT_ACCEPT}
               onChange={handleFileChange}
+              disabled={readOnly}
               {...a11y}
             />
           )}
         </FormField>
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" loading={busy} disabled={!file}>
+          <Button type="submit" loading={busy} disabled={!file || readOnly}>
             {tt('Preview')}
           </Button>
           <Button
             type="button"
             variant="secondary"
             loading={busy}
-            disabled={!canConfirm}
+            disabled={!canConfirm || readOnly}
             onClick={handleConfirm}
           >
             {tt('Confirm import')}

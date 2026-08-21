@@ -11,9 +11,11 @@ import ImportStep from './ImportStep.jsx';
 import MatchStep from './MatchStep.jsx';
 import ResolveStep from './ResolveStep.jsx';
 import SummaryStep, { ReconSummaryStrip } from './SummaryStep.jsx';
+import ReconciliationHistoryPanel from '@/components/payments/ReconciliationHistoryPanel.jsx';
 import {
   WIZARD_STEPS,
   getReconciliationWorkspace,
+  isWizardReadOnly,
   listReconcilableAccounts,
 } from './reconApi.js';
 
@@ -103,6 +105,7 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
   };
 
   const canLeaveStatement = Boolean(reconciliationId);
+  const readOnly = isWizardReadOnly(workspace);
   const goToStep = (index) => {
     if (index < 0 || index >= WIZARD_STEPS.length) return;
     if (index > 0 && !canLeaveStatement) return;
@@ -133,6 +136,12 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
       ) : null}
 
       {reconciliationId ? <ReconSummaryStrip workspace={workspace} /> : null}
+
+      {readOnly ? (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" role="status">
+          {tt('This period is reconciled and read-only.')}
+        </p>
+      ) : null}
 
       <nav aria-label={tt('Reconciliation steps')} className="flex flex-wrap gap-2">
         {WIZARD_STEPS.map((key, index) => {
@@ -169,6 +178,7 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
             reconciliationId={reconciliationId}
             workspace={workspace}
             onActivated={handleActivated}
+            readOnly={readOnly}
           />
         ) : null}
 
@@ -178,6 +188,7 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
             reconciliationId={reconciliationId}
             workspace={workspace}
             onConfirmed={handleImported}
+            readOnly={readOnly}
           />
         ) : null}
         {!loading && stepKey === 'match' ? (
@@ -186,6 +197,7 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
             reconciliationId={reconciliationId}
             workspace={workspace}
             onRefresh={refreshWorkspace}
+            readOnly={readOnly}
           />
         ) : null}
         {!loading && stepKey === 'resolve' ? (
@@ -193,6 +205,7 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
             reconciliationId={reconciliationId}
             workspace={workspace}
             onRefresh={refreshWorkspace}
+            readOnly={readOnly}
           />
         ) : null}
         {!loading && stepKey === 'complete' ? (
@@ -200,6 +213,7 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
             reconciliationId={reconciliationId}
             workspace={workspace}
             onRefresh={refreshWorkspace}
+            readOnly={readOnly}
           />
         ) : null}
 
@@ -221,6 +235,13 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
           </Button>
         </div>
       </PosStylePanel>
+
+      {paymentAccountId ? (
+        <ReconciliationHistoryPanel
+          paymentAccountId={paymentAccountId}
+          currentReconciliationId={reconciliationId}
+        />
+      ) : null}
     </div>
   );
 }

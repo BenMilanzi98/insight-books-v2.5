@@ -49,9 +49,9 @@ export function ReconSummaryStrip({ workspace }) {
   );
 }
 
-export default function SummaryStep({ reconciliationId, workspace, onRefresh }) {
+export default function SummaryStep({ reconciliationId, workspace, onRefresh, readOnly = false }) {
   const summary = summaryFromWorkspace(workspace);
-  const canComplete = canCompleteFromWorkspace(workspace) && !summary.isComplete;
+  const canComplete = canCompleteFromWorkspace(workspace) && !summary.isComplete && !readOnly;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 

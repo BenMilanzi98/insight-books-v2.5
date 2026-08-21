@@ -52,7 +52,7 @@ function emptyForm(statement) {
   };
 }
 
-export default function ResolveStep({ reconciliationId, workspace, onRefresh }) {
+export default function ResolveStep({ reconciliationId, workspace, onRefresh, readOnly = false }) {
   const statements = unmatchedStatementLines(workspace?.statements);
   const outstanding = Array.isArray(workspace?.outstanding) ? workspace.outstanding : [];
 
@@ -94,6 +94,7 @@ export default function ResolveStep({ reconciliationId, workspace, onRefresh }) 
   }, [creatingId, coaType]);
 
   const openForm = (statement) => {
+    if (readOnly) return;
     setError('');
     setCreatingId(statement.id);
     setForm(emptyForm(statement));
@@ -106,6 +107,7 @@ export default function ResolveStep({ reconciliationId, workspace, onRefresh }) 
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (readOnly) return;
     setError('');
     if (!reconciliationId) {
       setError('Start a reconciliation before creating a transaction.');
@@ -197,7 +199,7 @@ export default function ResolveStep({ reconciliationId, workspace, onRefresh }) 
                           type="button"
                           size="compact"
                           variant={open ? 'secondary' : 'primary'}
-                          disabled={busy}
+                          disabled={busy || readOnly}
                           onClick={() => (open ? closeForm() : openForm(row))}
                         >
                           {tt('Create Transaction')}
@@ -242,7 +244,7 @@ export default function ResolveStep({ reconciliationId, workspace, onRefresh }) 
                     offsetAccountId: '',
                   }))
                 }
-                disabled={busy}
+                disabled={busy || readOnly}
                 {...a11y}
               >
                 <option value="EXPENSE">{tt('Expense (Bank charge)')}</option>
@@ -256,7 +258,7 @@ export default function ResolveStep({ reconciliationId, workspace, onRefresh }) 
                 id={id}
                 value={form.offsetAccountId}
                 onChange={(event) => setForm((prev) => ({ ...prev, offsetAccountId: event.target.value }))}
-                disabled={busy}
+                disabled={busy || readOnly}
                 {...a11y}
               >
                 <option value="">{tt('Select account')}</option>
@@ -275,13 +277,13 @@ export default function ResolveStep({ reconciliationId, workspace, onRefresh }) 
                 type="text"
                 value={form.description}
                 onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-                disabled={busy}
+                disabled={busy || readOnly}
                 {...a11y}
               />
             )}
           </FormField>
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" loading={busy} disabled={!form.offsetAccountId}>
+            <Button type="submit" loading={busy} disabled={!form.offsetAccountId || readOnly}>
               {tt('Create Transaction')}
             </Button>
             <Button type="button" variant="secondary" disabled={busy} onClick={closeForm}>
