@@ -444,7 +444,7 @@ describe('guided reconcile resolve helpers', () => {
     ).toBe('INTEREST');
   });
 
-  it('offers Create Transaction only for unmatched bank lines', () => {
+  it('offers Create Transaction only for fully unmatched bank lines', () => {
     const rows = [
       { id: 'a', matchingStatus: 'UNMATCHED' },
       { id: 'b', matchingStatus: 'PARTIAL' },
@@ -453,10 +453,11 @@ describe('guided reconcile resolve helpers', () => {
       { id: 'e', matchingStatus: 'SUGGESTED' },
     ];
     expect(canCreateTransactionForStatement(rows[0])).toBe(true);
-    expect(canCreateTransactionForStatement(rows[1])).toBe(true);
+    expect(canCreateTransactionForStatement(rows[1])).toBe(false);
     expect(canCreateTransactionForStatement(rows[2])).toBe(false);
     expect(canCreateTransactionForStatement(rows[3])).toBe(false);
-    expect(unmatchedStatementLines(rows).map((row) => row.id)).toEqual(['a', 'b']);
+    expect(canCreateTransactionForStatement(rows[4])).toBe(false);
+    expect(unmatchedStatementLines(rows).map((row) => row.id)).toEqual(['a']);
   });
 
   it('lists offset CoA accounts by type and posts adjust then can refresh workspace', async () => {

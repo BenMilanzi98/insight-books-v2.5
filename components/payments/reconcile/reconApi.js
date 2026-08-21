@@ -276,8 +276,9 @@ export function offsetAccountTypeForResolveType(resolveType) {
   return resolveType === 'MONEY_IN' ? 'Income' : 'Expense';
 }
 
+/** Create Transaction posts the full statement amount; only fully unmatched lines are eligible. */
 export function canCreateTransactionForStatement(row) {
-  return isStatementSelectable(row);
+  return row?.matchingStatus === StatementMatchingStatus.UNMATCHED;
 }
 
 export function unmatchedStatementLines(statements) {
