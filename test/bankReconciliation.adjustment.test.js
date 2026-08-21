@@ -90,8 +90,24 @@ describe('classifyAndAdjust posting', () => {
     expect(postManualJournal).toHaveBeenCalledWith(
       context,
       'je-draft',
-      expect.objectContaining({ hasPermission: expect.any(Function) }),
+      expect.objectContaining({
+        hasPermission: expect.any(Function),
+        approvalOverride: expect.objectContaining({
+          allowSelfApproval: true,
+          approvedById: context.userId,
+          createdById: context.userId,
+          reason: 'bank_rec_create_missing',
+        }),
+      }),
       db
+    );
+    expect(db.journalEntry.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'je-draft' },
+        data: expect.objectContaining({
+          approvedById: context.userId,
+        }),
+      })
     );
     expect(result.posted.journal.status).toBe('Posted');
     expect(result.posted.journalEntryId).toBe('je-draft');
