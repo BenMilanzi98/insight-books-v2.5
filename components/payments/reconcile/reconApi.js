@@ -1,4 +1,8 @@
-import { OPEN_RECON_STATUSES } from '@/lib/bankReconciliation/domain/enums.js';
+import {
+  OPEN_RECON_STATUSES,
+  OutstandingItemType,
+  StatementMatchingStatus,
+} from '@/lib/bankReconciliation/domain/enums.js';
 
 export const WIZARD_STEPS = ['statement', 'import', 'match', 'resolve', 'complete'];
 export const GUIDED_IMPORT_ACCEPT = '.csv,.xlsx,.xls';
@@ -136,15 +140,46 @@ export function statementBankAbsMinor(statement) {
   return Math.abs(toFiniteNumber(statement?.signedAmountMinor));
 }
 
-/** Book amount in minor units: remainingAmountMinor (candidates) or amountMinor (outstanding). */
-export function bookCandidateAmountMinor(book) {
+function signedMagnitude(magnitude, signSource) {
+  const abs = Math.abs(toFiniteNumber(magnitude));
+  if (!abs) return 0;
+  const sign = toFiniteNumber(signSource) < 0 ? -1 : 1;
+  return sign * abs;
+}
+
+/**
+ * Signed book amount in minor units.
+ * Prefer candidate remainingAmountMinor; else sign outstanding amountMinor from itemType
+ * (OUTSTANDING_PAYMENT → negative); else fall back to the bank statement sign.
+ */
+export function bookCandidateAmountMinor(book, statement) {
   if (book?.remainingAmountMinor != null && book.remainingAmountMinor !== '') {
     return toFiniteNumber(book.remainingAmountMinor);
   }
-  if (book?.amountMinor != null && book.amountMinor !== '') {
-    return toFiniteNumber(book.amountMinor);
+  if (book?.amountMinor == null || book.amountMinor === '') return 0;
+  const magnitude = book.amountMinor;
+  if (book.itemType === OutstandingItemType.OUTSTANDING_PAYMENT) {
+    return signedMagnitude(magnitude, -1);
   }
-  return 0;
+  if (book.itemType === OutstandingItemType.DEPOSIT_IN_TRANSIT) {
+    return signedMagnitude(magnitude, 1);
+  }
+  return signedMagnitude(magnitude, statement?.signedAmountMinor);
+}
+
+/** Statement lines that still need Accept/Reject (SUGGESTED) must not be manually radio-matched. */
+export function isStatementSelectable(row) {
+  const status = row?.matchingStatus;
+  return (
+    status !== StatementMatchingStatus.MATCHED &&
+    status !== StatementMatchingStatus.CLASSIFIED &&
+    status !== StatementMatchingStatus.EXCLUDED &&
+    status !== StatementMatchingStatus.SUGGESTED
+  );
+}
+
+export function canAttemptManualMatch(statement, books) {
+  return isStatementSelectable(statement) && canPostManualMatch(statement, books);
 }
 
 export function selectedBookSumMinor(books) {
@@ -171,7 +206,7 @@ export function buildManualMatchBody({ reconciliationId, statement, books, notes
     reconciliationId,
     statementIds: statement?.id ? [statement.id] : [],
     bookLinks: (books || []).map((book) => {
-      const amountMinor = bookCandidateAmountMinor(book);
+      const amountMinor = bookCandidateAmountMinor(book, statement);
       return {
         journalEntryLineId: book.journalEntryLineId,
         amountMinor,

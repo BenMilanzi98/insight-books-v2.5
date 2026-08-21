@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 import FormField, { Input } from '@/components/ui/FormField';
-import { MatchStatus, StatementMatchingStatus } from '@/lib/bankReconciliation/domain/enums.js';
+import { MatchStatus } from '@/lib/bankReconciliation/domain/enums.js';
 import {
   guidedOutstandingLabel,
   guidedStatementStatusLabel,
@@ -13,8 +13,10 @@ import {
   acceptSuggestedMatch,
   autoMatchReconciliation,
   buildManualMatchBody,
+  canAttemptManualMatch,
   canPostManualMatch,
   formatMinorAsAmount,
+  isStatementSelectable,
   listMatchCandidates,
   manualMatchAmountError,
   postManualMatch,
@@ -49,15 +51,6 @@ function formatBookAmount(row) {
   return '';
 }
 
-function isStatementSelectable(row) {
-  const status = row?.matchingStatus;
-  return (
-    status !== StatementMatchingStatus.MATCHED &&
-    status !== StatementMatchingStatus.CLASSIFIED &&
-    status !== StatementMatchingStatus.EXCLUDED
-  );
-}
-
 function statusBadgeClass(matchingStatus) {
   const label = guidedStatementStatusLabel(matchingStatus);
   if (label === 'Matched') return 'bg-emerald-100 text-emerald-900';
@@ -70,7 +63,9 @@ function mergeBookRows(candidates, outstanding) {
     if (row?.journalEntryLineId) map.set(row.journalEntryLineId, row);
   }
   for (const row of candidates || []) {
-    if (row?.journalEntryLineId) map.set(row.journalEntryLineId, row);
+    if (!row?.journalEntryLineId) continue;
+    const existing = map.get(row.journalEntryLineId);
+    map.set(row.journalEntryLineId, existing ? { ...existing, ...row } : row);
   }
   return [...map.values()];
 }
@@ -131,11 +126,20 @@ export default function MatchStep({
   const selectedStatement = statements.find((row) => row.id === selectedStatementId) || null;
   const selectedBooks = books.filter((row) => selectedBookIds.has(row.journalEntryLineId));
   const selectionReady = Boolean(selectedStatement) && selectedBooks.length > 0;
+  const statementSelectable = isStatementSelectable(selectedStatement);
   const amountsMatch = canPostManualMatch(selectedStatement, selectedBooks);
+  const canMatch = canAttemptManualMatch(selectedStatement, selectedBooks);
   const mismatchMessage =
-    selectionReady && !amountsMatch ? manualMatchAmountError(selectedStatement, selectedBooks) : '';
+    selectionReady && statementSelectable && !amountsMatch
+      ? manualMatchAmountError(selectedStatement, selectedBooks)
+      : '';
 
   const suggestions = matches.filter((match) => match.status === MatchStatus.SUGGESTED);
+
+  const clearMatchSelection = () => {
+    setSelectedStatementId(null);
+    setSelectedBookIds(new Set());
+  };
 
   const refreshAll = async () => {
     if (reconciliationId) await onRefresh?.(reconciliationId);
@@ -158,6 +162,7 @@ export default function MatchStep({
     try {
       if (!reconciliationId) throw new Error('Start a reconciliation before matching.');
       const result = await autoMatchReconciliation(reconciliationId);
+      clearMatchSelection();
       await refreshAll();
       if (result && Object.prototype.hasOwnProperty.call(result, 'matchesCreated')) {
         setToast(`${tt('Auto match created')} ${result.matchesCreated} ${tt('match(es).')}`);
@@ -179,6 +184,10 @@ export default function MatchStep({
       setError('Select one statement line.');
       return;
     }
+    if (!isStatementSelectable(selectedStatement)) {
+      setError('Select an unmatched statement line. Accept or reject suggestions instead.');
+      return;
+    }
     if (!selectedBooks.length) {
       setError('Select one or more outstanding book lines.');
       return;
@@ -197,8 +206,7 @@ export default function MatchStep({
           notes: notes.trim() || undefined,
         })
       );
-      setSelectedStatementId(null);
-      setSelectedBookIds(new Set());
+      clearMatchSelection();
       setNotes('');
       await refreshAll();
     } catch (err) {
@@ -214,6 +222,7 @@ export default function MatchStep({
     try {
       if (action === 'accept') await acceptSuggestedMatch(matchId);
       else await rejectSuggestedMatch(matchId);
+      clearMatchSelection();
       await refreshAll();
     } catch (err) {
       setError(err.message || 'Could not update the suggestion.');
@@ -396,7 +405,7 @@ export default function MatchStep({
         type="button"
         variant="secondary"
         loading={busy}
-        disabled={!selectionReady}
+        disabled={!canMatch}
         onClick={handleManualMatch}
       >
         {tt('Match')}

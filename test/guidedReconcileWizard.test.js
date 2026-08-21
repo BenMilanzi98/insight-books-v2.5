@@ -9,13 +9,16 @@ import {
   buildPreviewImportFormData,
   acceptSuggestedMatch,
   autoMatchReconciliation,
+  bookCandidateAmountMinor,
   buildManualMatchBody,
+  canAttemptManualMatch,
   canConfirmGuidedImportPreview,
   canPostManualMatch,
   confirmStatementImport,
   createReconciliation,
   findOpenReconciliation,
   isAllowedGuidedStatementFile,
+  isStatementSelectable,
   listMatchCandidates,
   listReconciliations,
   manualMatchAmountError,
@@ -264,6 +267,54 @@ describe('guided reconcile match amount helpers', () => {
         { journalEntryLineId: 'jel-2', amountMinor: -6000, allocatedAmountMinor: -6000 },
       ],
       notes: 'split deposit',
+    });
+  });
+
+  it('treats SUGGESTED as not selectable so the user accepts or rejects instead', () => {
+    expect(isStatementSelectable({ matchingStatus: 'UNMATCHED' })).toBe(true);
+    expect(isStatementSelectable({ matchingStatus: 'PARTIAL' })).toBe(true);
+    expect(isStatementSelectable({ matchingStatus: 'SUGGESTED' })).toBe(false);
+    expect(isStatementSelectable({ matchingStatus: 'MATCHED' })).toBe(false);
+    expect(isStatementSelectable({ matchingStatus: 'CLASSIFIED' })).toBe(false);
+    expect(isStatementSelectable({ matchingStatus: 'EXCLUDED' })).toBe(false);
+  });
+
+  it('refuses manual match when the selected statement is not selectable', () => {
+    const unmatched = { id: 'stmt-1', matchingStatus: 'UNMATCHED', signedAmountMinor: -15000 };
+    const suggested = { ...unmatched, matchingStatus: 'SUGGESTED' };
+    expect(canAttemptManualMatch(suggested, booksEqual)).toBe(false);
+    expect(canAttemptManualMatch(unmatched, booksEqual)).toBe(true);
+    expect(canAttemptManualMatch(unmatched, booksShort)).toBe(false);
+  });
+
+  it('signs outstanding fallback amounts from remainingAmountMinor, itemType, or bank sign', () => {
+    expect(
+      bookCandidateAmountMinor({
+        remainingAmountMinor: -9000,
+        amountMinor: 9000,
+        itemType: 'OUTSTANDING_PAYMENT',
+      })
+    ).toBe(-9000);
+    expect(bookCandidateAmountMinor({ amountMinor: 8000, itemType: 'OUTSTANDING_PAYMENT' })).toBe(-8000);
+    expect(bookCandidateAmountMinor({ amountMinor: 7000, itemType: 'DEPOSIT_IN_TRANSIT' })).toBe(7000);
+    expect(bookCandidateAmountMinor({ amountMinor: 5000, itemType: 'OTHER' }, bank)).toBe(-5000);
+    expect(bookCandidateAmountMinor({ amountMinor: 4000 }, { signedAmountMinor: 12000 })).toBe(4000);
+  });
+
+  it('builds signed bookLinks from outstanding itemType when remainingAmountMinor is absent', () => {
+    expect(
+      buildManualMatchBody({
+        reconciliationId: 'rec-1',
+        statement: bank,
+        books: outstandingBooks.map((row) => ({ ...row, itemType: 'OUTSTANDING_PAYMENT' })),
+      })
+    ).toEqual({
+      reconciliationId: 'rec-1',
+      statementIds: ['stmt-1'],
+      bookLinks: [
+        { journalEntryLineId: 'jel-1', amountMinor: -8000, allocatedAmountMinor: -8000 },
+        { journalEntryLineId: 'jel-2', amountMinor: -7000, allocatedAmountMinor: -7000 },
+      ],
     });
   });
 });
