@@ -7,6 +7,7 @@ import {
   buildConfirmImportFormData,
   buildCreateReconciliationBody,
   buildPreviewImportFormData,
+  canConfirmGuidedImportPreview,
   confirmStatementImport,
   createReconciliation,
   findOpenReconciliation,
@@ -191,5 +192,18 @@ describe('guided reconcile CSV/Excel import helpers', () => {
   it('places Match immediately after Import in the wizard', () => {
     expect(WIZARD_STEPS).toEqual(['statement', 'import', 'match', 'resolve', 'complete']);
     expect(WIZARD_STEPS.indexOf('match')).toBe(2);
+  });
+
+  it('allows confirm only when preview has rows, batch id, and file', () => {
+    const file = fakeStatementFile('august.csv');
+    const withRows = { batch: { id: 'batch-1' }, totalRows: 3 };
+    const empty = { batch: { id: 'batch-1' }, totalRows: 0 };
+    const noBatch = { totalRows: 5 };
+
+    expect(canConfirmGuidedImportPreview(withRows, file)).toBe(true);
+    expect(canConfirmGuidedImportPreview(empty, file)).toBe(false);
+    expect(canConfirmGuidedImportPreview(noBatch, file)).toBe(false);
+    expect(canConfirmGuidedImportPreview(withRows, null)).toBe(false);
+    expect(canConfirmGuidedImportPreview(null, file)).toBe(false);
   });
 });

@@ -8,6 +8,7 @@ import {
   assertAllowedGuidedStatementFile,
   buildConfirmImportFormData,
   buildPreviewImportFormData,
+  canConfirmGuidedImportPreview,
   confirmStatementImport,
   previewStatementImport,
 } from './reconApi.js';
@@ -86,8 +87,14 @@ export default function ImportStep({
     setBusy(true);
     try {
       if (!file) throw new Error('Choose a CSV or Excel file first.');
-      const batchId = preview?.batch?.id;
-      if (!batchId) throw new Error('Preview the file before confirming.');
+      if (!canConfirmGuidedImportPreview(preview, file)) {
+        throw new Error(
+          Number(preview?.totalRows) === 0
+            ? 'This file has no mappable statement rows. Fix the file or column mapping before confirming.'
+            : 'Preview the file before confirming.'
+        );
+      }
+      const batchId = preview.batch.id;
       if (!reconciliationId) throw new Error('Start a reconciliation before importing.');
       assertAllowedGuidedStatementFile(file.name);
       await confirmStatementImport(
@@ -114,6 +121,8 @@ export default function ImportStep({
   }
 
   const rows = preview?.previewRows || [];
+  const canConfirm = canConfirmGuidedImportPreview(preview, file);
+  const emptyPreview = preview?.batch?.id && Number(preview.totalRows) === 0;
   const balanceCheck = preview?.balanceCheck;
   const warnings = (
     Array.isArray(preview?.batch?.parseWarnings) && preview.batch.parseWarnings.length
@@ -160,13 +169,19 @@ export default function ImportStep({
             type="button"
             variant="secondary"
             loading={busy}
-            disabled={!preview?.batch?.id || !file}
+            disabled={!canConfirm}
             onClick={handleConfirm}
           >
             {tt('Confirm import')}
           </Button>
         </div>
       </form>
+
+      {emptyPreview ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950" role="status">
+          {tt('No mappable rows were found in this file. Check the format or column mapping, then preview again.')}
+        </p>
+      ) : null}
 
       {preview ? (
         <div className="space-y-3">

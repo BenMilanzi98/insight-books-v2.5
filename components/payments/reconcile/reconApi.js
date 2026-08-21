@@ -62,6 +62,11 @@ export function confirmStatementImport(formData) {
   });
 }
 
+export function canConfirmGuidedImportPreview(preview, file) {
+  if (!file || !preview?.batch?.id) return false;
+  return Number(preview.totalRows) > 0;
+}
+
 export async function reconFetch(url, options) {
   const res = await fetch(url, options);
   const data = await res.json().catch(() => ({}));

@@ -98,10 +98,13 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
     setError('');
     try {
       if (reconciliationId) await refreshWorkspace(reconciliationId);
-      setStepIndex(MATCH_STEP_INDEX);
     } catch (e) {
-      setError(e.message);
+      setError(
+        e.message ||
+          tt('Import succeeded but workspace refresh failed. You can continue on Match or go back to Import.')
+      );
     }
+    setStepIndex(MATCH_STEP_INDEX);
   };
 
   const canLeaveStatement = Boolean(reconciliationId);
