@@ -1,3 +1,4 @@
 -- Guided bank recon: requireSeparateApprover is opt-in (product default false).
--- Existing configs are flipped to false when a guided recon is opened (createReconciliation).
+-- Flip leftover true rows so existing tenants match the product default.
 ALTER TABLE "BankRecConfiguration" ALTER COLUMN "requireSeparateApprover" SET DEFAULT false;
+UPDATE "BankRecConfiguration" SET "requireSeparateApprover" = false WHERE "requireSeparateApprover" = true;
