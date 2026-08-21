@@ -74,7 +74,7 @@ Task brief did not include a new test file; the repo has no React Testing Librar
 ## Review fix: keyboard access on dashboard AccountRow
 
 **Status:** DONE  
-**Commit:** (see below after commit)
+**Commit:** `9fe4c97b8`
 
 ### Problem
 Task 3 review flagged that the dashboard `AccountRow` used a clickable `<div>` wrapper so the Reconcile CTA would not be a nested `<button>`. That removed native keyboard and screen-reader access for history/select.
@@ -99,5 +99,6 @@ Task 3 review flagged that the dashboard `AccountRow` used a clickable `<div>` w
 | `npx vitest run test/bankReconciliation.guidedEligibility.test.js` | **3/3 passed** |
 
 ### Commit
+- **SHA:** `9fe4c97b8`
 - **Subject:** `fix(payments): restore keyboard access on reconcile account rows`
 
