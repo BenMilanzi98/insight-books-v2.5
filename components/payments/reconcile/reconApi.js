@@ -267,6 +267,21 @@ export function historyRowsFromPayload(payload) {
   return rows.filter(isHistoryReconciliation).map(historyRowFromReconciliation);
 }
 
+export function accountNameMapFromPayload(payload) {
+  const accounts = Array.isArray(payload) ? payload : payload?.accounts || [];
+  const map = new Map();
+  for (const account of accounts) {
+    if (account?.id) map.set(account.id, account.name || account.id);
+  }
+  return map;
+}
+
+export function historyAccountLabel(row, accountNameById) {
+  const id = row?.paymentAccountId;
+  if (!id) return '—';
+  return accountNameById?.get(id) || id;
+}
+
 export function manualMatchAmountError(statement, books) {
   const bank = statementBankAbsMinor(statement);
   const book = selectedBookSumMinor(books);

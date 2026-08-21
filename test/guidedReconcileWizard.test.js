@@ -32,10 +32,13 @@ import {
   canCreateTransactionForStatement,
   classificationForResolveType,
   historyActionLabel,
+  historyAccountLabel,
   historyHrefForReconciliation,
   historyRowsFromPayload,
+  accountNameMapFromPayload,
   isWizardReadOnly,
   listOffsetAccounts,
+  listReconcilableAccounts,
   offsetAccountTypeForResolveType,
   postReconAdjustment,
   unmatchedStatementLines,
@@ -521,6 +524,33 @@ describe('guided reconcile history helpers', () => {
     expect(fetchMock.mock.calls[1][0]).toBe(
       '/api/bank-reconciliation/reconciliations?paymentAccountId=pa-1'
     );
+  });
+
+  it('loads reconcilable accounts for hub history account labels', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ accounts: [{ id: 'pa-1', name: 'Main Bank' }] }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const payload = await listReconcilableAccounts();
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/bank-reconciliation/accounts');
+    expect(payload.accounts[0].name).toBe('Main Bank');
+  });
+
+  it('maps account names for hub history rows', () => {
+    const accountNames = accountNameMapFromPayload({
+      accounts: [
+        { id: 'pa-1', name: 'Main Bank' },
+        { id: 'pa-2', name: 'Petty Cash' },
+      ],
+    });
+
+    expect(historyAccountLabel({ paymentAccountId: 'pa-1' }, accountNames)).toBe('Main Bank');
+    expect(historyAccountLabel({ paymentAccountId: 'pa-9' }, accountNames)).toBe('pa-9');
+    expect(historyAccountLabel({ paymentAccountId: null }, accountNames)).toBe('—');
   });
 
   it('maps open and completed recs and skips reversed', () => {

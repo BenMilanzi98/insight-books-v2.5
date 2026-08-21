@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import PosStylePanel from '@/components/shell/PosStylePanel';
 import {
+  accountNameMapFromPayload,
+  historyAccountLabel,
   historyRowsFromPayload,
+  listReconcilableAccounts,
   listReconciliations,
 } from '@/components/payments/reconcile/reconApi.js';
 
@@ -13,8 +16,10 @@ export default function ReconciliationHistoryPanel({
   currentReconciliationId,
 }) {
   const [rows, setRows] = useState([]);
+  const [accountNames, setAccountNames] = useState(() => new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const showAccountColumn = !paymentAccountId;
 
   useEffect(() => {
     let cancelled = false;
@@ -22,9 +27,20 @@ export default function ReconciliationHistoryPanel({
       setLoading(true);
       setError('');
       try {
-        const data = await listReconciliations(paymentAccountId);
-        if (cancelled) return;
-        setRows(historyRowsFromPayload(data));
+        if (paymentAccountId) {
+          const data = await listReconciliations(paymentAccountId);
+          if (cancelled) return;
+          setRows(historyRowsFromPayload(data));
+          setAccountNames(new Map());
+        } else {
+          const [data, accountsPayload] = await Promise.all([
+            listReconciliations(),
+            listReconcilableAccounts(),
+          ]);
+          if (cancelled) return;
+          setRows(historyRowsFromPayload(data));
+          setAccountNames(accountNameMapFromPayload(accountsPayload));
+        }
       } catch (err) {
         if (!cancelled) {
           setRows([]);
@@ -64,6 +80,9 @@ export default function ReconciliationHistoryPanel({
             <caption className="sr-only">{tt('Reconciliation history')}</caption>
             <thead className="bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
+                {showAccountColumn ? (
+                  <th className="px-3 py-2 font-medium">{tt('Account')}</th>
+                ) : null}
                 <th className="px-3 py-2 font-medium">{tt('Period')}</th>
                 <th className="px-3 py-2 font-medium text-right">{tt('Closing')}</th>
                 <th className="px-3 py-2 font-medium text-right">{tt('Difference')}</th>
@@ -81,6 +100,11 @@ export default function ReconciliationHistoryPanel({
                     key={row.id}
                     className={`border-t border-gray-100 ${current ? 'bg-indigo-50/60' : ''}`}
                   >
+                    {showAccountColumn ? (
+                      <td className="whitespace-nowrap px-3 py-2 text-gray-800">
+                        {historyAccountLabel(row, accountNames)}
+                      </td>
+                    ) : null}
                     <td className="whitespace-nowrap px-3 py-2 text-gray-800">{row.period}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-gray-900">
                       {row.closing}
