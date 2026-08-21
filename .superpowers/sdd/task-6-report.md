@@ -82,5 +82,5 @@ Fixed stale selection after Auto Match / suggestion actions, refused manual matc
 - New coverage: SUGGESTED not selectable, `canAttemptManualMatch` refuse helper, signed outstanding `bookLinks`.
 
 ### Commit
-- **SHA:** *(recorded after commit)*
+- **SHA:** `16317ce6f`
 - **Subject:** `fix(payments): clear match selection and sign book amounts`
