@@ -426,7 +426,7 @@ const navigationByPermission = {
             { href: "/purchases/payments", text: "Payments", icon: "payments" },
           ],
         },
-        { href: "/payments", icon: "payments", text: "Payment Accounts" },
+        { href: "/payments", icon: "payments", text: "Accounts & Reconciliation" },
         {
           href: "/hr",
           icon: "hr",
@@ -489,9 +489,9 @@ const navigationByPermission = {
     ]
   },
   payments: {
-    label: "Payment Accounts",
+    label: "Accounts & Reconciliation",
     items: [
-      { href: "/payments", icon: "payments", text: "Payment Accounts", permission: "payments.view" },
+      { href: "/payments", icon: "payments", text: "Accounts & Reconciliation", permission: "payments.view" },
     ]
   },
   reports: {
@@ -902,7 +902,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       coreItems.push({
         href: "/payments",
         icon: "payments",
-        text: "Payment Accounts"
+        text: "Accounts & Reconciliation"
       });
     }
 
@@ -1018,7 +1018,6 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       { href: "/accounting/receivables", text: "Receivables", icon: "receivables", permissions: NAV_ROUTE_PERMISSION_OVERRIDES["/accounting/receivables"] },
       { href: "/accounting/payables", text: "Payables", icon: "payables", permission: "expenses.view" },
       { href: "/financial-calendar-v2", text: "Financial Calendar", icon: "financialCalendar", permission: "journalEntries.view" },
-      { href: "/bank-reconciliation", text: "Bank Reconciliation", icon: "bankReconciliation", permissions: ["bankReconciliation.view", "payments.view", "accounting.view"] },
       { href: "/capital-account", text: "Capital Account", icon: "capital", permissions: ["accounts.view", "reports.view", "equity.view", "equity.viewDashboard"] },
       { href: "/chart-of-accounts", text: "Chart of Accounts", icon: "coa", permission: "accounts.view" },
       { href: "/journal-entries", text: "Journal Entries", icon: "journal", permission: "journalEntries.view" },
