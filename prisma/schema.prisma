@@ -6474,7 +6474,7 @@ model BankRecConfiguration {
   dateToleranceDays       Int      @default(3)
   amountToleranceMinor    Int      @default(0)
   autoMatchMinConfidence  String   @default("HIGH") // EXACT | HIGH | MEDIUM
-  requireSeparateApprover Boolean  @default(true)
+  requireSeparateApprover Boolean  @default(false)
   staleOutstandingDays    Int      @default(30)
   defaultProfileId        String?
   metadata                Json?
