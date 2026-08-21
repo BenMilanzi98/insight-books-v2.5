@@ -10,6 +10,7 @@ import StatementStep from './StatementStep.jsx';
 import ImportStep from './ImportStep.jsx';
 import MatchStep from './MatchStep.jsx';
 import ResolveStep from './ResolveStep.jsx';
+import SummaryStep, { ReconSummaryStrip } from './SummaryStep.jsx';
 import {
   WIZARD_STEPS,
   getReconciliationWorkspace,
@@ -25,14 +26,6 @@ const STEP_LABELS = {
   resolve: 'Resolve',
   complete: 'Complete',
 };
-
-function PlaceholderStep({ name }) {
-  return (
-    <p className="text-sm text-gray-600">
-      {tt('Coming in next tasks')} — {tt(name)}
-    </p>
-  );
-}
 
 export default function ReconcileWizard({ paymentAccountId, initialReconciliationId }) {
   const router = useRouter();
@@ -139,6 +132,8 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
         </p>
       ) : null}
 
+      {reconciliationId ? <ReconSummaryStrip workspace={workspace} /> : null}
+
       <nav aria-label={tt('Reconciliation steps')} className="flex flex-wrap gap-2">
         {WIZARD_STEPS.map((key, index) => {
           const active = index === stepIndex;
@@ -200,7 +195,13 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
             onRefresh={refreshWorkspace}
           />
         ) : null}
-        {!loading && stepKey === 'complete' ? <PlaceholderStep name="Complete" /> : null}
+        {!loading && stepKey === 'complete' ? (
+          <SummaryStep
+            reconciliationId={reconciliationId}
+            workspace={workspace}
+            onRefresh={refreshWorkspace}
+          />
+        ) : null}
 
         <div className="mt-6 flex flex-wrap gap-2">
           <Button

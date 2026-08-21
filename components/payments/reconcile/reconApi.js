@@ -1,4 +1,5 @@
 import {
+  BankRecStatus,
   OPEN_RECON_STATUSES,
   OutstandingItemType,
   StatementMatchingStatus,
@@ -317,5 +318,59 @@ export function postReconAdjustment(body) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+  });
+}
+
+function calculationFromWorkspace(ws) {
+  return ws?.calculation?.calculation || ws?.calculation || {};
+}
+
+export function canCompleteFromWorkspace(ws) {
+  const calc = calculationFromWorkspace(ws);
+  if (typeof calc.canComplete === 'boolean') return calc.canComplete;
+  return Number(calc.differenceMinor) === 0;
+}
+
+function displayBalance(value) {
+  if (value == null || value === '') return '';
+  return String(value);
+}
+
+export function summaryFromWorkspace(ws) {
+  const recon = ws?.reconciliation || {};
+  const outer = ws?.calculation || {};
+  const calc = calculationFromWorkspace(ws);
+  const decimals = calc.decimals || {};
+  const matchedCount = Number(outer.matchedCount) || 0;
+  const totalCount = Number(outer.totalCount) || 0;
+  const outstanding = Array.isArray(ws?.outstanding) ? ws.outstanding : [];
+  const isComplete = recon.status === BankRecStatus.COMPLETED;
+
+  return {
+    opening: displayBalance(recon.statementOpeningBalance),
+    closing: displayBalance(recon.statementClosingBalance ?? decimals.statementClosing),
+    bookBalance: displayBalance(recon.bookBalance ?? decimals.bookBalance),
+    matchedCount,
+    unmatchedCount: Math.max(0, totalCount - matchedCount),
+    outstandingCount: outstanding.length,
+    difference: displayBalance(decimals.difference),
+    differenceMinor: calc.differenceMinor ?? recon.differenceMinor,
+    canComplete: canCompleteFromWorkspace(ws),
+    isComplete,
+    statusText: isComplete ? 'Reconciled' : '',
+  };
+}
+
+export async function completeReconciliation(id) {
+  const encoded = encodeURIComponent(id);
+  await reconFetch(`/api/bank-reconciliation/reconciliations/${encoded}/calculate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  return reconFetch(`/api/bank-reconciliation/reconciliations/${encoded}/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ comment: 'Guided reconcile complete' }),
   });
 }
