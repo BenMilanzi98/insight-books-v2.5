@@ -893,11 +893,12 @@ const AssetManagement = () => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(55000),
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to save asset");
       }
       
@@ -914,7 +915,15 @@ const AssetManagement = () => {
       resetAssetForm();
     } catch (error) {
       console.error("Error saving asset:", error);
-      setAlertMessage(error.message || "Failed to save asset");
+      const timedOut =
+        error?.name === 'TimeoutError' ||
+        error?.name === 'AbortError' ||
+        /Failed to fetch|timed out|network/i.test(String(error?.message || ''));
+      setAlertMessage(
+        timedOut
+          ? 'Could not reach the server to save the asset (connection timed out). Try again — if it keeps failing, the app server may be overloaded.'
+          : error.message || 'Failed to save asset'
+      );
       setAlertType("error");
       setShowAlert(true);
     }

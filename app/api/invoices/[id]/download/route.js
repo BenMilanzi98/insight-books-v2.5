@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addMoney, multiplyMoney, parseMoney, subtractMoney } from '@/lib/money';
+import { resolveDocumentTemplate } from '@/lib/documentTemplates/resolveDocumentTemplate';
 
 /**
  * GET handler for downloading invoice data for client-side PDF generation
@@ -67,41 +68,22 @@ export async function GET(request, { params }) {
       );
     }
     
-    // Fetch the template
-    let template = null;
-    if (templateId) {
-      template = await prisma.invoiceTemplate.findUnique({
-        where: { id: templateId }
-      });
-    }
-    
-    // If no template specified or not found, use tenant's default template
-    if (!template) {
-      template = await prisma.invoiceTemplate.findFirst({
-        where: {
-          OR: [
-            { tenantId: user.tenantId, isDefault: true },
-            { tenantId: user.tenantId }
-          ]
-        },
-        orderBy: {
-          isDefault: 'desc'
-        }
-      });
-    }
+    // Fetch the template (query param → document templateId → tenant default)
+    const resolved = await resolveDocumentTemplate(prisma, {
+      tenantId: user.tenantId,
+      templateId: templateId || invoice.templateId,
+    });
+    let template = resolved.template;
     
     // Fallback to system default template if still not found
     if (!template) {
       template = {
         id: 'default',
         name: 'Default Template',
-        content: JSON.stringify({
-          style: 'standard',
-          showLogo: true,
-          showFooter: true,
-          primaryColor: '#4f46e5'
-        })
+        content: JSON.stringify(resolved.appearance),
       };
+    } else {
+      template = { ...template, content: JSON.stringify(resolved.appearance) };
     }
     
     // Ensure template content is properly formatted

@@ -6,6 +6,7 @@ import { calculateCOGS } from '@/lib/inventoryCosting';
 import { postPosSaleAccounting, postCostOfSalesAccounting } from '@/lib/accountingV2/adapters';
 import { addMoney, multiplyMoney, parseMoney, percentOfMoney, roundMoney, subtractMoney } from '@/lib/money';
 import { emitPosTransactionCompleted } from '@/lib/admin/productAnalytics/producers';
+import { ensurePaymentWithholdingColumns } from '@/lib/ensurePaymentWithholdingColumns';
 
 // Helper function to get sale by ID with validation
 async function getSaleWithValidation(id, userId, tenantId) {
@@ -180,6 +181,7 @@ export async function GET(request, { params }) {
 // PUT - Update a sale
 export async function PUT(request, { params }) {
   try {
+    await ensurePaymentWithholdingColumns();
     // Fix for Next.js 15: await params before accessing properties
     const { id: saleId } = await params;
     

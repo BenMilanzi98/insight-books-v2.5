@@ -321,6 +321,7 @@ export async function POST(request) {
           tenantId: user.tenantId,
           footerPhoneOverride: body.footerPhoneOverride || null,
           footerBankDetailsOverride: body.footerBankDetailsOverride || null,
+          templateId: body.templateId || null,
           items: {
             create: calculations.processedItems.map(item => ({
               description: item.description,

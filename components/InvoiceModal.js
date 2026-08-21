@@ -14,6 +14,9 @@ import UnitBasedQuantityInput from "./UnitBasedQuantityInput";
 import { fetchProductsForSaleAll } from "@/app/services/salesService";
 import { fetchActiveTaxTypes } from "@/lib/taxTypesClient";
 import { shouldDisplayDocumentTax } from "@/lib/documentTaxDisplay";
+import LayoutPicker from "@/components/documentTemplates/LayoutPicker";
+import { parseTemplateContent as parseAppearance } from "@/lib/documentTemplates/parseTemplateContent";
+import { serializeTemplateContent } from "@/lib/documentTemplates/parseTemplateContent";
 
 const lineTaxesOf = (item) =>
   normalizeLineTaxes(item?.taxes || item?.itemTaxes || item?.productTaxes || []);
@@ -109,16 +112,10 @@ const InvoiceModal = ({
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [createdInvoice, setCreatedInvoice] = useState(null);
   const [templateOverrides, setTemplateOverrides] = useState({});
+  const [setAppearanceAsDefault, setSetAppearanceAsDefault] = useState(false);
+  const [brandingSettings, setBrandingSettings] = useState(null);
 
-  const parseTemplateContent = (template) => {
-    try {
-      return typeof template?.content === 'string'
-        ? JSON.parse(template.content || '{}')
-        : { ...(template?.content || {}) };
-    } catch {
-      return {};
-    }
-  };
+  const parseTemplateContent = (template) => parseAppearance(template?.content);
 
   const resolveTemplate = (id) => {
     const base = templates.find((t) => t.id === id);
@@ -126,16 +123,21 @@ const InvoiceModal = ({
     return templateOverrides[id] ? { ...base, ...templateOverrides[id] } : base;
   };
 
-  const applyTemplateAppearance = async (patch) => {
+  /** Local appearance only unless "Set as default" is checked (persisted on blur/save via patch). */
+  const applyTemplateAppearance = async (patch, { persist = false } = {}) => {
     const current = resolveTemplate(formData.templateId);
     if (!current) return;
+    const nextContent = {
+      ...parseTemplateContent(current),
+      ...patch,
+    };
     const next = {
       ...current,
-      content: { ...parseTemplateContent(current), ...patch },
+      content: nextContent,
     };
     setTemplateOverrides((prev) => ({ ...prev, [current.id]: next }));
     onTemplateChange(next);
-    if (!current.id || String(current.id).startsWith('temp-')) return;
+    if (!persist || !current.id || String(current.id).startsWith('temp-')) return;
     try {
       await fetch('/api/invoice/templates', {
         method: 'PUT',
@@ -144,14 +146,34 @@ const InvoiceModal = ({
         body: JSON.stringify({
           id: current.id,
           name: current.name,
-          isDefault: !!current.isDefault,
-          content: JSON.stringify(next.content),
+          isDefault: setAppearanceAsDefault ? true : !!current.isDefault,
+          content: serializeTemplateContent(nextContent),
         }),
       });
     } catch {
       /* preview still uses local override */
     }
   };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/tenant/settings', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setBrandingSettings(data?.settings || data?.branding || data || {});
+        }
+      } catch {
+        /* preview works without branding */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
   
   // NEW: Tax types state and default for inflow (sales/invoices) - auto-populated from settings
   const [taxTypes, setTaxTypes] = useState([]);
@@ -1107,40 +1129,32 @@ const InvoiceModal = ({
                 {errors.templateId && (
                   <p className="text-red-500 text-xs mt-1">{errors.templateId}</p>
                 )}
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {[
-                    { id: 'classic', label: 'Classic', style: 'standard' },
-                    { id: 'modern', label: 'Modern', style: 'professional' },
-                    { id: 'compact', label: 'Compact', style: 'minimal' },
-                    { id: 'bold', label: 'Bold', style: 'bold' },
-                  ].map((layout) => {
-                    const current = resolveTemplate(formData.templateId);
-                    const content = parseTemplateContent(current);
-                    const active = String(content.style || 'standard') === layout.style;
-                    return (
-                      <button
-                        key={layout.id}
-                        type="button"
-                        className={`rounded-lg border px-3 py-2 text-xs font-semibold ${active ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-gray-200 bg-white text-gray-700'}`}
-                        onClick={() => applyTemplateAppearance({
-                          style: layout.style,
-                          primaryColor: content.primaryColor || '#0075be',
-                        })}
-                      >
-                        {layout.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
-                  {tt('Colour')}
-                  <input
-                    type="color"
-                    className="h-9 w-14 cursor-pointer rounded border border-gray-300"
-                    value={parseTemplateContent(resolveTemplate(formData.templateId)).primaryColor || '#0075be'}
-                    onChange={(e) => applyTemplateAppearance({ primaryColor: e.target.value })}
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">{tt('Document appearance')}</p>
+                  <LayoutPicker
+                    value={parseTemplateContent(resolveTemplate(formData.templateId))}
+                    onChange={(next) => applyTemplateAppearance(next)}
+                    documentType="invoice"
+                    branding={brandingSettings || {}}
+                    setAsDefault={setAppearanceAsDefault}
+                    onSetAsDefaultChange={setSetAppearanceAsDefault}
+                    showLivePreview
+                    compact
                   />
-                </label>
+                  {setAppearanceAsDefault && (
+                    <button
+                      type="button"
+                      className="mt-2 text-xs font-semibold text-blue-700 hover:text-blue-900"
+                      onClick={() =>
+                        applyTemplateAppearance(parseTemplateContent(resolveTemplate(formData.templateId)), {
+                          persist: true,
+                        })
+                      }
+                    >
+                      {tt('Save appearance as tenant default')}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
             

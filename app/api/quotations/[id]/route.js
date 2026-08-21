@@ -226,6 +226,7 @@ export async function PUT(request, { params }) {
           notes: body.notes,
           footerPhoneOverride: body.footerPhoneOverride !== undefined ? body.footerPhoneOverride : existingQuotation.footerPhoneOverride,
           footerBankDetailsOverride: body.footerBankDetailsOverride !== undefined ? body.footerBankDetailsOverride : existingQuotation.footerBankDetailsOverride,
+          templateId: body.templateId !== undefined ? (body.templateId || null) : existingQuotation.templateId,
           items: {
             create: processedItems.map(item => ({
               description: item.description,

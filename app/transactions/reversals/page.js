@@ -164,15 +164,20 @@ const ReversalsPage = () => {
       case 'expense':
         return <Receipt className="w-4 h-4 text-red-500" />;
       case 'sale':
+      case 'void':
         return <FileText className="w-4 h-4 text-green-500" />;
       case 'payment':
+      case 'supplier_payment':
         return <CreditCard className="w-4 h-4 text-blue-500" />;
       case 'refund':
         return <RotateCcw className="w-4 h-4 text-amber-500" />;
       case 'sale_refund':
+      case 'sale_reversal':
         return <RotateCcw className="w-4 h-4 text-purple-500" />;
       case 'payroll':
         return <Users className="w-4 h-4 text-indigo-500" />;
+      case 'journal':
+        return <FileText className="w-4 h-4 text-slate-600" />;
       default:
         return <DollarSign className="w-4 h-4 text-gray-500" />;
     }
@@ -184,14 +189,22 @@ const ReversalsPage = () => {
         return 'Expense';
       case 'sale':
         return 'Sale/Invoice';
+      case 'void':
+        return 'Voided invoice';
       case 'payment':
         return 'Payment';
+      case 'supplier_payment':
+        return 'Supplier payment';
       case 'refund':
         return 'Invoice Refund';
       case 'sale_refund':
         return 'POS Refund';
+      case 'sale_reversal':
+        return 'Sale reversal';
       case 'payroll':
         return 'Payroll';
+      case 'journal':
+        return 'Journal / GL';
       default:
         return 'Transaction';
     }
@@ -369,10 +382,14 @@ const ReversalsPage = () => {
                 <option value="all">{tt('All Types')}</option>
                 <option value="expense">{tt('Expenses')}</option>
                 <option value="sale">{tt('Sales/Invoices')}</option>
+                <option value="void">{tt('Voided invoices')}</option>
                 <option value="payment">{tt('Payments')}</option>
+                <option value="supplier_payment">{tt('Supplier payments')}</option>
                 <option value="refund">{tt('Invoice Refunds')}</option>
                 <option value="sale_refund">{tt('POS Refunds')}</option>
+                <option value="sale_reversal">{tt('Sale reversals')}</option>
                 <option value="payroll">{tt('Payroll')}</option>
+                <option value="journal">{tt('Journal / GL')}</option>
               </select>
             </div>
 

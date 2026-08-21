@@ -7,6 +7,7 @@ import { generatePdf } from '@/lib/server-pdf';
 import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 import { shouldDisplayDocumentTax } from '@/lib/documentTaxDisplay';
+import { resolveDocumentTemplate } from '@/lib/documentTemplates/resolveDocumentTemplate';
 
 function findPreRenderedPdf(invoiceId, invoiceNumber) {
   try {
@@ -78,24 +79,23 @@ export async function GET(request, { params }) {
     }
 
     // Build data objects for server-side generation
-    let template = null;
-    if (templateId) {
-      template = await prisma.invoiceTemplate.findUnique({ where: { id: templateId } });
-    }
-    if (!template) {
-      template = await prisma.invoiceTemplate.findFirst({
-        where: {
-          OR: [{ tenantId: user.tenantId, isDefault: true }, { tenantId: user.tenantId }],
-        },
-        orderBy: { isDefault: 'desc' },
-      });
-    }
+    const resolved = await resolveDocumentTemplate(prisma, {
+      tenantId: user.tenantId,
+      templateId: templateId || invoice.templateId,
+    });
+    let template = resolved.template;
     if (!template) {
       template = {
         id: 'default',
         name: 'Default Template',
+        content: JSON.stringify(resolved.appearance),
+      };
+    } else {
+      // Ensure content carries normalized layoutId for PDF/HTML renderers
+      template = {
+        ...template,
         content: JSON.stringify({
-          style: 'standard', showLogo: true, showFooter: true, primaryColor: '#4f46e5',
+          ...resolved.appearance,
         }),
       };
     }

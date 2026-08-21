@@ -7,10 +7,12 @@ import { ensureInvoiceSalesAccounting } from '@/lib/ensureInvoiceSalesAccounting
 import { enrichPaymentsWithMethodNames } from '@/lib/userFacingLabels';
 import { addMoney, parseMoney, subtractMoney } from '@/lib/money';
 import { computeInvoicePaymentWithholding } from '@/lib/invoicePaymentWithholding.js';
+import { ensurePaymentWithholdingColumns } from '@/lib/ensurePaymentWithholdingColumns';
 
 // POST - Process a partial payment for an invoice
 export async function POST(request) {
   try {
+    await ensurePaymentWithholdingColumns();
     const body = await request.json();
     const {
       invoiceId,
@@ -248,9 +250,29 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Error processing partial payment:', error);
+    const raw = error?.message || String(error);
+    const code = error?.code || error?.meta?.code;
+    // Prisma: missing column / table often means undeployed migration on the host.
+    if (code === 'P2022' || /column .* does not exist/i.test(raw)) {
+      return NextResponse.json(
+        {
+          error:
+            'Payment could not be saved because the database is missing required columns. Run prisma migrate deploy on the server, then try again.',
+          detail: raw,
+        },
+        { status: 500 }
+      );
+    }
+    const operational =
+      /insufficient stock|exceeds remaining|payment method|not found|disabled|period|closed|validation|WHT|withholding/i.test(
+        raw
+      );
     return NextResponse.json(
-      { error: 'Failed to process partial payment. Please try again.' },
-      { status: 500 }
+      {
+        error: operational ? raw : 'Failed to process partial payment. Please try again.',
+        detail: raw,
+      },
+      { status: operational ? 400 : 500 }
     );
   }
 }

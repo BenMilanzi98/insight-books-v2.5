@@ -14,6 +14,9 @@ import { fetchProductsForSaleAll } from "@/app/services/salesService";
 import { fetchActiveTaxTypes } from "@/lib/taxTypesClient";
 import { shouldDisplayDocumentTax } from "@/lib/documentTaxDisplay";
 import UnitBasedQuantityInput from "./UnitBasedQuantityInput";
+import LayoutPicker from "@/components/documentTemplates/LayoutPicker";
+import { parseTemplateContent } from "@/lib/documentTemplates/parseTemplateContent";
+import { serializeTemplateContent } from "@/lib/documentTemplates/parseTemplateContent";
 
 const lineTaxesOf = (item) =>
   normalizeLineTaxes(item?.taxes || item?.itemTaxes || item?.productTaxes || []);
@@ -63,10 +66,17 @@ const QuotationModal = ({
     notes: "",
     discount: "",
     footerPhoneOverride: "",
-    footerBankDetailsOverride: ""
+    footerBankDetailsOverride: "",
+    templateId: "",
   });
   
   const [clients, setClients] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [templateAppearance, setTemplateAppearance] = useState(() =>
+    parseTemplateContent({ layoutId: 'classic' })
+  );
+  const [setAppearanceAsDefault, setSetAppearanceAsDefault] = useState(false);
+  const [brandingSettings, setBrandingSettings] = useState(null);
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [itemSearchQueries, setItemSearchQueries] = useState({}); // Separate search query for each item
@@ -207,10 +217,53 @@ const QuotationModal = ({
         notes: quotation.notes || "",
         discount: parseFloat((quotation.discount || '0').toString().replace(/,/g, '')) || 0,
         footerPhoneOverride: quotation.footerPhoneOverride ?? "",
-        footerBankDetailsOverride: quotation.footerBankDetailsOverride ?? ""
+        footerBankDetailsOverride: quotation.footerBankDetailsOverride ?? "",
+        templateId: quotation.templateId || "",
       });
     }
   }, [quotation, mode]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [tplRes, settingsRes] = await Promise.all([
+          fetch('/api/invoice/templates', { credentials: 'include' }),
+          fetch('/api/tenant/settings', { credentials: 'include' }),
+        ]);
+        if (tplRes.ok) {
+          const data = await tplRes.json();
+          const list = data.templates || [];
+          if (!cancelled) {
+            setTemplates(list);
+            const current =
+              list.find((t) => t.id === (quotation?.templateId || formData.templateId)) ||
+              list.find((t) => t.isDefault) ||
+              list[0];
+            if (current) {
+              setFormData((prev) => ({
+                ...prev,
+                templateId: prev.templateId || current.id,
+              }));
+              setTemplateAppearance(parseTemplateContent(current.content));
+            }
+          }
+        }
+        if (settingsRes.ok) {
+          const data = await settingsRes.json();
+          if (!cancelled) {
+            setBrandingSettings(data?.settings || data?.branding || data || {});
+          }
+        }
+      } catch {
+        /* optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   // Auto-populate default tax (inflow) on initial item when creating a new quotation
   useEffect(() => {
@@ -628,10 +681,47 @@ const QuotationModal = ({
     setLoading(true);
     
     try {
+      let templateId = formData.templateId || null;
+      const content = serializeTemplateContent(templateAppearance);
+      try {
+        if (templateId) {
+          const current = templates.find((t) => t.id === templateId);
+          await fetch('/api/invoice/templates', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              id: templateId,
+              name: current?.name || 'Quotation appearance',
+              isDefault: setAppearanceAsDefault || !!current?.isDefault,
+              content,
+            }),
+          });
+        } else {
+          const res = await fetch('/api/invoice/templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              name: `Quotation ${new Date().toISOString().slice(0, 16)}`,
+              isDefault: setAppearanceAsDefault,
+              content,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            templateId = data.template?.id || null;
+          }
+        }
+      } catch {
+        /* still save quotation without template */
+      }
+
       // Transform form data to ensure proper types
       const transformedData = {
         ...formData,
         discount: parseFloat(formData.discount) || 0,
+        templateId,
         items: formData.items.map((item, index) => {
           // For unit-based products, calculate total quantity from unit quantities
           let finalQuantity = parseFloat(item.quantity) || 0;
@@ -1325,6 +1415,46 @@ const QuotationModal = ({
               </div>
             </div>
             
+            <div className="mb-6">
+              <p className="text-sm font-medium text-gray-700 mb-2">{tt('Document appearance')}</p>
+              <LayoutPicker
+                value={templateAppearance}
+                onChange={async (next) => {
+                  setTemplateAppearance(next);
+                  const currentId = formData.templateId;
+                  const current = templates.find((t) => t.id === currentId);
+                  if (!current?.id) return;
+                  const content = serializeTemplateContent(next);
+                  setTemplates((prev) =>
+                    prev.map((t) => (t.id === current.id ? { ...t, content } : t))
+                  );
+                  if (setAppearanceAsDefault) {
+                    try {
+                      await fetch('/api/invoice/templates', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                          id: current.id,
+                          name: current.name,
+                          isDefault: true,
+                          content,
+                        }),
+                      });
+                    } catch {
+                      /* local preview still works */
+                    }
+                  }
+                }}
+                documentType="quotation"
+                branding={brandingSettings || {}}
+                setAsDefault={setAppearanceAsDefault}
+                onSetAsDefaultChange={setSetAppearanceAsDefault}
+                showLivePreview
+                compact
+              />
+            </div>
+
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="notes">
                 {tt('Notes')}

@@ -5772,6 +5772,12 @@
       "namedRegex": "^/api/invoices(?:/)?$"
     },
     {
+      "page": "/api/invoices/bulk-template",
+      "regex": "^/api/invoices/bulk\\-template(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/invoices/bulk\\-template(?:/)?$"
+    },
+    {
       "page": "/api/invoices/export",
       "regex": "^/api/invoices/export(?:/)?$",
       "routeKeys": {},
@@ -6514,6 +6520,12 @@
       "regex": "^/api/quotations(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/quotations(?:/)?$"
+    },
+    {
+      "page": "/api/quotations/bulk-template",
+      "regex": "^/api/quotations/bulk\\-template(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/quotations/bulk\\-template(?:/)?$"
     },
     {
       "page": "/api/quotations/statistics",

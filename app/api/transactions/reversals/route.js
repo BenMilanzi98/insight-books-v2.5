@@ -18,7 +18,7 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const type = searchParams.get('type'); // 'all', 'sale', 'expense', 'payment'
+    const type = searchParams.get('type') || 'all'; // 'all', 'sale', 'expense', 'payment', …
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const startDate = searchParams.get('startDate');
@@ -173,15 +173,15 @@ export async function GET(request) {
       }
     }
 
-    // Fetch payroll reversals (Transaction reversals where original was Payroll – reverses all GL and side effects)
+    // Fetch payroll + general GL journal reversals (Transaction.isReversal)
     let payrollReversals = [];
-    if (type === 'all' || type === 'payroll') {
+    let journalTxReversals = [];
+    if (type === 'all' || type === 'payroll' || type === 'journal') {
       try {
         const payrollReversalTxns = await prisma.transaction.findMany({
           where: {
             tenantId: user.tenantId,
             isReversal: true,
-            sourceType: 'Transaction',
             reversedTransactionId: { not: null },
             ...(startDate || endDate
               ? {
@@ -193,16 +193,21 @@ export async function GET(request) {
               : {})
           },
           include: {
-            createdBy: { select: { id: true, name: true, email: true } }
-          }
+            createdBy: { select: { id: true, name: true, email: true } },
+            lines: { select: { debitAmount: true, creditAmount: true } }
+          },
+          orderBy: { reversedAt: 'desc' },
+          take: 500
         });
         const originalIds = [...new Set(payrollReversalTxns.map(t => t.reversedTransactionId).filter(Boolean))];
-        const originals = await prisma.transaction.findMany({
-          where: { id: { in: originalIds }, sourceType: 'Payroll', tenantId: user.tenantId },
-          include: { lines: true }
-        });
+        const originals = originalIds.length
+          ? await prisma.transaction.findMany({
+              where: { id: { in: originalIds }, tenantId: user.tenantId },
+              include: { lines: { select: { debitAmount: true, creditAmount: true } } }
+            })
+          : [];
         const originalById = Object.fromEntries(originals.map(o => [o.id, o]));
-        const payrollIds = [...new Set(originals.map(o => o.sourceId).filter(Boolean))];
+        const payrollIds = [...new Set(originals.filter(o => o.sourceType === 'Payroll').map(o => o.sourceId).filter(Boolean))];
         const payrolls = payrollIds.length
           ? await prisma.payroll.findMany({
               where: { id: { in: payrollIds }, tenantId: user.tenantId },
@@ -210,38 +215,364 @@ export async function GET(request) {
             })
           : [];
         const payrollById = Object.fromEntries(payrolls.map(p => [p.id, p]));
+
         for (const rev of payrollReversalTxns) {
           const orig = originalById[rev.reversedTransactionId];
-          if (!orig || orig.sourceType !== 'Payroll') continue;
-          const payroll = payrollById[orig.sourceId];
-          const amount = Math.abs(orig.amount || 0) || (orig.lines || []).reduce((s, l) => s + (l.debitAmount || 0) + (l.creditAmount || 0), 0);
-          payrollReversals.push({
-            id: rev.id,
-            type: 'payroll',
-            displayReference:
-              orig.reference ||
-              (payroll?.employee?.name
-                ? `Payroll — ${payroll.employee.name}`
-                : orig.description || 'Payroll'),
-            description: orig.description || `Payroll reversal – ${payroll?.employee?.name || 'Employee'}`,
-            originalAmount: amount,
-            reversalAmount: -amount,
-            date: orig.date,
-            reversedAt: rev.reversedAt,
-            reversalReason: rev.reversalReason,
-            originalTransactionId: orig.id,
-            reversalTransactionId: rev.id,
-            payrollId: orig.sourceId,
-            employee: payroll?.employee,
-            periodStart: payroll?.periodStart,
-            periodEnd: payroll?.periodEnd,
-            status: 'Reversed',
-            performedBy: rev.createdBy || null
-          });
+          const lineSum = (lines) =>
+            (lines || []).reduce((s, l) => s + Number(l.debitAmount || 0) + Number(l.creditAmount || 0), 0) / 2;
+          const amount =
+            lineSum(orig?.lines) ||
+            lineSum(rev.lines) ||
+            0;
+
+          if (orig?.sourceType === 'Payroll') {
+            if (type !== 'all' && type !== 'payroll') continue;
+            const payroll = payrollById[orig.sourceId];
+            payrollReversals.push({
+              id: rev.id,
+              type: 'payroll',
+              displayReference:
+                orig.reference ||
+                (payroll?.employee?.name
+                  ? `Payroll — ${payroll.employee.name}`
+                  : orig.description || 'Payroll'),
+              description: orig.description || `Payroll reversal – ${payroll?.employee?.name || 'Employee'}`,
+              originalAmount: amount,
+              reversalAmount: -amount,
+              date: orig.date,
+              reversedAt: rev.reversedAt,
+              reversalReason: rev.reversalReason,
+              originalTransactionId: orig.id,
+              reversalTransactionId: rev.id,
+              payrollId: orig.sourceId,
+              employee: payroll?.employee,
+              periodStart: payroll?.periodStart,
+              periodEnd: payroll?.periodEnd,
+              status: 'Reversed',
+              performedBy: rev.createdBy || null
+            });
+          } else if (type === 'all' || type === 'journal') {
+            journalTxReversals.push({
+              id: rev.id,
+              type: 'journal',
+              displayReference: rev.reference || orig?.reference || `Journal ${rev.id.slice(0, 8)}`,
+              description: rev.description || orig?.description || 'Journal reversal',
+              originalAmount: amount,
+              reversalAmount: -amount,
+              date: rev.date || orig?.date,
+              reversedAt: rev.reversedAt,
+              reversalReason: rev.reversalReason,
+              originalTransactionId: rev.reversedTransactionId,
+              reversalTransactionId: rev.id,
+              sourceType: orig?.sourceType || rev.sourceType || 'Transaction',
+              status: rev.status || 'posted',
+              performedBy: rev.createdBy || null
+            });
+          }
         }
       } catch (payrollRevErr) {
-        console.error('Error fetching payroll reversals:', payrollRevErr);
+        console.error('Error fetching journal/payroll reversals:', payrollRevErr);
         payrollReversals = [];
+        journalTxReversals = [];
+      }
+    }
+
+    // Voided invoices (void path reverses V2 journals but does not create isReversal child rows)
+    let voidedInvoiceReversals = [];
+    if (type === 'all' || type === 'sale' || type === 'void') {
+      try {
+        const voidWhere = {
+          tenantId: user.tenantId,
+          OR: [{ status: 'void' }, { voidedAt: { not: null } }],
+        };
+        if (startDate || endDate) {
+          voidWhere.voidedAt = {
+            ...(startDate ? { gte: new Date(startDate) } : {}),
+            ...(endDate ? { lte: new Date(endDate + 'T23:59:59') } : {}),
+          };
+        }
+        const voided = await prisma.invoice.findMany({
+          where: voidWhere,
+          include: {
+            client: { select: { id: true, name: true, email: true } },
+            voidedBy: { select: { id: true, name: true, email: true } },
+          },
+          orderBy: { voidedAt: 'desc' },
+          take: 500,
+        });
+        voidedInvoiceReversals = voided.map((invoice) => ({
+          id: `void-${invoice.id}`,
+          type: 'void',
+          displayReference: invoice.invoiceNumber
+            ? `Voided invoice ${invoice.invoiceNumber}`
+            : 'Voided invoice',
+          description: invoice.voidReason || `Invoice ${invoice.invoiceNumber} voided`,
+          originalAmount: parseFloat(invoice.originalTotal ?? invoice.total) || 0,
+          reversalAmount: -(parseFloat(invoice.originalTotal ?? invoice.total) || 0),
+          date: invoice.issueDate,
+          reversedAt: invoice.voidedAt || invoice.updatedAt,
+          reversalReason: invoice.voidReason || 'Invoice voided',
+          originalTransactionId: invoice.id,
+          reversalTransactionId: null,
+          client: invoice.client,
+          invoiceNumber: invoice.invoiceNumber,
+          status: invoice.status,
+          performedBy: invoice.voidedBy || null,
+        }));
+      } catch (voidErr) {
+        console.error('Error fetching voided invoices:', voidErr);
+        voidedInvoiceReversals = [];
+      }
+    }
+
+    // Sale document reversals (createSaleReversal) — distinct from POS refundedAt path
+    let saleDocReversals = [];
+    if (type === 'all' || type === 'sale' || type === 'sale_reversal') {
+      try {
+        const saleWhere = {
+          tenantId: user.tenantId,
+          isReversal: true,
+          ...(startDate || endDate
+            ? {
+                reversedAt: {
+                  ...(startDate ? { gte: new Date(startDate) } : {}),
+                  ...(endDate ? { lte: new Date(endDate + 'T23:59:59') } : {}),
+                },
+              }
+            : {}),
+        };
+        const saleRevs = await prisma.sale.findMany({
+          where: saleWhere,
+          include: {
+            refundedBy: { select: { id: true, name: true, email: true } },
+          },
+          orderBy: { reversedAt: 'desc' },
+          take: 500,
+        });
+        // Prefer reversedById user when present
+        const byIds = [...new Set(saleRevs.map((s) => s.reversedById).filter(Boolean))];
+        const byUsers = byIds.length
+          ? await prisma.user.findMany({
+              where: { id: { in: byIds } },
+              select: { id: true, name: true, email: true },
+            })
+          : [];
+        const byUserMap = Object.fromEntries(byUsers.map((u) => [u.id, u]));
+        saleDocReversals = saleRevs.map((sale) => ({
+          id: sale.id,
+          type: 'sale_reversal',
+          displayReference: sale.saleNumber ? `Sale reversal ${sale.saleNumber}` : 'Sale reversal',
+          description: sale.notes || `Reversal of sale ${sale.reversedTransactionId || ''}`,
+          originalAmount: Math.abs(parseFloat(sale.total) || 0),
+          reversalAmount: -Math.abs(parseFloat(sale.total) || 0),
+          date: sale.saleDate,
+          reversedAt: sale.reversedAt,
+          reversalReason: sale.reversalReason || 'Sale reversed',
+          originalTransactionId: sale.reversedTransactionId,
+          reversalTransactionId: sale.id,
+          saleNumber: sale.saleNumber,
+          status: sale.status,
+          performedBy: (sale.reversedById && byUserMap[sale.reversedById]) || sale.refundedBy || null,
+          taxReversed: sale.totalTaxAmount != null ? Math.abs(parseFloat(sale.totalTaxAmount)) : null,
+        }));
+      } catch (saleDocErr) {
+        console.error('Error fetching sale document reversals:', saleDocErr);
+        saleDocReversals = [];
+      }
+    }
+
+    // Supplier payment reversals
+    let supplierPaymentReversals = [];
+    if (type === 'all' || type === 'supplier_payment' || type === 'payment') {
+      try {
+        const spWhere = {
+          tenantId: user.tenantId,
+          isReversal: true,
+          ...(startDate || endDate
+            ? {
+                reversedAt: {
+                  ...(startDate ? { gte: new Date(startDate) } : {}),
+                  ...(endDate ? { lte: new Date(endDate + 'T23:59:59') } : {}),
+                },
+              }
+            : {}),
+        };
+        const sps = await prisma.supplierPayment.findMany({
+          where: spWhere,
+          include: {
+            supplier: { select: { id: true, name: true } },
+          },
+          orderBy: { reversedAt: 'desc' },
+          take: 500,
+        });
+        supplierPaymentReversals = sps.map((sp) => ({
+          id: sp.id,
+          type: 'supplier_payment',
+          displayReference: sp.paymentNumber || `Supplier payment ${sp.id.slice(0, 8)}`,
+          description: sp.notes || `Supplier payment reversal`,
+          originalAmount: Math.abs(parseFloat(sp.totalAmount) || 0),
+          reversalAmount: -Math.abs(parseFloat(sp.totalAmount) || 0),
+          date: sp.paymentDate,
+          reversedAt: sp.reversedAt,
+          reversalReason: sp.reversalReason || 'Supplier payment reversed',
+          originalTransactionId: sp.reversedTransactionId,
+          reversalTransactionId: sp.id,
+          supplier: sp.supplier,
+          status: 'Reversed',
+          performedBy: null,
+        }));
+      } catch (spErr) {
+        console.error('Error fetching supplier payment reversals:', spErr);
+        supplierPaymentReversals = [];
+      }
+    }
+
+    // V2 JournalEntry rows that are themselves reversals (covers voids / GL-only paths)
+    let v2JournalReversals = [];
+    if (type === 'all' || type === 'journal') {
+      try {
+        // Avoid conflicting OR when date filter present — rebuild cleanly
+        const jeDateFilter =
+          startDate || endDate
+            ? {
+                OR: [
+                  {
+                    reversedAt: {
+                      ...(startDate ? { gte: new Date(startDate) } : {}),
+                      ...(endDate ? { lte: new Date(endDate + 'T23:59:59') } : {}),
+                    },
+                  },
+                  {
+                    postingDate: {
+                      ...(startDate ? { gte: new Date(startDate) } : {}),
+                      ...(endDate ? { lte: new Date(endDate + 'T23:59:59') } : {}),
+                    },
+                  },
+                  {
+                    entryDate: {
+                      ...(startDate ? { gte: new Date(startDate) } : {}),
+                      ...(endDate ? { lte: new Date(endDate + 'T23:59:59') } : {}),
+                    },
+                  },
+                ],
+              }
+            : null;
+
+        const jes = await prisma.journalEntry.findMany({
+          where: {
+            tenantId: user.tenantId,
+            status: { in: ['Posted', 'posted', 'POSTED'] },
+            AND: [
+              { OR: [{ reversalStatus: 'REVERSAL' }, { entryType: 'Reversal' }] },
+              ...(jeDateFilter ? [jeDateFilter] : []),
+            ],
+          },
+          select: {
+            id: true,
+            journalNumber: true,
+            referenceNumber: true,
+            description: true,
+            totalDebit: true,
+            totalCredit: true,
+            debit: true,
+            credit: true,
+            entryDate: true,
+            postingDate: true,
+            reversedAt: true,
+            notes: true,
+            sourceType: true,
+            sourceId: true,
+            originalJournalId: true,
+            createdById: true,
+            reversedById: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 500,
+        });
+        const userIds = [
+          ...new Set(jes.flatMap((j) => [j.createdById, j.reversedById]).filter(Boolean)),
+        ];
+        const users = userIds.length
+          ? await prisma.user.findMany({
+              where: { id: { in: userIds } },
+              select: { id: true, name: true, email: true },
+            })
+          : [];
+        const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+        v2JournalReversals = jes.map((je) => {
+          const amt =
+            Number(je.totalDebit || je.totalCredit || 0) ||
+            Number(je.debit || je.credit || 0) ||
+            0;
+          return {
+            id: `je-${je.id}`,
+            type: 'journal',
+            displayReference:
+              je.journalNumber || je.referenceNumber || `JE ${je.id.slice(0, 8)}`,
+            description: je.description || je.notes || 'Journal reversal',
+            originalAmount: amt,
+            reversalAmount: -amt,
+            date: je.postingDate || je.entryDate,
+            reversedAt: je.reversedAt || je.postingDate || je.entryDate,
+            reversalReason: je.notes || je.description || 'Journal reversed',
+            originalTransactionId: je.originalJournalId,
+            reversalTransactionId: je.id,
+            sourceType: je.sourceType,
+            status: 'Posted',
+            performedBy:
+              (je.reversedById && userMap[je.reversedById]) ||
+              (je.createdById && userMap[je.createdById]) ||
+              null,
+          };
+        });
+      } catch (jeErr) {
+        console.error('Error fetching V2 journal reversals:', jeErr);
+        v2JournalReversals = [];
+      }
+    }
+
+    // Canonical TransactionReversal register (COMPLETED)
+    let registerReversals = [];
+    if (type === 'all' || type === 'register') {
+      try {
+        if (prisma.transactionReversal?.findMany) {
+          const regWhere = {
+            tenantId: user.tenantId,
+            status: 'COMPLETED',
+            ...(startDate || endDate
+              ? {
+                  executedAt: {
+                    ...(startDate ? { gte: new Date(startDate) } : {}),
+                    ...(endDate ? { lte: new Date(endDate + 'T23:59:59') } : {}),
+                  },
+                }
+              : {}),
+          };
+          const regs = await prisma.transactionReversal.findMany({
+            where: regWhere,
+            orderBy: { executedAt: 'desc' },
+            take: 500,
+          });
+          registerReversals = regs.map((r) => ({
+            id: `reg-${r.id}`,
+            type: String(r.sourceType || 'register').toLowerCase(),
+            displayReference: `${r.sourceType} ${String(r.sourceId || '').slice(0, 8)}`,
+            description: r.reason || 'Registered reversal',
+            originalAmount: 0,
+            reversalAmount: 0,
+            date: r.originalDocumentDate || r.postingDate || r.executedAt,
+            reversedAt: r.executedAt || r.approvedAt || r.requestedAt,
+            reversalReason: r.reason,
+            originalTransactionId: r.sourceId,
+            reversalTransactionId: r.reversalDocumentId || r.reversalJournalEntryId,
+            status: r.status,
+            performedBy: null,
+            registerId: r.id,
+          }));
+        }
+      } catch (regErr) {
+        console.error('Error fetching TransactionReversal register:', regErr);
+        registerReversals = [];
       }
     }
 
@@ -266,6 +597,8 @@ export async function GET(request) {
             }
           }
         });
+        // Exclude formal sale reversal docs (handled separately via isReversal)
+        saleRefundReversals = saleRefundReversals.filter((s) => !s.isReversal);
       } catch (saleRefundError) {
         console.error('Error fetching sale refund reversals:', saleRefundError);
         saleRefundReversals = [];
@@ -385,8 +718,8 @@ export async function GET(request) {
       });
     }
 
-    // Transform and consolidate data
-    const allReversals = [
+    // Transform and consolidate data (dedupe by stable key)
+    const rawReversals = [
       ...expenseReversalPayload,
       ...invoiceReversals.map(invoice => ({
         id: invoice.id,
@@ -421,13 +754,13 @@ export async function GET(request) {
           payment.expense?.description ||
           'Payment',
         description: `Payment ${payment.type === 'received' ? 'Received' : 'Made'}`,
-        originalAmount: parseFloat(payment.amount),
-        reversalAmount: -parseFloat(payment.amount),
+        originalAmount: Math.abs(parseFloat(payment.amount) || 0),
+        reversalAmount: -Math.abs(parseFloat(payment.amount) || 0),
         date: payment.paymentDate,
         reversedAt: payment.reversedAt,
         reversalReason: payment.reversalReason,
-        originalTransactionId: payment.id,
-        reversalTransactionId: payment.reversedTransactionId,
+        originalTransactionId: payment.reversedTransactionId || payment.id,
+        reversalTransactionId: payment.id,
         paymentType: payment.type,
         method: payment.paymentMethod,
         reference: payment.reference,
@@ -442,7 +775,7 @@ export async function GET(request) {
         displayReference: refund.invoice?.invoiceNumber
           ? `Refund — Invoice ${refund.invoice.invoiceNumber}`
           : 'Refund',
-        description: `Refund for Invoice #${refund.invoice.invoiceNumber}`,
+        description: `Refund for Invoice #${refund.invoice?.invoiceNumber || ''}`,
         originalAmount: parseFloat(refund.refundAmount),
         reversalAmount: -parseFloat(refund.refundAmount),
         date: refund.refundDate,
@@ -450,11 +783,13 @@ export async function GET(request) {
         reversalReason: refund.refundReason,
         originalTransactionId: refund.invoiceId,
         reversalTransactionId: refund.transactionId,
-        invoice: {
-          id: refund.invoice.id,
-          invoiceNumber: refund.invoice.invoiceNumber,
-          client: refund.invoice.client
-        },
+        invoice: refund.invoice
+          ? {
+              id: refund.invoice.id,
+              invoiceNumber: refund.invoice.invoiceNumber,
+              client: refund.invoice.client
+            }
+          : null,
         refundMethod: refund.refundMethod,
         status: refund.status,
         performedBy: refund.refundedBy,
@@ -477,8 +812,31 @@ export async function GET(request) {
         performedBy: sale.refundedBy,
         taxReversed: sale.totalTaxAmount != null ? parseFloat(sale.totalTaxAmount) : 0
       })),
-      ...payrollReversals
+      ...payrollReversals,
+      ...journalTxReversals,
+      ...voidedInvoiceReversals,
+      ...saleDocReversals,
+      ...supplierPaymentReversals,
+      ...v2JournalReversals,
+      ...registerReversals,
     ];
+
+    // Prefer domain rows over register stubs / duplicate journal echoes for same original
+    const seen = new Set();
+    const allReversals = [];
+    for (const row of rawReversals) {
+      const keys = [
+        row.id && `id:${row.id}`,
+        row.reversalTransactionId && `rev:${row.reversalTransactionId}`,
+        row.type === 'void' && row.originalTransactionId && `void:${row.originalTransactionId}`,
+        row.type === 'journal' &&
+          row.originalTransactionId &&
+          `je-orig:${row.originalTransactionId}`,
+      ].filter(Boolean);
+      if (keys.some((k) => seen.has(k))) continue;
+      keys.forEach((k) => seen.add(k));
+      allReversals.push(row);
+    }
 
     // Filter by search if provided (after fetching to allow searching user names)
     let filteredReversals = allReversals;
@@ -509,7 +867,11 @@ export async function GET(request) {
         payment: filteredReversals.filter(r => r.type === 'payment').length,
         refund: filteredReversals.filter(r => r.type === 'refund').length,
         sale_refund: filteredReversals.filter(r => r.type === 'sale_refund').length,
-        payroll: filteredReversals.filter(r => r.type === 'payroll').length
+        sale_reversal: filteredReversals.filter(r => r.type === 'sale_reversal').length,
+        payroll: filteredReversals.filter(r => r.type === 'payroll').length,
+        journal: filteredReversals.filter(r => r.type === 'journal').length,
+        void: filteredReversals.filter(r => r.type === 'void').length,
+        supplier_payment: filteredReversals.filter(r => r.type === 'supplier_payment').length,
       }
     };
 

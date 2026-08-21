@@ -362,7 +362,8 @@ export async function PUT(request, { params }) {
           status: body.status,
           notes: body.notes,
           footerPhoneOverride: body.footerPhoneOverride ?? undefined,
-          footerBankDetailsOverride: body.footerBankDetailsOverride ?? undefined
+          footerBankDetailsOverride: body.footerBankDetailsOverride ?? undefined,
+          templateId: body.templateId !== undefined ? (body.templateId || null) : undefined,
         }
       });
       

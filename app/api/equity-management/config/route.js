@@ -14,7 +14,13 @@ export async function GET(request) {
   ]);
   if (guard.response) return guard.response;
   try {
-    const configuration = await getEquityConfiguration(prisma, guard.context.businessId);
+    let configuration = await getEquityConfiguration(prisma, guard.context.businessId);
+    if (!configuration) {
+      const { ensureEquityConfiguration } = await import(
+        '@/lib/equityManagement/application/configService.js'
+      );
+      configuration = await ensureEquityConfiguration(prisma, guard.context);
+    }
     return NextResponse.json({ configuration });
   } catch (error) {
     return accountingErrorResponse(error, 'get equity configuration');

@@ -6,6 +6,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { generateQuotationPdf } from '@/lib/server-pdf';
 import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
 import { shouldDisplayDocumentTax } from '@/lib/documentTaxDisplay';
+import { resolveDocumentTemplate } from '@/lib/documentTemplates/resolveDocumentTemplate';
 
 function findPreRenderedPdf(quotationId, quotationNumber) {
   try {
@@ -70,25 +71,21 @@ export async function GET(request, { params }) {
     }
 
     // Build data objects
-    let template = null;
-    if (templateId) {
-      template = await prisma.invoiceTemplate.findUnique({ where: { id: templateId } });
-    }
-    if (!template) {
-      template = await prisma.invoiceTemplate.findFirst({
-        where: {
-          OR: [{ tenantId: user.tenantId, isDefault: true }, { tenantId: user.tenantId }],
-        },
-        orderBy: { isDefault: 'desc' },
-      });
-    }
+    const resolved = await resolveDocumentTemplate(prisma, {
+      tenantId: user.tenantId,
+      templateId: templateId || quotation.templateId,
+    });
+    let template = resolved.template;
     if (!template) {
       template = {
         id: 'default',
         name: 'Default Template',
-        content: JSON.stringify({
-          style: 'standard', showLogo: true, showFooter: true, primaryColor: '#4f46e5',
-        }),
+        content: JSON.stringify(resolved.appearance),
+      };
+    } else {
+      template = {
+        ...template,
+        content: JSON.stringify(resolved.appearance),
       };
     }
     if (template && typeof template.content === 'object') {

@@ -306,14 +306,16 @@ model TenantSettings {
 
 
 model InvoiceTemplate {
-  id        String   @id @default(cuid())
-  name      String
-  isDefault Boolean  @default(false)
-  content   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  id         String      @id @default(cuid())
+  name       String
+  isDefault  Boolean     @default(false)
+  content    String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  tenantId   String
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  invoices   Invoice[]   @relation("InvoiceDocumentTemplate")
+  quotations Quotation[] @relation("QuotationDocumentTemplate")
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -844,6 +846,8 @@ model Invoice {
   reversedById              String?
   /// True when this invoice was created from Rental & Hiring (operational layer).
   isRentalInvoice           Boolean             @default(false)
+  /// Optional per-document appearance override (null = tenant default template).
+  templateId                String?
   branch                    Branch?             @relation(fields: [branchId], references: [id])
   client                    Client              @relation(fields: [clientId], references: [id])
   createdBy                 User                @relation("InvoiceCreator", fields: [createdById], references: [id])
@@ -851,6 +855,7 @@ model Invoice {
   refundedBy                User?               @relation("InvoiceRefundedBy", fields: [refundedById], references: [id])
   tenant                    Tenant              @relation(fields: [tenantId], references: [id])
   voidedBy                  User?               @relation("InvoiceVoidedBy", fields: [voidedById], references: [id])
+  template                  InvoiceTemplate?    @relation("InvoiceDocumentTemplate", fields: [templateId], references: [id], onDelete: SetNull)
   items                     InvoiceItem[]
   refunds                   InvoiceRefund[]
   payments                  Payment[]
@@ -866,6 +871,7 @@ model Invoice {
   @@index([isReversal])
   @@index([reversedTransactionId])
   @@index([isRentalInvoice])
+  @@index([templateId])
 }
 
 /// Bookable offering (catalogue) — commercial face; optional link to Asset / Product masters.
@@ -3833,15 +3839,19 @@ model Quotation {
   totalDiscountAmount       Float           @default(0)
   footerPhoneOverride       String? // Override default phone in document footer
   footerBankDetailsOverride String? // Override default bank details in document footer
+  /// Optional per-document appearance override (null = tenant default template).
+  templateId                String?
   client                    Client          @relation(fields: [clientId], references: [id])
   createdBy                 User            @relation("QuotationCreator", fields: [createdById], references: [id])
   tenant                    Tenant          @relation(fields: [tenantId], references: [id])
+  template                  InvoiceTemplate? @relation("QuotationDocumentTemplate", fields: [templateId], references: [id], onDelete: SetNull)
   items                     QuotationItem[]
 
   @@unique([tenantId, quotationNumber])
   @@index([clientId])
   @@index([tenantId])
   @@index([createdById])
+  @@index([templateId])
 }
 
 model QuotationItem {

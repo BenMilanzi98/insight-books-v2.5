@@ -30,10 +30,23 @@ export async function GET(request) {
       );
     }
 
-    const [capitalAccount, settings] = await Promise.all([
-      resolvePrimaryCapitalAccount(user.tenantId, prisma),
-      prisma.tenantSettings.findUnique({ where: { tenantId: user.tenantId } }),
-    ]);
+    let capitalAccount = null;
+    let settings = null;
+    try {
+      [capitalAccount, settings] = await Promise.all([
+        resolvePrimaryCapitalAccount(user.tenantId, prisma),
+        prisma.tenantSettings.findUnique({ where: { tenantId: user.tenantId } }),
+      ]);
+    } catch (resolveErr) {
+      console.error('capital-account resolve failed:', resolveErr);
+      return NextResponse.json(
+        {
+          error: 'Failed to resolve capital account',
+          message: resolveErr?.message || 'Capital account lookup failed',
+        },
+        { status: 500 }
+      );
+    }
 
     if (!capitalAccount) {
       return NextResponse.json(
@@ -42,43 +55,71 @@ export async function GET(request) {
       );
     }
 
-    const ledgerBalance = await getCapitalLedgerBalanceForTransfers(user.tenantId, prisma);
+    let ledgerBalance = Number(capitalAccount.balance) || 0;
+    try {
+      ledgerBalance = await getCapitalLedgerBalanceForTransfers(user.tenantId, prisma);
+    } catch (balErr) {
+      console.warn('capital-account balance degraded:', balErr?.message || balErr);
+    }
+
     const ownerContributedCapital = Number(settings?.ownerContributedCapital) || 0;
 
-    // Get recent transfers from capital account
-    const recentTransfers = await prisma.payment.findMany({
-      where: {
-        tenantId: user.tenantId,
-        type: 'transfer',
-        OR: [
-          { sourceAccount: capitalAccount.id },
-          { destinationAccount: capitalAccount.id }
-        ]
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      include: {
-        invoice: {
-          select: {
-            id: true,
-            invoiceNumber: true
-          }
-        }
-      }
-    });
+    let recentTransfers = [];
+    try {
+      const rows = await prisma.payment.findMany({
+        where: {
+          tenantId: user.tenantId,
+          type: 'transfer',
+          OR: [
+            { sourceAccount: capitalAccount.id },
+            { destinationAccount: capitalAccount.id },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          amount: true,
+          paymentDate: true,
+          reference: true,
+          notes: true,
+          destinationAccount: true,
+          sourceAccount: true,
+        },
+      });
+      recentTransfers = rows.map((transfer) => ({
+        id: transfer.id,
+        amount: Number(transfer.amount),
+        type: transfer.sourceAccount === capitalAccount.id ? 'outgoing' : 'incoming',
+        date: transfer.paymentDate,
+        reference: transfer.reference,
+        notes: transfer.notes,
+        destinationAccount: transfer.destinationAccount,
+        sourceAccount: transfer.sourceAccount,
+      }));
+    } catch (txErr) {
+      console.warn('capital-account transfers degraded:', txErr?.message || txErr);
+    }
 
-    // Get capital account balance history (last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const balanceHistory = await prisma.accountBalance.findMany({
-      where: {
-        tenantId: user.tenantId,
-        account: capitalAccount.id,
-        updatedAt: { gte: thirtyDaysAgo }
-      },
-      orderBy: { updatedAt: 'asc' }
-    });
+    let balanceHistory = [];
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const historyRows = await prisma.accountBalance.findMany({
+        where: {
+          tenantId: user.tenantId,
+          account: capitalAccount.id,
+          updatedAt: { gte: thirtyDaysAgo },
+        },
+        orderBy: { updatedAt: 'asc' },
+      });
+      balanceHistory = historyRows.map((record) => ({
+        date: record.updatedAt,
+        balance: Number(record.balance),
+      }));
+    } catch (histErr) {
+      console.warn('capital-account history degraded:', histErr?.message || histErr);
+    }
 
     return NextResponse.json({
       ownerContributedCapital,
@@ -99,25 +140,16 @@ export async function GET(request) {
         isActive: capitalAccount.isActive,
         glLinked: (capitalAccount.accountCode || capitalAccount.code) === OWNERS_CAPITAL_GL_CODE,
       },
-      recentTransfers: recentTransfers.map(transfer => ({
-        id: transfer.id,
-        amount: transfer.amount,
-        type: transfer.sourceAccount === capitalAccount.id ? 'outgoing' : 'incoming',
-        date: transfer.paymentDate,
-        reference: transfer.reference,
-        notes: transfer.notes,
-        destinationAccount: transfer.destinationAccount,
-        sourceAccount: transfer.sourceAccount
-      })),
-      balanceHistory: balanceHistory.map(record => ({
-        date: record.updatedAt,
-        balance: record.balance
-      }))
+      recentTransfers,
+      balanceHistory,
     });
   } catch (error) {
     console.error('Error fetching capital account:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch capital account information' },
+      {
+        error: 'Failed to fetch capital account information',
+        message: error?.message || undefined,
+      },
       { status: 500 }
     );
   }

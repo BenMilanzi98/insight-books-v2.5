@@ -30,6 +30,7 @@ import SendInvoiceModal from '@/components/SendInvoiceModal';
 import InvoiceModal from "@/components/InvoiceModal";
 import InvoiceTemplatePreview from "@/components/InvoiceTemplatePreview";
 import InvoiceTemplateCapture from '@/components/InvoiceTemplateCapture';
+import BulkApplyTemplateDialog from '@/components/documentTemplates/BulkApplyTemplateDialog';
 import VoidInvoiceModal from "@/components/VoidInvoiceModal";
 import RefundInvoiceModal from "@/components/RefundInvoiceModal";
 import PartialPaymentModal from "@/components/PartialPaymentModal";
@@ -172,6 +173,8 @@ const InvoicingPage = () => {
   const [brandingSettings, setBrandingSettings] = useState(null);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [invoiceForPreview, setInvoiceForPreview] = useState(null);
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState([]);
+  const [bulkApplyOpen, setBulkApplyOpen] = useState(false);
   
   // Filter/sort trigger refs (panels render in a portal)
   const filterRef = useRef(null);
@@ -776,6 +779,15 @@ const InvoicingPage = () => {
                   <ChevronDown size={16} className="text-[var(--text-muted)]" aria-hidden="true" />
                 </div>
               </div>
+              {selectedInvoiceIds.length > 0 && (
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-4 py-2.5 text-sm font-medium"
+                  onClick={() => setBulkApplyOpen(true)}
+                >
+                  {tt('Apply template')} ({selectedInvoiceIds.length})
+                </button>
+              )}
               {pagePermissions.canCreateInvoices && (
                 <button
                   type="button"
@@ -1032,6 +1044,16 @@ const InvoicingPage = () => {
                 <table className="w-full">
                   <thead className="bg-gray-50/50">
                     <tr>
+                      <th className="px-3 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          aria-label={tt('Select all')}
+                          checked={invoices.length > 0 && selectedInvoiceIds.length === invoices.length}
+                          onChange={(e) => {
+                            setSelectedInvoiceIds(e.target.checked ? invoices.map((i) => i.id) : []);
+                          }}
+                        />
+                      </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{tt('Invoice #')}</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">{tt('Date')}</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">{tt('Due Date')}</th>
@@ -1044,6 +1066,20 @@ const InvoicingPage = () => {
                   <tbody className="bg-white divide-y divide-gray-100">
                     {invoices.map((invoice) => (
                       <tr key={invoice.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-3 py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedInvoiceIds.includes(invoice.id)}
+                            onChange={(e) => {
+                              setSelectedInvoiceIds((prev) =>
+                                e.target.checked
+                                  ? [...prev, invoice.id]
+                                  : prev.filter((id) => id !== invoice.id)
+                              );
+                            }}
+                            aria-label={`Select ${invoice.invoiceNumber}`}
+                          />
+                        </td>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <span className="text-sm font-semibold text-blue-600">{invoice.invoiceNumber}</span>
                         </td>
@@ -1231,6 +1267,19 @@ const InvoicingPage = () => {
             onMessageSubmit={handleMessageSubmit}
           />
         )}
+
+        <BulkApplyTemplateDialog
+          open={bulkApplyOpen}
+          onClose={() => setBulkApplyOpen(false)}
+          documentType="invoice"
+          selectedIds={selectedInvoiceIds}
+          branding={brandingSettings}
+          initialAppearance={selectedTemplate?.content}
+          onApplied={() => {
+            setSelectedInvoiceIds([]);
+            setSuccessMessage(tt('Template applied to selected invoices'));
+          }}
+        />
 
         {/* Invoice Preview Modal */}
         {previewModalOpen && invoiceForPreview && brandingSettings && selectedTemplate && (

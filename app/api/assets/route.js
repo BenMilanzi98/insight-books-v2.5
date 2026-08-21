@@ -5,8 +5,6 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { getPaymentAccount } from '@/lib/transactionJournalHelpers';
 import { generateReferenceNumber } from '@/lib/journalService';
-import { updateAccountBalance } from '@/lib/core';
-import { validateTransactionBalance } from '@/lib/accountingValidation';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { assertAccountInSubtree } from '@/lib/coaGlSubtreeValidation.js';
 import { AccountingV2Error } from '@/lib/accountingV2/domain/errors.js';
@@ -197,12 +195,6 @@ export async function GET(request) {
  */
 export async function POST(request) {
   try {
-    // Test Prisma client
-    console.log('Testing Prisma client...');
-    const testCount = await prisma.asset.count();
-    console.log('Prisma client working. Asset count:', testCount);
-    
-    // Authenticate user and get tenant ID
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json(
@@ -320,19 +312,11 @@ export async function POST(request) {
       } catch (error) {
         console.error('Error resolving payment account:', error);
         return NextResponse.json(
-          { error: 'Failed to resolve payment account. Please try again.' },
+          { error: error.message || 'Failed to resolve payment account. Please try again.' },
           { status: 500 }
         );
       }
     }
-    
-    // Create asset in database
-    console.log('Creating asset with data:', {
-      name: body.name,
-      categoryId: body.categoryId,
-      tenantId: tenantId,
-      createdById: user.id
-    });
     
     const asset = await prisma.asset.create({
       data: {
@@ -403,22 +387,26 @@ export async function POST(request) {
     }
     
     // Create audit log entry
-    await prisma.auditLog.create({
-      data: {
-        action: 'ASSET_CREATED',
-        entityType: 'ASSET',
-        entityId: asset.id,
-        userId: user.id,
-        tenantId: tenantId,
-        details: JSON.stringify({
-          assetId: asset.id,
-          name: asset.name,
-          category: category.name,
-          originalCost: asset.originalCost,
-          isExistingAsset: asset.isExistingAsset
-        })
-      }
-    });
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: 'ASSET_CREATED',
+          entityType: 'ASSET',
+          entityId: asset.id,
+          userId: user.id,
+          tenantId: tenantId,
+          details: JSON.stringify({
+            assetId: asset.id,
+            name: asset.name,
+            category: category.name,
+            originalCost: asset.originalCost,
+            isExistingAsset: asset.isExistingAsset
+          })
+        }
+      });
+    } catch (auditErr) {
+      console.warn('Asset audit log failed (non-fatal):', auditErr?.message || auditErr);
+    }
     
     return NextResponse.json({
       message: 'Asset created successfully',
@@ -460,10 +448,21 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
         where: {
           id: asset.glAccountId,
           tenantId,
-          accountType: 'Asset',
           isActive: true,
+          OR: [
+            { accountType: { equals: 'Asset', mode: 'insensitive' } },
+            { accountType: { equals: 'ASSET', mode: 'insensitive' } },
+            { type: { equals: 'Asset', mode: 'insensitive' } },
+            { type: { equals: 'ASSET', mode: 'insensitive' } },
+          ],
         },
       });
+      if (!assetAccount) {
+        // Accept selected GL if it exists and is active (subtree already validated as under 1500)
+        assetAccount = await prisma.account.findFirst({
+          where: { id: asset.glAccountId, tenantId, isActive: true },
+        });
+      }
       if (!assetAccount) {
         throw new Error('Selected fixed asset GL account is missing or inactive');
       }
@@ -666,6 +665,23 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
 /**
  * Helper function to create transaction with journal entries
  */
+async function withTimeout(promise, ms, label) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(Object.assign(new Error(`${label} timed out after ${ms}ms`), { code: 'POSTING_TIMEOUT' })),
+          ms
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function createTransactionWithEntries(
   entries,
   description,
@@ -708,33 +724,47 @@ async function createTransactionWithEntries(
     description: entry.description || description,
   }));
 
-  const { postAssetAcquiredAccounting } = await import(
-    '@/lib/accountingV2/adapters/remainingAdapters.js'
-  );
   const { postGlEntry } = await import('@/lib/accountingEngine/postGlEntry.js');
   const sourceId = assetId || `asset-${refNumber}`;
-  const outcome = await postAssetAcquiredAccounting({
-    db: prisma,
-    tenantId,
-    userId,
-    assetId: sourceId,
-    amount: totalDebits,
-    date: transactionDate,
-    description,
-    lines,
-    legacyPost: () =>
-      postGlEntry({
+
+  const legacyPost = () =>
+    postGlEntry({
+      tenantId,
+      userId,
+      entryDate: transactionDate,
+      description,
+      reference: refNumber,
+      sourceType: 'Asset',
+      sourceId,
+      lines,
+    });
+
+  try {
+    const { postAssetAcquiredAccounting } = await import(
+      '@/lib/accountingV2/adapters/remainingAdapters.js'
+    );
+    const outcome = await withTimeout(
+      postAssetAcquiredAccounting({
+        db: prisma,
         tenantId,
         userId,
-        entryDate: transactionDate,
+        assetId: sourceId,
+        amount: totalDebits,
+        date: transactionDate,
         description,
-        reference: refNumber,
-        sourceType: 'Asset',
-        sourceId,
         lines,
       }),
-  });
-  return outcome.result || { id: outcome.result?.journalEntryId };
+      25000,
+      'Asset GL posting'
+    );
+    return outcome.result || { id: outcome.result?.journalEntryId };
+  } catch (v2Err) {
+    console.warn(
+      'Asset V2 posting failed or timed out; falling back to postGlEntry:',
+      v2Err?.message || v2Err
+    );
+    return withTimeout(legacyPost(), 20000, 'Asset legacy GL posting');
+  }
 }
 
 /**

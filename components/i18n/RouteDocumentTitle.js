@@ -29,7 +29,7 @@ const ROUTE_TITLES = [
   { prefix: '/suppliers', title: 'Suppliers' },
   { prefix: '/asset-management', title: 'Assets & Liabilities' },
   { prefix: '/liability-management', title: 'Liabilities' },
-  { prefix: '/equity-management', title: 'Equity' },
+  { prefix: '/equity-management', title: 'Capital Account' },
   { prefix: '/capital-account', title: 'Capital Account' },
   { prefix: '/bank-reconciliation', title: 'Bank Reconciliation' },
   { prefix: '/budget-forecast/forecasts', title: 'Forecasts' },

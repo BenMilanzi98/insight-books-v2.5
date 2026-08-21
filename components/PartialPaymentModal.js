@@ -28,8 +28,13 @@ const PartialPaymentModal = ({
   // Reset form when modal opens/closes or invoice changes
   useEffect(() => {
     if (isOpen && invoice) {
-      const remaining = invoice.total - (invoice.totalPaid || 0);
-      setRemainingBalance(remaining);
+      const total = Number(invoice.total) || 0;
+      const paid = Number(invoice.totalPaid) || 0;
+      const remaining =
+        invoice.remainingBalance != null && invoice.remainingBalance !== ''
+          ? Number(invoice.remainingBalance)
+          : Math.round((total - paid) * 100) / 100;
+      setRemainingBalance(Number.isFinite(remaining) ? Math.max(0, remaining) : 0);
       // Management-configured accounts only (same as /payments/management).
       const defaultAccount =
         paymentAccounts.find((acc) => acc.accountType === 'Cash' && acc.isActive) ||

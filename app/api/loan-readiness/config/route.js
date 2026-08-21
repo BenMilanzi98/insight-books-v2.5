@@ -3,10 +3,11 @@ import prisma from '../../../../lib/prisma.js';
 import { guardLoanReadinessRoute, accountingErrorResponse } from '../../../../lib/loanReadiness/api/routeGuard.js';
 import { LOAN_READINESS_PERMISSIONS } from '../../../../lib/loanReadiness/permissions.js';
 import {
-  getLoanReadinessConfiguration,
+  ensureLoanReadinessConfiguration,
   upsertDraftLoanReadinessConfiguration,
   approveLoanReadinessConfiguration,
 } from '../../../../lib/loanReadiness/application/configService.js';
+import { serializeLoanReadiness } from '../../../../lib/loanReadiness/application/serialize.js';
 
 export async function GET(request) {
   try {
@@ -15,8 +16,8 @@ export async function GET(request) {
       LOAN_READINESS_PERMISSIONS.MANAGE_CONFIGURATION,
     ]);
     if (guard.response) return guard.response;
-    const configuration = await getLoanReadinessConfiguration(prisma, guard.context.businessId);
-    return NextResponse.json({ configuration });
+    const configuration = await ensureLoanReadinessConfiguration(prisma, guard.context);
+    return NextResponse.json({ configuration: serializeLoanReadiness(configuration) });
   } catch (error) {
     return accountingErrorResponse(error, 'get loan readiness configuration');
   }
@@ -29,10 +30,14 @@ export async function PUT(request) {
     const body = await request.json();
     if (body.action === 'approve') {
       const configuration = await approveLoanReadinessConfiguration(prisma, guard.context);
-      return NextResponse.json({ configuration });
+      return NextResponse.json({ configuration: serializeLoanReadiness(configuration) });
+    }
+    if (body.action === 'ensure') {
+      const configuration = await ensureLoanReadinessConfiguration(prisma, guard.context);
+      return NextResponse.json({ configuration: serializeLoanReadiness(configuration) });
     }
     const configuration = await upsertDraftLoanReadinessConfiguration(prisma, guard.context, body);
-    return NextResponse.json({ configuration });
+    return NextResponse.json({ configuration: serializeLoanReadiness(configuration) });
   } catch (error) {
     return accountingErrorResponse(error, 'update loan readiness configuration');
   }

@@ -100,10 +100,11 @@ export default function PayeSummaryClient() {
     hydrated: scopeHydrated,
   } = useBusinessScope('paye-summary');
 
-  const now = new Date();
   const [periodType, setPeriodType] = useState('month');
-  const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
-  const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
+  const [selectedMonth, setSelectedMonth] = useState(() =>
+    String(new Date().getMonth() + 1).padStart(2, '0'),
+  );
+  const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [department, setDepartment] = useState('');
@@ -120,6 +121,7 @@ export default function PayeSummaryClient() {
   const [employees, setEmployees] = useState([]);
 
   const dateRange = useMemo(() => {
+    const now = new Date();
     if (periodType === 'month' && selectedMonth && selectedYear) {
       const start = new Date(parseInt(selectedYear, 10), parseInt(selectedMonth, 10) - 1, 1);
       const end = new Date(parseInt(selectedYear, 10), parseInt(selectedMonth, 10), 0);
@@ -143,7 +145,7 @@ export default function PayeSummaryClient() {
     }
     const y = now.getFullYear();
     return { fromDate: `${y}-01-01`, toDate: `${y}-12-31` };
-  }, [periodType, selectedMonth, selectedYear, fromDate, toDate, now]);
+  }, [periodType, selectedMonth, selectedYear, fromDate, toDate]);
 
   const periodLabel = useMemo(() => {
     if (periodType === 'month' && selectedMonth && selectedYear) {

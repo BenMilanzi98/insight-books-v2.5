@@ -47,6 +47,14 @@ function makeDb(overrides = {}) {
   return {
     eqV2Configuration: {
       findUnique: async () => store.config,
+      update: async ({ data }) => {
+        store.config = { ...store.config, ...data };
+        return store.config;
+      },
+      upsert: async ({ create, update }) => {
+        store.config = { ...store.config, ...(update || create) };
+        return store.config;
+      },
     },
     eqV2PartyRelationship: {
       findFirst: async ({ where }) => store.relationships.find((r) => r.id === where.id) || null,
@@ -98,7 +106,8 @@ describe('equity transaction create', () => {
     });
     expect(tx.amountMinor).toBe(100000000);
     expect(tx.transactionType).toBe('CAPITAL_CONTRIBUTION');
-    expect([EquityTxStatus.APPROVED, EquityTxStatus.DRAFT]).toContain(tx.status);
+    expect(tx.status).toBe(EquityTxStatus.APPROVED);
+    expect(tx.approvalStatus).toBe('NOT_REQUIRED');
   });
 
   it('builds drawing lines that debit drawings not expense', async () => {

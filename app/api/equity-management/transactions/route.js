@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { guardEquityRoute, accountingErrorResponse } from '@/lib/equityManagement/api/routeGuard.js';
 import { EQUITY_PERMISSIONS } from '@/lib/equityManagement/permissions.js';
 import {
+  createAndPostEquityTransaction,
   createEquityTransaction,
   listEquityTransactions,
 } from '@/lib/equityManagement/application/transactionService.js';
@@ -32,10 +33,19 @@ export async function POST(request) {
     EQUITY_PERMISSIONS.CREATE_DRAWING,
     EQUITY_PERMISSIONS.ISSUE_SHARES,
     EQUITY_PERMISSIONS.DECLARE_DIVIDEND,
+    EQUITY_PERMISSIONS.POST_CONTRIBUTION,
+    EQUITY_PERMISSIONS.POST_DRAWING,
   ]);
   if (guard.response) return guard.response;
   try {
     const body = await request.json();
+    const shouldPost = body.post !== false;
+    if (shouldPost) {
+      const result = await createAndPostEquityTransaction(prisma, guard.context, body, {
+        hasPermission: guard.can,
+      });
+      return NextResponse.json(result, { status: 201 });
+    }
     const transaction = await createEquityTransaction(prisma, guard.context, body);
     return NextResponse.json({ transaction }, { status: 201 });
   } catch (error) {

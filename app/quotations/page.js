@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import QuotationModal from "@/components/QuotationModal";
 import SendQuotationModal from "@/components/SendQuotationModal";
+import BulkApplyTemplateDialog from "@/components/documentTemplates/BulkApplyTemplateDialog";
 import PortalPopover from "@/components/ui/PortalPopover";
 import { DashboardMenuItem } from "@/components/ui/DashboardMenuPanel";
 import { 
@@ -113,6 +114,8 @@ const QuotationsPage = () => {
   const [quotationForPreview, setQuotationForPreview] = useState(null);
   const [brandingSettings, setBrandingSettings] = useState(null);
   const [previewQuotationData, setPreviewQuotationData] = useState(null);
+  const [selectedQuotationIds, setSelectedQuotationIds] = useState([]);
+  const [bulkApplyOpen, setBulkApplyOpen] = useState(false);
   
   // Modal states
   const [showQuotationModal, setShowQuotationModal] = useState(false);
@@ -731,6 +734,15 @@ const QuotationsPage = () => {
               <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             </div>
             <div className="flex flex-wrap gap-2">
+              {selectedQuotationIds.length > 0 && (
+                <button
+                  type="button"
+                  className="px-4 py-2.5 border border-gray-200 rounded-lg bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  onClick={() => setBulkApplyOpen(true)}
+                >
+                  {tt('Apply template')} ({selectedQuotationIds.length})
+                </button>
+              )}
               {/* Filter dropdown */}
               <div className="relative">
                 <button 
@@ -903,6 +915,16 @@ const QuotationsPage = () => {
                 <table className="w-full">
                   <thead className="bg-gray-50/50">
                     <tr>
+                      <th className="px-3 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          aria-label={tt('Select all')}
+                          checked={quotations.length > 0 && selectedQuotationIds.length === quotations.length}
+                          onChange={(e) => {
+                            setSelectedQuotationIds(e.target.checked ? quotations.map((q) => q.id) : []);
+                          }}
+                        />
+                      </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{tt('Quotation #')}</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">{tt('Date')}</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">{tt('Valid Until')}</th>
@@ -915,6 +937,20 @@ const QuotationsPage = () => {
                   <tbody className="bg-white divide-y divide-gray-100">
                     {quotations.map((quotation) => (
                       <tr key={quotation.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-3 py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedQuotationIds.includes(quotation.id)}
+                            onChange={(e) => {
+                              setSelectedQuotationIds((prev) =>
+                                e.target.checked
+                                  ? [...prev, quotation.id]
+                                  : prev.filter((id) => id !== quotation.id)
+                              );
+                            }}
+                            aria-label={`Select ${quotation.quotationNumber}`}
+                          />
+                        </td>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <span className="text-sm font-semibold text-blue-600">{quotation.quotationNumber}</span>
                         </td>
@@ -1125,6 +1161,18 @@ const QuotationsPage = () => {
           </div>
         )}
 
+        <BulkApplyTemplateDialog
+          open={bulkApplyOpen}
+          onClose={() => setBulkApplyOpen(false)}
+          documentType="quotation"
+          selectedIds={selectedQuotationIds}
+          branding={brandingSettings}
+          onApplied={() => {
+            setSelectedQuotationIds([]);
+            showNotification("success", "Template applied to selected quotations");
+          }}
+        />
+
         {/* Send Quotation Modal */}
         <SendQuotationModal
           isOpen={sendQuotationModalOpen}
@@ -1193,6 +1241,7 @@ const QuotationsPage = () => {
                 {previewQuotationData ? (
                   <QuotationTemplatePreview
                     quotation={previewQuotationData.quotation}
+                    template={previewQuotationData.template}
                     branding={previewQuotationData.branding}
                     currency="MWK"
                     isPrint={false}

@@ -8,9 +8,16 @@ import {
 } from '../lib/hrCalculations.js';
 
 describe('HR calculation helpers', () => {
-  it('counts same-day leave as one day and multi-day leave inclusively', () => {
+  it('counts weekday leave days and excludes weekends', () => {
+    // Mon–Wed (no weekend)
     expect(calculateLeaveDays(new Date('2026-05-04'), new Date('2026-05-04'))).toBe(1);
     expect(calculateLeaveDays(new Date('2026-05-04'), new Date('2026-05-06'))).toBe(3);
+
+    // Fri 21 Aug → Mon 24 Aug 2026: Fri + Mon = 2 (Sat/Sun excluded)
+    expect(calculateLeaveDays(new Date('2026-08-21'), new Date('2026-08-24'))).toBe(2);
+
+    // Sat–Sun only → 0 leave days
+    expect(calculateLeaveDays(new Date('2026-08-22'), new Date('2026-08-23'))).toBe(0);
   });
 
   it('rejects leave date ranges where the end is before the start', () => {

@@ -36,6 +36,8 @@ import {
   Receipt
 } from "lucide-react";
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview';
+import LayoutPicker from '@/components/documentTemplates/LayoutPicker';
+import { parseTemplateContent as parseAppearance } from '@/lib/documentTemplates/parseTemplateContent';
 import { validateBrandingSettings, validateFileUpload, logoValidationOptions, faviconValidationOptions } from '@/lib/validation';
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
@@ -552,15 +554,7 @@ function CustomizationContent() {
     }
   };
 
-  const parseTemplateContent = (template) => {
-    try {
-      return typeof template?.content === 'string'
-        ? JSON.parse(template.content || '{}')
-        : { ...(template?.content || {}) };
-    } catch {
-      return {};
-    }
-  };
+  const parseTemplateContent = (template) => parseAppearance(template?.content);
 
   const patchActiveTemplateContent = (patch) => {
     setActiveTemplate((prev) => {
@@ -1138,40 +1132,15 @@ function CustomizationContent() {
                         
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            {tt('Layout')}
+                            {tt('Document appearance')}
                           </label>
-                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                            {[
-                              { id: 'classic', label: 'Classic', style: 'standard' },
-                              { id: 'modern', label: 'Modern', style: 'professional' },
-                              { id: 'compact', label: 'Compact', style: 'minimal' },
-                              { id: 'bold', label: 'Bold', style: 'bold' },
-                            ].map((layout) => {
-                              const content = parseTemplateContent(activeTemplate);
-                              const active = String(content.style || 'standard') === layout.style;
-                              return (
-                                <button
-                                  key={layout.id}
-                                  type="button"
-                                  className={`rounded-lg border px-3 py-2 text-xs font-semibold ${active ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-gray-200 bg-white text-gray-700'}`}
-                                  onClick={() => patchActiveTemplateContent({ style: layout.style })}
-                                >
-                                  {layout.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            {tt('Invoice colour')}
-                          </label>
-                          <input
-                            type="color"
-                            className="h-10 w-16 cursor-pointer rounded border border-gray-300"
-                            value={parseTemplateContent(activeTemplate).primaryColor || brandSettings.primaryColor || '#0075be'}
-                            onChange={(e) => patchActiveTemplateContent({ primaryColor: e.target.value })}
+                          <LayoutPicker
+                            value={parseTemplateContent(activeTemplate)}
+                            onChange={(next) => patchActiveTemplateContent(next)}
+                            documentType="invoice"
+                            branding={brandSettings}
+                            showLivePreview={false}
+                            compact
                           />
                         </div>
 

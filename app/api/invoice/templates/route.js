@@ -2,7 +2,19 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-export async function GET(request) {
+import { serializeTemplateContent } from '@/lib/documentTemplates/parseTemplateContent';
+
+function normalizeContentInput(raw) {
+  if (raw == null) return serializeTemplateContent({});
+  if (typeof raw === 'string') {
+    try {
+      return serializeTemplateContent(JSON.parse(raw || '{}'));
+    } catch {
+      return serializeTemplateContent({});
+    }
+  }
+  return serializeTemplateContent(raw);
+}export async function GET(request) {
   try {
     // Get user from session
     const user = await getUserFromSession(request);
@@ -81,7 +93,7 @@ export async function POST(request) {
       data: {
         name: body.name,
         isDefault: body.isDefault || false,
-        content: body.content || JSON.stringify({}),
+        content: normalizeContentInput(body.content),
         tenant: {
           connect: { id: user.tenantId }
         }
@@ -172,7 +184,7 @@ export async function PUT(request) {
       data: {
         name: body.name,
         isDefault: body.isDefault || false,
-        content: body.content || existingTemplate.content
+        content: body.content != null ? normalizeContentInput(body.content) : existingTemplate.content
       }
     });
     

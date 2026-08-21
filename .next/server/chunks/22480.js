@@ -179,7 +179,7 @@
           </p>
         </div>
       </div>
-    `}),"rich-email":a=>{let b,c="#1e40af",d=a.companyName||a.tenantName||"InsightBooks",e=a.baseUrl||process.env.NEXT_PUBLIC_BASE_URL||"http://213.165.230.139:3000",f=a.tenantLogoUrl,g=null,h=!1;f&&""!==f.trim()&&(g=f.startsWith("http://")||f.startsWith("https://")?f:f.startsWith("/")?`${e}${f}`:`${e}/${f}`,h=!0);let i=(a,b)=>{let c=parseInt(a.replace("#",""),16),d=Math.round(2.55*b);return"#"+(0x1000000+65536*Math.min(255,(c>>16)+d)+256*Math.min(255,(c>>8&255)+d)+Math.min(255,(255&c)+d)).toString(16).slice(1)};i(c,20);let j=i(c,-15),k=(a=>{switch(a?.toLowerCase()){case"urgent":return{bg:"#fef2f2",border:"#ef4444",text:"#dc2626"};case"high":return{bg:"#fff7ed",border:"#f97316",text:"#ea580c"};case"low":return{bg:"#f9fafb",border:"#9ca3af",text:"#6b7280"};default:return{bg:"#eff6ff",border:c,text:j}}})(a.priority);return{subject:a.subject||`Message from ${d}`,html:`
+    `}),"rich-email":a=>{let b,c="#1e40af",d=a.companyName||a.tenantName||"InsightBooks",e=a.baseUrl||process.env.NEXT_PUBLIC_BASE_URL||"http://162.35.99.177:3000",f=a.tenantLogoUrl,g=null,h=!1;f&&""!==f.trim()&&(g=f.startsWith("http://")||f.startsWith("https://")?f:f.startsWith("/")?`${e}${f}`:`${e}/${f}`,h=!0);let i=(a,b)=>{let c=parseInt(a.replace("#",""),16),d=Math.round(2.55*b);return"#"+(0x1000000+65536*Math.min(255,(c>>16)+d)+256*Math.min(255,(c>>8&255)+d)+Math.min(255,(255&c)+d)).toString(16).slice(1)};i(c,20);let j=i(c,-15),k=(a=>{switch(a?.toLowerCase()){case"urgent":return{bg:"#fef2f2",border:"#ef4444",text:"#dc2626"};case"high":return{bg:"#fff7ed",border:"#f97316",text:"#ea580c"};case"low":return{bg:"#f9fafb",border:"#9ca3af",text:"#6b7280"};default:return{bg:"#eff6ff",border:c,text:j}}})(a.priority);return{subject:a.subject||`Message from ${d}`,html:`
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -257,7 +257,7 @@
   </table>
 </body>
 </html>
-      `}},"payslip-email":a=>{let b,c="#1e40af",d=a.companyName||a.tenantName||"InsightBooks",e=a.baseUrl||process.env.NEXT_PUBLIC_BASE_URL||"http://213.165.230.139:3000",f=a.tenantLogoUrl;if(f&&""!==f.trim()){let a=f.startsWith("http")?f:`${e}${f}`;b=`<img src="${a}" alt="${d}" style="max-height: 80px; max-width: 250px; height: auto; width: auto; display: block; margin: 0 auto;" />`}else b=`<h1 style="color: ${c}; margin: 0; font-size: 28px; font-weight: 700;">${d}</h1>`;return{subject:a.subject||`Your Payslip for ${a.month} ${a.year} - ${d}`,html:`
+      `}},"payslip-email":a=>{let b,c="#1e40af",d=a.companyName||a.tenantName||"InsightBooks",e=a.baseUrl||process.env.NEXT_PUBLIC_BASE_URL||"http://162.35.99.177:3000",f=a.tenantLogoUrl;if(f&&""!==f.trim()){let a=f.startsWith("http")?f:`${e}${f}`;b=`<img src="${a}" alt="${d}" style="max-height: 80px; max-width: 250px; height: auto; width: auto; display: block; margin: 0 auto;" />`}else b=`<h1 style="color: ${c}; margin: 0; font-size: 28px; font-weight: 700;">${d}</h1>`;return{subject:a.subject||`Your Payslip for ${a.month} ${a.year} - ${d}`,html:`
 <!DOCTYPE html>
 <html lang="en">
 <head>

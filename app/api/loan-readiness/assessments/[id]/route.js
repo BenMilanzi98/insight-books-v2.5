@@ -9,6 +9,7 @@ import {
   approveAssessmentVersion,
 } from '../../../../../lib/loanReadiness/application/assessmentService.js';
 import { ADVISORY_DISCLAIMER } from '../../../../../lib/loanReadiness/domain/enums.js';
+import { serializeLoanReadiness } from '../../../../../lib/loanReadiness/application/serialize.js';
 
 export async function GET(request, { params }) {
   try {
@@ -42,7 +43,9 @@ export async function POST(request, { params }) {
         LOAN_READINESS_PERMISSIONS.REVIEW_ASSESSMENT
       );
       if (guard.response) return guard.response;
-      const version = await reviewAssessmentVersion(prisma, guard.context, id);
+      const version = serializeLoanReadiness(
+        await reviewAssessmentVersion(prisma, guard.context, id)
+      );
       return NextResponse.json({ version, disclaimer: ADVISORY_DISCLAIMER });
     }
     if (body.action === 'approve') {
@@ -51,7 +54,9 @@ export async function POST(request, { params }) {
         LOAN_READINESS_PERMISSIONS.APPROVE_ASSESSMENT
       );
       if (guard.response) return guard.response;
-      const version = await approveAssessmentVersion(prisma, guard.context, id);
+      const version = serializeLoanReadiness(
+        await approveAssessmentVersion(prisma, guard.context, id)
+      );
       return NextResponse.json({ version, disclaimer: ADVISORY_DISCLAIMER });
     }
 
