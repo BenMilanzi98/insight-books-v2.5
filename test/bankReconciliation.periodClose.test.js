@@ -16,9 +16,27 @@ describe('checklist v1.1.0 bank recon live feed', () => {
 });
 
 describe('period close feed evaluation', () => {
-  it('falls back to manual when flags are off', async () => {
+  it('falls back to manual when flags are explicitly off', async () => {
     const db = {
       acctV2FeatureFlag: {
+        findMany: async () => [
+          {
+            tenantId: 'biz-1',
+            flagKey: 'bankReconciliationPeriodCloseFeedEnabled',
+            moduleKey: '*',
+            eventType: '*',
+            enabled: false,
+          },
+          {
+            tenantId: 'biz-1',
+            flagKey: 'bankReconciliationV2Enabled',
+            moduleKey: '*',
+            eventType: '*',
+            enabled: false,
+          },
+        ],
+      },
+      paymentAccount: {
         findMany: async () => [],
       },
     };
@@ -30,6 +48,28 @@ describe('period close feed evaluation', () => {
     expect(result.automatic).toBe(false);
     expect(result.ok).toBe(true);
     expect(result.result.mode).toBe('MANUAL_FALLBACK');
+  });
+
+  it('evaluates live feed when flags default on with empty flag rows', async () => {
+    const db = {
+      acctV2FeatureFlag: {
+        findMany: async () => [],
+      },
+      paymentAccount: {
+        findMany: async () => [],
+      },
+      bankRecConfiguration: {
+        findMany: async () => [],
+      },
+    };
+    const result = await evaluateBankReconciliationClose(
+      db,
+      { businessId: 'biz-1' },
+      { endDate: new Date('2026-07-31') }
+    );
+    expect(result.automatic).toBe(true);
+    expect(result.ok).toBe(true);
+    expect(result.result.expected).toBe(0);
   });
 
   it('passes live feed when no reconcilable accounts are in scope', async () => {
