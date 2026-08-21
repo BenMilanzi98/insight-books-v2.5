@@ -125,3 +125,110 @@ function toOptionalNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : value;
 }
+
+function toFiniteNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Absolute bank amount in minor units (`signedAmountMinor` on statement rows). */
+export function statementBankAbsMinor(statement) {
+  return Math.abs(toFiniteNumber(statement?.signedAmountMinor));
+}
+
+/** Book amount in minor units: remainingAmountMinor (candidates) or amountMinor (outstanding). */
+export function bookCandidateAmountMinor(book) {
+  if (book?.remainingAmountMinor != null && book.remainingAmountMinor !== '') {
+    return toFiniteNumber(book.remainingAmountMinor);
+  }
+  if (book?.amountMinor != null && book.amountMinor !== '') {
+    return toFiniteNumber(book.amountMinor);
+  }
+  return 0;
+}
+
+export function selectedBookSumMinor(books) {
+  return (books || []).reduce((sum, book) => sum + Math.abs(bookCandidateAmountMinor(book)), 0);
+}
+
+export function canPostManualMatch(statement, books) {
+  if (!statement || !Array.isArray(books) || books.length === 0) return false;
+  return statementBankAbsMinor(statement) === selectedBookSumMinor(books);
+}
+
+export function formatMinorAsAmount(minor) {
+  return (toFiniteNumber(minor) / 100).toFixed(2);
+}
+
+export function manualMatchAmountError(statement, books) {
+  const bank = statementBankAbsMinor(statement);
+  const book = selectedBookSumMinor(books);
+  return `Amounts do not match. Bank total: ${formatMinorAsAmount(bank)} · Book total: ${formatMinorAsAmount(book)}`;
+}
+
+export function buildManualMatchBody({ reconciliationId, statement, books, notes }) {
+  const body = {
+    reconciliationId,
+    statementIds: statement?.id ? [statement.id] : [],
+    bookLinks: (books || []).map((book) => {
+      const amountMinor = bookCandidateAmountMinor(book);
+      return {
+        journalEntryLineId: book.journalEntryLineId,
+        amountMinor,
+        allocatedAmountMinor: amountMinor,
+      };
+    }),
+  };
+  if (notes) body.notes = notes;
+  return body;
+}
+
+export function autoMatchReconciliation(reconciliationId) {
+  return reconFetch(
+    `/api/bank-reconciliation/reconciliations/${encodeURIComponent(reconciliationId)}/auto-match`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    }
+  );
+}
+
+export function listMatchCandidates({ paymentAccountId, reconciliationId, startDate, endDate } = {}) {
+  const params = [];
+  if (paymentAccountId) params.push(`paymentAccountId=${encodeURIComponent(paymentAccountId)}`);
+  if (reconciliationId) params.push(`reconciliationId=${encodeURIComponent(reconciliationId)}`);
+  if (startDate) params.push(`startDate=${encodeURIComponent(startDate)}`);
+  if (endDate) params.push(`endDate=${encodeURIComponent(endDate)}`);
+  return reconFetch(`/api/bank-reconciliation/candidates?${params.join('&')}`);
+}
+
+export function postManualMatch(body) {
+  return reconFetch('/api/bank-reconciliation/matches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function acceptSuggestedMatch(matchId) {
+  return reconFetch(
+    `/api/bank-reconciliation/matches/${encodeURIComponent(matchId)}/accept`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    }
+  );
+}
+
+export function rejectSuggestedMatch(matchId) {
+  return reconFetch(
+    `/api/bank-reconciliation/matches/${encodeURIComponent(matchId)}/reject`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    }
+  );
+}

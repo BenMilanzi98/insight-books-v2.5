@@ -7,14 +7,24 @@ import {
   buildConfirmImportFormData,
   buildCreateReconciliationBody,
   buildPreviewImportFormData,
+  acceptSuggestedMatch,
+  autoMatchReconciliation,
+  buildManualMatchBody,
   canConfirmGuidedImportPreview,
+  canPostManualMatch,
   confirmStatementImport,
   createReconciliation,
   findOpenReconciliation,
   isAllowedGuidedStatementFile,
+  listMatchCandidates,
   listReconciliations,
+  manualMatchAmountError,
+  postManualMatch,
   previewStatementImport,
   reconFetch,
+  rejectSuggestedMatch,
+  selectedBookSumMinor,
+  statementBankAbsMinor,
 } from '../components/payments/reconcile/reconApi.js';
 
 function fakeStatementFile(name) {
@@ -205,5 +215,128 @@ describe('guided reconcile CSV/Excel import helpers', () => {
     expect(canConfirmGuidedImportPreview(noBatch, file)).toBe(false);
     expect(canConfirmGuidedImportPreview(withRows, null)).toBe(false);
     expect(canConfirmGuidedImportPreview(null, file)).toBe(false);
+  });
+});
+
+describe('guided reconcile match amount helpers', () => {
+  const bank = { id: 'stmt-1', signedAmountMinor: -15000 };
+  const booksEqual = [
+    { journalEntryLineId: 'jel-1', remainingAmountMinor: -9000 },
+    { journalEntryLineId: 'jel-2', remainingAmountMinor: -6000 },
+  ];
+  const booksShort = [{ journalEntryLineId: 'jel-1', remainingAmountMinor: -10000 }];
+  const outstandingBooks = [
+    { journalEntryLineId: 'jel-1', amountMinor: 8000 },
+    { journalEntryLineId: 'jel-2', amountMinor: 7000 },
+  ];
+
+  it('sums selected book amounts as magnitudes and compares to abs(bank.signedAmountMinor)', () => {
+    expect(statementBankAbsMinor(bank)).toBe(15000);
+    expect(selectedBookSumMinor(booksEqual)).toBe(15000);
+    expect(selectedBookSumMinor(outstandingBooks)).toBe(15000);
+    expect(canPostManualMatch(bank, booksEqual)).toBe(true);
+    expect(canPostManualMatch(bank, outstandingBooks)).toBe(true);
+    expect(canPostManualMatch(bank, booksShort)).toBe(false);
+    expect(canPostManualMatch(bank, [])).toBe(false);
+    expect(canPostManualMatch(null, booksEqual)).toBe(false);
+  });
+
+  it('formats a mismatch error with both bank and book totals', () => {
+    const message = manualMatchAmountError(bank, booksShort);
+    expect(message).toMatch(/150\.00/);
+    expect(message).toMatch(/100\.00/);
+    expect(message.toLowerCase()).toMatch(/do not match/);
+  });
+
+  it('builds a 1:N manual match body with statementIds and bookLinks', () => {
+    expect(
+      buildManualMatchBody({
+        reconciliationId: 'rec-1',
+        statement: bank,
+        books: booksEqual,
+        notes: 'split deposit',
+      })
+    ).toEqual({
+      reconciliationId: 'rec-1',
+      statementIds: ['stmt-1'],
+      bookLinks: [
+        { journalEntryLineId: 'jel-1', amountMinor: -9000, allocatedAmountMinor: -9000 },
+        { journalEntryLineId: 'jel-2', amountMinor: -6000, allocatedAmountMinor: -6000 },
+      ],
+      notes: 'split deposit',
+    });
+  });
+});
+
+describe('guided reconcile match API helpers', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('posts auto-match with an empty JSON body then can refresh via workspace GET', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ matchesCreated: 2, suggestions: 2 }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await autoMatchReconciliation('rec 1');
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      '/api/bank-reconciliation/reconciliations/rec%201/auto-match'
+    );
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[0][1].headers['Content-Type']).toBe('application/json');
+    expect(fetchMock.mock.calls[0][1].body).toBe('{}');
+    expect(result.matchesCreated).toBe(2);
+  });
+
+  it('lists book candidates with paymentAccountId (API required) and optional dates', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ candidates: [{ journalEntryLineId: 'jel-1' }] }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const data = await listMatchCandidates({
+      paymentAccountId: 'pa 1',
+      reconciliationId: 'rec-1',
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/bank-reconciliation/candidates?');
+    expect(fetchMock.mock.calls[0][0]).toContain('paymentAccountId=pa%201');
+    expect(fetchMock.mock.calls[0][0]).toContain('reconciliationId=rec-1');
+    expect(fetchMock.mock.calls[0][0]).toContain('startDate=2026-08-01');
+    expect(fetchMock.mock.calls[0][0]).toContain('endDate=2026-08-31');
+    expect(data.candidates[0].journalEntryLineId).toBe('jel-1');
+  });
+
+  it('posts manual match and accept/reject actions', async () => {
+    const fetchMock = vi.fn(async (url) => ({
+      ok: true,
+      status: url.includes('/matches/') ? 200 : 201,
+      json: async () => ({ match: { id: 'm-1' } }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await postManualMatch({
+      reconciliationId: 'rec-1',
+      statementIds: ['stmt-1'],
+      bookLinks: [{ journalEntryLineId: 'jel-1', amountMinor: 100 }],
+    });
+    await acceptSuggestedMatch('m-1');
+    await rejectSuggestedMatch('m-1');
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/bank-reconciliation/matches');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).statementIds).toEqual(['stmt-1']);
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/bank-reconciliation/matches/m-1/accept');
+    expect(fetchMock.mock.calls[1][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/bank-reconciliation/matches/m-1/reject');
   });
 });

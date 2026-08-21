@@ -8,6 +8,7 @@ import PosStylePanel from '@/components/shell/PosStylePanel';
 import Button from '@/components/ui/Button';
 import StatementStep from './StatementStep.jsx';
 import ImportStep from './ImportStep.jsx';
+import MatchStep from './MatchStep.jsx';
 import {
   WIZARD_STEPS,
   getReconciliationWorkspace,
@@ -183,7 +184,14 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
             onConfirmed={handleImported}
           />
         ) : null}
-        {!loading && stepKey === 'match' ? <PlaceholderStep name="Match" /> : null}
+        {!loading && stepKey === 'match' ? (
+          <MatchStep
+            paymentAccountId={paymentAccountId}
+            reconciliationId={reconciliationId}
+            workspace={workspace}
+            onRefresh={refreshWorkspace}
+          />
+        ) : null}
         {!loading && stepKey === 'resolve' ? <PlaceholderStep name="Resolve" /> : null}
         {!loading && stepKey === 'complete' ? <PlaceholderStep name="Complete" /> : null}
 
