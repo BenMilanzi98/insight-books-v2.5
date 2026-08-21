@@ -1,6 +1,66 @@
 import { OPEN_RECON_STATUSES } from '@/lib/bankReconciliation/domain/enums.js';
 
 export const WIZARD_STEPS = ['statement', 'import', 'match', 'resolve', 'complete'];
+export const GUIDED_IMPORT_ACCEPT = '.csv,.xlsx,.xls';
+const GUIDED_IMPORT_EXTENSIONS = new Set(['.csv', '.xlsx', '.xls']);
+
+function statementFileExtension(fileName = '') {
+  const i = String(fileName).lastIndexOf('.');
+  return i >= 0 ? String(fileName).slice(i).toLowerCase() : '';
+}
+
+export function isAllowedGuidedStatementFile(fileName) {
+  return GUIDED_IMPORT_EXTENSIONS.has(statementFileExtension(fileName));
+}
+
+export function assertAllowedGuidedStatementFile(fileName) {
+  if (!isAllowedGuidedStatementFile(fileName)) {
+    throw new Error('Only CSV and Excel files (.csv, .xlsx, .xls) are accepted. OFX is not supported in this wizard.');
+  }
+}
+
+function appendIfPresent(form, key, value) {
+  if (value == null || value === '') return;
+  form.append(key, String(value));
+}
+
+export function buildPreviewImportFormData({
+  file,
+  paymentAccountId,
+  statementOpening,
+  statementClosing,
+  profileId,
+}) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('paymentAccountId', paymentAccountId);
+  appendIfPresent(form, 'statementOpening', statementOpening);
+  appendIfPresent(form, 'statementClosing', statementClosing);
+  appendIfPresent(form, 'profileId', profileId);
+  return form;
+}
+
+export function buildConfirmImportFormData({ file, batchId, reconciliationId }) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('batchId', batchId);
+  appendIfPresent(form, 'reconciliationId', reconciliationId);
+  return form;
+}
+
+export function previewStatementImport(formData) {
+  return reconFetch('/api/bank-reconciliation/import/preview', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+export function confirmStatementImport(formData) {
+  return reconFetch('/api/bank-reconciliation/import/confirm', {
+    method: 'POST',
+    body: formData,
+  });
+}
 
 export async function reconFetch(url, options) {
   const res = await fetch(url, options);

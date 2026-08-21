@@ -1,12 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OPEN_RECON_STATUSES } from '../lib/bankReconciliation/domain/enums.js';
 import {
+  GUIDED_IMPORT_ACCEPT,
+  WIZARD_STEPS,
+  assertAllowedGuidedStatementFile,
+  buildConfirmImportFormData,
   buildCreateReconciliationBody,
+  buildPreviewImportFormData,
+  confirmStatementImport,
   createReconciliation,
   findOpenReconciliation,
+  isAllowedGuidedStatementFile,
   listReconciliations,
+  previewStatementImport,
   reconFetch,
 } from '../components/payments/reconcile/reconApi.js';
+
+function fakeStatementFile(name) {
+  return new File(['Date,Description,Amount\n2026-08-01,Deposit,100.00\n'], name, { type: 'text/csv' });
+}
 
 describe('guided reconcile statement helpers', () => {
   afterEach(() => {
@@ -96,5 +108,88 @@ describe('guided reconcile statement helpers', () => {
     expect(fetchMock.mock.calls[1][1].method).toBe('POST');
     expect(JSON.parse(fetchMock.mock.calls[1][1].body).statementDate).toBe('2026-08-31');
     expect(created.reconciliation.id).toBe('rec-new');
+  });
+});
+
+describe('guided reconcile CSV/Excel import helpers', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('accepts only csv/xlsx/xls and rejects OFX', () => {
+    expect(GUIDED_IMPORT_ACCEPT).toBe('.csv,.xlsx,.xls');
+    expect(isAllowedGuidedStatementFile('stmt.csv')).toBe(true);
+    expect(isAllowedGuidedStatementFile('STMT.XLSX')).toBe(true);
+    expect(isAllowedGuidedStatementFile('legacy.xls')).toBe(true);
+    expect(isAllowedGuidedStatementFile('download.ofx')).toBe(false);
+    expect(isAllowedGuidedStatementFile('download.qfx')).toBe(false);
+    expect(() => assertAllowedGuidedStatementFile('bank.ofx')).toThrow(/OFX/i);
+  });
+
+  it('builds multipart preview FormData with file, account, and statement balances', () => {
+    const file = fakeStatementFile('august.csv');
+    const form = buildPreviewImportFormData({
+      file,
+      paymentAccountId: 'pa-1',
+      statementOpening: '10.00',
+      statementClosing: '90.00',
+    });
+    expect(form).toBeInstanceOf(FormData);
+    expect(form.get('paymentAccountId')).toBe('pa-1');
+    expect(form.get('statementOpening')).toBe('10.00');
+    expect(form.get('statementClosing')).toBe('90.00');
+    expect(form.get('file')).toBeTruthy();
+    expect(form.get('profileId')).toBeNull();
+  });
+
+  it('builds multipart confirm FormData with batchId, file, and reconciliationId', () => {
+    const file = fakeStatementFile('august.csv');
+    const form = buildConfirmImportFormData({
+      file,
+      batchId: 'batch-1',
+      reconciliationId: 'rec-1',
+    });
+    expect(form).toBeInstanceOf(FormData);
+    expect(form.get('batchId')).toBe('batch-1');
+    expect(form.get('reconciliationId')).toBe('rec-1');
+    expect(form.get('file')).toBeTruthy();
+  });
+
+  it('posts preview and confirm to the Phase 10 import endpoints without JSON bodies', async () => {
+    const file = fakeStatementFile('august.csv');
+    const fetchMock = vi.fn(async (url) => ({
+      ok: true,
+      status: 200,
+      json: async () =>
+        url.endsWith('/preview')
+          ? { batch: { id: 'batch-1' }, previewRows: [], totalRows: 1, duplicateRowCount: 0 }
+          : { batch: { id: 'batch-1' }, created: 1, skippedDuplicates: 0 },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const previewed = await previewStatementImport(
+      buildPreviewImportFormData({ file, paymentAccountId: 'pa-1' })
+    );
+    const confirmed = await confirmStatementImport(
+      buildConfirmImportFormData({ file, batchId: 'batch-1', reconciliationId: 'rec-1' })
+    );
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/bank-reconciliation/import/preview');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[0][1].body).toBeInstanceOf(FormData);
+    expect(fetchMock.mock.calls[0][1].headers?.['Content-Type']).toBeUndefined();
+    expect(previewed.batch.id).toBe('batch-1');
+
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/bank-reconciliation/import/confirm');
+    expect(fetchMock.mock.calls[1][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[1][1].body).toBeInstanceOf(FormData);
+    expect(fetchMock.mock.calls[1][1].headers?.['Content-Type']).toBeUndefined();
+    expect(confirmed.created).toBe(1);
+  });
+
+  it('places Match immediately after Import in the wizard', () => {
+    expect(WIZARD_STEPS).toEqual(['statement', 'import', 'match', 'resolve', 'complete']);
+    expect(WIZARD_STEPS.indexOf('match')).toBe(2);
   });
 });

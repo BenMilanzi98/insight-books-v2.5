@@ -7,11 +7,14 @@ import PosStylePageHeader, { PosStyleHeaderButton } from '@/components/shell/Pos
 import PosStylePanel from '@/components/shell/PosStylePanel';
 import Button from '@/components/ui/Button';
 import StatementStep from './StatementStep.jsx';
+import ImportStep from './ImportStep.jsx';
 import {
   WIZARD_STEPS,
   getReconciliationWorkspace,
   listReconcilableAccounts,
 } from './reconApi.js';
+
+const MATCH_STEP_INDEX = WIZARD_STEPS.indexOf('match');
 
 const STEP_LABELS = {
   statement: 'Statement',
@@ -91,6 +94,16 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
     }
   };
 
+  const handleImported = async () => {
+    setError('');
+    try {
+      if (reconciliationId) await refreshWorkspace(reconciliationId);
+      setStepIndex(MATCH_STEP_INDEX);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   const canLeaveStatement = Boolean(reconciliationId);
   const goToStep = (index) => {
     if (index < 0 || index >= WIZARD_STEPS.length) return;
@@ -159,7 +172,14 @@ export default function ReconcileWizard({ paymentAccountId, initialReconciliatio
           />
         ) : null}
 
-        {!loading && stepKey === 'import' ? <PlaceholderStep name="Import" /> : null}
+        {!loading && stepKey === 'import' ? (
+          <ImportStep
+            paymentAccountId={paymentAccountId}
+            reconciliationId={reconciliationId}
+            workspace={workspace}
+            onConfirmed={handleImported}
+          />
+        ) : null}
         {!loading && stepKey === 'match' ? <PlaceholderStep name="Match" /> : null}
         {!loading && stepKey === 'resolve' ? <PlaceholderStep name="Resolve" /> : null}
         {!loading && stepKey === 'complete' ? <PlaceholderStep name="Complete" /> : null}
