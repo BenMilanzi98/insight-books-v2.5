@@ -1,136 +1,69 @@
-### Task 2: Pure outbox push rules
+﻿### Task 2: Navigation rename + redirect
 
 **Files:**
-- Create: `lib/desktop/outboxState.js`
-- Create: `test/desktop/outboxState.test.js`
+- Modify: `locales/en/navigation.json` (and any other locale files that define `paymentAccounts`)
+- Modify: `lib/i18n/navLabelMap.js`
+- Modify: `components/Sidebar/Sidebar.js`
+- Replace: `app/bank-reconciliation/page.js` with redirect
+- Create: `app/bank-reconciliation/page.js` (server redirect) â€” keep path for bookmarks
 
 **Interfaces:**
-- Consumes: none
-- Produces:
-  - `OUTBOX_STATUS = { pending: 'pending', syncing: 'syncing', failed: 'failed', synced: 'synced' }`
-  - `sortOutboxForPush(rows) → rows` ordered by `seq` ascending
-  - `nextPushItem(rows) → row \| null` first `pending` or `syncing` (treat `syncing` as retry), **unless** any earlier `failed` exists (then `null`)
-  - `canPullSnapshot(rows) → boolean` true only when no `pending`, `syncing`, or `failed`
-  - `markPushFailure(rows, id, errorMessage) → rows` sets that id `failed`, leaves later items `pending`
-  - `markPushSuccess(rows, id, serverId) → rows`
+- Produces: sidebar label **Accounts & Reconciliation** â†’ `/payments`
+- Produces: `/bank-reconciliation` â†’ `/payments` (or `/payments/reconcile/[id]` when `?paymentAccountId=` present)
 
-- [ ] **Step 1: Write failing tests**
+- [ ] **Step 1: Update i18n**
 
-```js
-import { describe, expect, it } from 'vitest';
-import {
-  sortOutboxForPush,
-  nextPushItem,
-  canPullSnapshot,
-  markPushFailure,
-  markPushSuccess,
-} from '../../lib/desktop/outboxState.js';
+`locales/en/navigation.json`:
 
-const rows = [
-  { id: 'a', seq: 1, status: 'pending' },
-  { id: 'b', seq: 2, status: 'pending' },
-  { id: 'c', seq: 3, status: 'pending' },
-];
-
-describe('outbox push order', () => {
-  it('pushes lowest seq first', () => {
-    expect(nextPushItem(rows).id).toBe('a');
-  });
-
-  it('retries syncing before later pending', () => {
-    const r = [
-      { id: 'a', seq: 1, status: 'syncing' },
-      { id: 'b', seq: 2, status: 'pending' },
-    ];
-    expect(nextPushItem(r).id).toBe('a');
-  });
-
-  it('stops when an earlier item failed', () => {
-    const failed = markPushFailure(rows, 'b', 'stock 0');
-    expect(failed.find((x) => x.id === 'b').status).toBe('failed');
-    expect(failed.find((x) => x.id === 'c').status).toBe('pending');
-    expect(nextPushItem(failed)).toBeNull();
-    expect(canPullSnapshot(failed)).toBe(false);
-  });
-
-  it('allows snapshot pull only when drained', () => {
-    let r = markPushSuccess(rows, 'a', 'srv-a');
-    r = markPushSuccess(r, 'b', 'srv-b');
-    r = markPushSuccess(r, 'c', 'srv-c');
-    expect(canPullSnapshot(r)).toBe(true);
-  });
-
-  it('sorts by seq even if inserted out of order', () => {
-    const mixed = [
-      { id: 'c', seq: 3, status: 'pending' },
-      { id: 'a', seq: 1, status: 'pending' },
-    ];
-    expect(sortOutboxForPush(mixed).map((x) => x.id)).toEqual(['a', 'c']);
-  });
-});
+```json
+"paymentAccounts": "Accounts & Reconciliation",
+"bankReconciliation": "Accounts & Reconciliation"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+(Leave `bankReconciliation` key for any residual references; value may match hub.)
 
-Run: `npx vitest run test/desktop/outboxState.test.js`
-
-Expected: FAIL (module not found)
-
-- [ ] **Step 3: Write minimal implementation**
+Update `navLabelMap.js` if hardcoded English strings are mapped:
 
 ```js
-export const OUTBOX_STATUS = {
-  pending: 'pending',
-  syncing: 'syncing',
-  failed: 'failed',
-  synced: 'synced',
-};
+'Payment Accounts': 'navigation.paymentAccounts',
+'Accounts & Reconciliation': 'navigation.paymentAccounts',
+'Bank Reconciliation': 'navigation.paymentAccounts',
+```
 
-export function sortOutboxForPush(rows) {
-  return [...rows].sort((a, b) => a.seq - b.seq);
-}
+- [ ] **Step 2: Sidebar**
 
-export function nextPushItem(rows) {
-  const sorted = sortOutboxForPush(rows);
-  for (const row of sorted) {
-    if (row.status === 'failed') return null;
-    if (row.status === 'pending' || row.status === 'syncing') return row;
+In `components/Sidebar/Sidebar.js`:
+
+1. Change text for `/payments` entries from `"Payment Accounts"` to `"Accounts & Reconciliation"`.
+2. **Remove** the Accounting submenu item with `href: "/bank-reconciliation"`.
+
+- [ ] **Step 3: Redirect page**
+
+Replace `app/bank-reconciliation/page.js` with a thin server redirect:
+
+```js
+import { redirect } from 'next/navigation';
+
+export default async function BankReconciliationRedirect({ searchParams }) {
+  const sp = await searchParams;
+  const paymentAccountId = sp?.paymentAccountId;
+  if (paymentAccountId) {
+    redirect(`/payments/reconcile/${encodeURIComponent(paymentAccountId)}`);
   }
-  return null;
-}
-
-export function canPullSnapshot(rows) {
-  return rows.every((r) => r.status === 'synced');
-}
-
-export function markPushFailure(rows, id, errorMessage) {
-  return rows.map((r) =>
-    r.id === id ? { ...r, status: 'failed', errorMessage } : r
-  );
-}
-
-export function markPushSuccess(rows, id, serverId) {
-  return rows.map((r) =>
-    r.id === id ? { ...r, status: 'synced', serverId } : r
-  );
+  redirect('/payments');
 }
 ```
 
-Empty outbox: `canPullSnapshot([])` must be `true` (every() on [] is true). Add this assertion to the test file:
+- [ ] **Step 4: Manual check**
 
-```js
-  it('allows snapshot pull when outbox is empty', () => {
-    expect(canPullSnapshot([])).toBe(true);
-  });
+Open `/payments` â€” sidebar shows **Accounts & Reconciliation**.  
+Open `/bank-reconciliation` â€” lands on `/payments`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add locales/en/navigation.json lib/i18n/navLabelMap.js components/Sidebar/Sidebar.js app/bank-reconciliation/page.js
+git commit -m "feat(nav): Accounts & Reconciliation hub; redirect legacy bank-rec route"
 ```
-
-- [ ] **Step 4: Run tests to verify they pass**
-
-Run: `npx vitest run test/desktop/outboxState.test.js`
-
-Expected: PASS
-
-- [ ] **Step 5: Commit** (skip unless asked)
 
 ---
-

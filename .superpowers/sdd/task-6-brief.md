@@ -1,43 +1,45 @@
-### Task 6: Cloud snapshot builder
+﻿### Task 6: Match step (auto + manual 1:N)
 
 **Files:**
-- Create: `lib/desktop/cloud/snapshot.js`
-- Create: `app/api/desktop/snapshot/route.js`
-- Create: `test/desktop/snapshot.test.js`
+- Create: `components/payments/reconcile/MatchStep.jsx`
+- Modify: `reconApi.js`, `ReconcileWizard.jsx`
 
 **Interfaces:**
-- Produces: `buildDesktopSnapshot({ prisma, tenantId, userId }) → snapshot`
+- Consumes: `POST /api/bank-reconciliation/reconciliations/[id]/auto-match`
+- Consumes: `GET /api/bank-reconciliation/candidates?reconciliationId=`
+- Consumes: `POST /api/bank-reconciliation/matches` body:
+  `{ reconciliationId, statementIds: [id], bookLinks: [{ journalEntryLineId, amountMinor? }], notes? }`
+- Consumes: match accept/reject actions under `/api/bank-reconciliation/matches/[id]/[action]` if suggestions need accept
+- Displays: `guidedStatementStatusLabel` + outstanding list labeled **Outstanding**
 
-Snapshot shape (exact keys):
+- [ ] **Step 1: Layout**
+
+Two columns (or stacked on mobile):
+
+- Left: statement lines with status badges  
+- Right: book candidates  
+
+Actions: **Auto Match**, select bank + one/more books â†’ **Match**.
+
+Before POST manual match, client-check sums: `abs(bank.signedAmountMinor) === sum(selected book amounts)` (use workspace field names from API). If mismatch, show error with both totals â€” do not call API.
+
+- [ ] **Step 2: Auto Match**
 
 ```js
-{
-  version: 1,
-  tenantId: string,
-  sessionUser: { id, name, email, tenantId, role: { id, name, permissions } },
-  tenantSettings: { currencyCode, invoicePrefix, taxEnabled, defaultTaxRate, defaultLanguage },
-  customers: Array,      // Client rows for tenant (isActive + archived)
-  products: Array,       // Product + quantity + barcodes needed by POS
-  taxTypes: Array,       // active tax types
-  paymentAccounts: Array,
-  openInvoices: Array,   // status not paid/void, include items
-  recentPayments: Array, // last 90 days
-  posConfig: { cashDay: object|null },
-  serverNow: string,
-}
+await reconFetch(`/api/bank-reconciliation/reconciliations/${id}/auto-match`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: '{}',
+});
 ```
 
-GET `/api/desktop/snapshot` requires auth + bound device (`deviceId` query param). 403 `NOT_BOUND` otherwise.
+Then refresh workspace; show toast with `matchesCreated` if returned.
 
-- [ ] **Step 1: Write a test that the builder maps prisma results into those keys**
+- [ ] **Step 3: Commit**
 
-Use a fake prisma returning one client, one product, one tax type. Assert `snapshot.customers[0].id`, `snapshot.products[0].quantity`, `snapshot.version === 1`.
-
-- [ ] **Step 2: Implement queries** (real prisma in `snapshot.js`; keep selects explicit — do not `include: true` the whole graph)
-
-- [ ] **Step 3: Run** `npx vitest run test/desktop/snapshot.test.js` — Expected: PASS
-
-- [ ] **Step 4: Commit** (skip unless asked)
+```bash
+git add components/payments/reconcile
+git commit -m "feat(payments): auto and manual match in guided reconcile"
+```
 
 ---
-

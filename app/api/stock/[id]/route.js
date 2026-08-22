@@ -141,8 +141,8 @@ async function getProductWithValidation(id, tenantId) {
   
   // Determine product status
   let status;
-  const stockLevel = product.stockLevel || 0;
-  const reorderPoint = product.reorderPoint ?? 10; // Use the actual reorderPoint or default
+  const stockLevel = Number(product.stockLevel) || 0;
+  const reorderPoint = Number(product.reorderPoint) || 10; // Use the actual reorderPoint or default
 
   if (product.isService) {
     status = 'Service';
@@ -767,14 +767,15 @@ export async function PUT(request, { params }) {
       }
     }
 
-    // Determine product status
+    // Determine product status (coerce Prisma Decimal)
     let status;
-    const updatedReorderPoint = updated.reorderPoint || 10;
+    const updatedStockLevel = Number(updated.stockLevel) || 0;
+    const updatedReorderPoint = Number(updated.reorderPoint) || 10;
     if (updated.isService) {
       status = 'Service';
-    } else if (updated.stockLevel === 0) {
+    } else if (updatedStockLevel === 0) {
       status = 'Out of Stock';
-    } else if (updated.stockLevel <= updatedReorderPoint) {
+    } else if (updatedStockLevel <= updatedReorderPoint) {
       status = 'Low Stock';
     } else {
       status = 'In Stock';
@@ -855,13 +856,8 @@ export async function PUT(request, { params }) {
     console.log(`  - Updated Effective Stock: ${updatedProductWithDetails.productUnits?.reduce((total, pu) => total + parseFloat(pu.quantityInStock || 0), 0) || 0}`);
     console.log("=============================");
 
-    // Calculate effective stock level from units if available
-    let effectiveStockLevel = updated.stockLevel;
-    if (updatedProductWithDetails.productUnits && updatedProductWithDetails.productUnits.length > 0) {
-      effectiveStockLevel = updatedProductWithDetails.productUnits.reduce((total, pu) => {
-        return total + parseFloat(pu.quantityInStock || 0);
-      }, 0);
-    }
+    // Product.stockLevel is source of truth (do not sum ProductUnit rows — that double-counts)
+    const effectiveStockLevel = updated.isService ? null : (Number(updated.stockLevel) || 0);
     
     // Compute taxRate from productTaxes if the field is null/0
     const finalTaxRate = updated.taxRate || (updatedProductWithDetails.productTaxes || [])

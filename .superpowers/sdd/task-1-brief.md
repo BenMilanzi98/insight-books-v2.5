@@ -1,198 +1,114 @@
-### Task 1: Lock, codes, and document numbers (pure)
+﻿### Task 1: Eligibility + SoD defaults (backend alignment)
 
 **Files:**
-- Create: `lib/desktop/codes.js`
-- Create: `lib/desktop/lock.js`
-- Create: `lib/desktop/documentNumbers.js`
-- Create: `test/desktop/lock.test.js`
-- Create: `test/desktop/documentNumbers.test.js`
+- Modify: `lib/bankReconciliation/domain/enums.js`
+- Modify: `lib/bankReconciliation/application/configService.js`
+- Create: `lib/bankReconciliation/domain/guidedLabels.js`
+- Create: `test/bankReconciliation.guidedEligibility.test.js`
+- Modify: `test/bankReconciliation.completion.test.js` (only if assertions drift)
 
 **Interfaces:**
-- Produces:
-  - `DESKTOP_CODES = { SYNC_REQUIRED: 'DESKTOP_SYNC_REQUIRED', ONLINE_ONLY: 'DESKTOP_ONLINE_ONLY', SUBSCRIPTION_INACTIVE: 'SUBSCRIPTION_INACTIVE', DEVICE_BOUND: 'DEVICE_ALREADY_BOUND', NOT_BOUND: 'DEVICE_NOT_BOUND' }`
-  - `LOCK_MS = 24 * 60 * 60 * 1000`
-  - `WARN_MS = 20 * 60 * 60 * 1000`
-  - `CLOCK_BACKSHIFT_MS = 5 * 60 * 1000`
-  - `evaluateDesktopLock({ lastSuccessfulSyncAt, lastLocalNow, now, subscriptionActive }) → { locked: boolean, warning: boolean, hoursSinceSync: number, reason: 'stale' \| 'clock' \| 'subscription' \| null }`
-  - `formatDesktopDocNumber({ prefix, type, seq }) → string` e.g. `TILL1-SALE-1`
-  - `nextSeq(lastIssued) → number`
+- Produces: `RECONCILABLE_PAYMENT_TYPES = ['Bank', 'Mobile Money']`
+- Produces: `isGuidedReconcilableAccountType(type: string): boolean`
+- Produces: `guidedStatementStatusLabel(matchingStatus: string): string`
+- Produces: config default `requireSeparateApprover: false`
 
 - [ ] **Step 1: Write failing tests**
 
-Create `test/desktop/lock.test.js`:
+Create `test/bankReconciliation.guidedEligibility.test.js`:
 
 ```js
-import { describe, expect, it } from 'vitest';
-import { evaluateDesktopLock, LOCK_MS, WARN_MS } from '../../lib/desktop/lock.js';
+import { describe, it, expect } from 'vitest';
+import { RECONCILABLE_PAYMENT_TYPES } from '../lib/bankReconciliation/domain/enums.js';
+import {
+  isGuidedReconcilableAccountType,
+  guidedStatementStatusLabel,
+} from '../lib/bankReconciliation/domain/guidedLabels.js';
+import { assertReconcilablePaymentAccount } from '../lib/bankReconciliation/application/configService.js';
+import { AccountingValidationError } from '../lib/accountingV2/domain/errors.js';
 
-const HOUR = 60 * 60 * 1000;
-const t0 = Date.parse('2026-08-15T10:00:00.000Z');
-
-describe('evaluateDesktopLock', () => {
-  it('is unlocked under 20h', () => {
-    const r = evaluateDesktopLock({
-      lastSuccessfulSyncAt: t0,
-      lastLocalNow: t0,
-      now: t0 + 19 * HOUR,
-      subscriptionActive: true,
-    });
-    expect(r.locked).toBe(false);
-    expect(r.warning).toBe(false);
-    expect(r.reason).toBeNull();
+describe('guided recon eligibility', () => {
+  it('allows only Bank and Mobile Money', () => {
+    expect([...RECONCILABLE_PAYMENT_TYPES]).toEqual(['Bank', 'Mobile Money']);
+    expect(isGuidedReconcilableAccountType('Bank')).toBe(true);
+    expect(isGuidedReconcilableAccountType('Mobile Money')).toBe(true);
+    expect(isGuidedReconcilableAccountType('Cash')).toBe(false);
   });
 
-  it('warns between 20h and 24h', () => {
-    const r = evaluateDesktopLock({
-      lastSuccessfulSyncAt: t0,
-      lastLocalNow: t0,
-      now: t0 + 21 * HOUR,
-      subscriptionActive: true,
-    });
-    expect(r.locked).toBe(false);
-    expect(r.warning).toBe(true);
-    expect(r.hoursSinceSync).toBeGreaterThanOrEqual(20);
+  it('rejects Cash on assert', () => {
+    expect(() =>
+      assertReconcilablePaymentAccount({
+        isActive: true,
+        accountType: 'Cash',
+        tenantId: 't1',
+        coaAccountId: 'a1',
+        coaAccount: { tenantId: 't1', postingAllowed: true, acceptsNewTransactions: true },
+      })
+    ).toThrow(AccountingValidationError);
   });
 
-  it('locks at 24h', () => {
-    const r = evaluateDesktopLock({
-      lastSuccessfulSyncAt: t0,
-      lastLocalNow: t0,
-      now: t0 + LOCK_MS,
-      subscriptionActive: true,
-    });
-    expect(r.locked).toBe(true);
-    expect(r.reason).toBe('stale');
-  });
-
-  it('locks when local clock moves backward more than 5 minutes', () => {
-    const r = evaluateDesktopLock({
-      lastSuccessfulSyncAt: t0,
-      lastLocalNow: t0 + 2 * HOUR,
-      now: t0 + 2 * HOUR - 6 * 60 * 1000,
-      subscriptionActive: true,
-    });
-    expect(r.locked).toBe(true);
-    expect(r.reason).toBe('clock');
-  });
-
-  it('does not lock for a 4-minute backward blip', () => {
-    const r = evaluateDesktopLock({
-      lastSuccessfulSyncAt: t0,
-      lastLocalNow: t0 + HOUR,
-      now: t0 + HOUR - 4 * 60 * 1000,
-      subscriptionActive: true,
-    });
-    expect(r.reason).not.toBe('clock');
-  });
-
-  it('locks when subscription is inactive', () => {
-    const r = evaluateDesktopLock({
-      lastSuccessfulSyncAt: t0,
-      lastLocalNow: t0,
-      now: t0 + HOUR,
-      subscriptionActive: false,
-    });
-    expect(r.locked).toBe(true);
-    expect(r.reason).toBe('subscription');
+  it('maps statement statuses to guide labels', () => {
+    expect(guidedStatementStatusLabel('MATCHED')).toBe('Matched');
+    expect(guidedStatementStatusLabel('UNMATCHED')).toBe('Unmatched bank');
+    expect(guidedStatementStatusLabel('PARTIAL')).toBe('Unmatched bank');
   });
 });
 ```
 
-Create `test/desktop/documentNumbers.test.js`:
+- [ ] **Step 2: Run tests â€” expect fail**
+
+Run: `npx vitest run test/bankReconciliation.guidedEligibility.test.js`
+
+Expected: FAIL (missing `guidedLabels.js` and/or Cash still in enums)
+
+- [ ] **Step 3: Implement**
+
+In `enums.js`:
 
 ```js
-import { describe, expect, it } from 'vitest';
-import { formatDesktopDocNumber, nextSeq } from '../../lib/desktop/documentNumbers.js';
-
-describe('formatDesktopDocNumber', () => {
-  it('formats prefix-type-seq', () => {
-    expect(formatDesktopDocNumber({ prefix: 'TILL1', type: 'SALE', seq: 12 })).toBe('TILL1-SALE-12');
-  });
-});
-
-describe('nextSeq', () => {
-  it('increments from lastIssued', () => {
-    expect(nextSeq(0)).toBe(1);
-    expect(nextSeq(7)).toBe(8);
-  });
-});
+export const RECONCILABLE_PAYMENT_TYPES = Object.freeze(['Bank', 'Mobile Money']);
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `npx vitest run test/desktop/lock.test.js test/desktop/documentNumbers.test.js`
-
-Expected: FAIL with "Cannot find module" for `lib/desktop/lock.js`.
-
-- [ ] **Step 3: Write minimal implementation**
-
-`lib/desktop/codes.js`:
+Create `lib/bankReconciliation/domain/guidedLabels.js`:
 
 ```js
-export const DESKTOP_CODES = {
-  SYNC_REQUIRED: 'DESKTOP_SYNC_REQUIRED',
-  ONLINE_ONLY: 'DESKTOP_ONLINE_ONLY',
-  SUBSCRIPTION_INACTIVE: 'SUBSCRIPTION_INACTIVE',
-  DEVICE_BOUND: 'DEVICE_ALREADY_BOUND',
-  NOT_BOUND: 'DEVICE_NOT_BOUND',
-};
-```
+import { RECONCILABLE_PAYMENT_TYPES, StatementMatchingStatus } from './enums.js';
 
-`lib/desktop/lock.js`:
+export function isGuidedReconcilableAccountType(accountType) {
+  return RECONCILABLE_PAYMENT_TYPES.includes(accountType);
+}
 
-```js
-export const LOCK_MS = 24 * 60 * 60 * 1000;
-export const WARN_MS = 20 * 60 * 60 * 1000;
-export const CLOCK_BACKSHIFT_MS = 5 * 60 * 1000;
+/** Guide Â§5 statuses for statement rows */
+export function guidedStatementStatusLabel(matchingStatus) {
+  if (matchingStatus === StatementMatchingStatus.MATCHED) return 'Matched';
+  if (matchingStatus === StatementMatchingStatus.CLASSIFIED) return 'Matched';
+  return 'Unmatched bank';
+}
 
-export function evaluateDesktopLock({
-  lastSuccessfulSyncAt,
-  lastLocalNow,
-  now,
-  subscriptionActive,
-}) {
-  const nowMs = Number(now);
-  const syncMs = Number(lastSuccessfulSyncAt);
-  const lastLocalMs = Number(lastLocalNow);
-  const hoursSinceSync = (nowMs - syncMs) / (60 * 60 * 1000);
-
-  if (subscriptionActive === false) {
-    return { locked: true, warning: false, hoursSinceSync, reason: 'subscription' };
-  }
-  if (Number.isFinite(lastLocalMs) && lastLocalMs - nowMs > CLOCK_BACKSHIFT_MS) {
-    return { locked: true, warning: false, hoursSinceSync, reason: 'clock' };
-  }
-  if (nowMs - syncMs >= LOCK_MS) {
-    return { locked: true, warning: true, hoursSinceSync, reason: 'stale' };
-  }
-  if (nowMs - syncMs >= WARN_MS) {
-    return { locked: false, warning: true, hoursSinceSync, reason: null };
-  }
-  return { locked: false, warning: false, hoursSinceSync, reason: null };
+export function guidedOutstandingLabel() {
+  return 'Outstanding';
 }
 ```
 
-`lib/desktop/documentNumbers.js`:
+In `configService.js` `upsertConfiguration`:
 
 ```js
-export function formatDesktopDocNumber({ prefix, type, seq }) {
-  return `${prefix}-${type}-${seq}`;
-}
-
-export function nextSeq(lastIssued) {
-  return Number(lastIssued || 0) + 1;
-}
+requireSeparateApprover: input.requireSeparateApprover ?? false,
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+Keep assert message accurate: `Only Bank and Mobile Money accounts are reconcilable`.
 
-Run: `npx vitest run test/desktop/lock.test.js test/desktop/documentNumbers.test.js`
+- [ ] **Step 4: Run tests â€” expect pass**
+
+Run: `npx vitest run test/bankReconciliation.guidedEligibility.test.js test/bankReconciliation.completion.test.js`
 
 Expected: PASS
 
-- [ ] **Step 5: Commit** (skip unless the user asked)
+- [ ] **Step 5: Commit**
 
 ```bash
-git add lib/desktop/codes.js lib/desktop/lock.js lib/desktop/documentNumbers.js test/desktop/lock.test.js test/desktop/documentNumbers.test.js
-git commit -m "feat(desktop): add lock thresholds and document number helpers"
+git add lib/bankReconciliation/domain/enums.js lib/bankReconciliation/domain/guidedLabels.js lib/bankReconciliation/application/configService.js test/bankReconciliation.guidedEligibility.test.js
+git commit -m "fix(bank-rec): tighten Bank/Mobile Money eligibility and SoD default"
 ```
+
+---

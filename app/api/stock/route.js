@@ -283,7 +283,9 @@ export async function GET(request) {
         status = 'Service';
         stockLevel = null;
       } else {
-        stockLevel = productFields.stockLevel ?? 0;
+        // Prisma Decimal !== number; always coerce for status + UI qty
+        stockLevel = Number(productFields.stockLevel ?? 0);
+        if (!Number.isFinite(stockLevel)) stockLevel = 0;
         if (stockLevel === 0) {
           status = 'Out of Stock';
         } else if (stockLevel <= reorderPoint) {
@@ -610,7 +612,8 @@ export async function POST(request) {
     }
     
     // Get initial stock and cost BEFORE creating product (services are never stocked)
-    let initialStock = parseInt(body.quantityInStock || body.stockLevel || 0);
+    let initialStock = Number(body.quantityInStock ?? body.stockLevel ?? 0);
+    if (!Number.isFinite(initialStock) || initialStock < 0) initialStock = 0;
     if (body.isService) {
       initialStock = 0;
     }
@@ -886,7 +889,13 @@ export async function POST(request) {
               asOfDate: new Date(),
               entityId: product.id,
               description: `Opening stock — ${product.name}`,
-              metadata: { productId: product.id, quantity: initialStock },
+              // FIFO already applied above — GL only (avoids qty doubling)
+              skipInventory: true,
+              metadata: {
+                productId: product.id,
+                quantity: initialStock,
+                inventoryAlreadyApplied: true,
+              },
               createdBy: user.id,
             });
           } catch (obErr) {
@@ -925,20 +934,21 @@ export async function POST(request) {
       }
     });
     
-    // Determine product status
+    // Determine product status (coerce Prisma Decimal)
+    const createdStockLevel = Number(product.stockLevel) || 0;
     let status;
     if (product.isService) {
       status = 'Service';
-    } else if (product.stockLevel === 0) {
+    } else if (createdStockLevel === 0) {
       status = 'Out of Stock';
-    } else if (product.stockLevel <= (product.reorderPoint || 10)) {
+    } else if (createdStockLevel <= (Number(product.reorderPoint) || 10)) {
       status = 'Low Stock';
     } else {
       status = 'In Stock';
     }
     
     // Return the created product with some additional fields
-    if (!body.isService && (Number(product.stockLevel) || 0) > 0) {
+    if (!body.isService && createdStockLevel > 0) {
       await completeOpeningStockWizardStep(user.tenantId, prisma);
     }
 
@@ -947,10 +957,11 @@ export async function POST(request) {
         message: 'Product created successfully',
         product: {
           ...product,
-          quantityInStock: product.stockLevel,
-          unitPrice: product.price,
-          costPrice: product.cost || 0,
-          taxRate: product.taxRate || 0,
+          stockLevel: createdStockLevel,
+          quantityInStock: createdStockLevel,
+          unitPrice: Number(product.price) || 0,
+          costPrice: Number(product.cost) || 0,
+          taxRate: Number(product.taxRate) || 0,
           status,
           imageUrl: product.image || `/api/placeholder/80/80`,
           lastUpdated: product.updatedAt.toISOString(),

@@ -1,91 +1,66 @@
-### Task 3: Operational path lists + runtime flag
+﻿### Task 3: Reconcile Account CTA on hub
 
 **Files:**
-- Create: `lib/desktop/runtime.js`
-- Create: `lib/desktop/paths.js`
-- Create: `test/desktop/paths.test.js`
+- Modify: `components/payments/PaymentChannelsPanel.jsx`
+- Modify: `app/payments/page.js`
+- Modify: hub copy strings on payments page header
 
 **Interfaces:**
-- Produces:
-  - `DESKTOP_COOKIE = 'ib_desktop'`
-  - `isDesktopRuntime() → process.env.DESKTOP_RUNTIME === '1'`
-  - `isDesktopCookie(requestCookiesValue) → boolean`
-  - `classifyDesktopApiPath(pathname) → 'operational' \| 'desktop-cloud' \| 'desktop-local' \| 'auth-ok' \| 'online-only'`
-  - Operational prefixes: `/api/sales`, `/api/pos`, `/api/invoices`, `/api/clients`, `/api/stock`, `/api/payments`
-  - `auth-ok`: `/api/auth/me`, `/api/auth/logout`, `/api/preferences/language`, `/api/auth/page-guard`, `/api/auth/api-guard`
-  - `desktop-cloud`: `/api/desktop/bind|unbind|snapshot|outbox|heartbeat` (cloud only; local Next must not handle these against SQLite)
-  - `desktop-local`: `/api/desktop-local`
-  - Online-only exceptions inside operational prefixes (still `online-only`):
-    - `/api/invoices/*/send`, `/api/invoices/upload`, `/api/invoices/export`, `/api/invoices/*/download`, `/api/invoices/*/attachments`
-    - `/api/clients/send-email`, `/api/clients/bulk-upload`, `/api/clients/template`, `/api/clients/*/balance-reminder`
-    - `/api/stock/receiving`, `/api/stock/basic-import`, `/api/stock/export`, `/api/stock/upload-image`, `/api/stock/basic-export`
-    - `/api/payments/export`, `/api/payments/sync`
-    - `/api/sales/export`, `/api/sales/receipts/export`, `/api/pos/cash-day/export`
-    - `/api/pos/cash-day/deposit` (GL sweep to other accounts — online only)
+- Consumes: `isGuidedReconcilableAccountType`
+- Produces: button navigates to `/payments/reconcile/[paymentAccountId]`
 
-- [ ] **Step 1: Write failing tests**
+- [ ] **Step 1: Pass reconcile handler into panel**
+
+In `app/payments/page.js`, import router (already present) and:
 
 ```js
-import { describe, expect, it } from 'vitest';
-import { classifyDesktopApiPath } from '../../lib/desktop/paths.js';
+const canReconcile = /* getPermission bankReconciliation.view â€” load in useEffect */;
 
-describe('classifyDesktopApiPath', () => {
-  it('marks POS sale as operational', () => {
-    expect(classifyDesktopApiPath('/api/sales')).toBe('operational');
-    expect(classifyDesktopApiPath('/api/pos/cash-day/open')).toBe('operational');
-  });
-
-  it('marks invoice send as online-only', () => {
-    expect(classifyDesktopApiPath('/api/invoices/abc/send')).toBe('online-only');
-  });
-
-  it('marks stock receiving as online-only', () => {
-    expect(classifyDesktopApiPath('/api/stock/receiving')).toBe('online-only');
-  });
-
-  it('marks payroll as online-only', () => {
-    expect(classifyDesktopApiPath('/api/payroll')).toBe('online-only');
-    expect(classifyDesktopApiPath('/api/reports/trial-balance')).toBe('online-only');
-  });
-
-  it('allows language + me', () => {
-    expect(classifyDesktopApiPath('/api/auth/me')).toBe('auth-ok');
-    expect(classifyDesktopApiPath('/api/preferences/language')).toBe('auth-ok');
-  });
-});
+const handleReconcileAccount = (account) => {
+  router.push(`/payments/reconcile/${account.id}`);
+};
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+Pass `onReconcileAccount={canReconcile ? handleReconcileAccount : undefined}` into `PaymentChannelsPanel`.
 
-Run: `npx vitest run test/desktop/paths.test.js`
+Update page title/subtitle from â€œPayment Accountsâ€ / cash-bank-mobile copy to **Accounts & Reconciliation** language per spec.
 
-Expected: FAIL (module not found)
+- [ ] **Step 2: AccountRow CTA**
 
-- [ ] **Step 3: Implement `paths.js` and `runtime.js`**
+In `PaymentChannelsPanel.jsx` `AccountRow` (non-management mode):
 
-`lib/desktop/runtime.js`:
+- Import `isGuidedReconcilableAccountType`.
+- If eligible and `onReconcileAccount` provided, render a **Reconcile Account** button that `stopPropagation` and calls `onReconcileAccount(account)`.
+- Keep existing row click for history/select.
 
-```js
-export const DESKTOP_COOKIE = 'ib_desktop';
+Pseudo:
 
-export function isDesktopRuntime() {
-  return process.env.DESKTOP_RUNTIME === '1';
-}
-
-export function isDesktopCookie(value) {
-  return String(value || '') === '1';
-}
+```jsx
+{isGuidedReconcilableAccountType(account.accountType) && onReconcileAccount ? (
+  <button
+    type="button"
+    className="text-xs font-semibold text-indigo-700 ..."
+    onClick={(e) => {
+      e.stopPropagation();
+      onReconcileAccount(account);
+    }}
+  >
+    {tt('Reconcile Account')}
+  </button>
+) : null}
 ```
 
-Implement `classifyDesktopApiPath` with prefix startsWith checks. Exception list is tested with exact prefixes above; implement exceptions **before** the operational prefix match (longest-prefix / explicit deny list).
+Thread `onReconcileAccount` through `ChannelCard` â†’ `AccountRow`.
 
-- [ ] **Step 4: Run tests**
+- [ ] **Step 3: Verify**
 
-Run: `npx vitest run test/desktop/paths.test.js`
+Bank/Mobile Money rows show **Reconcile Account**; Cash does not.
 
-Expected: PASS
+- [ ] **Step 4: Commit**
 
-- [ ] **Step 5: Commit** (skip unless asked)
+```bash
+git add app/payments/page.js components/payments/PaymentChannelsPanel.jsx
+git commit -m "feat(payments): Reconcile Account CTA for Bank and Mobile Money"
+```
 
 ---
-

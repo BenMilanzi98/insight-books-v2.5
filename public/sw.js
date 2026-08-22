@@ -24,6 +24,16 @@ self.addEventListener('fetch', (event) => {
   // Only cache GET requests for navigation and static assets
   if (request.method !== 'GET') return;
 
+  const url = new URL(request.url);
+  // Never cache Next.js / Turbopack / HMR chunks — stale factories break the app.
+  if (
+    url.pathname.startsWith('/_next/') ||
+    url.pathname.includes('turbopack') ||
+    url.searchParams.has('_rsc')
+  ) {
+    return;
+  }
+
   // For navigation requests, try network first, fall back to cache
   if (request.mode === 'navigate') {
     event.respondWith(

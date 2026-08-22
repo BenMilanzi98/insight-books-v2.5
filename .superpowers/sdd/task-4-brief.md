@@ -1,115 +1,68 @@
-### Task 4: Prisma `DesktopDevice` + `DesktopOutboxReceipt`
+﻿### Task 4: Guided wizard shell + statement step
 
 **Files:**
-- Modify: `prisma/schema.prisma` (Tenant relations + two new models)
-- Create: `prisma/migrations/20260815120000_desktop_device/migration.sql`
+- Create: `app/payments/reconcile/[paymentAccountId]/page.js`
+- Create: `components/payments/reconcile/ReconcileWizard.jsx`
+- Create: `components/payments/reconcile/StatementStep.jsx`
+- Create: `components/payments/reconcile/reconApi.js` (thin fetch helpers)
 
 **Interfaces:**
-- Produces Prisma models:
+- Consumes: `POST /api/bank-reconciliation/reconciliations`
+- Consumes: `GET /api/bank-reconciliation/reconciliations?paymentAccountId=`
+- Consumes: `GET /api/bank-reconciliation/accounts`
+- Produces: open/create recon â†’ `reconciliationId` for later steps
 
-```prisma
-model DesktopDevice {
-  id              String    @id @default(cuid())
-  tenantId        String
-  deviceId        String
-  name            String
-  numberPrefix    String
-  boundAt         DateTime  @default(now())
-  unboundAt       DateTime?
-  lastHeartbeatAt DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  receipts        DesktopOutboxReceipt[]
+- [ ] **Step 1: API helper**
 
-  @@unique([deviceId])
-  @@index([tenantId, unboundAt])
-  @@index([tenantId, numberPrefix])
-}
-
-model DesktopOutboxReceipt {
-  id             String   @id
-  tenantId       String
-  deviceId       String
-  kind           String
-  serverEntityId String?
-  resultJson     Json
-  createdAt      DateTime @default(now())
-  device         DesktopDevice @relation(fields: [deviceId], references: [deviceId], onDelete: Cascade)
-
-  @@unique([tenantId, id])
-  @@index([tenantId])
-}
-```
-
-Add `desktopDevices DesktopDevice[]` on `Tenant`.
-
-One-active-device is **application-enforced** (query `unboundAt: null`), not a unique constraint, so a tenant can re-bind after unbind and reuse `TILL1`.
-
-- [ ] **Step 1: Write a schema smoke test**
-
-Create `test/desktop/schemaModels.test.js`:
+`components/payments/reconcile/reconApi.js`:
 
 ```js
-import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+export async function reconFetch(url, options) {
+  const res = await fetch(url, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || data.error || `Request failed (${res.status})`);
+  return data;
+}
 
-describe('DesktopDevice schema', () => {
-  const schema = readFileSync(join(process.cwd(), 'prisma/schema.prisma'), 'utf8');
-  it('declares DesktopDevice and DesktopOutboxReceipt', () => {
-    expect(schema).toMatch(/model DesktopDevice/);
-    expect(schema).toMatch(/model DesktopOutboxReceipt/);
-    expect(schema).toMatch(/desktopDevices\s+DesktopDevice\[\]/);
+export function listReconciliations(paymentAccountId) {
+  return reconFetch(
+    `/api/bank-reconciliation/reconciliations?paymentAccountId=${encodeURIComponent(paymentAccountId)}`
+  );
+}
+
+export function createReconciliation(body) {
+  return reconFetch('/api/bank-reconciliation/reconciliations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   });
-});
+}
 ```
 
-- [ ] **Step 2: Run test (fail), then add models + SQL, then pass**
+- [ ] **Step 2: StatementStep**
 
-Migration SQL:
+Form fields: period start, period end, opening balance, closing balance.  
+On submit:
 
-```sql
-CREATE TABLE "DesktopDevice" (
-  "id" TEXT NOT NULL,
-  "tenantId" TEXT NOT NULL,
-  "deviceId" TEXT NOT NULL,
-  "name" TEXT NOT NULL,
-  "numberPrefix" TEXT NOT NULL,
-  "boundAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "unboundAt" TIMESTAMP(3),
-  "lastHeartbeatAt" TIMESTAMP(3),
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3) NOT NULL,
-  CONSTRAINT "DesktopDevice_pkey" PRIMARY KEY ("id")
-);
-CREATE UNIQUE INDEX "DesktopDevice_deviceId_key" ON "DesktopDevice"("deviceId");
-CREATE INDEX "DesktopDevice_tenantId_unboundAt_idx" ON "DesktopDevice"("tenantId", "unboundAt");
-CREATE INDEX "DesktopDevice_tenantId_numberPrefix_idx" ON "DesktopDevice"("tenantId", "numberPrefix");
-ALTER TABLE "DesktopDevice" ADD CONSTRAINT "DesktopDevice_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+1. `listReconciliations` â€” if any status in open set, offer Continue (set active id).
+2. Else `createReconciliation({ paymentAccountId, statementDate: periodEnd, periodStart, periodEnd, statementOpeningBalance, statementClosingBalance })`.
 
-CREATE TABLE "DesktopOutboxReceipt" (
-  "id" TEXT NOT NULL,
-  "tenantId" TEXT NOT NULL,
-  "deviceId" TEXT NOT NULL,
-  "kind" TEXT NOT NULL,
-  "serverEntityId" TEXT,
-  "resultJson" JSONB NOT NULL,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "DesktopOutboxReceipt_pkey" PRIMARY KEY ("id")
-);
-CREATE UNIQUE INDEX "DesktopOutboxReceipt_tenantId_id_key" ON "DesktopOutboxReceipt"("tenantId", "id");
-CREATE INDEX "DesktopOutboxReceipt_tenantId_idx" ON "DesktopOutboxReceipt"("tenantId");
-ALTER TABLE "DesktopOutboxReceipt" ADD CONSTRAINT "DesktopOutboxReceipt_deviceId_fkey" FOREIGN KEY ("deviceId") REFERENCES "DesktopDevice"("deviceId") ON DELETE CASCADE ON UPDATE CASCADE;
+- [ ] **Step 3: Wizard shell**
+
+`ReconcileWizard.jsx` holds step index + `reconciliationId` + workspace refresh.  
+Page loads account name from `/api/bank-reconciliation/accounts` (filter by id) or payment-accounts API.
+
+Steps array: `statement | import | match | resolve | complete`.
+
+- [ ] **Step 4: Smoke**
+
+Navigate from CTA â†’ statement form creates/resumes recon.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/payments/reconcile components/payments/reconcile
+git commit -m "feat(payments): guided reconcile wizard shell and statement step"
 ```
-
-- [ ] **Step 3: Generate client**
-
-Run: `npx prisma generate`
-
-Expected: client includes `desktopDevice` / `desktopOutboxReceipt`.
-
-- [ ] **Step 4: Commit** (skip unless asked)
 
 ---
-

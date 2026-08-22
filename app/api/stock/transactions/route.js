@@ -684,7 +684,15 @@ export async function POST(request) {
             asOfDate: new Date(),
             entityId: body.productId,
             description: `Opening stock — Stock In (${productWithName?.name || product.id})`,
-            metadata: { productId: body.productId, quantity, unitCost, source: 'stock_in' },
+            // Stock In already created FIFO / updated stockLevel — GL only
+            skipInventory: true,
+            metadata: {
+              productId: body.productId,
+              quantity,
+              unitCost,
+              source: 'stock_in',
+              inventoryAlreadyApplied: true,
+            },
             createdBy: user.id,
           });
         } catch (obErr) {
@@ -694,13 +702,15 @@ export async function POST(request) {
       await completeOpeningStockWizardStep(user.tenantId, prisma);
     }
     
-    // Determine product status
+    // Determine product status (coerce Prisma Decimal)
+    const qtyAfter = Number(updatedProduct.stockLevel) || 0;
+    const reorderAfter = Number(product.reorderPoint) || 10;
     let status;
     if (product.isService) {
       status = 'Service';
-    } else if (updatedProduct.stockLevel === 0) {
+    } else if (qtyAfter === 0) {
       status = 'Out of Stock';
-    } else if (updatedProduct.stockLevel <= 10) { // Default reorderPoint
+    } else if (qtyAfter <= reorderAfter) {
       status = 'Low Stock';
     } else {
       status = 'In Stock';
@@ -725,7 +735,7 @@ export async function POST(request) {
         id: updatedProduct.id,
         name: productWithName?.name || 'Unknown',
         sku: productWithName?.sku || null,
-        quantityInStock: updatedProduct.stockLevel,
+        quantityInStock: qtyAfter,
         status: status,
         lastUpdated: updatedProduct.updatedAt.toISOString()
       }

@@ -64,3 +64,5 @@ cookies.txt
 
 # Phase 10 Support Ops — private attachment objects (never public/uploads)
 /storage/support-attachments/
+
+.worktrees/

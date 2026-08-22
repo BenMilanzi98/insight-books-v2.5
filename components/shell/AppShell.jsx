@@ -52,9 +52,24 @@ export default function AppShell({ children }) {
   }, []);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    if (!('serviceWorker' in navigator)) return undefined;
+
+    // Dev/HMR: never register — a stale SW serving old Turbopack chunks causes
+    // "module factory is not available" (e.g. lucide-react icons).
+    if (process.env.NODE_ENV !== 'production') {
+      navigator.serviceWorker.getRegistrations?.().then((regs) => {
+        regs.forEach((reg) => reg.unregister().catch(() => {}));
+      });
+      if (typeof caches !== 'undefined' && caches.keys) {
+        caches.keys().then((keys) => {
+          keys.forEach((key) => caches.delete(key).catch(() => {}));
+        });
+      }
+      return undefined;
     }
+
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    return undefined;
   }, []);
 
   useEffect(() => {

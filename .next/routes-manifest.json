@@ -2396,6 +2396,14 @@
       "namedRegex": "^/journal\\-entries/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/payments/reconcile/[paymentAccountId]",
+      "regex": "^/payments/reconcile/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPpaymentAccountId": "nxtPpaymentAccountId"
+      },
+      "namedRegex": "^/payments/reconcile/(?<nxtPpaymentAccountId>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/pos/list/[id]",
       "regex": "^/pos/list/([^/]+?)(?:/)?$",
       "routeKeys": {
